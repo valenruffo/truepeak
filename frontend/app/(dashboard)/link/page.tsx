@@ -9,12 +9,12 @@ import { Copy, Check, ExternalLink, BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const MOCK_SUBMISSIONS: Submission[] = [
-  { id: 1, label_id: 1, producer_name: "Alex Rivera", producer_email: "alex@email.com", track_title: "Midnight Protocol", status: "pending", bpm: 128.4, lufs: -13.2, true_peak: -1.2, phase_correlation: 0.85, duration: 245, mp3_path: null, created_at: "2026-05-04T10:30:00Z" },
-  { id: 2, label_id: 1, producer_name: "Sarah Chen", producer_email: "sarah@email.com", track_title: "Neon Dreams", status: "accepted", bpm: 125.0, lufs: -14.1, true_peak: -0.8, phase_correlation: 0.92, duration: 312, mp3_path: "/data/mp3s/uuid-2.mp3", created_at: "2026-05-03T15:20:00Z" },
-  { id: 3, label_id: 1, producer_name: "DJ Kroma", producer_email: "kroma@email.com", track_title: "Bass Drop Vol.3", status: "rejected", bpm: 140.2, lufs: -6.5, true_peak: 0.3, phase_correlation: -0.15, duration: 198, mp3_path: null, created_at: "2026-05-02T08:45:00Z" },
-  { id: 4, label_id: 1, producer_name: "Luna Wave", producer_email: "luna@email.com", track_title: "Ethereal Pulse", status: "pending", bpm: 122.8, lufs: -15.0, true_peak: -2.1, phase_correlation: 0.78, duration: 278, mp3_path: null, created_at: "2026-05-04T12:00:00Z" },
-  { id: 5, label_id: 1, producer_name: "Max Frequency", producer_email: "max@email.com", track_title: "Subterranean", status: "accepted", bpm: 130.0, lufs: -13.8, true_peak: -1.5, phase_correlation: 0.88, duration: 356, mp3_path: "/data/mp3s/uuid-5.mp3", created_at: "2026-05-01T20:10:00Z" },
-  { id: 6, label_id: 1, producer_name: "Nova Beat", producer_email: "nova@email.com", track_title: "Crystal Method", status: "pending", bpm: 127.0, lufs: -14.5, true_peak: -1.0, phase_correlation: 0.80, duration: 290, mp3_path: null, created_at: "2026-05-04T14:00:00Z" },
+  { id: 1, label_id: 1, producer_name: "Alex Rivera", producer_email: "alex@email.com", track_title: "Midnight Protocol", message: null, status: "pending", bpm: 128.4, lufs: -13.2, true_peak: -1.2, phase_correlation: 0.85, duration: 245, mp3_path: null, created_at: "2026-05-04T10:30:00Z" },
+  { id: 2, label_id: 1, producer_name: "Sarah Chen", producer_email: "sarah@email.com", track_title: "Neon Dreams", message: null, status: "accepted", bpm: 125.0, lufs: -14.1, true_peak: -0.8, phase_correlation: 0.92, duration: 312, mp3_path: "/data/mp3s/uuid-2.mp3", created_at: "2026-05-03T15:20:00Z" },
+  { id: 3, label_id: 1, producer_name: "DJ Kroma", producer_email: "kroma@email.com", track_title: "Bass Drop Vol.3", message: null, status: "rejected", bpm: 140.2, lufs: -6.5, true_peak: 0.3, phase_correlation: -0.15, duration: 198, mp3_path: null, created_at: "2026-05-02T08:45:00Z" },
+  { id: 4, label_id: 1, producer_name: "Luna Wave", producer_email: "luna@email.com", track_title: "Ethereal Pulse", message: null, status: "pending", bpm: 122.8, lufs: -15.0, true_peak: -2.1, phase_correlation: 0.78, duration: 278, mp3_path: null, created_at: "2026-05-04T12:00:00Z" },
+  { id: 5, label_id: 1, producer_name: "Max Frequency", producer_email: "max@email.com", track_title: "Subterranean", message: null, status: "accepted", bpm: 130.0, lufs: -13.8, true_peak: -1.5, phase_correlation: 0.88, duration: 356, mp3_path: "/data/mp3s/uuid-5.mp3", created_at: "2026-05-01T20:10:00Z" },
+  { id: 6, label_id: 1, producer_name: "Nova Beat", producer_email: "nova@email.com", track_title: "Crystal Method", message: null, status: "pending", bpm: 127.0, lufs: -14.5, true_peak: -1.0, phase_correlation: 0.80, duration: 290, mp3_path: null, created_at: "2026-05-04T14:00:00Z" },
 ];
 
 const LABEL_SLUG = "demo-label";
@@ -80,10 +80,8 @@ export default function LinkPage() {
               {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
               {copied ? "Copied" : "Copy"}
             </Button>
-            <Button variant="outline" size="icon" asChild>
-              <a href={`/s/${LABEL_SLUG}`} target="_blank" rel="noopener noreferrer">
-                <ExternalLink className="h-4 w-4" />
-              </a>
+            <Button variant="outline" size="icon" onClick={() => window.open(`/s/${LABEL_SLUG}`, "_blank")}>
+              <ExternalLink className="h-4 w-4" />
             </Button>
           </div>
         </CardContent>

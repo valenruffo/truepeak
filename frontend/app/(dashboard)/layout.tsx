@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { ToastProvider } from "@/components/ui/toast";
 
 const navItems = [
   { href: "/config", label: "Config", icon: "⚙" },
@@ -46,7 +47,9 @@ export default function DashboardLayout({
           </nav>
         </div>
       </header>
-      <main className="flex-1">{children}</main>
+      <main className="flex-1">
+        <ToastProvider>{children}</ToastProvider>
+      </main>
     </div>
   );
 }

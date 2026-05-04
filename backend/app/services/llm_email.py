@@ -6,8 +6,8 @@ from openai import AsyncOpenAI
 
 from app.models import Label, Submission
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "meta-llama/llama-3.1-8b-instruct:free")
 
 
 class LLMEmailError(Exception):
@@ -21,7 +21,7 @@ async def generate_email_draft(
     template_type: str,
     label: Label,
 ) -> dict[str, str]:
-    """Generate a personalized email draft using OpenAI.
+    """Generate a personalized email draft using OpenRouter.
 
     Builds a prompt with producer name, track name, technical metrics,
     and rejection reason (if applicable), then calls the LLM to generate
@@ -38,8 +38,8 @@ async def generate_email_draft(
     Raises:
         LLMEmailError: If the LLM call fails (caller should fall back to template).
     """
-    if not OPENAI_API_KEY:
-        raise LLMEmailError("OPENAI_API_KEY is not configured.")
+    if not OPENROUTER_API_KEY:
+        raise LLMEmailError("OPENROUTER_API_KEY is not configured.")
 
     # Build metrics summary
     metrics_parts = []
@@ -82,9 +82,12 @@ Example format:
 """
 
     try:
-        client = AsyncOpenAI(api_key=OPENAI_API_KEY)
+        client = AsyncOpenAI(
+            api_key=OPENROUTER_API_KEY,
+            base_url="https://openrouter.ai/api/v1",
+        )
         response = await client.chat.completions.create(
-            model=OPENAI_MODEL,
+            model=OPENROUTER_MODEL,
             messages=[
                 {
                     "role": "system",

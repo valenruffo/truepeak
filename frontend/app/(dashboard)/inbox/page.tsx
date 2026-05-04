@@ -19,12 +19,12 @@ import { useToast } from "@/components/ui/toast";
 import { Loader2, Headphones, Check, X, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type FilterTab = "all" | "pending" | "accepted" | "rejected";
+type FilterTab = "all" | "pending" | "approved" | "rejected";
 
 const FILTER_TABS: { key: FilterTab; label: string }[] = [
   { key: "all", label: "All" },
   { key: "pending", label: "Pending" },
-  { key: "accepted", label: "Approved" },
+  { key: "approved", label: "Approved" },
   { key: "rejected", label: "Rejected" },
 ];
 

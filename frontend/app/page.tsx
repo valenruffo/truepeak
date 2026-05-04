@@ -1,8 +1,9 @@
+"use client";
+
 import { DemoSimulation } from "@/components/audio-viz/demo-simulation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Headphones, Zap, Shield, ArrowRight, Check, Music, Mail, BarChart3, Link as LinkIcon } from "lucide-react";
-import Link from "next/link";
 
 const FEATURES = [
   {
@@ -114,9 +115,7 @@ export default function Home() {
             <a href="#features" className="text-sm text-muted hover:text-foreground transition-colors">Features</a>
             <a href="#workflow" className="text-sm text-muted hover:text-foreground transition-colors">Workflow</a>
             <a href="#pricing" className="text-sm text-muted hover:text-foreground transition-colors">Pricing</a>
-            <Button size="sm" asChild>
-              <Link href="/dashboard/inbox">Dashboard</Link>
-            </Button>
+            <Button size="sm" onClick={() => window.location.href = "/dashboard/inbox"}>Dashboard</Button>
           </nav>
         </div>
       </header>
@@ -146,14 +145,12 @@ export default function Home() {
                 True Peak AI filters incoming demos by your label's sonic signature. Configure thresholds once, get a unique submission link, and only review tracks that pass your standards.
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
-                <Button size="lg" className="gap-2" asChild>
-                  <Link href="/dashboard/inbox">
+                <Button size="lg" className="gap-2" onClick={() => window.location.href = "/dashboard/inbox"}>
                     Start Free Trial <ArrowRight className="h-4 w-4" />
-                  </Link>
-                </Button>
-                <Button size="lg" variant="outline" asChild>
-                  <a href="#workflow">See How It Works</a>
-                </Button>
+                  </Button>
+                  <Button size="lg" variant="outline" onClick={() => document.querySelector("#workflow")?.scrollIntoView({ behavior: "smooth" })}>
+                    See How It Works
+                  </Button>
               </div>
               <div className="mt-8 flex items-center gap-6 text-sm text-muted">
                 <div className="flex items-center gap-1.5">
