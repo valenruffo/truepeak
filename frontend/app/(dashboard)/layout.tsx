@@ -3,13 +3,12 @@
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { ToastProvider } from "@/components/ui/toast";
 
 const navItems = [
-  { href: "/config", label: "Config", icon: "⚙" },
-  { href: "/inbox", label: "Inbox", icon: "📥" },
-  { href: "/crm", label: "CRM", icon: "✉" },
-  { href: "/link", label: "Link", icon: "🔗" },
+  { href: "/dashboard/config", label: "Firma sónica" },
+  { href: "/dashboard/link", label: "Link" },
+  { href: "/dashboard/inbox", label: "Demos" },
+  { href: "/dashboard/crm", label: "CRM" },
 ];
 
 export default function DashboardLayout({
@@ -20,24 +19,22 @@ export default function DashboardLayout({
   const pathname = usePathname();
 
   return (
-    <div className="flex min-h-screen flex-col bg-background text-foreground">
-      <header className="sticky top-0 z-40 border-b border-border bg-surface/80 backdrop-blur-md">
-        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-6">
-          <Link href="/config" className="font-display text-lg font-bold tracking-tight">
-            True Peak <span className="text-accent">AI</span>
+    <div className="flex min-h-screen flex-col" style={{ background: "#09090b", color: "#fafafa" }}>
+      <header className="sticky top-0 z-40 border-b" style={{ borderColor: "#27272a", background: "rgba(17,17,20,0.8)", backdropFilter: "blur(12px)" }}>
+        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
+          <Link href="/dashboard/inbox" className="font-display font-semibold text-sm tracking-tight">
+            True Peak AI
           </Link>
-          <nav className="flex items-center gap-1">
+          <nav className="flex items-center gap-6">
             {navItems.map((item) => {
-              const isActive = pathname === `/dashboard${item.href}` || pathname === item.href;
+              const isActive = pathname === item.href;
               return (
                 <Link
                   key={item.href}
-                  href={`/dashboard${item.href}`}
+                  href={item.href}
                   className={cn(
-                    "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                    isActive
-                      ? "bg-surface2 text-foreground"
-                      : "text-muted hover:bg-surface2/50 hover:text-foreground"
+                    "text-sm transition-colors",
+                    isActive ? "text-fg" : "text-muted hover:text-fg"
                   )}
                 >
                   {item.label}
@@ -45,11 +42,10 @@ export default function DashboardLayout({
               );
             })}
           </nav>
+          <div className="w-6 h-6 rounded-full" style={{ background: "#27272a" }} />
         </div>
       </header>
-      <main className="flex-1">
-        <ToastProvider>{children}</ToastProvider>
-      </main>
+      <main className="flex-1">{children}</main>
     </div>
   );
 }

@@ -1,231 +1,183 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { useToast } from "@/components/ui/toast";
-import { updateLabelConfig, getLabelConfig, type LabelConfig } from "@/lib/api";
-import { Loader2, Save } from "lucide-react";
-
-const SCALES = ["Minor", "Major", "Dorian", "Phrygian", "Lydian", "Mixolydian"] as const;
-type Scale = (typeof SCALES)[number];
-
-const AUTO_REJECT_RULES = [
-  { key: "inverted_phase", label: "Inverted Phase", description: "Reject if phase correlation ≤ 0" },
-  { key: "excessive_loudness", label: "Excessive Loudness", description: "Reject if LUFS > -8" },
-  { key: "out_of_tempo", label: "Out of Tempo", description: "Reject if BPM outside range" },
-] as const;
+import { useState } from "react";
+import { cn } from "@/lib/utils";
 
 export default function ConfigPage() {
-  const { addToast } = useToast();
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-
-  // Form state
-  const [bpmMin, setBpmMin] = useState(120);
-  const [bpmMax, setBpmMax] = useState(130);
-  const [lufsTarget, setLuftsTarget] = useState(-14);
-  const [lufsTolerance, setLuftsTolerance] = useState(2);
-  const [scales, setScales] = useState<Scale[]>(["Minor", "Major"]);
+  const [bpmRange, setBpmRange] = useState([120, 128]);
+  const [lufsTarget, setLufsTarget] = useState(-14);
+  const [lufsTolerance, setLufsTolerance] = useState(2);
+  const [selectedScales, setSelectedScales] = useState(["Menor"]);
   const [autoReject, setAutoReject] = useState({
-    inverted_phase: true,
-    excessive_loudness: true,
-    out_of_tempo: true,
+    phase: true,
+    lufs: true,
+    tempo: true,
   });
 
-  useEffect(() => {
-    loadConfig();
-  }, []);
+  const scales = ["Menor", "Mayor", "Dórica", "Frigia"];
 
-  async function loadConfig() {
-    try {
-      // Use a default slug for now — in production this comes from auth context
-      const config = await getLabelConfig("demo-label");
-      setBpmMin(config.bpm_min);
-      setBpmMax(config.bpm_max);
-      setLuftsTarget(config.lufs_target);
-      setLuftsTolerance(config.lufs_tolerance);
-    } catch {
-      // Use defaults on first load
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  function toggleScale(scale: Scale) {
-    setScales((prev) =>
+  const toggleScale = (scale: string) => {
+    setSelectedScales((prev) =>
       prev.includes(scale) ? prev.filter((s) => s !== scale) : [...prev, scale]
     );
-  }
-
-  function toggleRule(key: keyof typeof autoReject) {
-    setAutoReject((prev) => ({ ...prev, [key]: !prev[key] }));
-  }
-
-  async function handleSave() {
-    setSaving(true);
-    try {
-      await updateLabelConfig("demo-label", {
-        bpm_min: bpmMin,
-        bpm_max: bpmMax,
-        lufs_target: lufsTarget,
-        lufs_tolerance: lufsTolerance,
-      });
-      addToast({ title: "Config saved", description: "Your sonic signature has been updated.", variant: "success" });
-    } catch (err) {
-      addToast({ title: "Save failed", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  if (loading) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-muted" />
-      </div>
-    );
-  }
+  };
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-8">
-      <div className="mb-8">
-        <h2 className="font-display text-3xl font-bold tracking-tight">Sonic Signature</h2>
-        <p className="mt-1 text-muted">Configure your label's audio thresholds and auto-rejection rules.</p>
-      </div>
+    <div className="max-w-3xl mx-auto px-6 py-12">
+      <div className="text-xs font-mono uppercase tracking-wider text-muted mb-1">Configuración</div>
+      <h1 className="font-display font-semibold text-2xl mb-8">Firma sónica — Sello principal</h1>
 
-      {/* BPM Range */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="text-lg">BPM Range</CardTitle>
-          <CardDescription>Accept tracks within this tempo range.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-4">
+      <div className="space-y-8">
+        {/* BPM Range */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <label className="text-sm font-medium">Rango de BPM</label>
+            <span className="font-mono text-xs px-2 py-0.5 rounded" style={{ background: "#18181b" }}>
+              {bpmRange[0]} — {bpmRange[1]}
+            </span>
+          </div>
+          <div className="relative h-1.5 rounded-full" style={{ background: "#27272a" }}>
+            <div
+              className="absolute h-full rounded-full"
+              style={{
+                left: `${((bpmRange[0] - 60) / 140) * 100}%`,
+                right: `${100 - ((bpmRange[1] - 60) / 140) * 100}%`,
+                background: "#10b981",
+              }}
+            />
+          </div>
+          <div className="flex gap-4 mt-3">
             <div className="flex-1">
-              <label className="mb-1 block text-xs font-medium text-muted">Min BPM</label>
-              <Input
-                type="number"
-                value={bpmMin}
-                onChange={(e) => setBpmMin(Number(e.target.value))}
-                className="font-mono"
+              <label className="text-xs text-muted mb-1 block">Mínimo</label>
+              <input
+                type="range"
+                min={60}
+                max={200}
+                value={bpmRange[0]}
+                onChange={(e) => setBpmRange([Math.min(+e.target.value, bpmRange[1] - 5), bpmRange[1]])}
+                className="w-full"
               />
             </div>
-            <span className="mt-6 text-muted">—</span>
             <div className="flex-1">
-              <label className="mb-1 block text-xs font-medium text-muted">Max BPM</label>
-              <Input
-                type="number"
-                value={bpmMax}
-                onChange={(e) => setBpmMax(Number(e.target.value))}
-                className="font-mono"
+              <label className="text-xs text-muted mb-1 block">Máximo</label>
+              <input
+                type="range"
+                min={60}
+                max={200}
+                value={bpmRange[1]}
+                onChange={(e) => setBpmRange([bpmRange[0], Math.max(+e.target.value, bpmRange[0] + 5)])}
+                className="w-full"
               />
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
 
-      {/* LUFS Target */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="text-lg">LUFS Target</CardTitle>
-          <CardDescription>Integrated loudness target with tolerance window.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-4">
+        {/* LUFS Target */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <label className="text-sm font-medium">LUFS objetivo</label>
+            <span className="font-mono text-xs px-2 py-0.5 rounded" style={{ background: "#18181b" }}>
+              {lufsTarget} ± {lufsTolerance}
+            </span>
+          </div>
+          <div className="relative h-1.5 rounded-full" style={{ background: "#27272a" }}>
+            <div
+              className="absolute h-full rounded-full"
+              style={{
+                left: `${((lufsTarget - lufsTolerance + 20) / 20) * 100}%`,
+                right: `${100 - ((lufsTarget + lufsTolerance + 20) / 20) * 100}%`,
+                background: "#10b981",
+              }}
+            />
+          </div>
+          <div className="flex gap-4 mt-3">
             <div className="flex-1">
-              <label className="mb-1 block text-xs font-medium text-muted">Target (LUFS)</label>
-              <Input
-                type="number"
-                step="0.5"
+              <label className="text-xs text-muted mb-1 block">Target</label>
+              <input
+                type="range"
+                min={-20}
+                max={-6}
                 value={lufsTarget}
-                onChange={(e) => setLuftsTarget(Number(e.target.value))}
-                className="font-mono"
+                onChange={(e) => setLufsTarget(+e.target.value)}
+                className="w-full"
               />
             </div>
-            <span className="mt-6 text-muted">±</span>
             <div className="flex-1">
-              <label className="mb-1 block text-xs font-medium text-muted">Tolerance</label>
-              <Input
-                type="number"
-                step="0.5"
+              <label className="text-xs text-muted mb-1 block">Tolerancia</label>
+              <input
+                type="range"
+                min={0.5}
+                max={4}
+                step={0.5}
                 value={lufsTolerance}
-                onChange={(e) => setLuftsTolerance(Number(e.target.value))}
-                className="font-mono"
+                onChange={(e) => setLufsTolerance(+e.target.value)}
+                className="w-full"
               />
             </div>
-            <div className="mt-6 rounded bg-surface2 px-3 py-1.5 font-mono text-xs text-muted">
-              Accept: {lufsTarget - lufsTolerance} to {lufsTarget + lufsTolerance} LUFS
-            </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
 
-      {/* Preferred Scales */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="text-lg">Preferred Scales</CardTitle>
-          <CardDescription>Select musical scales you accept. Multi-select.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-2">
-            {SCALES.map((scale) => {
-              const active = scales.includes(scale);
-              return (
-                <button
-                  key={scale}
-                  type="button"
-                  onClick={() => toggleScale(scale)}
-                  className={`rounded-full border px-4 py-1.5 text-sm font-medium transition-all ${
-                    active
-                      ? "border-accent bg-accent/10 text-accent"
-                      : "border-border text-muted hover:border-muted hover:text-foreground"
-                  }`}
-                >
-                  {scale}
-                </button>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Auto-Reject Rules */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="text-lg">Auto-Reject Rules</CardTitle>
-          <CardDescription>Automatically reject submissions matching these criteria.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {AUTO_REJECT_RULES.map((rule) => (
-              <label
-                key={rule.key}
-                className="flex cursor-pointer items-start gap-3 rounded-lg border border-border p-3 transition-colors hover:bg-surface2/50"
+        {/* Preferred Scales */}
+        <div>
+          <label className="text-sm font-medium mb-3 block">Escala preferida</label>
+          <div className="flex gap-2 flex-wrap">
+            {scales.map((s) => (
+              <button
+                key={s}
+                onClick={() => toggleScale(s)}
+                className="text-xs px-3 py-1.5 rounded border transition-colors"
+                style={{
+                  borderColor: selectedScales.includes(s) ? "#10b981" : "#27272a",
+                  color: selectedScales.includes(s) ? "#10b981" : "#71717a",
+                  background: selectedScales.includes(s) ? "rgba(16,185,129,0.1)" : "transparent",
+                }}
               >
-                <input
-                  type="checkbox"
-                  checked={autoReject[rule.key as keyof typeof autoReject]}
-                  onChange={() => toggleRule(rule.key as keyof typeof autoReject)}
-                  className="mt-0.5 h-4 w-4 accent-accent"
-                />
-                <div>
-                  <span className="text-sm font-medium text-foreground">{rule.label}</span>
-                  <p className="text-xs text-muted">{rule.description}</p>
-                </div>
-              </label>
+                {s}
+              </button>
             ))}
           </div>
-        </CardContent>
-      </Card>
+        </div>
 
-      <CardFooter className="px-0">
-        <Button onClick={handleSave} disabled={saving} className="gap-2">
-          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          Save Configuration
-        </Button>
-      </CardFooter>
+        {/* Auto-Reject Rules */}
+        <div>
+          <label className="text-sm font-medium mb-3 block">Rechazo automático</label>
+          <div className="space-y-2">
+            {[
+              { key: "phase" as const, label: "Fase invertida" },
+              { key: "lufs" as const, label: "LUFS > -8" },
+              { key: "tempo" as const, label: "Fuera de tempo" },
+            ].map((rule) => (
+              <button
+                key={rule.key}
+                onClick={() => setAutoReject((prev) => ({ ...prev, [rule.key]: !prev[rule.key] }))}
+                className="flex items-center gap-3 w-full text-left"
+              >
+                <div
+                  className="w-4 h-4 rounded-sm flex items-center justify-center transition-colors"
+                  style={{ background: autoReject[rule.key] ? "#10b981" : "#27272a" }}
+                >
+                  {autoReject[rule.key] && (
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#09090b" strokeWidth="3">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  )}
+                </div>
+                <span className="text-sm text-muted">{rule.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Save Button */}
+        <div className="pt-6 border-t" style={{ borderColor: "#27272a" }}>
+          <button
+            className="px-6 py-2.5 text-sm font-medium rounded transition-all hover:opacity-90"
+            style={{ background: "#10b981", color: "#09090b" }}
+          >
+            Guardar firma sónica
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
