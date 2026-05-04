@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
+from sqlalchemy import JSON
 from sqlmodel import Field, Relationship, SQLModel
 
 
@@ -17,7 +18,7 @@ class Label(SQLModel, table=True):
     slug: str = Field(unique=True, index=True)
     owner_email: str
     sonic_signature: dict[str, Any] = Field(
-        sa_column_kwargs={"nullable": False},
+        sa_type=JSON,
         default_factory=lambda: {
             "bpm_min": 70,
             "bpm_max": 180,

@@ -10,8 +10,31 @@ from sqlmodel import Session, select
 from app.database import get_session
 from app.models import Label, Submission
 from app.services.auth import create_token, verify_token
+from fastapi import Header
 
 router = APIRouter(prefix="/api", tags=["labels"])
+
+
+# --- Auth helper ---
+
+def _get_label_from_token(
+    authorization: str | None = Header(None),
+    x_label_token: str | None = Header(None),
+) -> dict[str, str]:
+    """Extract and verify JWT from Authorization header or X-Label-Token."""
+    token = None
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ", 1)[1]
+    elif x_label_token:
+        token = x_label_token
+
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication required.")
+
+    try:
+        return verify_token(token)
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid or expired token.")
 
 
 # --- Request / Response schemas ---
@@ -217,26 +240,3 @@ async def get_label_stats(
     )
 
 
-# --- Auth helper (same pattern as submissions.py) ---
-
-from fastapi import Header
-
-
-def _get_label_from_token(
-    authorization: str | None = Header(None),
-    x_label_token: str | None = Header(None),
-) -> dict[str, str]:
-    """Extract and verify JWT from Authorization header or X-Label-Token."""
-    token = None
-    if authorization and authorization.startswith("Bearer "):
-        token = authorization.split(" ", 1)[1]
-    elif x_label_token:
-        token = x_label_token
-
-    if not token:
-        raise HTTPException(status_code=401, detail="Authentication required.")
-
-    try:
-        return verify_token(token)
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid or expired token.")
