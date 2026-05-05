@@ -49,7 +49,7 @@ export default function PricingPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           plan: planId,
-          success_url: `${window.location.origin}/dashboard/inbox?payment=success`,
+          success_url: `${window.location.origin}/inbox?payment=success`,
           cancel_url: `${window.location.origin}/pricing`,
         }),
       });
@@ -60,7 +60,7 @@ export default function PricingPage() {
       window.location.href = url;
     } catch {
       // Fallback: just redirect to dashboard for now
-      router.push("/dashboard/inbox");
+      router.push("/inbox");
     } finally {
       setLoading(false);
     }

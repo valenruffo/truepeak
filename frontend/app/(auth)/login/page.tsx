@@ -31,7 +31,7 @@ export default function LoginPage() {
       localStorage.setItem("token", data.token);
       localStorage.setItem("label_id", data.label_id);
       localStorage.setItem("slug", data.slug);
-      router.push("/dashboard/inbox");
+      router.push("/inbox");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al iniciar sesión");
     } finally {

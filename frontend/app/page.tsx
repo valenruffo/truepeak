@@ -766,8 +766,8 @@ export default function Home() {
       {/* Hero */}
       <section className="pt-28 pb-16 px-6">
         <div className="max-w-6xl mx-auto">
-          <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-start">
-            <div className="pt-8">
+          <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+            <div>
               <h1 className="font-display font-bold text-3xl md:text-4xl lg:text-5xl leading-[1.1] tracking-tight mb-6">
                 Dejá de escuchar demos malos.<br />
                 <span style={{ color: "#10b981" }}>Automatizá tu A&R.</span>
@@ -843,12 +843,12 @@ export default function Home() {
           </div>
           <div className="grid md:grid-cols-2 gap-6">
             <PricingCard
-              name="Boutique"
-              price="29"
+              name="Starter"
+              price="12"
               onClick={() => router.push("/register")}
               features={[
-                "Hasta 50 demos/mes",
-                "1 firma sónica personalizada",
+                "100 temas procesados/mes",
+                "1 firma sónica",
                 "Análisis técnico completo",
                 "Dashboard básico",
                 "CRM de emails con plantillas",
@@ -857,16 +857,15 @@ export default function Home() {
             />
             <PricingCard
               name="Label Pro"
-              price="79"
+              price="39"
               highlighted
-              onClick={() => router.push("/pricing")}
+              onClick={() => router.push("/register")}
               features={[
-                "Demos ilimitados",
-                "Hasta 5 firmas sónicas",
+                "500 temas procesados/mes",
+                "2 firmas sónicas",
                 "Análisis avanzado + detección de samples",
                 "Dashboard completo + export CSV",
                 "CRM avanzado + plantillas custom",
-                "API para integrar con tu DAW",
                 "Soporte prioritario",
               ]}
             />
@@ -882,12 +881,95 @@ export default function Home() {
             &copy; 2026 True Peak AI. Hecho con cabeza en Buenos Aires.
           </div>
           <div className="flex items-center gap-6 text-xs text-muted">
-            <a href="#" className="hover:text-fg transition-colors">Términos</a>
-            <a href="#" className="hover:text-fg transition-colors">Privacidad</a>
-            <a href="#" className="hover:text-fg transition-colors">Contacto</a>
+            <a href="/terms-of-service" className="hover:text-fg transition-colors">Términos</a>
+            <a href="/privacy-policy" className="hover:text-fg transition-colors">Privacidad</a>
+            <a href="/refund-policy" className="hover:text-fg transition-colors">Reembolsos</a>
           </div>
         </div>
       </footer>
+
+      {/* Feedback Bubble */}
+      <FeedbackBubble />
     </div>
+  );
+}
+
+// ─── Feedback Bubble ─────────────────────────────────────────────────────────
+
+function FeedbackBubble() {
+  const [isOpen, setIsOpen] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    setIsLoggedIn(!!localStorage.getItem("token"));
+  }, []);
+
+  const sendToWhatsApp = () => {
+    if (!message.trim()) return;
+    const encoded = encodeURIComponent(message);
+    window.open(`https://wa.me/5491135167226?text=${encoded}`, "_blank");
+    setMessage("");
+    setIsOpen(false);
+  };
+
+  if (!isLoggedIn) return null;
+
+  return (
+    <>
+      {/* Backdrop */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => setIsOpen(false)}
+        />
+      )}
+
+      {/* Bubble button */}
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="fixed bottom-6 right-6 z-50 w-12 h-12 rounded-full flex items-center justify-center transition-all hover:scale-110"
+        style={{ background: "#10b981", color: "#09090b", boxShadow: "0 4px 20px rgba(16,185,129,0.3)" }}
+        aria-label="Enviar feedback"
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        </svg>
+      </button>
+
+      {/* Popup */}
+      {isOpen && (
+        <div
+          className="fixed bottom-20 right-6 z-50 w-80 rounded-lg border p-4"
+          style={{ background: "#111114", borderColor: "#27272a", boxShadow: "0 8px 30px rgba(0,0,0,0.4)" }}
+        >
+          <div className="flex items-center justify-between mb-3">
+            <span className="font-display font-semibold text-sm">Feedback</span>
+            <button onClick={() => setIsOpen(false)} className="text-muted hover:text-foreground transition-colors">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+            </button>
+          </div>
+          <p className="text-xs text-muted mb-3">Bugs, sugerencias o lo que sea. Me llega directo a WhatsApp.</p>
+          <textarea
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Contame qué pasó..."
+            className="w-full h-24 px-3 py-2 rounded border text-xs bg-transparent resize-none mb-3"
+            style={{ borderColor: "#27272a" }}
+          />
+          <button
+            onClick={sendToWhatsApp}
+            disabled={!message.trim()}
+            className="w-full py-2 text-xs font-medium rounded transition-all"
+            style={{
+              background: message.trim() ? "#10b981" : "#27272a",
+              color: message.trim() ? "#09090b" : "#71717a",
+            }}
+          >
+            Enviar por WhatsApp
+          </button>
+        </div>
+      )}
+    </>
   );
 }

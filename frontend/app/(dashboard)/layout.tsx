@@ -5,10 +5,10 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { href: "/dashboard/config", label: "Firma sónica" },
-  { href: "/dashboard/link", label: "Link" },
-  { href: "/dashboard/inbox", label: "Demos" },
-  { href: "/dashboard/crm", label: "CRM" },
+  { href: "/config", label: "Firma sónica" },
+  { href: "/link", label: "Link" },
+  { href: "/inbox", label: "Demos" },
+  { href: "/crm", label: "CRM" },
 ];
 
 export default function DashboardLayout({
@@ -22,7 +22,7 @@ export default function DashboardLayout({
     <div className="flex min-h-screen flex-col" style={{ background: "#09090b", color: "#fafafa" }}>
       <header className="sticky top-0 z-40 border-b" style={{ borderColor: "#27272a", background: "rgba(17,17,20,0.8)", backdropFilter: "blur(12px)" }}>
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
-          <Link href="/dashboard/inbox" className="font-display font-semibold text-sm tracking-tight">
+          <Link href="/inbox" className="font-display font-semibold text-sm tracking-tight">
             True Peak AI
           </Link>
           <nav className="flex items-center gap-6">
@@ -45,7 +45,9 @@ export default function DashboardLayout({
           <div className="w-6 h-6 rounded-full" style={{ background: "#27272a" }} />
         </div>
       </header>
-      <main className="flex-1">{children}</main>
+      <main className="flex-1">
+        <div className="mx-auto max-w-6xl px-6">{children}</div>
+      </main>
     </div>
   );
 }
