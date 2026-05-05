@@ -24,6 +24,9 @@ export const metadata: Metadata = {
   title: "True Peak AI",
   description:
     "Automated demo filtering for electronic music labels. Configure your sonic signature, get a unique submission link, and receive only technically-compliant demos.",
+  icons: {
+    icon: "/favicon.png",
+  },
 };
 
 export default function RootLayout({

@@ -181,7 +181,7 @@ function FeatureCard({ num, title, desc }: { num: string; title: string; desc: s
 
 // ─── Pricing Card ─────────────────────────────────────────────────────────────
 
-function PricingCard({ name, price, features, highlighted, onClick }: { name: string; price: string; features: string[]; highlighted?: boolean; onClick?: () => void }) {
+function PricingCard({ name, price, features, highlighted, href }: { name: string; price: string; features: string[]; highlighted?: boolean; href?: string }) {
   return (
     <div className="border p-6" style={{ borderColor: highlighted ? "#10b981" : "#27272a" }}>
       <div className="flex items-baseline justify-between mb-6">
@@ -199,9 +199,10 @@ function PricingCard({ name, price, features, highlighted, onClick }: { name: st
           </li>
         ))}
       </ul>
-      <button
-        onClick={onClick}
-        className="w-full py-2.5 text-sm font-medium transition-all hover:opacity-90 rounded"
+      <a
+        href={href}
+        target={href?.startsWith("http") ? "_blank" : undefined}
+        className="w-full py-2.5 text-sm font-medium transition-all hover:opacity-90 rounded block text-center"
         style={{
           background: highlighted ? "#10b981" : "transparent",
           color: highlighted ? "#09090b" : "#fafafa",
@@ -209,7 +210,7 @@ function PricingCard({ name, price, features, highlighted, onClick }: { name: st
         }}
       >
         {highlighted ? "Empezar ahora" : "Crear cuenta"}
-      </button>
+      </a>
     </div>
   );
 }
@@ -725,7 +726,9 @@ function Nav() {
     <nav className="fixed top-0 left-0 right-0 z-50 transition-all duration-300"
          style={{ background: scrolled ? "rgba(9,9,11,0.92)" : "transparent", backdropFilter: scrolled ? "blur(12px)" : "none", borderBottom: scrolled ? "1px solid #27272a" : "1px solid transparent" }}>
       <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
-        <button onClick={() => router.push("/")} className="font-display font-semibold text-sm tracking-tight">True Peak AI</button>
+        <button onClick={() => router.push("/")}>
+          <img src="/logo.png" alt="True Peak AI" className="h-8 w-auto" />
+        </button>
         <div className="hidden md:flex items-center gap-8">
           <a href="#features" className="text-sm text-muted hover:text-fg transition-colors">Funcionalidades</a>
           <a href="#workflow" className="text-sm text-muted hover:text-fg transition-colors">Workflow</a>
@@ -777,7 +780,7 @@ export default function Home() {
               </p>
               <div className="flex flex-col sm:flex-row gap-3">
                 <button
-                  onClick={() => router.push("/register")}
+              onClick={() => router.push("https://truepeak.lemonsqueezy.com/checkout/buy/60230548-372d-421b-8b00-f15a78817c76")}
                   className="px-5 py-2.5 text-sm font-medium transition-all hover:opacity-90 rounded"
                   style={{ background: "#10b981", color: "#09090b" }}
                 >
@@ -845,7 +848,7 @@ export default function Home() {
             <PricingCard
               name="Starter"
               price="12"
-              onClick={() => router.push("/register")}
+              href="https://truepeak.lemonsqueezy.com/checkout/buy/60230548-372d-421b-8b00-f15a78817c76"
               features={[
                 "100 temas procesados/mes",
                 "1 firma sónica",
@@ -859,7 +862,7 @@ export default function Home() {
               name="Label Pro"
               price="39"
               highlighted
-              onClick={() => router.push("/register")}
+              href="https://truepeak.lemonsqueezy.com/checkout/buy/60230548-372d-421b-8b00-f15a78817c76"
               features={[
                 "500 temas procesados/mes",
                 "2 firmas sónicas",
@@ -876,7 +879,7 @@ export default function Home() {
       {/* Footer */}
       <footer className="py-8 px-6" style={{ borderTop: "1px solid #27272a" }}>
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-          <span className="font-display font-semibold text-xs tracking-tight">True Peak AI</span>
+          <img src="/logo.png" alt="True Peak AI" className="h-10 w-auto" />
           <div className="text-xs text-muted">
             &copy; 2026 True Peak AI. Hecho con cabeza en Buenos Aires.
           </div>
