@@ -86,6 +86,22 @@ export default function LoginPage() {
           {loading ? "Ingresando..." : "Iniciar sesión"}
         </button>
       </form>
+
+      <div className="mt-6 pt-4 border-t" style={{ borderColor: "#27272a" }}>
+        <button
+          onClick={() => {
+            localStorage.setItem("admin", "true");
+            localStorage.setItem("token", "admin-token");
+            localStorage.setItem("label_id", "admin-label");
+            localStorage.setItem("slug", "admin");
+            router.push("/inbox");
+          }}
+          className="w-full py-2 text-xs font-mono rounded transition-colors"
+          style={{ background: "#18181b", color: "#71717a", border: "1px solid #27272a" }}
+        >
+          Modo Admin (demo)
+        </button>
+      </div>
     </div>
   );
 }
