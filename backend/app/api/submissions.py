@@ -232,8 +232,7 @@ async def delete_submission(
     auth: dict = Depends(_get_label_from_token),
     session: Session = Depends(get_session),
 ):
-    """Delete submission and associated MP3 file. Requires label owner auth."""
-    import os
+    """Delete submission and all associated files. Requires label owner auth."""
 
     submission = session.get(Submission, submission_id)
     if not submission:
@@ -241,12 +240,19 @@ async def delete_submission(
 
     _verify_label_ownership(session, auth["label_id"], submission)
 
-    # Delete associated MP3 file if it exists
+    # Delete MP3 file
     if submission.mp3_path and os.path.exists(submission.mp3_path):
         try:
             os.remove(submission.mp3_path)
         except OSError:
-            pass  # Best-effort cleanup
+            pass
+
+    # Delete original WAV/FLAC/AIFF file
+    if submission.original_path and os.path.exists(submission.original_path):
+        try:
+            os.remove(submission.original_path)
+        except OSError:
+            pass
 
     session.delete(submission)
     session.commit()

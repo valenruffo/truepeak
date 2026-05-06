@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { usePlayer } from "@/lib/PlayerContext";
+import HoldToDelete from "@/components/HoldToDelete";
 
 type FilterStatus = "all" | "pending" | "approved" | "rejected";
 
@@ -449,23 +450,11 @@ export default function InboxPage() {
                     <button onClick={() => handleApprove(d.id)} disabled={!!actionLoading[d.id]} className="px-3 py-1 rounded text-[10px] font-medium disabled:opacity-50" style={{ background: "#06b6d4", color: "#09090b" }}>
                       {actionLoading[d.id] === "approve" ? "..." : "Aprobar"}
                     </button>
-                    <button onClick={() => handleDiscard(d.id)} disabled={!!actionLoading[d.id]} className="w-6 h-6 rounded flex items-center justify-center transition-colors hover:bg-white/10" title="Eliminar" style={{ color: "#ef4444" }}>
-                      {actionLoading[d.id] === "discard" ? (
-                        <span className="text-[10px]">...</span>
-                      ) : (
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                        </svg>
-                      )}
-                    </button>
+                    <HoldToDelete onDelete={() => handleDiscard(d.id)} size={22} />
                   </>
                 )}
                 {(d.status === "approved" || d.status === "rejected") && (
-                  <button onClick={() => { if (confirm("¿Eliminar esta demo permanentemente?")) handleDiscard(d.id); }} className="w-6 h-6 rounded flex items-center justify-center transition-colors hover:bg-white/10" title="Eliminar" style={{ color: "#ef4444" }}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                    </svg>
-                  </button>
+                  <HoldToDelete onDelete={() => handleDiscard(d.id)} size={22} />
                 )}
               </div>
             </div>
