@@ -21,6 +21,7 @@ interface Submission {
   musical_key: string | null;
   created_at: string;
   mp3_path?: string | null;
+  original_path?: string | null;
   rejection_reason?: string | null;
 }
 
