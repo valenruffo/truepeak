@@ -9,7 +9,7 @@ export default function WhatsAppBubble() {
       href={`https://wa.me/${phone}?text=${message}`}
       target="_blank"
       rel="noopener noreferrer"
-      className="fixed bottom-20 right-4 md:bottom-6 md:right-6 z-50 flex items-center gap-2 px-3 py-2.5 rounded-full shadow-lg transition-all hover:scale-105"
+      className="fixed bottom-[80px] right-4 md:bottom-[76px] md:right-6 z-40 flex items-center gap-2 px-3 py-2.5 rounded-full shadow-lg transition-all hover:scale-105"
       style={{ background: "#25D366", color: "#fff" }}
       title="Consultas, feedback, bugs"
     >

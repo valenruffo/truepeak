@@ -300,182 +300,104 @@ export default function ConfigPage() {
         <span className="text-[10px] text-muted">Carga valores sugeridos</span>
       </div>
 
-      <div className="space-y-8">
-        {/* Logo Upload — compact */}
+      <div className="space-y-10">
+        {/* Logo Upload */}
         <div>
-          <label className="text-sm font-medium mb-2 block">Logo del sello</label>
+          <label className="text-sm font-medium mb-3 block">Logo del sello</label>
           <div className="flex items-center gap-3">
             {(logoPreview || logoUrl) && (
-              <img
-                src={logoPreview || logoUrl || ""}
-                alt="Logo"
-                className="w-12 h-12 rounded object-cover border flex-shrink-0"
-                style={{ borderColor: "#27272a" }}
-              />
+              <img src={logoPreview || logoUrl || ""} alt="Logo" className="w-14 h-14 rounded-xl object-cover border flex-shrink-0" style={{ borderColor: "#27272a" }} />
             )}
-            <div
-              onDragEnter={handleLogoDrag}
-              onDragLeave={handleLogoDrag}
-              onDragOver={handleLogoDrag}
-              onDrop={handleLogoDrop}
-              className="flex-1 rounded border border-dashed px-3 py-2 text-xs cursor-pointer transition-colors"
-              style={{ borderColor: logoDragActive ? "#10b981" : "#27272a", background: logoDragActive ? "rgba(16,185,129,0.05)" : "transparent" }}
-              onClick={() => document.getElementById("logo-input")?.click()}
-            >
-              <input id="logo-input" type="file" accept=".jpg,.jpeg,.png,.webp" className="hidden" onChange={(e) => e.target.files?.[0] && handleLogoFile(e.target.files[0])} />
-              {logoPreview ? (
-                <span className="text-muted">{logoFile?.name} ({(logoFile!.size / 1024).toFixed(0)} KB)</span>
-              ) : (
-                <span className="text-muted">{logoUrl ? "Clic para cambiar" : "Clic o arrastrá · JPG, PNG · Max 5MB"}</span>
+            <div className="flex items-center gap-2">
+              <div
+                onDragEnter={handleLogoDrag} onDragLeave={handleLogoDrag} onDragOver={handleLogoDrag} onDrop={handleLogoDrop}
+                className="rounded-xl border border-dashed px-4 py-3 text-xs cursor-pointer transition-colors"
+                style={{ borderColor: logoDragActive ? "#10b981" : "#27272a", background: logoDragActive ? "rgba(16,185,129,0.05)" : "transparent", maxWidth: "280px" }}
+                onClick={() => document.getElementById("logo-input")?.click()}
+              >
+                <input id="logo-input" type="file" accept=".jpg,.jpeg,.png,.webp" className="hidden" onChange={(e) => e.target.files?.[0] && handleLogoFile(e.target.files[0])} />
+                <span className="text-muted">{logoPreview ? `${logoFile?.name} (${(logoFile!.size / 1024).toFixed(0)} KB)` : logoUrl ? "Clic para cambiar logo" : "Clic o arrastrá · JPG, PNG · Max 5MB"}</span>
+              </div>
+              {logoFile && (
+                <button onClick={uploadLogo} disabled={logoUploading} className="px-4 py-2 text-xs font-medium rounded-lg transition-all hover:opacity-90 disabled:opacity-50 flex-shrink-0" style={{ background: "#10b981", color: "#09090b" }}>
+                  {logoUploading ? "Subiendo..." : "Guardar"}
+                </button>
               )}
             </div>
-            {logoFile && (
-              <button onClick={uploadLogo} disabled={logoUploading} className="px-3 py-2 text-xs font-medium rounded transition-all hover:opacity-90 disabled:opacity-50 flex-shrink-0" style={{ background: "#10b981", color: "#09090b" }}>
-                {logoUploading ? "..." : "Guardar"}
-              </button>
-            )}
           </div>
-          {logoError && <div className="mt-1 text-xs" style={{ color: "#ef4444" }}>{logoError}</div>}
-          {logoSaved && <div className="mt-1 text-xs font-mono" style={{ color: "#10b981" }}>✓ Logo guardado</div>}
+          {logoError && <div className="mt-2 text-xs" style={{ color: "#ef4444" }}>{logoError}</div>}
+          {logoSaved && <div className="mt-2 text-xs font-mono" style={{ color: "#10b981" }}>Logo guardado</div>}
         </div>
 
         {/* BPM Range */}
         <div>
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-4">
             <label className="text-sm font-medium">Rango de BPM</label>
-            <span className="font-mono text-xs px-2 py-0.5 rounded" style={{ background: "#18181b" }}>
-              {bpmRange[0]} — {bpmRange[1]}
-            </span>
+            <span className="font-mono text-sm px-3 py-1 rounded-lg" style={{ background: "#111114" }}>{bpmRange[0]} — {bpmRange[1]}</span>
           </div>
-          <div className="relative h-1.5 rounded-full" style={{ background: "#27272a" }}>
-            <div
-              className="absolute h-full rounded-full"
-              style={{
-                left: `${((bpmRange[0] - 60) / 140) * 100}%`,
-                right: `${100 - ((bpmRange[1] - 60) / 140) * 100}%`,
-                background: "#10b981",
-              }}
-            />
-          </div>
-          <div className="flex gap-4 mt-3">
-            <div className="flex-1">
-              <label className="text-xs text-muted mb-1 block">Mínimo</label>
-              <input
-                type="range"
-                min={60}
-                max={200}
-                value={bpmRange[0]}
-                onChange={(e) => setBpmRange([Math.min(+e.target.value, bpmRange[1] - 5), bpmRange[1]])}
-                className="w-full cursor-pointer"
-              />
+          <div className="grid grid-cols-2 gap-6">
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-muted">Mínimo</span>
+                <span className="font-mono text-xs" style={{ color: "#10b981" }}>{bpmRange[0]}</span>
+              </div>
+              <input type="range" min={60} max={200} value={bpmRange[0]} onChange={(e) => setBpmRange([Math.min(+e.target.value, bpmRange[1] - 5), bpmRange[1]])} className="w-full cursor-pointer accent-emerald-500" />
             </div>
-            <div className="flex-1">
-              <label className="text-xs text-muted mb-1 block">Máximo</label>
-              <input
-                type="range"
-                min={60}
-                max={200}
-                value={bpmRange[1]}
-                onChange={(e) => setBpmRange([bpmRange[0], Math.max(+e.target.value, bpmRange[0] + 5)])}
-                className="w-full cursor-pointer"
-              />
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-muted">Máximo</span>
+                <span className="font-mono text-xs" style={{ color: "#10b981" }}>{bpmRange[1]}</span>
+              </div>
+              <input type="range" min={60} max={200} value={bpmRange[1]} onChange={(e) => setBpmRange([bpmRange[0], Math.max(+e.target.value, bpmRange[0] + 5)])} className="w-full cursor-pointer accent-emerald-500" />
+            </div>
+          </div>
+        </div>
+
+        {/* LUFS Target */}
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <label className="text-sm font-medium">LUFS objetivo</label>
+            <span className="font-mono text-sm px-3 py-1 rounded-lg" style={{ background: "#111114" }}>{lufsTarget} LUFS ± {lufsTolerance}</span>
+          </div>
+          <div className="grid grid-cols-2 gap-6">
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-muted">Target</span>
+                <span className="font-mono text-xs" style={{ color: "#10b981" }}>{lufsTarget}</span>
+              </div>
+              <input type="range" min={-20} max={-6} value={lufsTarget} onChange={(e) => setLufsTarget(+e.target.value)} className="w-full cursor-pointer accent-emerald-500" />
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-muted">Tolerancia</span>
+                <span className="font-mono text-xs" style={{ color: "#10b981" }}>± {lufsTolerance}</span>
+              </div>
+              <input type="range" min={0.5} max={4} step={0.5} value={lufsTolerance} onChange={(e) => setLufsTolerance(+e.target.value)} className="w-full cursor-pointer accent-emerald-500" />
             </div>
           </div>
         </div>
 
         {/* Duration Range */}
         <div>
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
-              <label className="text-sm font-medium">Duración máx.</label>
-              {/* Toggle Switch */}
-              <button
-                onClick={() => setDurationEnabled((p) => !p)}
-                className="relative w-9 h-5 rounded-full transition-colors cursor-pointer"
-                style={{ background: durationEnabled ? "#10b981" : "#27272a" }}
-              >
-                <div
-                  className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform"
-                  style={{ left: durationEnabled ? "calc(100% - 18px)" : "2px" }}
-                />
+              <label className="text-sm font-medium">Duración máxima</label>
+              <button onClick={() => setDurationEnabled((p) => !p)} className="relative w-9 h-5 rounded-full transition-colors cursor-pointer" style={{ background: durationEnabled ? "#10b981" : "#27272a" }}>
+                <div className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform" style={{ left: durationEnabled ? "calc(100% - 18px)" : "2px" }} />
               </button>
             </div>
-            {durationEnabled && (
-              <span className="font-mono text-xs px-2 py-0.5 rounded" style={{ background: "#18181b" }}>
-                Máx {Math.floor(durationMax / 60)}:{String(durationMax % 60).padStart(2, "0")}
-              </span>
-            )}
+            {durationEnabled && <span className="font-mono text-xs px-2 py-1 rounded-lg" style={{ background: "#111114" }}>{Math.floor(durationMax / 60)}:{String(durationMax % 60).padStart(2, "0")}</span>}
           </div>
           {durationEnabled && (
-            <>
-              <div className="relative h-1.5 rounded-full cursor-pointer" style={{ background: "#27272a" }}>
-                <div
-                  className="absolute h-full rounded-full"
-                  style={{ left: 0, right: `${100 - (durationMax / 1200) * 100}%`, background: "#10b981" }}
-                />
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-muted">Máximo</span>
+                <span className="font-mono text-xs" style={{ color: "#10b981" }}>{Math.floor(durationMax / 60)}:{String(durationMax % 60).padStart(2, "0")}</span>
               </div>
-              <div className="mt-3">
-                <input
-                  type="range"
-                  min={0}
-                  max={1200}
-                  step={30}
-                  value={durationMax}
-                  onChange={(e) => setDurationMax(+e.target.value)}
-                  className="w-full cursor-pointer accent-emerald-500"
-                />
-                <div className="flex justify-between text-[10px] font-mono text-muted mt-0.5">
-                  <span>0:00</span>
-                  <span>20:00</span>
-                </div>
-              </div>
-            </>
+              <input type="range" min={0} max={1200} step={30} value={durationMax} onChange={(e) => setDurationMax(+e.target.value)} className="w-full cursor-pointer accent-emerald-500" />
+              <div className="flex justify-between text-[10px] font-mono text-muted mt-1"><span>0:00</span><span>20:00</span></div>
+            </div>
           )}
-        </div>
-
-        {/* LUFS Target */}
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <label className="text-sm font-medium">LUFS objetivo</label>
-            <span className="font-mono text-xs px-2 py-0.5 rounded" style={{ background: "#18181b" }}>
-              {lufsTarget} ± {lufsTolerance}
-            </span>
-          </div>
-          <div className="relative h-1.5 rounded-full" style={{ background: "#27272a" }}>
-            <div
-              className="absolute h-full rounded-full"
-              style={{
-                left: `${((lufsTarget - lufsTolerance + 20) / 20) * 100}%`,
-                right: `${100 - ((lufsTarget + lufsTolerance + 20) / 20) * 100}%`,
-                background: "#10b981",
-              }}
-            />
-          </div>
-          <div className="flex gap-4 mt-3">
-            <div className="flex-1">
-              <label className="text-xs text-muted mb-1 block">Target</label>
-              <input
-                type="range"
-                min={-20}
-                max={-6}
-                value={lufsTarget}
-                onChange={(e) => setLufsTarget(+e.target.value)}
-                className="w-full cursor-pointer"
-              />
-            </div>
-            <div className="flex-1">
-              <label className="text-xs text-muted mb-1 block">Tolerancia</label>
-              <input
-                type="range"
-                min={0.5}
-                max={4}
-                step={0.5}
-                value={lufsTolerance}
-                onChange={(e) => setLufsTolerance(+e.target.value)}
-                className="w-full cursor-pointer"
-              />
-            </div>
-          </div>
         </div>
 
         {/* Preferred Scales */}
@@ -486,7 +408,7 @@ export default function ConfigPage() {
               <button
                 key={s}
                 onClick={() => toggleScale(s)}
-                className="text-xs px-3 py-1.5 rounded border transition-colors"
+                className="text-xs px-3 py-1.5 rounded-lg border transition-all active:scale-95"
                 style={{
                   borderColor: selectedScales.includes(s) ? "#10b981" : "#27272a",
                   color: selectedScales.includes(s) ? "#10b981" : "#71717a",
@@ -502,7 +424,7 @@ export default function ConfigPage() {
         {/* Auto-Reject Rules */}
         <div>
           <label className="text-sm font-medium mb-3 block">Rechazo automático</label>
-          <div className="space-y-2">
+          <div className="flex gap-2 flex-wrap">
             {[
               { key: "phase" as const, label: "Fase invertida" },
               { key: "lufs" as const, label: "LUFS > -8" },
@@ -511,19 +433,14 @@ export default function ConfigPage() {
               <button
                 key={rule.key}
                 onClick={() => setAutoReject((prev) => ({ ...prev, [rule.key]: !prev[rule.key] }))}
-                className="flex items-center gap-3 w-full text-left"
+                className="text-xs px-3 py-1.5 rounded-lg border transition-all active:scale-95"
+                style={{
+                  borderColor: autoReject[rule.key] ? "#ef4444" : "#27272a",
+                  color: autoReject[rule.key] ? "#ef4444" : "#71717a",
+                  background: autoReject[rule.key] ? "rgba(239,68,68,0.1)" : "transparent",
+                }}
               >
-                <div
-                  className="w-4 h-4 rounded-sm flex items-center justify-center transition-colors"
-                  style={{ background: autoReject[rule.key] ? "#10b981" : "#27272a" }}
-                >
-                  {autoReject[rule.key] && (
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#09090b" strokeWidth="3">
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                  )}
-                </div>
-                <span className="text-sm text-muted">{rule.label}</span>
+                {rule.label}
               </button>
             ))}
           </div>
