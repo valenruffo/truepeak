@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { usePlayer } from "@/lib/PlayerContext";
-import HoldToDelete from "@/components/HoldToDelete";
+import TwoClickDelete from "@/components/TwoClickDelete";
 
 type FilterStatus = "all" | "pending" | "approved" | "rejected";
 
@@ -450,11 +450,11 @@ export default function InboxPage() {
                     <button onClick={() => handleApprove(d.id)} disabled={!!actionLoading[d.id]} className="px-3 py-1 rounded text-[10px] font-medium disabled:opacity-50" style={{ background: "#06b6d4", color: "#09090b" }}>
                       {actionLoading[d.id] === "approve" ? "..." : "Aprobar"}
                     </button>
-                    <HoldToDelete onDelete={() => handleDiscard(d.id)} size={22} />
+                    <TwoClickDelete onDelete={() => handleDiscard(d.id)} size={22} />
                   </>
                 )}
                 {(d.status === "approved" || d.status === "rejected") && (
-                  <HoldToDelete onDelete={() => handleDiscard(d.id)} size={22} />
+                  <TwoClickDelete onDelete={() => handleDiscard(d.id)} size={22} />
                 )}
               </div>
             </div>
