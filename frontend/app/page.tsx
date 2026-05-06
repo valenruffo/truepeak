@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import WhatsAppBubble from "@/components/WhatsAppBubble";
 
@@ -97,6 +97,107 @@ function IconCheck() {
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
       <polyline points="20 6 9 17 4 12" />
     </svg>
+  );
+}
+
+// ─── Demo Simulation ───────────────────────────────────────────────────────────
+
+function DemoSimulation() {
+  const [trackState, setTrackState] = useState<"analyzing" | "error" | "approved">("analyzing");
+  const [trackName, setTrackName] = useState("");
+  const [detectedIssue, setDetectedIssue] = useState("");
+  const [metrics, setMetrics] = useState({ bpm: "---", lufs: "---", phase: "---" });
+  const [bars, setBars] = useState(Array(24).fill(10));
+  const [activeNotes, setActiveNotes] = useState<Set<number>>(new Set());
+  const [progress, setProgress] = useState(0);
+  const tracks = [
+    { name: "DJ_Krill_Midnight.wav", issue: "Fase invertida en L/R", bpm: "128", lufs: "-6.2", phase: "INVERTIDA", state: "error" as const },
+    { name: "ProducerX_Sunrise.wav", issue: "LUFS excesivo", bpm: "140", lufs: "-4.1", phase: "OK", state: "error" as const },
+    { name: "Anon_Groove_03.wav", issue: "Fuera de tempo (118 vs 124)", bpm: "118", lufs: "-14.3", phase: "OK", state: "error" as const },
+    { name: "Mara_Deep_Cut.wav", issue: null, bpm: "122", lufs: "-14.0", phase: "OK", state: "approved" as const },
+    { name: "Subsonic_Pulse.wav", issue: null, bpm: "126", lufs: "-12.8", phase: "OK", state: "approved" as const },
+  ];
+  const [trackIdx, setTrackIdx] = useState(0);
+
+  useEffect(() => {
+    const cycle = () => {
+      const track = tracks[trackIdx];
+      setTrackName(track.name); setTrackState("analyzing"); setProgress(0); setDetectedIssue(""); setMetrics({ bpm: "---", lufs: "---", phase: "---" });
+      setTimeout(() => { setMetrics({ bpm: track.bpm, lufs: track.lufs, phase: track.phase }); setProgress(60); }, 800);
+      setTimeout(() => { setProgress(100); if (track.state === "error") { setTrackState("error"); setDetectedIssue(track.issue || ""); } else { setTrackState("approved"); } }, 2200);
+      setTimeout(() => { setTrackIdx((prev) => (prev + 1) % tracks.length); }, 4500);
+    };
+    cycle();
+    const intervalRef = setInterval(cycle, 5000);
+    return () => clearInterval(intervalRef);
+  }, [trackIdx]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setBars((prev) => prev.map(() => { if (trackState === "error") return Math.random() * 20 + 5; if (trackState === "approved") return Math.random() * 60 + 30; return Math.random() * 40 + 10; }));
+    }, 150);
+    return () => clearInterval(interval);
+  }, [trackState]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const newNotes = new Set<number>();
+      const count = trackState === "analyzing" ? 6 : trackState === "error" ? 2 : 8;
+      while (newNotes.size < count) { newNotes.add(Math.floor(Math.random() * 48)); }
+      setActiveNotes(newNotes);
+    }, 400);
+    return () => clearInterval(interval);
+  }, [trackState]);
+
+  const stateColor = trackState === "error" ? "#ef4444" : trackState === "approved" ? "#10b981" : "#06b6d4";
+  const stateLabel = trackState === "error" ? "RECHAZADO" : trackState === "approved" ? "APROBADO" : "ANALIZANDO";
+
+  return (
+    <div className="rounded border overflow-hidden" style={{ borderColor: "#27272a", background: "#0c0c0e" }}>
+      <div className="flex items-center justify-between px-4 py-2 border-b" style={{ borderColor: "#27272a" }}>
+        <div className="flex items-center gap-2">
+          <div className="w-1.5 h-1.5 rounded-full" style={{ background: stateColor }} />
+          <span className="font-mono text-xs" style={{ color: stateColor }}>{stateLabel}</span>
+        </div>
+        <span className="font-mono text-xs text-muted truncate max-w-[200px]">{trackName}</span>
+      </div>
+      <div className="relative p-3">
+        <div className="grid grid-cols-12 gap-[2px] mb-3">
+          {Array.from({ length: 48 }).map((_, i) => (
+            <div key={i} className="transition-all duration-300" style={{ height: "4px", background: activeNotes.has(i) ? stateColor : "#1a1a1e", opacity: activeNotes.has(i) ? 0.8 : 0.2 }} />
+          ))}
+        </div>
+        <div className="flex items-end gap-[2px] h-14 mb-3 px-1">
+          {bars.map((h, i) => (
+            <div key={i} className="flex-1" style={{ height: `${h}%`, background: stateColor, opacity: 0.6, transition: "height 0.15s ease" }} />
+          ))}
+        </div>
+        {trackState === "analyzing" && (
+          <div className="absolute left-0 right-0 h-[1px]" style={{ background: "linear-gradient(90deg, transparent, rgba(16,185,129,0.4), transparent)", animation: "scan-line 3s linear infinite" }} />
+        )}
+      </div>
+      <div className="grid grid-cols-3 gap-px" style={{ background: "#27272a" }}>
+        {[{ label: "BPM", value: metrics.bpm }, { label: "LUFS", value: metrics.lufs }, { label: "FASE", value: metrics.phase }].map((m) => (
+          <div key={m.label} className="px-3 py-2 text-center" style={{ background: "#111114" }}>
+            <div className="text-[10px] uppercase tracking-wider text-muted font-mono">{m.label}</div>
+            <div className="font-mono text-sm" style={{ color: m.value === "INVERTIDA" ? "#ef4444" : m.value === "---" ? "#52525b" : "#fafafa" }}>{m.value}</div>
+          </div>
+        ))}
+      </div>
+      {detectedIssue && (
+        <div className="px-4 py-2 border-t flex items-center gap-2" style={{ borderColor: "#27272a" }}>
+          <span className="font-mono text-xs" style={{ color: "#ef4444" }}>{detectedIssue}</span>
+        </div>
+      )}
+      {trackState === "approved" && (
+        <div className="px-4 py-2 border-t flex items-center gap-2" style={{ borderColor: "#27272a" }}>
+          <span className="font-mono text-xs" style={{ color: "#10b981" }}>122 BPM, Mezcla OK, Fase correcta</span>
+        </div>
+      )}
+      <div className="h-px w-full" style={{ background: "#1a1a1e" }}>
+        <div className="h-full transition-all duration-500 ease-out" style={{ width: `${progress}%`, background: stateColor }} />
+      </div>
+    </div>
   );
 }
 
@@ -514,9 +615,18 @@ function Footer() {
 
 export default function Home() {
   return (
-    <div className="min-h-screen" style={{ background: "#09090b", color: "#fafafa" }}>
+      <div className="min-h-screen" style={{ background: "#09090b", color: "#fafafa" }}>
+      <style>{`
+        @keyframes scan-line {
+          0% { top: 0; }
+          100% { top: 100%; }
+        }
+      `}</style>
       <Nav />
       <Hero />
+      <div className="max-w-4xl mx-auto px-4 md:px-6 -mt-8 pb-20">
+        <DemoSimulation />
+      </div>
       <HowItWorks />
       <Features />
       <Pricing />
