@@ -12,6 +12,7 @@ type FilterStatus = "all" | "pending" | "approved" | "rejected";
 interface Submission {
   id: string;
   producer_name: string;
+  producer_email: string | null;
   track_name: string;
   status: "pending" | "approved" | "rejected";
   bpm: number | null;
