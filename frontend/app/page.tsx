@@ -278,39 +278,44 @@ function Hero() {
       />
 
       <div className="max-w-6xl mx-auto relative">
-        <div className="max-w-2xl">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded mb-6" style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.2)" }}>
-            <div className="w-1.5 h-1.5 rounded-full" style={{ background: "#10b981" }} />
-            <span className="text-xs font-mono" style={{ color: "#10b981" }}>B2B SaaS para sellos electronicos</span>
+        <div className="grid md:grid-cols-2 gap-8 lg:gap-12 items-center">
+          <div>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded mb-6" style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.2)" }}>
+              <div className="w-1.5 h-1.5 rounded-full" style={{ background: "#10b981" }} />
+              <span className="text-xs font-mono" style={{ color: "#10b981" }}>B2B SaaS para sellos electronicos</span>
+            </div>
+
+            <h1 className="font-bold text-4xl md:text-5xl lg:text-6xl leading-[1.08] tracking-tight mb-6" style={{ color: "#fafafa" }}>
+              True Peak AI
+            </h1>
+
+            <p className="text-lg md:text-xl leading-relaxed mb-8 max-w-xl" style={{ color: "#71717a" }}>
+              El primer filtro de demos con analisis tecnico automatico.
+              Setea la firma sonica de tu sello y deja que el motor descarte
+              los tracks fuera de standard antes de que lleguen a tus oidos.
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Link
+                href="/register"
+                className="px-6 py-3 text-sm font-medium rounded transition-all hover:opacity-90 text-center cursor-pointer"
+                style={{ background: "#10b981", color: "#09090b" }}
+              >
+                Comenzar gratis
+              </Link>
+              <a
+                href="#how-it-works"
+                className="px-6 py-3 text-sm rounded transition-all text-center cursor-pointer"
+                style={{ border: "1px solid #27272a", color: "#fafafa" }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "#0c0c0e")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+              >
+                Ver como funciona
+              </a>
+            </div>
           </div>
-
-          <h1 className="font-bold text-4xl md:text-5xl lg:text-6xl leading-[1.08] tracking-tight mb-6" style={{ color: "#fafafa" }}>
-            True Peak AI
-          </h1>
-
-          <p className="text-lg md:text-xl leading-relaxed mb-8 max-w-xl" style={{ color: "#71717a" }}>
-            El primer filtro de demos con analisis tecnico automatico.
-            Setea la firma sonica de tu sello y deja que el motor descarte
-            los tracks fuera de standard antes de que lleguen a tus oidos.
-          </p>
-
-          <div className="flex flex-col sm:flex-row gap-3">
-            <Link
-              href="/register"
-              className="px-6 py-3 text-sm font-medium rounded transition-all hover:opacity-90 text-center cursor-pointer"
-              style={{ background: "#10b981", color: "#09090b" }}
-            >
-              Comenzar gratis
-            </Link>
-            <a
-              href="#how-it-works"
-              className="px-6 py-3 text-sm rounded transition-all text-center cursor-pointer"
-              style={{ border: "1px solid #27272a", color: "#fafafa" }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "#0c0c0e")}
-              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-            >
-              Ver como funciona
-            </a>
+          <div className="hidden md:block max-w-sm mx-auto w-full">
+            <DemoSimulation />
           </div>
         </div>
       </div>
@@ -624,9 +629,6 @@ export default function Home() {
       `}</style>
       <Nav />
       <Hero />
-      <div className="max-w-4xl mx-auto px-4 md:px-6 -mt-8 pb-20">
-        <DemoSimulation />
-      </div>
       <HowItWorks />
       <Features />
       <Pricing />
