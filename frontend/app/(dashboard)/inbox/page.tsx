@@ -16,6 +16,7 @@ interface Submission {
   status: "pending" | "approved" | "rejected";
   bpm: number | null;
   lufs: number | null;
+  duration: number | null;
   phase_correlation: number | null;
   musical_key: string | null;
   created_at: string;
@@ -49,6 +50,13 @@ function formatRelativeTime(isoDate: string): string {
   if (diffDay === 1) return "Ayer";
   if (diffDay < 7) return `Hace ${diffDay}d`;
   return date.toLocaleDateString("es-AR");
+}
+
+function formatDuration(sec: number | null): string {
+  if (sec == null || sec <= 0) return "—";
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
 function formatBpm(bpm: number | null): string {
@@ -218,9 +226,10 @@ export default function InboxPage() {
         </div>
         <div className="rounded border overflow-hidden" style={{ borderColor: "#27272a", background: "#0c0c0e" }}>
           <div className="grid grid-cols-12 gap-2 px-4 py-2.5 text-[10px] font-mono uppercase tracking-wider text-muted border-b" style={{ borderColor: "#27272a" }}>
-            <div className="col-span-4">Track</div>
+            <div className="col-span-3">Track</div>
             <div className="col-span-1 text-center">BPM</div>
             <div className="col-span-1 text-center">LUFS</div>
+            <div className="col-span-1 text-center">Dur</div>
             <div className="col-span-1 text-center">Fase</div>
             <div className="col-span-1 text-center">Escala</div>
             <div className="col-span-2 text-center">Estado</div>
@@ -228,11 +237,11 @@ export default function InboxPage() {
           </div>
           {[0, 1, 2, 3, 4].map((i) => (
             <div key={i} className="grid grid-cols-12 gap-2 px-4 py-3 items-center border-b animate-pulse" style={{ borderColor: "#1a1a1e" }}>
-              <div className="col-span-4">
+              <div className="col-span-3">
                 <div className="h-3 rounded w-32 mb-1" style={{ background: "#1a1a1e" }} />
                 <div className="h-2 rounded w-20" style={{ background: "#1a1a1e" }} />
               </div>
-              {[0, 1, 2, 3].map((j) => (
+              {[0, 1, 2, 3, 4].map((j) => (
                 <div key={j} className="col-span-1 text-center">
                   <div className="h-3 rounded w-8 mx-auto" style={{ background: "#1a1a1e" }} />
                 </div>
@@ -331,9 +340,10 @@ export default function InboxPage() {
       <div className="rounded border overflow-hidden" style={{ borderColor: "#27272a", background: "#0c0c0e" }}>
         {/* Header */}
         <div className="grid grid-cols-12 gap-2 px-4 py-2.5 text-[10px] font-mono uppercase tracking-wider text-muted border-b" style={{ borderColor: "#27272a" }}>
-          <div className="col-span-4">Track</div>
+          <div className="col-span-3">Track</div>
           <div className="col-span-1 text-center">BPM</div>
           <div className="col-span-1 text-center">LUFS</div>
+          <div className="col-span-1 text-center">Dur</div>
           <div className="col-span-1 text-center">Fase</div>
           <div className="col-span-1 text-center">Escala</div>
           <div className="col-span-2 text-center">Estado</div>
@@ -360,7 +370,7 @@ export default function InboxPage() {
                 transition: "background 1.5s ease-out",
               }}
             >
-              <div className="col-span-4 flex items-center gap-2">
+              <div className="col-span-3 flex items-center gap-2">
                 {d.mp3_path && (
                   <button
                     onClick={(e) => { e.stopPropagation(); if (currentTrack?.id === d.id) { togglePlay(); } else { playTrack({ id: d.id, track_name: d.track_name || "Sin nombre", producer_name: d.producer_name || "Anónimo", mp3_path: d.mp3_path }); } }}
@@ -394,6 +404,7 @@ export default function InboxPage() {
               </div>
               <div className="col-span-1 text-center font-mono">{formatBpm(d.bpm)}</div>
               <div className="col-span-1 text-center font-mono">{formatLufs(d.lufs)}</div>
+              <div className="col-span-1 text-center font-mono text-muted">{formatDuration(d.duration)}</div>
               <div className="col-span-1 text-center font-mono" style={{ color: phase.color }}>{phase.text}</div>
               <div className="col-span-1 text-center font-mono text-muted">{formatKey(d.musical_key)}</div>
               <div className="col-span-2 text-center">

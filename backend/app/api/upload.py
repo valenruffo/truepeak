@@ -166,6 +166,7 @@ async def upload_audio(
                 track_name=track_name or file.filename or "Unknown Track",
                 bpm=result["metrics"].get("bpm") if result["metrics"] else None,
                 lufs=result["metrics"].get("lufs") if result["metrics"] else None,
+                duration=result["metrics"].get("duration") if result["metrics"] else None,
                 phase_correlation=result["metrics"].get("phase_correlation") if result["metrics"] else None,
                 musical_key=result["metrics"].get("musical_key") if result["metrics"] else None,
                 status=result["status"],

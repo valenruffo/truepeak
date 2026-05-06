@@ -57,8 +57,8 @@ function PlayerBar() {
         <div className="h-full rounded-full transition-all duration-150 group-hover:h-2" style={{ width: `${progress}%`, background: "#10b981" }} />
       </div>
 
-      <span className="text-[10px] font-mono text-muted w-16 text-right">
-        {formatTime(audioRef.current?.currentTime ?? 0)}
+      <span className="text-[10px] font-mono text-muted whitespace-nowrap">
+        {formatTime(audioRef.current?.currentTime ?? 0)} / {formatTime(duration)}
       </span>
 
       <div className="min-w-0 max-w-[200px]">

@@ -103,11 +103,15 @@ def _analyze_audio_sync(file_path: str) -> dict[str, Any]:
         chroma = librosa.feature.chroma_stft(y=y_mono, sr=sr)
         musical_key = _detect_musical_key(chroma)
 
+        # --- Duration ---
+        duration = float(len(y_mono) / sr) if sr and len(y_mono) > 0 else 0.0
+
         return {
             "bpm": round(bpm, 2),
             "lufs": round(lufs, 2),
             "phase_correlation": round(phase_correlation, 4),
             "musical_key": musical_key,
+            "duration": round(duration, 1),
         }
 
     except librosa.LibrosaError as e:

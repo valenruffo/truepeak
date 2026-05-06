@@ -25,6 +25,7 @@ class SubmissionDetail(BaseModel):
     track_name: str
     bpm: float | None
     lufs: float | None
+    duration: float | None
     phase_correlation: float | None
     musical_key: str | None
     status: str
@@ -45,6 +46,7 @@ class SubmissionSummary(BaseModel):
     original_path: str | None
     bpm: float | None
     lufs: float | None
+    duration: float | None
     phase_correlation: float | None
     musical_key: str | None
     notes: str | None
@@ -129,6 +131,7 @@ async def list_submissions(
             original_path=s.original_path,
             bpm=s.bpm,
             lufs=s.lufs,
+            duration=s.duration,
             phase_correlation=s.phase_correlation,
             musical_key=s.musical_key,
             notes=s.notes,
@@ -159,6 +162,7 @@ async def get_submission(
         track_name=submission.track_name,
         bpm=submission.bpm,
         lufs=submission.lufs,
+        duration=submission.duration,
         phase_correlation=submission.phase_correlation,
         musical_key=submission.musical_key,
         status=submission.status,

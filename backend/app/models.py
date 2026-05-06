@@ -54,6 +54,7 @@ class Submission(SQLModel, table=True):
     track_name: str
     bpm: float | None = None
     lufs: float | None = None
+    duration: float | None = None
     phase_correlation: float | None = None
     musical_key: str | None = None
     status: str = Field(default="pending", index=True)  # pending | approved | rejected
