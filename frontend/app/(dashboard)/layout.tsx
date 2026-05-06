@@ -5,12 +5,14 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { PlayerProvider, usePlayer, type PlayerTrack } from "@/lib/PlayerContext";
+import WhatsAppBubble from "@/components/WhatsAppBubble";
 
 const navItems = [
   { href: "/config", label: "Firma sónica" },
   { href: "/link", label: "Link" },
   { href: "/inbox", label: "Demos" },
   { href: "/crm", label: "CRM" },
+  { href: "/guide", label: "Guía" },
 ];
 
 function PlayerBar() {
@@ -25,12 +27,11 @@ function PlayerBar() {
 
   return (
     <div
-      className="fixed bottom-0 left-0 right-0 z-50 flex items-center gap-4 px-4"
+      className="fixed bottom-0 left-0 right-0 z-50 flex items-center gap-2 md:gap-4 px-2 md:px-4"
       style={{
         height: "64px",
         background: "#111114",
         borderTop: "1px solid #27272a",
-        marginLeft: "240px",
       }}
     >
       <button onClick={prevTrack} className="p-1.5 rounded transition-colors hover:bg-white/10" title="Anterior">
@@ -83,6 +84,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
   const [labelName, setLabelName] = useState<string>("");
   const [planInfo, setPlanInfo] = useState<string>("");
   const [hqCount, setHqCount] = useState<{ count: number; limit: number; processed_count: number } | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const { queueTracks } = usePlayer();
 
   useEffect(() => {
@@ -129,8 +131,27 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen" style={{ background: "#09090b", color: "#fafafa" }}>
+      {/* Mobile hamburger */}
+      <button
+        onClick={() => setSidebarOpen((p) => !p)}
+        className="fixed top-3 left-3 z-50 md:hidden w-9 h-9 rounded flex items-center justify-center"
+        style={{ background: "#111114", border: "1px solid #27272a" }}
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a1a1aa" strokeWidth="2">
+          {sidebarOpen ? <><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></> : <><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" /></>}
+        </svg>
+      </button>
+
+      {/* Overlay for mobile */}
+      {sidebarOpen && (
+        <div className="fixed inset-0 z-30 md:hidden" style={{ background: "rgba(0,0,0,0.5)" }} onClick={() => setSidebarOpen(false)} />
+      )}
+
       {/* Sidebar */}
-      <aside className="fixed top-0 left-0 h-full flex flex-col z-40" style={{ width: "240px", background: "#111114", borderRight: "1px solid #27272a" }}>
+      <aside
+        className={`fixed top-0 left-0 h-full flex flex-col z-40 transition-transform ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0`}
+        style={{ width: "240px", background: "#111114", borderRight: "1px solid #27272a" }}
+      >
         <div className="px-5 pt-6 pb-4">
           <Link href="/inbox"><img src="/logo.png" alt="True Peak AI" className="h-7 w-auto" /></Link>
         </div>
@@ -138,7 +159,8 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
           {navItems.map((item) => {
             const isActive = pathname === item.href;
             return (
-              <Link key={item.href} href={item.href} className={cn("block text-sm px-3 py-2 rounded transition-colors mb-0.5", isActive ? "font-medium" : "hover:bg-white/5")}
+              <Link key={item.href} href={item.href} onClick={() => setSidebarOpen(false)}
+                className={cn("block text-sm px-3 py-2 rounded transition-colors mb-0.5", isActive ? "font-medium" : "hover:bg-white/5")}
                 style={{ color: isActive ? "#10b981" : "#a1a1aa", background: isActive ? "rgba(16,185,129,0.08)" : "transparent" }}>
                 {item.label}
               </Link>
@@ -148,7 +170,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
         {hqCount && (
           <div className="px-3 mb-1 space-y-1">
             <div className="px-3 py-1.5 rounded text-xs font-mono" style={{ background: "rgba(16,185,129,0.06)", color: hqCount.processed_count >= 100 ? "#ef4444" : "#71717a" }}>
-              📊 {hqCount.processed_count}/100 procesados
+              📊 {hqCount.processed_count}/100
             </div>
             <div className="px-3 py-1.5 rounded text-xs font-mono" style={{ background: "rgba(16,185,129,0.06)", color: hqCount.count >= hqCount.limit ? "#ef4444" : "#71717a" }}>
               📦 {hqCount.count}/{hqCount.limit} HQ
@@ -165,11 +187,12 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
         )}
       </aside>
 
-      <main className="flex-1" style={{ marginLeft: "240px", paddingBottom: "80px" }}>
-        <div className="mx-auto max-w-6xl px-6 py-8">{children}</div>
+      <main className="flex-1 pt-12 md:pt-0" style={{ marginLeft: "0", paddingBottom: "80px" }}>
+        <div className="mx-auto max-w-6xl px-3 md:px-6 py-4 md:py-8 md:ml-[240px]">{children}</div>
       </main>
 
       <PlayerBar />
+      <WhatsAppBubble />
     </div>
   );
 }

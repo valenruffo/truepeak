@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import WhatsAppBubble from "@/components/WhatsAppBubble";
 
 // ─── Demo Simulation Component ───────────────────────────────────────────────
 
@@ -974,6 +975,7 @@ function FeedbackBubble() {
           </button>
         </div>
       )}
+      <WhatsAppBubble />
     </>
   );
 }

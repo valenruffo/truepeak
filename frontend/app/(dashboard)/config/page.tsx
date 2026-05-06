@@ -18,6 +18,18 @@ interface SonicSignature {
   };
 }
 
+const GENRE_PRESETS: Record<string, { bpm: [number, number]; lufs: number; scales: string[]; durMax?: number }> = {
+  "Progressive House": { bpm: [120, 128], lufs: -10, scales: ["Menor"], durMax: 480 },
+  "Melodic Techno": { bpm: [120, 126], lufs: -10, scales: ["Menor"], durMax: 480 },
+  "Techno": { bpm: [128, 140], lufs: -9, scales: ["Menor"], durMax: 420 },
+  "House": { bpm: [122, 128], lufs: -10, scales: ["Menor"], durMax: 420 },
+  "Deep House": { bpm: [115, 125], lufs: -12, scales: ["Menor"], durMax: 420 },
+  "Tech House": { bpm: [124, 130], lufs: -9, scales: ["Menor"], durMax: 420 },
+  "Minimal": { bpm: [124, 130], lufs: -12, scales: ["Menor"], durMax: 480 },
+  "Drum & Bass": { bpm: [160, 180], lufs: -7, scales: ["Menor"], durMax: 360 },
+  "Trance": { bpm: [134, 142], lufs: -8, scales: ["Menor"], durMax: 480 },
+};
+
 export default function ConfigPage() {
   const [bpmRange, setBpmRange] = useState([120, 128]);
   const [lufsTarget, setLufsTarget] = useState(-14);
@@ -257,91 +269,74 @@ export default function ConfigPage() {
     );
   }
 
+  const applyPreset = (genre: string) => {
+    const p = GENRE_PRESETS[genre];
+    if (!p) return;
+    setBpmRange(p.bpm);
+    setLufsTarget(p.lufs);
+    setSelectedScales(p.scales);
+    if (p.durMax) { setDurationMax(p.durMax); setDurationEnabled(true); }
+  };
+
   return (
-    <div className="max-w-3xl mx-auto px-6 py-12">
+    <div className="max-w-3xl mx-auto px-4 md:px-6 py-8 md:py-12">
       <div className="text-xs font-mono uppercase tracking-wider text-muted mb-1">Configuración</div>
-      <h1 className="font-display font-semibold text-2xl mb-8">Firma sónica — Sello principal</h1>
+      <h1 className="font-display font-semibold text-2xl mb-6">Firma sónica — Sello principal</h1>
+
+      {/* Genre Preset Selector */}
+      <div className="mb-6 flex items-center gap-3">
+        <label className="text-sm font-medium whitespace-nowrap">Preset:</label>
+        <select
+          onChange={(e) => { if (e.target.value) applyPreset(e.target.value); e.target.value = ""; }}
+          className="flex-1 px-3 py-2 rounded border text-sm bg-transparent cursor-pointer"
+          style={{ borderColor: "#27272a", color: "#fafafa", maxWidth: "240px" }}
+          defaultValue=""
+        >
+          <option value="" disabled style={{ color: "#71717a" }}>Elegí un género...</option>
+          {Object.keys(GENRE_PRESETS).map((g) => (
+            <option key={g} value={g} style={{ background: "#0c0c0e", color: "#fafafa" }}>{g}</option>
+          ))}
+        </select>
+        <span className="text-[10px] text-muted">Carga valores sugeridos</span>
+      </div>
 
       <div className="space-y-8">
-        {/* Logo Upload */}
+        {/* Logo Upload — compact */}
         <div>
-          <label className="text-sm font-medium mb-1 block">Logo del sello</label>
-          <p className="text-xs text-muted mb-3">
-            Subí el logo de tu sello. Se mostrará en la página de recepción de demos.
-          </p>
-          {logoUrl && !logoPreview && (
-            <div className="mb-3">
+          <label className="text-sm font-medium mb-2 block">Logo del sello</label>
+          <div className="flex items-center gap-3">
+            {(logoPreview || logoUrl) && (
               <img
-                src={logoUrl}
-                alt="Logo actual"
-                className="w-16 h-16 rounded object-cover border"
+                src={logoPreview || logoUrl || ""}
+                alt="Logo"
+                className="w-12 h-12 rounded object-cover border flex-shrink-0"
                 style={{ borderColor: "#27272a" }}
               />
-            </div>
-          )}
-          <div
-            onDragEnter={handleLogoDrag}
-            onDragLeave={handleLogoDrag}
-            onDragOver={handleLogoDrag}
-            onDrop={handleLogoDrop}
-            className="rounded border-2 border-dashed p-6 text-center cursor-pointer transition-colors"
-            style={{
-              borderColor: logoDragActive ? "#10b981" : logoPreview ? "#10b981" : "#27272a",
-              background: logoDragActive ? "rgba(16,185,129,0.05)" : "transparent",
-            }}
-            onClick={() => document.getElementById("logo-input")?.click()}
-          >
-            <input
-              id="logo-input"
-              type="file"
-              accept=".jpg,.jpeg,.png,.webp"
-              className="hidden"
-              onChange={(e) => e.target.files?.[0] && handleLogoFile(e.target.files[0])}
-            />
-            {logoPreview ? (
-              <div>
-                <img
-                  src={logoPreview}
-                  alt="Preview"
-                  className="w-16 h-16 rounded object-cover mx-auto mb-2 border"
-                  style={{ borderColor: "#27272a" }}
-                />
-                <div className="text-sm font-medium mb-1" style={{ color: "#10b981" }}>
-                  ✓ {logoFile?.name}
-                </div>
-                <div className="text-xs text-muted">
-                  {(logoFile!.size / (1024 * 1024)).toFixed(1)} MB
-                </div>
-              </div>
-            ) : (
-              <div>
-                <div className="text-sm mb-1">
-                  {logoUrl ? "Cambiar logo" : "Arrastrá tu logo acá"}
-                </div>
-                <div className="text-xs text-muted">
-                  o hacé clic para seleccionar · JPG, PNG, WebP · Max 5MB
-                </div>
-              </div>
             )}
-          </div>
-          {logoError && (
-            <div className="mt-2 text-xs" style={{ color: "#ef4444" }}>{logoError}</div>
-          )}
-          {(logoPreview || logoUrl) && (
-            <div className="mt-3 flex items-center gap-3">
-              <button
-                onClick={uploadLogo}
-                disabled={logoUploading || !logoFile}
-                className="px-4 py-2 text-xs font-medium rounded transition-all hover:opacity-90 disabled:opacity-50"
-                style={{ background: "#10b981", color: "#09090b" }}
-              >
-                {logoUploading ? "Subiendo..." : logoUrl ? "Actualizar logo" : "Subir logo"}
-              </button>
-              {logoSaved && (
-                <span className="text-xs font-mono" style={{ color: "#10b981" }}>✓ Guardado</span>
+            <div
+              onDragEnter={handleLogoDrag}
+              onDragLeave={handleLogoDrag}
+              onDragOver={handleLogoDrag}
+              onDrop={handleLogoDrop}
+              className="flex-1 rounded border border-dashed px-3 py-2 text-xs cursor-pointer transition-colors"
+              style={{ borderColor: logoDragActive ? "#10b981" : "#27272a", background: logoDragActive ? "rgba(16,185,129,0.05)" : "transparent" }}
+              onClick={() => document.getElementById("logo-input")?.click()}
+            >
+              <input id="logo-input" type="file" accept=".jpg,.jpeg,.png,.webp" className="hidden" onChange={(e) => e.target.files?.[0] && handleLogoFile(e.target.files[0])} />
+              {logoPreview ? (
+                <span className="text-muted">{logoFile?.name} ({(logoFile!.size / 1024).toFixed(0)} KB)</span>
+              ) : (
+                <span className="text-muted">{logoUrl ? "Clic para cambiar" : "Clic o arrastrá · JPG, PNG · Max 5MB"}</span>
               )}
             </div>
-          )}
+            {logoFile && (
+              <button onClick={uploadLogo} disabled={logoUploading} className="px-3 py-2 text-xs font-medium rounded transition-all hover:opacity-90 disabled:opacity-50 flex-shrink-0" style={{ background: "#10b981", color: "#09090b" }}>
+                {logoUploading ? "..." : "Guardar"}
+              </button>
+            )}
+          </div>
+          {logoError && <div className="mt-1 text-xs" style={{ color: "#ef4444" }}>{logoError}</div>}
+          {logoSaved && <div className="mt-1 text-xs font-mono" style={{ color: "#10b981" }}>✓ Logo guardado</div>}
         </div>
 
         {/* BPM Range */}
