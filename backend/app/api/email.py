@@ -89,11 +89,16 @@ async def send_email_endpoint(
 ):
     """Send an email via Resend API. Creates an EmailLog record."""
     try:
+        # Get label owner email for reply-to
+        label = session.get(Label, auth["label_id"])
+        reply_to = label.owner_email if label else None
+
         result = await send_email(
             to=body.to,
             subject=body.subject,
             body=body.body,
             from_name=body.from_name,
+            reply_to=reply_to,
         )
 
         # Create EmailLog record

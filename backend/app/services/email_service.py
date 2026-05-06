@@ -28,6 +28,7 @@ async def send_email(
     subject: str,
     body: str,
     from_name: str = "True Peak AI",
+    reply_to: str | None = None,
 ) -> EmailSendResult:
     """Send an email via Resend API.
 
@@ -36,6 +37,7 @@ async def send_email(
         subject: Email subject line.
         body: Email body (HTML or plain text).
         from_name: Display name for the sender.
+        reply_to: Email address for replies (Reply-To header).
 
     Returns:
         EmailSendResult with the Resend email ID and status.
@@ -46,7 +48,16 @@ async def send_email(
     if not RESEND_API_KEY:
         raise EmailSendError("RESEND_API_KEY is not configured.", status_code=500)
 
-    from_email = f"{from_name} <noreply@truepeak.ai>"
+    from_email = f"{from_name} <noreply@truepeak.space>"
+
+    payload: dict = {
+        "from": from_email,
+        "to": [to],
+        "subject": subject,
+        "html": body,
+    }
+    if reply_to:
+        payload["reply_to"] = reply_to
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.post(
@@ -55,12 +66,7 @@ async def send_email(
                 "Authorization": f"Bearer {RESEND_API_KEY}",
                 "Content-Type": "application/json",
             },
-            json={
-                "from": from_email,
-                "to": [to],
-                "subject": subject,
-                "html": body,
-            },
+            json=payload,
         )
 
         if response.status_code not in (200, 201):
