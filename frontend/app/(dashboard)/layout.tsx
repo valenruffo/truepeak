@@ -83,6 +83,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [labelName, setLabelName] = useState<string>("");
   const [planInfo, setPlanInfo] = useState<string>("");
+  const [plan, setPlan] = useState<string>("free");
   const [hqCount, setHqCount] = useState<{ count: number; limit: number; processed_count: number } | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { queueTracks } = usePlayer();
@@ -99,6 +100,8 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
           const data = await res.json();
           setLabelName(data.name || slug);
           setPlanInfo(data.plan || "");
+          setPlan(data.plan || "free");
+          localStorage.setItem("plan", data.plan || "free");
         } else { setLabelName(slug); setPlanInfo(""); }
       } catch { setLabelName(slug); setPlanInfo(""); }
     };
@@ -169,9 +172,11 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
         </nav>
         {hqCount && (
           <div className="px-3 mb-1 space-y-1">
-            <div className="px-3 py-1.5 rounded text-xs font-mono" style={{ background: "rgba(16,185,129,0.06)", color: hqCount.processed_count >= 100 ? "#ef4444" : "#71717a" }}>
-              📊 {hqCount.processed_count}/100
-            </div>
+            {plan === "free" && (
+              <div className="px-3 py-1.5 rounded text-xs font-mono" style={{ background: "rgba(16,185,129,0.06)", color: hqCount.processed_count >= 5 ? "#ef4444" : "#71717a" }}>
+                🎵 {hqCount.processed_count}/5 tracks
+              </div>
+            )}
             <div className="px-3 py-1.5 rounded text-xs font-mono" style={{ background: "rgba(16,185,129,0.06)", color: hqCount.count >= hqCount.limit ? "#ef4444" : "#71717a" }}>
               📦 {hqCount.count}/{hqCount.limit} HQ
             </div>

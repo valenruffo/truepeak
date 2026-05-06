@@ -316,7 +316,52 @@ function CRMContent() {
             <div className="overflow-y-auto" style={{ maxHeight: "450px" }}>
               {contacts.length > 0 ? contacts.map((c, i) => {
                 const isHighlighted = highlightParam === c.id;
-                return (
+  const plan = typeof window !== "undefined" ? localStorage.getItem("plan") : "free";
+  const isFree = plan === "free" || !plan;
+
+  if (isFree) {
+    return (
+      <div className="max-w-6xl mx-auto px-6 py-8 relative">
+        <div className="rounded border p-8" style={{ borderColor: "#27272a", background: "#0c0c0e", filter: "blur(6px)", pointerEvents: "none", userSelect: "none" }}>
+          <h1 className="font-display font-semibold text-xl mb-6">Emails</h1>
+          <div className="grid grid-cols-5 gap-4" style={{ minHeight: "400px" }}>
+            <div className="col-span-2 border-r p-4" style={{ borderColor: "#27272a" }}>
+              {[1,2,3].map(i => <div key={i} className="h-16 rounded mb-2" style={{ background: "#111114" }} />)}
+            </div>
+            <div className="col-span-3 p-4">
+              <div className="h-8 rounded w-1/3 mb-4" style={{ background: "#111114" }} />
+              <div className="h-32 rounded" style={{ background: "#111114" }} />
+            </div>
+          </div>
+        </div>
+        <div className="absolute inset-0 flex flex-col items-center justify-center z-10">
+          <div className="text-center p-8 rounded border" style={{ background: "#0c0c0e", borderColor: "#27272a" }}>
+            <div className="w-14 h-14 mx-auto mb-4 rounded-full flex items-center justify-center" style={{ background: "rgba(16,185,129,0.1)" }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="1.5">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+            </div>
+            <h2 className="text-lg font-semibold mb-2">Plan Pro requerido</h2>
+            <p className="text-sm text-muted mb-6 max-w-sm">
+              La sección de Emails está disponible solo en el plan Pro. Hacé upgrade para contactar productores, enviar emails personalizados y gestionar tu CRM.
+            </p>
+            <a
+              href="https://truepeak.lemonsqueezy.com/checkout/buy/xxx"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block px-6 py-2.5 text-sm font-medium rounded transition-all hover:opacity-90 cursor-pointer"
+              style={{ background: "#10b981", color: "#09090b" }}
+            >
+              Upgrade a Pro — US$79/mes
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
                 <button
                   key={i}
                   id={`crm-contact-${c.id}`}

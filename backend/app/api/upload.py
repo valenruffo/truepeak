@@ -110,6 +110,19 @@ async def upload_audio(
             sonic_signature = label.sonic_signature
             label_id = label.id
 
+            # Free plan limit: max 5 total submissions
+            current_plan = label.plan or "free"
+            if current_plan == "free":
+                total_count = session.exec(
+                    select(Submission).where(Submission.label_id == label_id)
+                ).all()
+                if len(total_count) >= 5:
+                    _safe_remove(audio_path)
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Plan gratuito: máximo 5 tracks. Hacé upgrade a Pro para subir más.",
+                    )
+
             # HQ storage limit check: max 10 approved submissions with MP3
             hq_count = session.exec(
                 select(Submission).where(

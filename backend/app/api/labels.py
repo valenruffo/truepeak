@@ -61,6 +61,7 @@ class LabelConfig(BaseModel):
     name: str
     slug: str
     owner_email: str
+    plan: str = "free"
     sonic_signature: dict[str, Any]
     created_at: str
     logo_path: str | None = None
@@ -146,7 +147,8 @@ async def get_label_config(
         name=label.name,
         slug=label.slug,
         owner_email=label.owner_email,
-        sonic_signature=label.sonic_signature,
+        plan=label.plan or "free",
+            sonic_signature=label.sonic_signature,
         created_at=label.created_at.isoformat(),
         logo_path=label.logo_path,
         submission_title=label.submission_title,
@@ -190,7 +192,8 @@ async def update_label_config(
         name=label.name,
         slug=label.slug,
         owner_email=label.owner_email,
-        sonic_signature=label.sonic_signature,
+        plan=label.plan or "free",
+            sonic_signature=label.sonic_signature,
         created_at=label.created_at.isoformat(),
         logo_path=label.logo_path,
         submission_title=label.submission_title,
@@ -374,3 +377,4 @@ async def update_submission_text(
         submission_title=label.submission_title,
         submission_description=label.submission_description,
     )
+

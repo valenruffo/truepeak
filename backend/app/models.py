@@ -35,6 +35,7 @@ class Label(SQLModel, table=True):
         default_factory=lambda: datetime.now(timezone.utc),
     )
     logo_path: str | None = None
+    plan: str = Field(default="free")  # "free" | "pro"
     submission_title: str | None = None
     submission_description: str | None = None
 
