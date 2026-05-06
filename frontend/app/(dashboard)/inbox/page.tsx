@@ -407,18 +407,20 @@ export default function InboxPage() {
                 )}
               </div>
               <div className="col-span-2 text-right flex items-center justify-end gap-1">
-                {d.original_path && (
-                  <a
-                    href={d.original_path ? `${process.env.NEXT_PUBLIC_API_URL}/api/submissions/${d.id}/download` : "#"}
+                {/* Download WAV — shown for any track with a stored file */}
+                {(d.original_path || d.mp3_path) && (
+                  <button
                     onClick={(e) => {
                       e.stopPropagation();
                       const token = localStorage.getItem("token");
                       if (!token) return;
-                      // Download via fetch with auth header
                       fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/submissions/${d.id}/download`, {
                         headers: { Authorization: `Bearer ${token}` },
                       })
-                        .then((res) => res.blob())
+                        .then((res) => {
+                          if (!res.ok) throw new Error("No disponible");
+                          return res.blob();
+                        })
                         .then((blob) => {
                           const url = URL.createObjectURL(blob);
                           const a = document.createElement("a");
@@ -426,45 +428,36 @@ export default function InboxPage() {
                           a.download = `${d.track_name || d.id}.wav`;
                           a.click();
                           URL.revokeObjectURL(url);
-                        });
+                        })
+                        .catch(() => alert("El archivo original no está disponible para descarga."));
                     }}
                     className="px-2 py-1 rounded text-[10px] font-medium flex items-center gap-0.5 transition-colors hover:opacity-80"
                     style={{ background: "rgba(16,185,129,0.12)", color: "#10b981" }}
-                    title="Descargar WAV original"
+                    title="Descargar original"
                   >
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
                     </svg>
                     WAV
-                  </a>
+                  </button>
                 )}
                 {d.status === "pending" && (
                   <>
-                    <button
-                      onClick={() => handleListen(d.id)}
-                      disabled={!!actionLoading[d.id]}
-                      className="px-3 py-1 rounded text-[10px] font-medium disabled:opacity-50"
-                      style={{ background: "#10b981", color: "#09090b" }}
-                    >
+                    <button onClick={() => handleListen(d.id)} disabled={!!actionLoading[d.id]} className="px-3 py-1 rounded text-[10px] font-medium disabled:opacity-50" style={{ background: "#10b981", color: "#09090b" }}>
                       {actionLoading[d.id] === "listen" ? "..." : "Escuchar"}
                     </button>
-                    <button
-                      onClick={() => handleApprove(d.id)}
-                      disabled={!!actionLoading[d.id]}
-                      className="px-3 py-1 rounded text-[10px] font-medium disabled:opacity-50"
-                      style={{ background: "#06b6d4", color: "#09090b" }}
-                    >
+                    <button onClick={() => handleApprove(d.id)} disabled={!!actionLoading[d.id]} className="px-3 py-1 rounded text-[10px] font-medium disabled:opacity-50" style={{ background: "#06b6d4", color: "#09090b" }}>
                       {actionLoading[d.id] === "approve" ? "..." : "Aprobar"}
                     </button>
-                    <button
-                      onClick={() => handleDiscard(d.id)}
-                      disabled={!!actionLoading[d.id]}
-                      className="px-3 py-1 rounded text-[10px] border disabled:opacity-50"
-                      style={{ borderColor: "#27272a", color: "#71717a" }}
-                    >
-                      {actionLoading[d.id] === "discard" ? "..." : "Descartar"}
+                    <button onClick={() => handleDiscard(d.id)} disabled={!!actionLoading[d.id]} className="px-3 py-1 rounded text-[10px] border disabled:opacity-50" style={{ borderColor: "#ef4444", color: "#ef4444" }}>
+                      {actionLoading[d.id] === "discard" ? "..." : "🗑"}
                     </button>
                   </>
+                )}
+                {(d.status === "approved" || d.status === "rejected") && (
+                  <button onClick={() => { if (confirm("¿Eliminar esta demo permanentemente?")) handleDiscard(d.id); }} className="px-2 py-1 rounded text-[10px] border transition-colors hover:opacity-80" style={{ borderColor: "#ef4444", color: "#ef4444" }}>
+                    🗑 Eliminar
+                  </button>
                 )}
               </div>
             </div>
