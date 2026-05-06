@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -81,6 +81,14 @@ function formatKey(key: string | null): string {
 }
 
 export default function InboxPage() {
+  return (
+    <Suspense fallback={<div className="animate-pulse h-96 rounded" style={{ background: "#0c0c0e", border: "1px solid #27272a" }} />}>
+      <InboxContent />
+    </Suspense>
+  );
+}
+
+function InboxContent() {
   const [filter, setFilter] = useState<FilterStatus>("all");
   const [downloadableOnly, setDownloadableOnly] = useState(false);
   const searchParams = useSearchParams();

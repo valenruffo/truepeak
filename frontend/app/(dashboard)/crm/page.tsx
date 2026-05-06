@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { Suspense } from "react";
 import { cn } from "@/lib/utils";
 import { usePlayer } from "@/lib/PlayerContext";
 
@@ -67,7 +68,7 @@ function buildTemplates(labelName: string): Template[] {
   ];
 }
 
-export default function CRMPage() {
+function CRMContent() {
   const [selectedTemplate, setSelectedTemplate] = useState("reject-phase");
   const [selectedContact, setSelectedContact] = useState(0);
   const [emailBody, setEmailBody] = useState("");
@@ -476,5 +477,13 @@ export default function CRMPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function CRMPage() {
+  return (
+    <Suspense fallback={<div className="max-w-6xl mx-auto px-6 py-8"><div className="animate-pulse h-96 rounded" style={{ background: "#0c0c0e", border: "1px solid #27272a" }} /></div>}>
+      <CRMContent />
+    </Suspense>
   );
 }
