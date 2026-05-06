@@ -36,6 +36,7 @@ class SubmissionSummary(BaseModel):
     producer_email: str | None
     track_name: str
     status: str
+    mp3_path: str | None
     bpm: float | None
     lufs: float | None
     phase_correlation: float | None
@@ -118,6 +119,7 @@ async def list_submissions(
             producer_email=s.producer_email,
             track_name=s.track_name,
             status=s.status,
+            mp3_path=s.mp3_path,
             bpm=s.bpm,
             lufs=s.lufs,
             phase_correlation=s.phase_correlation,
