@@ -374,7 +374,7 @@ export default function InboxPage() {
               <div className="col-span-3 flex items-center gap-2">
                 {d.mp3_path && (
                   <button
-                    onClick={(e) => { e.stopPropagation(); if (currentTrack?.id === d.id) { togglePlay(); } else { playTrack({ id: d.id, track_name: d.track_name || "Sin nombre", producer_name: d.producer_name || "Anónimo", mp3_path: d.mp3_path }); } }}
+                    onClick={(e) => { e.stopPropagation(); if (currentTrack?.id === d.id) { togglePlay(); } else { playTrack({ id: d.id, track_name: d.track_name || "Sin nombre", producer_name: d.producer_name || "Anónimo", mp3_path: d.mp3_path ?? null }); } }}
                     className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center transition-colors hover:bg-white/10"
                     title="Reproducir"
                     style={{ color: currentTrack?.id === d.id ? "#10b981" : "#a1a1aa" }}
