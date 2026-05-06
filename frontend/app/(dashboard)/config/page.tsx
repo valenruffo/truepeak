@@ -10,7 +10,6 @@ interface SonicSignature {
   lufs_tolerance: number;
   preferred_scales: string[];
   duration_enabled?: boolean;
-  duration_min?: number;
   duration_max?: number;
   auto_reject_rules: {
     phase: boolean;
@@ -30,7 +29,7 @@ export default function ConfigPage() {
     tempo: true,
   });
   const [durationEnabled, setDurationEnabled] = useState(false);
-  const [durationRange, setDurationRange] = useState([60, 600]); // 1min - 10min in seconds
+  const [durationMax, setDurationMax] = useState(600); // max in seconds (default 10min)
 
   // Logo upload state
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
@@ -85,9 +84,7 @@ export default function ConfigPage() {
             tempo: sig.auto_reject_rules?.tempo ?? true,
           });
           setDurationEnabled(sig.duration_enabled ?? false);
-          if (sig.duration_min && sig.duration_max) {
-            setDurationRange([sig.duration_min, sig.duration_max]);
-          }
+          if (sig.duration_max) setDurationMax(sig.duration_max);
         }
         if (data.logo_path) {
           setLogoUrl(`${API}/logos/${data.logo_path}`);
@@ -134,8 +131,7 @@ export default function ConfigPage() {
             lufs_tolerance: lufsTolerance,
             preferred_scales: selectedScales,
             duration_enabled: durationEnabled,
-            duration_min: durationEnabled ? durationRange[0] : null,
-            duration_max: durationEnabled ? durationRange[1] : null,
+            duration_max: durationEnabled ? durationMax : null,
             auto_reject_rules: {
               phase: autoReject.phase,
               lufs: autoReject.lufs,
@@ -375,7 +371,7 @@ export default function ConfigPage() {
                 max={200}
                 value={bpmRange[0]}
                 onChange={(e) => setBpmRange([Math.min(+e.target.value, bpmRange[1] - 5), bpmRange[1]])}
-                className="w-full"
+                className="w-full cursor-pointer"
               />
             </div>
             <div className="flex-1">
@@ -386,7 +382,7 @@ export default function ConfigPage() {
                 max={200}
                 value={bpmRange[1]}
                 onChange={(e) => setBpmRange([bpmRange[0], Math.max(+e.target.value, bpmRange[0] + 5)])}
-                className="w-full"
+                className="w-full cursor-pointer"
               />
             </div>
           </div>
@@ -395,66 +391,47 @@ export default function ConfigPage() {
         {/* Duration Range */}
         <div>
           <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-medium">Rango de duración</label>
+            <div className="flex items-center gap-3">
+              <label className="text-sm font-medium">Duración máx.</label>
+              {/* Toggle Switch */}
               <button
                 onClick={() => setDurationEnabled((p) => !p)}
-                className="text-[10px] font-mono px-2 py-0.5 rounded border transition-colors"
-                style={{
-                  background: durationEnabled ? "rgba(16,185,129,0.15)" : "transparent",
-                  color: durationEnabled ? "#10b981" : "#71717a",
-                  borderColor: durationEnabled ? "rgba(16,185,129,0.3)" : "#27272a",
-                }}
+                className="relative w-9 h-5 rounded-full transition-colors cursor-pointer"
+                style={{ background: durationEnabled ? "#10b981" : "#27272a" }}
               >
-                {durationEnabled ? "Activado" : "Desactivado"}
+                <div
+                  className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform"
+                  style={{ left: durationEnabled ? "calc(100% - 18px)" : "2px" }}
+                />
               </button>
             </div>
             {durationEnabled && (
               <span className="font-mono text-xs px-2 py-0.5 rounded" style={{ background: "#18181b" }}>
-                {Math.floor(durationRange[0] / 60)}:{String(durationRange[0] % 60).padStart(2, "0")} — {Math.floor(durationRange[1] / 60)}:{String(durationRange[1] % 60).padStart(2, "0")}
+                Máx {Math.floor(durationMax / 60)}:{String(durationMax % 60).padStart(2, "0")}
               </span>
             )}
           </div>
           {durationEnabled && (
             <>
-              <div className="relative h-1.5 rounded-full" style={{ background: "#27272a" }}>
+              <div className="relative h-1.5 rounded-full cursor-pointer" style={{ background: "#27272a" }}>
                 <div
                   className="absolute h-full rounded-full"
-                  style={{
-                    left: `${(durationRange[0] / 1200) * 100}%`,
-                    right: `${100 - (durationRange[1] / 1200) * 100}%`,
-                    background: "#10b981",
-                  }}
+                  style={{ left: 0, right: `${100 - (durationMax / 1200) * 100}%`, background: "#10b981" }}
                 />
               </div>
-              <div className="flex gap-4 mt-3">
-                <div className="flex-1">
-                  <label className="text-xs text-muted mb-1 block">Mínimo</label>
-                  <input
-                    type="range"
-                    min={0}
-                    max={durationRange[1] - 30}
-                    value={durationRange[0]}
-                    onChange={(e) => setDurationRange([+e.target.value, durationRange[1]])}
-                    className="w-full"
-                  />
-                  <span className="text-[10px] font-mono text-muted mt-0.5 block">
-                    {Math.floor(durationRange[0] / 60)}:{String(durationRange[0] % 60).padStart(2, "0")}
-                  </span>
-                </div>
-                <div className="flex-1">
-                  <label className="text-xs text-muted mb-1 block">Máximo</label>
-                  <input
-                    type="range"
-                    min={durationRange[0] + 30}
-                    max={1200}
-                    value={durationRange[1]}
-                    onChange={(e) => setDurationRange([durationRange[0], +e.target.value])}
-                    className="w-full"
-                  />
-                  <span className="text-[10px] font-mono text-muted mt-0.5 block">
-                    {Math.floor(durationRange[1] / 60)}:{String(durationRange[1] % 60).padStart(2, "0")}
-                  </span>
+              <div className="mt-3">
+                <input
+                  type="range"
+                  min={0}
+                  max={1200}
+                  step={30}
+                  value={durationMax}
+                  onChange={(e) => setDurationMax(+e.target.value)}
+                  className="w-full cursor-pointer accent-emerald-500"
+                />
+                <div className="flex justify-between text-[10px] font-mono text-muted mt-0.5">
+                  <span>0:00</span>
+                  <span>20:00</span>
                 </div>
               </div>
             </>
@@ -488,7 +465,7 @@ export default function ConfigPage() {
                 max={-6}
                 value={lufsTarget}
                 onChange={(e) => setLufsTarget(+e.target.value)}
-                className="w-full"
+                className="w-full cursor-pointer"
               />
             </div>
             <div className="flex-1">
@@ -500,7 +477,7 @@ export default function ConfigPage() {
                 step={0.5}
                 value={lufsTolerance}
                 onChange={(e) => setLufsTolerance(+e.target.value)}
-                className="w-full"
+                className="w-full cursor-pointer"
               />
             </div>
           </div>

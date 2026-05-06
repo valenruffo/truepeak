@@ -330,20 +330,22 @@ function InboxContent() {
           </button>
         ))}
         <div className="flex-1" />
-        <button
-          onClick={() => setDownloadableOnly((p) => !p)}
-          className="px-3 py-1.5 text-[11px] font-medium rounded transition-colors flex items-center gap-1.5"
-          style={{
-            background: downloadableOnly ? "rgba(16,185,129,0.12)" : "transparent",
-            color: downloadableOnly ? "#10b981" : "#71717a",
-            border: downloadableOnly ? "1px solid rgba(16,185,129,0.3)" : "1px solid transparent",
-          }}
-        >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
-          </svg>
-          Descargables · {downloadableCount}/10
-        </button>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-muted">HQ</span>
+          <button
+            onClick={() => setDownloadableOnly((p) => !p)}
+            className="relative w-8 h-4 rounded-full transition-colors cursor-pointer"
+            style={{ background: downloadableOnly ? "#10b981" : "#27272a" }}
+          >
+            <div
+              className="absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform"
+              style={{ left: downloadableOnly ? "calc(100% - 14px)" : "2px" }}
+            />
+          </button>
+          <span className="text-[10px] font-mono" style={{ color: downloadableOnly ? "#10b981" : "#71717a" }}>
+            {downloadableCount}/10
+          </span>
+        </div>
       </div>
 
       {/* Table */}
