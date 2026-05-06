@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { usePlayer } from "@/lib/PlayerContext";
 
@@ -69,6 +71,9 @@ function formatKey(key: string | null): string {
 
 export default function InboxPage() {
   const [filter, setFilter] = useState<FilterStatus>("all");
+  const [downloadableOnly, setDownloadableOnly] = useState(false);
+  const searchParams = useSearchParams();
+  const highlightParam = searchParams.get("highlight");
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -187,7 +192,9 @@ export default function InboxPage() {
     fetchSubmissions();
   }, []);
 
-  const filtered = submissions.filter((d) => filter === "all" || d.status === filter);
+  const filtered = submissions
+    .filter((d) => filter === "all" || d.status === filter)
+    .filter((d) => !downloadableOnly || d.original_path);
   const pendingCount = submissions.filter((d) => d.status === "pending").length;
 
   if (loading) {
@@ -248,8 +255,24 @@ export default function InboxPage() {
     );
   }
 
+  // Scroll to highlighted submission from CRM link
+  useEffect(() => {
+    if (highlightParam && !loading) {
+      const el = document.getElementById(`sub-${highlightParam}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }
+  }, [highlightParam, loading]);
+
   return (
     <div className="max-w-6xl mx-auto px-6 py-8">
+      <style>{`
+        @keyframes breathe {
+          0%, 100% { box-shadow: 0 0 20px rgba(16,185,129,0.2), inset 0 0 20px rgba(16,185,129,0.06); }
+          50% { box-shadow: 0 0 35px rgba(16,185,129,0.4), inset 0 0 35px rgba(16,185,129,0.15); }
+        }
+      `}</style>
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <h1 className="font-display font-semibold text-xl">Bandeja de demos</h1>
@@ -262,7 +285,7 @@ export default function InboxPage() {
       </div>
 
       {/* Filter Tabs */}
-      <div className="mb-6 flex gap-1">
+      <div className="mb-6 flex gap-1 items-center">
         {FILTER_TABS.map((tab) => (
           <button
             key={tab.key}
@@ -277,6 +300,21 @@ export default function InboxPage() {
             {tab.label}
           </button>
         ))}
+        <div className="flex-1" />
+        <button
+          onClick={() => setDownloadableOnly((p) => !p)}
+          className="px-3 py-1.5 text-[11px] font-medium rounded transition-colors flex items-center gap-1.5"
+          style={{
+            background: downloadableOnly ? "rgba(16,185,129,0.12)" : "transparent",
+            color: downloadableOnly ? "#10b981" : "#71717a",
+            border: downloadableOnly ? "1px solid rgba(16,185,129,0.3)" : "1px solid transparent",
+          }}
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+          Descargables
+        </button>
       </div>
 
       {/* Table */}
@@ -295,13 +333,21 @@ export default function InboxPage() {
         {/* Rows */}
         {filtered.length > 0 ? filtered.map((d) => {
           const phase = formatPhase(d.phase_correlation);
+          const isHighlighted = highlightParam === d.id;
           return (
             <div
               key={d.id}
-              className="grid grid-cols-12 gap-2 px-4 py-3 text-xs items-center border-b transition-colors hover:bg-surface"
+              id={`sub-${d.id}`}
+              className="grid grid-cols-12 gap-2 px-4 py-3 text-xs items-center border-b transition-all duration-700"
               style={{
                 borderColor: "#1a1a1e",
-                background: d.status === "pending" ? "rgba(6,182,212,0.04)" : "transparent",
+                background: isHighlighted
+                  ? "rgba(16,185,129,0.12)"
+                  : d.status === "pending"
+                    ? "rgba(6,182,212,0.04)"
+                    : "transparent",
+                boxShadow: isHighlighted ? "0 0 20px rgba(16,185,129,0.2), inset 0 0 20px rgba(16,185,129,0.06)" : "none",
+                animation: isHighlighted ? "breathe 1.5s ease-in-out 3" : "none",
               }}
             >
               <div className="col-span-4 flex items-center gap-2">
@@ -319,9 +365,21 @@ export default function InboxPage() {
                     )}
                   </button>
                 )}
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <div className="font-medium truncate">{d.track_name || "Sin nombre"}</div>
-                  <div className="text-[10px] text-muted">{d.producer_name || "Anónimo"} · {formatRelativeTime(d.created_at)}</div>
+                  <div className="text-[10px] text-muted flex items-center gap-1.5">
+                    <span>{d.producer_name || "Anónimo"} · {formatRelativeTime(d.created_at)}</span>
+                    {d.producer_email && (
+                      <Link
+                        href={`/crm?highlight=${d.id}`}
+                        className="hover:underline"
+                        style={{ color: "#10b981" }}
+                        title="Ver en CRM"
+                      >
+                        📧
+                      </Link>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="col-span-1 text-center font-mono">{formatBpm(d.bpm)}</div>
@@ -339,9 +397,40 @@ export default function InboxPage() {
                   <span className="font-mono text-[10px] px-2 py-0.5 rounded" style={{ background: "rgba(239,68,68,0.15)", color: "#ef4444" }}>Rechazado</span>
                 )}
               </div>
-              <div className="col-span-2 text-right">
+              <div className="col-span-2 text-right flex items-center justify-end gap-1">
+                {d.original_path && (
+                  <a
+                    href={d.original_path ? `${process.env.NEXT_PUBLIC_API_URL}/api/submissions/${d.id}/download` : "#"}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const token = localStorage.getItem("token");
+                      if (!token) return;
+                      // Download via fetch with auth header
+                      fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/submissions/${d.id}/download`, {
+                        headers: { Authorization: `Bearer ${token}` },
+                      })
+                        .then((res) => res.blob())
+                        .then((blob) => {
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement("a");
+                          a.href = url;
+                          a.download = `${d.track_name || d.id}.wav`;
+                          a.click();
+                          URL.revokeObjectURL(url);
+                        });
+                    }}
+                    className="px-2 py-1 rounded text-[10px] font-medium flex items-center gap-0.5 transition-colors hover:opacity-80"
+                    style={{ background: "rgba(16,185,129,0.12)", color: "#10b981" }}
+                    title="Descargar WAV original"
+                  >
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                    WAV
+                  </a>
+                )}
                 {d.status === "pending" && (
-                  <div className="flex items-center justify-end gap-1">
+                  <>
                     <button
                       onClick={() => handleListen(d.id)}
                       disabled={!!actionLoading[d.id]}
@@ -366,13 +455,7 @@ export default function InboxPage() {
                     >
                       {actionLoading[d.id] === "discard" ? "..." : "Descartar"}
                     </button>
-                  </div>
-                )}
-                {d.status === "rejected" && (
-                  <span className="text-[10px] text-muted">—</span>
-                )}
-                {d.status === "approved" && (
-                  <span className="text-[10px] text-muted">En cola</span>
+                  </>
                 )}
               </div>
             </div>

@@ -1,6 +1,10 @@
 """Submission management API — list, detail, status updates, delete."""
 
+import os
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlmodel import Session, select, func
 
@@ -26,6 +30,7 @@ class SubmissionDetail(BaseModel):
     status: str
     rejection_reason: str | None
     mp3_path: str | None
+    original_path: str | None
     notes: str | None
     created_at: str
 
@@ -37,6 +42,7 @@ class SubmissionSummary(BaseModel):
     track_name: str
     status: str
     mp3_path: str | None
+    original_path: str | None
     bpm: float | None
     lufs: float | None
     phase_correlation: float | None
@@ -120,6 +126,7 @@ async def list_submissions(
             track_name=s.track_name,
             status=s.status,
             mp3_path=s.mp3_path,
+            original_path=s.original_path,
             bpm=s.bpm,
             lufs=s.lufs,
             phase_correlation=s.phase_correlation,
@@ -157,6 +164,7 @@ async def get_submission(
         status=submission.status,
         rejection_reason=submission.rejection_reason,
         mp3_path=submission.mp3_path,
+        original_path=submission.original_path,
         notes=submission.notes,
         created_at=submission.created_at.isoformat(),
     )
@@ -291,7 +299,7 @@ async def get_label_hq_count(
     auth: dict = Depends(_get_label_from_token),
     session: Session = Depends(get_session),
 ):
-    """Get the count of HQ (MP3) stored submissions for a label. Requires label owner auth."""
+    """Get the count of HQ (original WAV/FLAC) stored submissions for a label. Requires label owner auth."""
     label = session.exec(select(Label).where(Label.slug == slug)).first()
     if not label:
         raise HTTPException(status_code=404, detail=f"Label '{slug}' not found.")
@@ -299,11 +307,43 @@ async def get_label_hq_count(
     if label.id != auth["label_id"]:
         raise HTTPException(status_code=403, detail="Access denied to this label.")
 
+    import sqlalchemy as sa
+    
     count = session.exec(
         select(func.count()).where(
             Submission.label_id == label.id,
-            Submission.mp3_path.isnot(None),
+            sa.or_(
+                Submission.original_path.isnot(None),
+                Submission.mp3_path.isnot(None),
+            ),
         )
     ).one()
 
     return HQCountResponse(count=count, limit=10)
+
+
+@router.get("/submissions/{submission_id}/download")
+async def download_original(
+    submission_id: str,
+    auth: dict = Depends(_get_label_from_token),
+    session: Session = Depends(get_session),
+):
+    """Download the original WAV/FLAC/AIFF file. Requires label owner auth."""
+    submission = session.get(Submission, submission_id)
+    if not submission:
+        raise HTTPException(status_code=404, detail="Submission not found.")
+
+    _verify_label_ownership(session, auth["label_id"], submission)
+
+    if not submission.original_path or not os.path.exists(submission.original_path):
+        raise HTTPException(status_code=404, detail="Original file not available. Only recent uploads preserve originals.")
+
+    # Determine original extension from the path
+    ext = Path(submission.original_path).suffix
+    filename = f"{submission.track_name or submission.id}{ext}"
+    
+    return FileResponse(
+        path=submission.original_path,
+        filename=filename,
+        media_type="audio/wav" if ext in (".wav",) else "audio/flac" if ext in (".flac",) else "application/octet-stream",
+    )

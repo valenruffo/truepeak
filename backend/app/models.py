@@ -59,6 +59,7 @@ class Submission(SQLModel, table=True):
     status: str = Field(default="pending", index=True)  # pending | approved | rejected
     rejection_reason: str | None = None
     mp3_path: str | None = None
+    original_path: str | None = None  # WAV/FLAC/AIFF original for download
     notes: str | None = None
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),

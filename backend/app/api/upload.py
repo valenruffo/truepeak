@@ -29,6 +29,10 @@ class UploadResponse(BaseModel):
     metrics: dict | None = None
     rejection_reason: str | None = None
     mp3_path: str | None = None
+    has_original: bool = False
+
+
+ORIGINALS_DIR = Path("/app/data/originals")
 
 
 def _safe_remove(file_path: str) -> None:
@@ -139,6 +143,18 @@ async def upload_audio(
                 detail=f"Audio analysis failed: {e}",
             )
 
+        # --- Save original file for HQ download ---
+        original_path: str | None = None
+        try:
+            ORIGINALS_DIR.mkdir(parents=True, exist_ok=True)
+            orig_filename = f"{submission_id}{ext}"
+            orig_fullpath = str(ORIGINALS_DIR / orig_filename)
+            with open(orig_fullpath, "wb") as f:
+                f.write(content)
+            original_path = orig_fullpath
+        except OSError:
+            pass  # Best-effort: if we can't save original, continue with MP3 only
+
         # --- Create submission record in DB ---
         session = next(get_session())
         try:
@@ -155,6 +171,7 @@ async def upload_audio(
                 status=result["status"],
                 rejection_reason=result["rejection_reason"],
                 mp3_path=result["mp3_path"],
+                original_path=original_path,
                 notes=notes or None,
             )
             session.add(submission)
@@ -174,6 +191,7 @@ async def upload_audio(
             metrics=result["metrics"],
             rejection_reason=result["rejection_reason"],
             mp3_path=result["mp3_path"],
+            has_original=original_path is not None,
         )
 
     except HTTPException:

@@ -1,7 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { usePlayer } from "@/lib/PlayerContext";
 
 interface Submission {
   id: string;
@@ -13,16 +16,19 @@ interface Submission {
   lufs: number | null;
   phase_correlation: number | null;
   musical_key: string | null;
+  mp3_path: string | null;
   created_at: string;
 }
 
 interface Contact {
+  id: string;
   name: string;
   email: string;
   track: string;
   status: "approved" | "rejected";
   bpm: string;
   sent: boolean;
+  mp3_path: string | null;
 }
 
 interface Template {
@@ -73,6 +79,9 @@ export default function CRMPage() {
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  const { playTrack } = usePlayer();
+  const searchParams = useSearchParams();
+  const highlightParam = searchParams.get("highlight");
 
   useEffect(() => {
     const fetchData = async () => {
@@ -103,12 +112,14 @@ export default function CRMPage() {
         // Filter to only non-pending (approved + rejected) for CRM contacts
         const resolved = data.filter((s) => s.status !== "pending");
         const mapped: Contact[] = resolved.map((s) => ({
+          id: s.id,
           name: s.producer_name || "Anónimo",
           email: s.producer_email || "",
           track: s.track_name || "Sin nombre",
           status: s.status as "approved" | "rejected",
           bpm: s.bpm != null ? String(Math.round(s.bpm)) : "—",
           sent: false,
+          mp3_path: s.mp3_path || null,
         }));
         setContacts(mapped);
       } catch (e) {
@@ -119,6 +130,20 @@ export default function CRMPage() {
     };
     fetchData();
   }, []);
+
+  // Auto-select and scroll to highlighted contact from inbox
+  useEffect(() => {
+    if (highlightParam && contacts.length > 0) {
+      const idx = contacts.findIndex((c) => c.id === highlightParam);
+      if (idx >= 0) {
+        setSelectedContact(idx);
+        setTimeout(() => {
+          const el = document.getElementById(`crm-contact-${highlightParam}`);
+          if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 200);
+      }
+    }
+  }, [highlightParam, contacts]);
 
   // Build templates with dynamic label name
   const templates = buildTemplates(labelName || "tu sello");
@@ -260,6 +285,12 @@ export default function CRMPage() {
 
   return (
     <div className="max-w-6xl mx-auto px-6 py-8">
+      <style>{`
+        @keyframes breathe {
+          0%, 100% { box-shadow: 0 0 20px rgba(16,185,129,0.2); }
+          50% { box-shadow: 0 0 35px rgba(16,185,129,0.5); }
+        }
+      `}</style>
       <h1 className="font-display font-semibold text-xl mb-6">CRM de Emails</h1>
 
       <div className="rounded border overflow-hidden" style={{ borderColor: "#27272a", background: "#0c0c0e" }}>
@@ -278,14 +309,23 @@ export default function CRMPage() {
               </div>
             </div>
             <div className="overflow-y-auto" style={{ maxHeight: "450px" }}>
-              {contacts.length > 0 ? contacts.map((c, i) => (
+              {contacts.length > 0 ? contacts.map((c, i) => {
+                const isHighlighted = highlightParam === c.id;
+                return (
                 <button
                   key={i}
+                  id={`crm-contact-${c.id}`}
                   onClick={() => handleContactChange(i)}
-                  className="w-full text-left px-4 py-3 border-b transition-colors"
+                  className="w-full text-left px-4 py-3 border-b transition-all duration-700"
                   style={{
                     borderColor: "#1a1a1e",
-                    background: selectedContact === i ? "rgba(16,185,129,0.04)" : "transparent",
+                    background: isHighlighted
+                      ? "rgba(16,185,129,0.12)"
+                      : selectedContact === i
+                        ? "rgba(16,185,129,0.04)"
+                        : "transparent",
+                    boxShadow: isHighlighted ? "0 0 20px rgba(16,185,129,0.2)" : "none",
+                    animation: isHighlighted ? "breathe 1.5s ease-in-out 3" : "none",
                   }}
                 >
                   <div className="flex items-center justify-between mb-1">
@@ -302,12 +342,34 @@ export default function CRMPage() {
                   </div>
                   <div className="text-[10px] text-muted truncate">{c.email || "Sin email"}</div>
                   <div className="flex items-center gap-2 mt-1">
+                    {c.mp3_path && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          playTrack({ id: c.id, track_name: c.track, producer_name: c.name, mp3_path: c.mp3_path });
+                        }}
+                        className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 hover:bg-white/10 transition-colors"
+                        title="Reproducir"
+                        style={{ color: "#10b981" }}
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+                      </button>
+                    )}
                     <span className="text-[10px] text-muted">"{c.track}"</span>
+                    <Link
+                      href={`/inbox?highlight=${c.id}`}
+                      className="text-[10px] hover:underline"
+                      style={{ color: "#10b981" }}
+                      onClick={(e) => e.stopPropagation()}
+                      title="Ver demo"
+                    >
+                      Ver demo
+                    </Link>
                     {c.sent && <span className="text-[10px]" style={{ color: "#10b981" }}>✓ Enviado</span>}
                     {!c.sent && <span className="text-[10px] text-muted">Pendiente</span>}
                   </div>
                 </button>
-              )) : (
+              );}) : (
                 <div className="py-12 text-center text-muted text-sm">
                   No hay contactos todavía. Las demos aprobadas o rechazadas aparecerán acá.
                 </div>
