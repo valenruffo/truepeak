@@ -79,7 +79,7 @@ export default function CRMPage() {
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
-  const { playTrack } = usePlayer();
+  const { playTrack, togglePlay, isPlaying, currentTrack } = usePlayer();
   const searchParams = useSearchParams();
   const highlightParam = searchParams.get("highlight");
 
@@ -287,8 +287,12 @@ export default function CRMPage() {
     <div className="max-w-6xl mx-auto px-6 py-8">
       <style>{`
         @keyframes breathe {
-          0%, 100% { box-shadow: 0 0 20px rgba(16,185,129,0.2); }
-          50% { box-shadow: 0 0 35px rgba(16,185,129,0.5); }
+          0% { box-shadow: inset 0 0 0 rgba(16,185,129,0); }
+          20% { box-shadow: inset 0 0 14px rgba(16,185,129,0.18); }
+          40% { box-shadow: inset 0 0 6px rgba(16,185,129,0.08); }
+          60% { box-shadow: inset 0 0 14px rgba(16,185,129,0.18); }
+          80% { box-shadow: inset 0 0 6px rgba(16,185,129,0.08); }
+          100% { box-shadow: inset 0 0 0 rgba(16,185,129,0); }
         }
       `}</style>
       <h1 className="font-display font-semibold text-xl mb-6">CRM de Emails</h1>
@@ -316,16 +320,16 @@ export default function CRMPage() {
                   key={i}
                   id={`crm-contact-${c.id}`}
                   onClick={() => handleContactChange(i)}
-                  className="w-full text-left px-4 py-3 border-b transition-all duration-700"
+                  className="w-full text-left px-4 py-3 border-b transition-all duration-500"
                   style={{
                     borderColor: "#1a1a1e",
                     background: isHighlighted
-                      ? "rgba(16,185,129,0.12)"
+                      ? "rgba(16,185,129,0.08)"
                       : selectedContact === i
                         ? "rgba(16,185,129,0.04)"
                         : "transparent",
-                    boxShadow: isHighlighted ? "0 0 20px rgba(16,185,129,0.2)" : "none",
-                    animation: isHighlighted ? "breathe 1.5s ease-in-out 3" : "none",
+                    animation: isHighlighted ? "breathe 1.2s ease-in-out 1 forwards" : "none",
+                    transition: "background 1.5s ease-out",
                   }}
                 >
                   <div className="flex items-center justify-between mb-1">
@@ -346,13 +350,21 @@ export default function CRMPage() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          playTrack({ id: c.id, track_name: c.track, producer_name: c.name, mp3_path: c.mp3_path });
+                          if (currentTrack?.id === c.id) {
+                            togglePlay();
+                          } else {
+                            playTrack({ id: c.id, track_name: c.track, producer_name: c.name, mp3_path: c.mp3_path });
+                          }
                         }}
                         className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 hover:bg-white/10 transition-colors"
-                        title="Reproducir"
-                        style={{ color: "#10b981" }}
+                        title={currentTrack?.id === c.id && isPlaying ? "Pausar" : "Reproducir"}
+                        style={{ color: currentTrack?.id === c.id ? "#10b981" : "#a1a1aa" }}
                       >
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+                        {currentTrack?.id === c.id && isPlaying ? (
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>
+                        ) : (
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+                        )}
                       </button>
                     )}
                     <span className="text-[10px] text-muted">"{c.track}"</span>

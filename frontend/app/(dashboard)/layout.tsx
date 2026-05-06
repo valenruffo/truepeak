@@ -82,7 +82,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [labelName, setLabelName] = useState<string>("");
   const [planInfo, setPlanInfo] = useState<string>("");
-  const [hqCount, setHqCount] = useState<{ count: number; limit: number } | null>(null);
+  const [hqCount, setHqCount] = useState<{ count: number; limit: number; processed_count: number } | null>(null);
   const { queueTracks } = usePlayer();
 
   useEffect(() => {
@@ -146,7 +146,10 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
           })}
         </nav>
         {hqCount && (
-          <div className="px-3 mb-3">
+          <div className="px-3 mb-1 space-y-1">
+            <div className="px-3 py-1.5 rounded text-xs font-mono" style={{ background: "rgba(16,185,129,0.06)", color: hqCount.processed_count >= 100 ? "#ef4444" : "#71717a" }}>
+              📊 {hqCount.processed_count}/100 procesados
+            </div>
             <div className="px-3 py-1.5 rounded text-xs font-mono" style={{ background: "rgba(16,185,129,0.06)", color: hqCount.count >= hqCount.limit ? "#ef4444" : "#71717a" }}>
               📦 {hqCount.count}/{hqCount.limit} HQ
             </div>

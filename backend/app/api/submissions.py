@@ -261,6 +261,7 @@ class DeleteFileResponse(BaseModel):
 class HQCountResponse(BaseModel):
     count: int
     limit: int
+    processed_count: int = 0
 
 
 @router.delete("/submissions/{submission_id}/file", response_model=DeleteFileResponse)
@@ -319,7 +320,14 @@ async def get_label_hq_count(
         )
     ).one()
 
-    return HQCountResponse(count=count, limit=10)
+    processed = session.exec(
+        select(func.count()).where(
+            Submission.label_id == label.id,
+            Submission.status.in_(["approved", "rejected"]),
+        )
+    ).one()
+
+    return HQCountResponse(count=count, limit=10, processed_count=processed)
 
 
 @router.get("/submissions/{submission_id}/download")

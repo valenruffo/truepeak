@@ -77,7 +77,7 @@ export default function InboxPage() {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { playTrack, isPlaying, currentTrack } = usePlayer();
+  const { playTrack, togglePlay, isPlaying, currentTrack } = usePlayer();
 
   // Modal state
   const [modal, setModal] = useState<{
@@ -194,8 +194,10 @@ export default function InboxPage() {
 
   const filtered = submissions
     .filter((d) => filter === "all" || d.status === filter)
-    .filter((d) => !downloadableOnly || d.original_path);
+    .filter((d) => !downloadableOnly || d.original_path || d.mp3_path);
   const pendingCount = submissions.filter((d) => d.status === "pending").length;
+  const processedCount = submissions.filter((d) => d.status !== "pending").length;
+  const downloadableCount = submissions.filter((d) => d.original_path || d.mp3_path).length;
 
   // Scroll to highlighted submission from CRM link
   useEffect(() => {
@@ -269,8 +271,12 @@ export default function InboxPage() {
     <div className="max-w-6xl mx-auto px-6 py-8">
       <style>{`
         @keyframes breathe {
-          0%, 100% { box-shadow: 0 0 20px rgba(16,185,129,0.2), inset 0 0 20px rgba(16,185,129,0.06); }
-          50% { box-shadow: 0 0 35px rgba(16,185,129,0.4), inset 0 0 35px rgba(16,185,129,0.15); }
+          0% { box-shadow: inset 0 0 0 rgba(16,185,129,0); }
+          20% { box-shadow: inset 0 0 14px rgba(16,185,129,0.18); }
+          40% { box-shadow: inset 0 0 6px rgba(16,185,129,0.08); }
+          60% { box-shadow: inset 0 0 14px rgba(16,185,129,0.18); }
+          80% { box-shadow: inset 0 0 6px rgba(16,185,129,0.08); }
+          100% { box-shadow: inset 0 0 0 rgba(16,185,129,0); }
         }
       `}</style>
       <div className="flex items-center justify-between mb-6">
@@ -281,6 +287,9 @@ export default function InboxPage() {
               {pendingCount} nuevos
             </span>
           )}
+          <span className="font-mono text-[11px] px-2 py-0.5 rounded" style={{ background: "rgba(16,185,129,0.10)", color: "#10b981" }}>
+            {processedCount}/100 procesados
+          </span>
         </div>
       </div>
 
@@ -313,7 +322,7 @@ export default function InboxPage() {
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
           </svg>
-          Descargables
+          Descargables · {downloadableCount}/10
         </button>
       </div>
 
@@ -338,22 +347,22 @@ export default function InboxPage() {
             <div
               key={d.id}
               id={`sub-${d.id}`}
-              className="grid grid-cols-12 gap-2 px-4 py-3 text-xs items-center border-b transition-all duration-700"
+              className="grid grid-cols-12 gap-2 px-4 py-3 text-xs items-center border-b transition-all duration-500"
               style={{
                 borderColor: "#1a1a1e",
                 background: isHighlighted
-                  ? "rgba(16,185,129,0.12)"
+                  ? "rgba(16,185,129,0.08)"
                   : d.status === "pending"
                     ? "rgba(6,182,212,0.04)"
                     : "transparent",
-                boxShadow: isHighlighted ? "0 0 20px rgba(16,185,129,0.2), inset 0 0 20px rgba(16,185,129,0.06)" : "none",
-                animation: isHighlighted ? "breathe 1.5s ease-in-out 3" : "none",
+                animation: isHighlighted ? "breathe 1.2s ease-in-out 1 forwards" : "none",
+                transition: "background 1.5s ease-out",
               }}
             >
               <div className="col-span-4 flex items-center gap-2">
                 {d.mp3_path && (
                   <button
-                    onClick={(e) => { e.stopPropagation(); playTrack({ id: d.id, track_name: d.track_name || "Sin nombre", producer_name: d.producer_name || "Anónimo", mp3_path: d.mp3_path }); }}
+                    onClick={(e) => { e.stopPropagation(); if (currentTrack?.id === d.id) { togglePlay(); } else { playTrack({ id: d.id, track_name: d.track_name || "Sin nombre", producer_name: d.producer_name || "Anónimo", mp3_path: d.mp3_path }); } }}
                     className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center transition-colors hover:bg-white/10"
                     title="Reproducir"
                     style={{ color: currentTrack?.id === d.id ? "#10b981" : "#a1a1aa" }}
