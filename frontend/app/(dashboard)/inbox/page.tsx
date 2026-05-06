@@ -197,6 +197,16 @@ export default function InboxPage() {
     .filter((d) => !downloadableOnly || d.original_path);
   const pendingCount = submissions.filter((d) => d.status === "pending").length;
 
+  // Scroll to highlighted submission from CRM link
+  useEffect(() => {
+    if (highlightParam && !loading && submissions.length > 0) {
+      const el = document.getElementById(`sub-${highlightParam}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }
+  }, [highlightParam, loading, submissions.length]);
+
   if (loading) {
     return (
       <div className="max-w-6xl mx-auto px-6 py-8">
@@ -254,16 +264,6 @@ export default function InboxPage() {
       </div>
     );
   }
-
-  // Scroll to highlighted submission from CRM link
-  useEffect(() => {
-    if (highlightParam && !loading) {
-      const el = document.getElementById(`sub-${highlightParam}`);
-      if (el) {
-        el.scrollIntoView({ behavior: "smooth", block: "center" });
-      }
-    }
-  }, [highlightParam, loading]);
 
   return (
     <div className="max-w-6xl mx-auto px-6 py-8">
