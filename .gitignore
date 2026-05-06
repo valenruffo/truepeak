@@ -17,6 +17,9 @@ ENV/
 dist/
 build/
 
+# Engram
+.engram/
+
 # Environment
 .env
 .env.local

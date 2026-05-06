@@ -1,10 +1,12 @@
 """True Peak AI — FastAPI application entry point."""
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import AsyncGenerator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.database import init_db
 
@@ -59,3 +61,13 @@ app.include_router(email_router)
 from app.api.health import router as health_router
 
 app.include_router(health_router)
+
+# Serve label logos
+LOGOS_DIR = Path("/app/data/logos")
+LOGOS_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/logos", StaticFiles(directory=str(LOGOS_DIR)), name="logos")
+
+# Serve approved MP3 files
+MP3S_DIR = Path("/app/data/mp3s")
+MP3S_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/mp3s", StaticFiles(directory=str(MP3S_DIR)), name="mp3s")

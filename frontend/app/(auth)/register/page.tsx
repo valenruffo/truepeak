@@ -8,7 +8,6 @@ export default function RegisterPage() {
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -36,7 +35,23 @@ export default function RegisterPage() {
       const data = await res.json();
       localStorage.setItem("label_id", data.id);
       localStorage.setItem("slug", data.slug);
-      router.push("/login");
+
+      // Auto-login after registration to get token
+      const loginRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/labels/${data.slug}/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ owner_email: email }),
+      });
+
+      if (!loginRes.ok) {
+        // Registration succeeded but login failed — redirect to login page
+        router.push("/login");
+        return;
+      }
+
+      const loginData = await loginRes.json();
+      localStorage.setItem("token", loginData.token);
+      router.push("/inbox");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al crear la cuenta");
     } finally {
@@ -80,7 +95,7 @@ export default function RegisterPage() {
             placeholder="nocturnal-records"
             required
           />
-          <p className="text-xs text-muted mt-1">truepeak.ai/s/{slug || "tu-sello"}</p>
+          <p className="text-xs text-muted mt-1">{typeof window !== "undefined" ? window.location.origin : ""}/s/{slug || "tu-sello"}</p>
         </div>
 
         <div>
@@ -93,20 +108,6 @@ export default function RegisterPage() {
             style={{ borderColor: "#27272a" }}
             placeholder="tu@email.com"
             required
-          />
-        </div>
-
-        <div>
-          <label className="text-sm font-medium mb-1.5 block">Contraseña</label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full px-3 py-2.5 rounded border text-sm bg-transparent"
-            style={{ borderColor: "#27272a" }}
-            placeholder="Mínimo 8 caracteres"
-            required
-            minLength={8}
           />
         </div>
 

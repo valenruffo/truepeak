@@ -1,19 +1,134 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 
-const LABEL_SLUG = "nocturnal-records";
-const SUBMISSION_URL = `https://truepeak.ai/s/${LABEL_SLUG}`;
+type LabelStats = { total: number; pending: number; approved: number; rejected: number };
+type LabelInfo = { id: string; name: string; slug: string; owner_email: string; sonic_signature: string; created_at: string; submission_title?: string; submission_description?: string };
+type Submission = { id: string; producer_name: string; producer_email: string | null; track_name: string; status: string; bpm: number | null; lufs: number | null; created_at: string; mp3_path?: string | null; notes?: string | null };
 
 export default function LinkPage() {
   const [copied, setCopied] = useState(false);
+  const [slug, setSlug] = useState<string | null>(null);
+  const [labelName, setLabelName] = useState<string>("");
+  const [labelId, setLabelId] = useState<string>("");
+  const [stats, setStats] = useState<LabelStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Editable submission texts
+  const [editTitle, setEditTitle] = useState("Enviar demo");
+  const [editDescription, setEditDescription] = useState("Subí tu WAV. Analizamos BPM, LUFS, fase y headroom antes de que el sello lo escuche.");
+  const [savingTexts, setSavingTexts] = useState(false);
+  const [textsSaved, setTextsSaved] = useState(false);
+  const [textsError, setTextsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const storedSlug = localStorage.getItem("slug");
+    if (!storedSlug) {
+      setLoading(false);
+      setError("no-slug");
+      return;
+    }
+    setSlug(storedSlug);
+
+    const fetchLabel = async () => {
+      try {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/labels/${storedSlug}`);
+        if (!res.ok) throw new Error("Failed to fetch label");
+        const data: LabelInfo = await res.json();
+        setLabelName(data.name);
+        setLabelId(data.id);
+        if (data.submission_title) setEditTitle(data.submission_title);
+        if (data.submission_description) setEditDescription(data.submission_description);
+      } catch {
+        setLabelName(storedSlug);
+      }
+    };
+
+    const fetchStats = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/labels/${storedSlug}/stats`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!res.ok) throw new Error("Failed to fetch stats");
+        const data: LabelStats = await res.json();
+        setStats(data);
+      } catch {
+        setStats({ total: 0, pending: 0, approved: 0, rejected: 0 });
+      }
+    };
+
+    Promise.all([fetchLabel(), fetchStats()]).finally(() => setLoading(false));
+  }, []);
+
+  const submissionUrl = slug ? `${typeof window !== "undefined" ? window.location.origin : ""}/s/${slug}` : "";
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(SUBMISSION_URL);
+    if (!submissionUrl) return;
+    await navigator.clipboard.writeText(submissionUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  const handleSaveTexts = async () => {
+    setSavingTexts(true);
+    setTextsSaved(false);
+    setTextsError(null);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/labels/${slug}/submission-text`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ title: editTitle, description: editDescription }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || "Error al guardar");
+      }
+      setTextsSaved(true);
+      setTimeout(() => setTextsSaved(false), 3000);
+    } catch (e: any) {
+      setTextsError(e.message);
+    } finally {
+      setSavingTexts(false);
+    }
+  };
+
+  if (error === "no-slug") {
+    return (
+      <div className="max-w-3xl mx-auto px-6 py-12">
+        <h1 className="font-display font-semibold text-2xl mb-4">Error</h1>
+        <p className="text-sm text-muted">
+          No se encontró tu sello. Iniciá sesión de nuevo.
+        </p>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="max-w-3xl mx-auto px-6 py-12">
+        <div className="text-xs font-mono uppercase tracking-wider text-muted mb-1">Tu link de recepción</div>
+        <h1 className="font-display font-semibold text-2xl mb-6">Cargando...</h1>
+        <div className="animate-pulse space-y-4">
+          <div className="h-12 rounded" style={{ background: "#111114" }} />
+          <div className="h-40 rounded" style={{ background: "#111114" }} />
+          <div className="grid grid-cols-4 gap-4">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="h-20 rounded" style={{ background: "#111114" }} />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const displayStats = stats ?? { total: 0, pending: 0, approved: 0, rejected: 0 };
 
   return (
     <div className="max-w-3xl mx-auto px-6 py-12">
@@ -25,7 +140,7 @@ export default function LinkPage() {
           className="flex-1 px-4 py-3 rounded border font-mono text-sm"
           style={{ borderColor: "#27272a", background: "#111114" }}
         >
-          {SUBMISSION_URL}
+          {submissionUrl}
         </div>
         <button
           onClick={handleCopy}
@@ -46,10 +161,10 @@ export default function LinkPage() {
         <div className="rounded border p-4" style={{ borderColor: "#27272a", background: "#0c0c0e" }}>
           <div className="flex items-center gap-2 mb-3">
             <div className="w-5 h-5 rounded" style={{ background: "#10b981" }} />
-            <span className="font-display font-semibold text-sm">Nocturnal Records</span>
+            <span className="font-display font-semibold text-sm">{labelName || slug}</span>
           </div>
           <p className="text-sm text-muted mb-4">
-            Subí tu demo. Analizamos BPM, LUFS, fase y headroom antes de que el sello lo escuche.
+            {editDescription}
           </p>
           <div className="flex items-center gap-2">
             <div
@@ -71,10 +186,10 @@ export default function LinkPage() {
       {/* Stats */}
       <div className="mt-8 grid grid-cols-4 gap-4">
         {[
-          { label: "Total", value: "24" },
-          { label: "Pendientes", value: "3" },
-          { label: "Aprobados", value: "12" },
-          { label: "Rechazados", value: "9" },
+          { label: "Total", value: String(displayStats.total) },
+          { label: "Pendientes", value: String(displayStats.pending) },
+          { label: "Aprobados", value: String(displayStats.approved) },
+          { label: "Rechazados", value: String(displayStats.rejected) },
         ].map((stat) => (
           <div
             key={stat.label}
@@ -85,6 +200,48 @@ export default function LinkPage() {
             <div className="text-xs text-muted mt-1">{stat.label}</div>
           </div>
         ))}
+      </div>
+
+      {/* Editable submission texts */}
+      <div className="mt-8 rounded border p-6" style={{ borderColor: "#27272a", background: "#111114" }}>
+        <div className="text-xs font-mono text-muted mb-4">Editar textos de tu página</div>
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm font-medium mb-1.5 block">Título</label>
+            <input
+              type="text"
+              value={editTitle}
+              onChange={(e) => setEditTitle(e.target.value)}
+              className="w-full px-3 py-2.5 rounded border text-sm bg-transparent"
+              style={{ borderColor: "#27272a" }}
+              placeholder="Enviar demo"
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium mb-1.5 block">Descripción</label>
+            <textarea
+              value={editDescription}
+              onChange={(e) => setEditDescription(e.target.value)}
+              className="w-full px-3 py-2.5 rounded border text-sm bg-transparent"
+              style={{ borderColor: "#27272a" }}
+              placeholder="Subí tu WAV. Analizamos BPM, LUFS, fase y headroom..."
+              rows={3}
+              suppressHydrationWarning
+            />
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleSaveTexts}
+              disabled={savingTexts}
+              className="px-4 py-2 rounded text-sm font-medium transition-all hover:opacity-90 disabled:opacity-50"
+              style={{ background: "#10b981", color: "#09090b" }}
+            >
+              {savingTexts ? "Guardando..." : "Guardar textos"}
+            </button>
+            {textsSaved && <span className="text-xs" style={{ color: "#10b981" }}>✓ Guardado</span>}
+            {textsError && <span className="text-xs" style={{ color: "#ef4444" }}>{textsError}</span>}
+          </div>
+        </div>
       </div>
     </div>
   );

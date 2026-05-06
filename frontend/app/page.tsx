@@ -236,17 +236,17 @@ function DashboardMockup({ mode }: { mode: "config" | "link" | "inbox" | "emailC
 
   const templates = [
     { id: "reject-phase", label: "Rechazo — Problema de fase", type: "rejection",
-      subject: "Tu demo en Nocturnal Records — Feedback técnico",
-      body: "Hola {producer},\n\nGracias por enviar \"{track}\" a Nocturnal Records. Lo escuchamos y analizamos con nuestro motor técnico.\n\nLamentablemente, detectamos un problema de fase invertida en los canales L/R que afecta la compatibilidad mono del track. Esto es crítico para nosotros ya que nuestro material se reproduce en sistemas de club.\n\nTe sugerimos revisar la correlación de fase en tu master y volver a enviar. Estamos abiertos a recibir una versión corregida.\n\nSaludos,\nEquipo A&R — Nocturnal Records" },
+      subject: "Tu demo en Tu Sello — Feedback técnico",
+      body: "Hola {producer},\n\nGracias por enviar \"{track}\" a Tu Sello. Lo escuchamos y analizamos con nuestro motor técnico.\n\nLamentablemente, detectamos un problema de fase invertida en los canales L/R que afecta la compatibilidad mono del track. Esto es crítico para nosotros ya que nuestro material se reproduce en sistemas de club.\n\nTe sugerimos revisar la correlación de fase en tu master y volver a enviar. Estamos abiertos a recibir una versión corregida.\n\nSaludos,\nEquipo A&R — Tu Sello" },
     { id: "reject-tempo", label: "Rechazo — Fuera de tempo", type: "rejection",
-      subject: "Tu demo en Nocturnal Records — Feedback técnico",
-      body: "Hola {producer},\n\nGracias por enviar \"{track}\" a Nocturnal Records.\n\nTu track está en {bpm} BPM, mientras que nuestro rango aceptado es 120–128 BPM. Por eso no podemos considerarlo para nuestro catálogo actual.\n\nSi tenés material en el rango correcto, no dudes en enviarlo. Valoramos tu trabajo.\n\nSaludos,\nEquipo A&R — Nocturnal Records" },
+      subject: "Tu demo en Tu Sello — Feedback técnico",
+      body: "Hola {producer},\n\nGracias por enviar \"{track}\" a Tu Sello.\n\nTu track está en {bpm} BPM, mientras que nuestro rango aceptado es 120–128 BPM. Por eso no podemos considerarlo para nuestro catálogo actual.\n\nSi tenés material en el rango correcto, no dudes en enviarlo. Valoramos tu trabajo.\n\nSaludos,\nEquipo A&R — Tu Sello" },
     { id: "approve", label: "Aprobación — Interés en el track", type: "approval",
-      subject: "Tu demo fue aprobado en Nocturnal Records",
-      body: "Hola {producer},\n\nBuenas noticias: \"{track}\" pasó nuestro filtro técnico y nos encantó.\n\nQueremos avanzar a la siguiente fase de revisión artística. Nuestro equipo de A&R va a contactarte en los próximos días para coordinar próximos pasos.\n\nMientras tanto, si tenés más material en el mismo estilo, envialo por tu link de True Peak AI.\n\nSaludos,\nEquipo A&R — Nocturnal Records" },
+      subject: "Tu demo fue aprobado en Tu Sello",
+      body: "Hola {producer},\n\nBuenas noticias: \"{track}\" pasó nuestro filtro técnico y nos encantó.\n\nQueremos avanzar a la siguiente fase de revisión artística. Nuestro equipo de A&R va a contactarte en los próximos días para coordinar próximos pasos.\n\nMientras tanto, si tenés más material en el mismo estilo, envialo por tu link de True Peak AI.\n\nSaludos,\nEquipo A&R — Tu Sello" },
     { id: "followup", label: "Seguimiento — Segunda versión", type: "followup",
-      subject: "Re: Tu demo corregido en Nocturnal Records",
-      body: "Hola {producer},\n\nRecibimos la versión corregida de \"{track}\". Estamos revisándola.\n\nTe avisamos en 48hs si pasa a la fase de escucha artística.\n\nGracias por la paciencia,\nEquipo A&R — Nocturnal Records" },
+      subject: "Re: Tu demo corregido en Tu Sello",
+      body: "Hola {producer},\n\nRecibimos la versión corregida de \"{track}\". Estamos revisándola.\n\nTe avisamos en 48hs si pasa a la fase de escucha artística.\n\nGracias por la paciencia,\nEquipo A&R — Tu Sello" },
   ];
 
   if (mode === "config") {
@@ -354,7 +354,7 @@ function DashboardMockup({ mode }: { mode: "config" | "link" | "inbox" | "emailC
 
           <div className="flex items-center gap-2 mb-4">
             <div className="flex-1 px-3 py-2.5 rounded border font-mono text-sm" style={{ borderColor: "#27272a", background: "#111114" }}>
-              truepeak.ai/s/nocturnal-records
+              tudominio.com/s/tu-sello
             </div>
             <button className="px-3 py-2.5 rounded text-xs font-medium" style={{ background: "#10b981", color: "#09090b" }}>
               Copiar
@@ -370,7 +370,7 @@ function DashboardMockup({ mode }: { mode: "config" | "link" | "inbox" | "emailC
             <div className="rounded border p-3" style={{ borderColor: "#27272a", background: "#0c0c0e" }}>
               <div className="flex items-center gap-2 mb-3">
                 <div className="w-4 h-4 rounded" style={{ background: "#10b981" }} />
-                <span className="font-display font-semibold text-xs">Nocturnal Records</span>
+                <span className="font-display font-semibold text-xs">Tu Sello</span>
               </div>
               <div className="text-xs text-muted mb-3">Subí tu demo. Analizamos BPM, LUFS, fase y headroom antes de que el sello lo escuche.</div>
               <div className="flex items-center gap-2">
@@ -641,7 +641,7 @@ function WorkflowSection() {
     {
       num: "02",
       label: "Copiá tu link y pegalo en tu IG",
-      desc: "Tu link único (truepeak.ai/s/tu-sello) va en tu bio de Instagram, tu web, o donde sea. Los productores entran, ven tus requisitos y suben su WAV sin registro.",
+      desc: "Tu link único (tudominio.com/s/tu-sello) va en tu bio de Instagram, tu web, o donde sea. Los productores entran, ven tus requisitos y suben su WAV sin registro.",
       mode: "link" as const,
     },
     {
@@ -846,12 +846,12 @@ export default function Home() {
           </div>
           <div className="grid md:grid-cols-2 gap-6">
             <PricingCard
-              name="Starter"
-              price="12"
+              name="Boutique"
+              price="29"
               href="https://truepeak.lemonsqueezy.com/checkout/buy/60230548-372d-421b-8b00-f15a78817c76"
               features={[
-                "100 temas procesados/mes",
-                "1 firma sónica",
+                "Hasta 50 demos/mes",
+                "1 firma sónica personalizada",
                 "Análisis técnico completo",
                 "Dashboard básico",
                 "CRM de emails con plantillas",
@@ -860,15 +860,16 @@ export default function Home() {
             />
             <PricingCard
               name="Label Pro"
-              price="39"
+              price="79"
               highlighted
               href="https://truepeak.lemonsqueezy.com/checkout/buy/60230548-372d-421b-8b00-f15a78817c76"
               features={[
-                "500 temas procesados/mes",
-                "2 firmas sónicas",
+                "Demos ilimitados",
+                "Hasta 5 firmas sónicas",
                 "Análisis avanzado + detección de samples",
                 "Dashboard completo + export CSV",
                 "CRM avanzado + plantillas custom",
+                "API para integrar con tu DAW",
                 "Soporte prioritario",
               ]}
             />

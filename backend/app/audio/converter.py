@@ -7,7 +7,7 @@ from pathlib import Path
 from app.audio.exceptions import ConversionError
 
 
-def convert_to_mp3(wav_path: str, mp3_path: str, bitrate: str = "128k") -> str:
+def convert_to_mp3(wav_path: str, mp3_path: str, bitrate: str = "320k") -> str:
     """Convert a WAV file to MP3 using FFmpeg.
 
     Args:

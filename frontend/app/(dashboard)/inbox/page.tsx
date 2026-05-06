@@ -1,18 +1,28 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
 
 type FilterStatus = "all" | "pending" | "approved" | "rejected";
 
-const DEMOS = [
-  { id: 1, name: "Mara — Deep Cut", producer: "Mara Beats", bpm: "122", lufs: "-14.0", phase: "OK", key: "Am", status: "pending" as const, time: "Hace 3 min" },
-  { id: 2, name: "Subsonic — Pulse", producer: "Subsonic", bpm: "126", lufs: "-12.8", phase: "OK", key: "Fm", status: "pending" as const, time: "Hace 12 min" },
-  { id: 3, name: "DJ Krill — Midnight", producer: "DJ Krill", bpm: "128", lufs: "-6.2", phase: "INV", key: "Cm", status: "rejected" as const, time: "Hace 18 min", issue: "Fase + LUFS" },
-  { id: 4, name: "Anon — Groove 03", producer: "Anon", bpm: "118", lufs: "-14.3", phase: "OK", key: "Dm", status: "rejected" as const, time: "Hace 24 min", issue: "Fuera de tempo" },
-  { id: 5, name: "Kael — Drift", producer: "Kael", bpm: "124", lufs: "-13.5", phase: "OK", key: "Em", status: "approved" as const, time: "Ayer" },
-  { id: 6, name: "Vex — Hollow", producer: "Vex", bpm: "123", lufs: "-13.8", phase: "OK", key: "Bbm", status: "approved" as const, time: "Ayer" },
-];
+interface Submission {
+  id: string;
+  producer_name: string;
+  track_name: string;
+  status: "pending" | "approved" | "rejected";
+  bpm: number | null;
+  lufs: number | null;
+  phase_correlation: number | null;
+  musical_key: string | null;
+  created_at: string;
+  mp3_path?: string | null;
+  rejection_reason?: string | null;
+}
+
+interface SubmissionDetail extends Submission {
+  label_id: string;
+  producer_email: string;
+}
 
 const FILTER_TABS: { key: FilterStatus; label: string }[] = [
   { key: "all", label: "Todos" },
@@ -21,11 +31,218 @@ const FILTER_TABS: { key: FilterStatus; label: string }[] = [
   { key: "rejected", label: "Rechazados" },
 ];
 
+function formatRelativeTime(isoDate: string): string {
+  const now = new Date();
+  const date = new Date(isoDate);
+  const diffMs = now.getTime() - date.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  const diffHr = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHr / 24);
+
+  if (diffMin < 1) return "Ahora";
+  if (diffMin < 60) return `Hace ${diffMin} min`;
+  if (diffHr < 24) return `Hace ${diffHr}h`;
+  if (diffDay === 1) return "Ayer";
+  if (diffDay < 7) return `Hace ${diffDay}d`;
+  return date.toLocaleDateString("es-AR");
+}
+
+function formatBpm(bpm: number | null): string {
+  return bpm != null ? String(Math.round(bpm)) : "—";
+}
+
+function formatLufs(lufs: number | null): string {
+  return lufs != null ? lufs.toFixed(1) : "—";
+}
+
+function formatPhase(phase: number | null): { text: string; color: string } {
+  if (phase == null) return { text: "—", color: "#71717a" };
+  return phase > 0
+    ? { text: "OK", color: "#10b981" }
+    : { text: "INV", color: "#ef4444" };
+}
+
+function formatKey(key: string | null): string {
+  return key ?? "—";
+}
+
 export default function InboxPage() {
   const [filter, setFilter] = useState<FilterStatus>("all");
+  const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const filtered = DEMOS.filter((d) => filter === "all" || d.status === filter);
-  const pendingCount = DEMOS.filter((d) => d.status === "pending").length;
+  // Modal state
+  const [modal, setModal] = useState<{
+    open: boolean;
+    detail: SubmissionDetail | null;
+    loading: boolean;
+    error: string | null;
+  }>({ open: false, detail: null, loading: false, error: null });
+
+  // Per-row action loading states
+  const [actionLoading, setActionLoading] = useState<Record<string, "listen" | "approve" | "discard">>({});
+
+  const API = process.env.NEXT_PUBLIC_API_URL;
+
+  const getAuthHeaders = useCallback(() => {
+    const token = localStorage.getItem("token");
+    return token ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
+  }, []);
+
+  // Open listen modal
+  const handleListen = async (id: string) => {
+    setModal({ open: true, detail: null, loading: true, error: null });
+    setActionLoading((prev) => ({ ...prev, [id]: "listen" }));
+    try {
+      const res = await fetch(`${API}/api/submissions/${id}`, {
+        headers: getAuthHeaders(),
+      });
+      if (!res.ok) throw new Error(`Error ${res.status}`);
+      const detail: SubmissionDetail = await res.json();
+      setModal({ open: true, detail, loading: false, error: null });
+    } catch (e) {
+      setModal({ open: true, detail: null, loading: false, error: e instanceof Error ? e.message : "Error desconocido" });
+    } finally {
+      setActionLoading((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+    }
+  };
+
+  // Approve submission
+  const handleApprove = async (id: string) => {
+    setActionLoading((prev) => ({ ...prev, [id]: "approve" }));
+    try {
+      const res = await fetch(`${API}/api/submissions/${id}/status`, {
+        method: "PATCH",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ status: "approved" }),
+      });
+      if (!res.ok) throw new Error(`Error ${res.status}`);
+      const updated = await res.json();
+      setSubmissions((prev) =>
+        prev.map((s) =>
+          s.id === id ? { ...s, status: "approved" as const, mp3_path: updated.mp3_path ?? s.mp3_path } : s
+        )
+      );
+    } catch (e) {
+      alert(`Error al aprobar: ${e instanceof Error ? e.message : "Error desconocido"}`);
+    } finally {
+      setActionLoading((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+    }
+  };
+
+  // Discard (delete) submission
+  const handleDiscard = async (id: string) => {
+    setActionLoading((prev) => ({ ...prev, [id]: "discard" }));
+    try {
+      const res = await fetch(`${API}/api/submissions/${id}`, {
+        method: "DELETE",
+        headers: getAuthHeaders(),
+      });
+      if (!res.ok) throw new Error(`Error ${res.status}`);
+      setSubmissions((prev) => prev.filter((s) => s.id !== id));
+    } catch (e) {
+      alert(`Error al descartar: ${e instanceof Error ? e.message : "Error desconocido"}`);
+    } finally {
+      setActionLoading((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+    }
+  };
+
+  const closeModal = () => {
+    setModal({ open: false, detail: null, loading: false, error: null });
+  };
+
+  useEffect(() => {
+    const fetchSubmissions = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/submissions`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!res.ok) throw new Error(`Error ${res.status}`);
+        const data: Submission[] = await res.json();
+        setSubmissions(data);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Error desconocido");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchSubmissions();
+  }, []);
+
+  const filtered = submissions.filter((d) => filter === "all" || d.status === filter);
+  const pendingCount = submissions.filter((d) => d.status === "pending").length;
+
+  if (loading) {
+    return (
+      <div className="max-w-6xl mx-auto px-6 py-8">
+        <div className="flex items-center gap-3 mb-6">
+          <h1 className="font-display font-semibold text-xl">Bandeja de demos</h1>
+        </div>
+        <div className="rounded border overflow-hidden" style={{ borderColor: "#27272a", background: "#0c0c0e" }}>
+          <div className="grid grid-cols-12 gap-2 px-4 py-2.5 text-[10px] font-mono uppercase tracking-wider text-muted border-b" style={{ borderColor: "#27272a" }}>
+            <div className="col-span-4">Track</div>
+            <div className="col-span-1 text-center">BPM</div>
+            <div className="col-span-1 text-center">LUFS</div>
+            <div className="col-span-1 text-center">Fase</div>
+            <div className="col-span-1 text-center">Escala</div>
+            <div className="col-span-2 text-center">Estado</div>
+            <div className="col-span-2 text-right">Acción</div>
+          </div>
+          {[0, 1, 2, 3, 4].map((i) => (
+            <div key={i} className="grid grid-cols-12 gap-2 px-4 py-3 items-center border-b animate-pulse" style={{ borderColor: "#1a1a1e" }}>
+              <div className="col-span-4">
+                <div className="h-3 rounded w-32 mb-1" style={{ background: "#1a1a1e" }} />
+                <div className="h-2 rounded w-20" style={{ background: "#1a1a1e" }} />
+              </div>
+              {[0, 1, 2, 3].map((j) => (
+                <div key={j} className="col-span-1 text-center">
+                  <div className="h-3 rounded w-8 mx-auto" style={{ background: "#1a1a1e" }} />
+                </div>
+              ))}
+              <div className="col-span-2 text-center">
+                <div className="h-4 rounded w-16 mx-auto" style={{ background: "#1a1a1e" }} />
+              </div>
+              <div className="col-span-2 text-right">
+                <div className="h-5 rounded w-20 ml-auto" style={{ background: "#1a1a1e" }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-6xl mx-auto px-6 py-8">
+        <h1 className="font-display font-semibold text-xl mb-6">Bandeja de demos</h1>
+        <div className="rounded border p-8 text-center" style={{ borderColor: "#27272a", background: "#0c0c0e" }}>
+          <p className="text-sm" style={{ color: "#ef4444" }}>Error al cargar demos: {error}</p>
+          <button
+            onClick={() => { setLoading(true); setError(null); }}
+            className="mt-4 px-4 py-2 rounded text-sm font-medium"
+            style={{ background: "#10b981", color: "#09090b" }}
+          >
+            Reintentar
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-6xl mx-auto px-6 py-8">
@@ -72,57 +289,183 @@ export default function InboxPage() {
         </div>
 
         {/* Rows */}
-        {filtered.map((d) => (
-          <div
-            key={d.id}
-            className="grid grid-cols-12 gap-2 px-4 py-3 text-xs items-center border-b transition-colors hover:bg-surface"
-            style={{
-              borderColor: "#1a1a1e",
-              background: d.status === "pending" ? "rgba(6,182,212,0.04)" : "transparent",
-            }}
-          >
-            <div className="col-span-4">
-              <div className="font-medium">{d.name}</div>
-              <div className="text-[10px] text-muted">{d.producer} · {d.time}</div>
+        {filtered.length > 0 ? filtered.map((d) => {
+          const phase = formatPhase(d.phase_correlation);
+          return (
+            <div
+              key={d.id}
+              className="grid grid-cols-12 gap-2 px-4 py-3 text-xs items-center border-b transition-colors hover:bg-surface"
+              style={{
+                borderColor: "#1a1a1e",
+                background: d.status === "pending" ? "rgba(6,182,212,0.04)" : "transparent",
+              }}
+            >
+              <div className="col-span-4">
+                <div className="font-medium">{d.track_name || "Sin nombre"}</div>
+                <div className="text-[10px] text-muted">{d.producer_name || "Anónimo"} · {formatRelativeTime(d.created_at)}</div>
+              </div>
+              <div className="col-span-1 text-center font-mono">{formatBpm(d.bpm)}</div>
+              <div className="col-span-1 text-center font-mono">{formatLufs(d.lufs)}</div>
+              <div className="col-span-1 text-center font-mono" style={{ color: phase.color }}>{phase.text}</div>
+              <div className="col-span-1 text-center font-mono text-muted">{formatKey(d.musical_key)}</div>
+              <div className="col-span-2 text-center">
+                {d.status === "pending" && (
+                  <span className="font-mono text-[10px] px-2 py-0.5 rounded" style={{ background: "rgba(6,182,212,0.15)", color: "#06b6d4" }}>Pendiente</span>
+                )}
+                {d.status === "approved" && (
+                  <span className="font-mono text-[10px] px-2 py-0.5 rounded" style={{ background: "rgba(16,185,129,0.15)", color: "#10b981" }}>Aprobado</span>
+                )}
+                {d.status === "rejected" && (
+                  <span className="font-mono text-[10px] px-2 py-0.5 rounded" style={{ background: "rgba(239,68,68,0.15)", color: "#ef4444" }}>Rechazado</span>
+                )}
+              </div>
+              <div className="col-span-2 text-right">
+                {d.status === "pending" && (
+                  <div className="flex items-center justify-end gap-1">
+                    <button
+                      onClick={() => handleListen(d.id)}
+                      disabled={!!actionLoading[d.id]}
+                      className="px-3 py-1 rounded text-[10px] font-medium disabled:opacity-50"
+                      style={{ background: "#10b981", color: "#09090b" }}
+                    >
+                      {actionLoading[d.id] === "listen" ? "..." : "Escuchar"}
+                    </button>
+                    <button
+                      onClick={() => handleApprove(d.id)}
+                      disabled={!!actionLoading[d.id]}
+                      className="px-3 py-1 rounded text-[10px] font-medium disabled:opacity-50"
+                      style={{ background: "#06b6d4", color: "#09090b" }}
+                    >
+                      {actionLoading[d.id] === "approve" ? "..." : "Aprobar"}
+                    </button>
+                    <button
+                      onClick={() => handleDiscard(d.id)}
+                      disabled={!!actionLoading[d.id]}
+                      className="px-3 py-1 rounded text-[10px] border disabled:opacity-50"
+                      style={{ borderColor: "#27272a", color: "#71717a" }}
+                    >
+                      {actionLoading[d.id] === "discard" ? "..." : "Descartar"}
+                    </button>
+                  </div>
+                )}
+                {d.status === "rejected" && (
+                  <span className="text-[10px] text-muted">—</span>
+                )}
+                {d.status === "approved" && (
+                  <span className="text-[10px] text-muted">En cola</span>
+                )}
+              </div>
             </div>
-            <div className="col-span-1 text-center font-mono">{d.bpm}</div>
-            <div className="col-span-1 text-center font-mono">{d.lufs}</div>
-            <div className="col-span-1 text-center font-mono" style={{ color: d.phase === "INV" ? "#ef4444" : "#10b981" }}>{d.phase}</div>
-            <div className="col-span-1 text-center font-mono text-muted">{d.key}</div>
-            <div className="col-span-2 text-center">
-              {d.status === "pending" && (
-                <span className="font-mono text-[10px] px-2 py-0.5 rounded" style={{ background: "rgba(6,182,212,0.15)", color: "#06b6d4" }}>Pendiente</span>
-              )}
-              {d.status === "approved" && (
-                <span className="font-mono text-[10px] px-2 py-0.5 rounded" style={{ background: "rgba(16,185,129,0.15)", color: "#10b981" }}>Aprobado</span>
-              )}
-              {d.status === "rejected" && (
-                <span className="font-mono text-[10px] px-2 py-0.5 rounded" style={{ background: "rgba(239,68,68,0.15)", color: "#ef4444" }}>Rechazado</span>
-              )}
-            </div>
-            <div className="col-span-2 text-right">
-              {d.status === "pending" && (
-                <div className="flex items-center justify-end gap-1">
-                  <button className="px-3 py-1 rounded text-[10px] font-medium" style={{ background: "#10b981", color: "#09090b" }}>Escuchar</button>
-                  <button className="px-3 py-1 rounded text-[10px] border" style={{ borderColor: "#27272a", color: "#71717a" }}>Descartar</button>
-                </div>
-              )}
-              {d.status === "rejected" && (
-                <span className="text-[10px] text-muted">{d.issue}</span>
-              )}
-              {d.status === "approved" && (
-                <span className="text-[10px] text-muted">En cola</span>
-              )}
-            </div>
-          </div>
-        ))}
-
-        {filtered.length === 0 && (
+          );
+        }) : (
           <div className="py-12 text-center text-muted">
-            No hay demos en esta categoría.
+            {filter === "all"
+              ? "No hay demos todavía. Compartí tu link para empezar a recibir."
+              : "No hay demos en esta categoría."}
           </div>
         )}
       </div>
+
+      {/* Detail Modal */}
+      {modal.open && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: "rgba(0,0,0,0.7)" }}
+          onClick={closeModal}
+        >
+          <div
+            className="rounded border max-w-lg w-full mx-4 overflow-hidden"
+            style={{ borderColor: "#27272a", background: "#0c0c0e" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: "#27272a" }}>
+              <h2 className="font-display font-semibold text-base">Detalle del track</h2>
+              <button
+                onClick={closeModal}
+                className="w-7 h-7 rounded flex items-center justify-center text-muted hover:text-white transition-colors"
+                style={{ background: "#18181b" }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal body */}
+            <div className="px-5 py-4">
+              {modal.loading && (
+                <div className="py-8 text-center text-muted text-sm animate-pulse">Cargando detalles...</div>
+              )}
+              {modal.error && (
+                <div className="py-8 text-center text-sm" style={{ color: "#ef4444" }}>
+                  {modal.error}
+                </div>
+              )}
+              {modal.detail && (
+                <div className="space-y-4">
+                  {/* Track info */}
+                  <div>
+                    <div className="font-medium text-sm">{modal.detail.track_name || "Sin nombre"}</div>
+                    <div className="text-xs text-muted mt-0.5">{modal.detail.producer_name || "Anónimo"} · {modal.detail.producer_email || "Sin email"}</div>
+                  </div>
+
+                  {/* Specs grid */}
+                  <div className="grid grid-cols-4 gap-2">
+                    <div className="rounded px-3 py-2 text-center" style={{ background: "#18181b" }}>
+                      <div className="text-[10px] text-muted uppercase tracking-wider">BPM</div>
+                      <div className="font-mono text-sm mt-0.5">{formatBpm(modal.detail.bpm)}</div>
+                    </div>
+                    <div className="rounded px-3 py-2 text-center" style={{ background: "#18181b" }}>
+                      <div className="text-[10px] text-muted uppercase tracking-wider">LUFS</div>
+                      <div className="font-mono text-sm mt-0.5">{formatLufs(modal.detail.lufs)}</div>
+                    </div>
+                    <div className="rounded px-3 py-2 text-center" style={{ background: "#18181b" }}>
+                      <div className="text-[10px] text-muted uppercase tracking-wider">Fase</div>
+                      <div className="font-mono text-sm mt-0.5" style={{ color: formatPhase(modal.detail.phase_correlation).color }}>
+                        {formatPhase(modal.detail.phase_correlation).text}
+                      </div>
+                    </div>
+                    <div className="rounded px-3 py-2 text-center" style={{ background: "#18181b" }}>
+                      <div className="text-[10px] text-muted uppercase tracking-wider">Escala</div>
+                      <div className="font-mono text-sm mt-0.5">{formatKey(modal.detail.musical_key)}</div>
+                    </div>
+                  </div>
+
+                  {/* Status */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted">Estado:</span>
+                    {modal.detail.status === "pending" && (
+                      <span className="font-mono text-[10px] px-2 py-0.5 rounded" style={{ background: "rgba(6,182,212,0.15)", color: "#06b6d4" }}>Pendiente</span>
+                    )}
+                    {modal.detail.status === "approved" && (
+                      <span className="font-mono text-[10px] px-2 py-0.5 rounded" style={{ background: "rgba(16,185,129,0.15)", color: "#10b981" }}>Aprobado</span>
+                    )}
+                    {modal.detail.status === "rejected" && (
+                      <span className="font-mono text-[10px] px-2 py-0.5 rounded" style={{ background: "rgba(239,68,68,0.15)", color: "#ef4444" }}>Rechazado</span>
+                    )}
+                    {modal.detail.rejection_reason && (
+                      <span className="text-xs" style={{ color: "#ef4444" }}>— {modal.detail.rejection_reason}</span>
+                    )}
+                  </div>
+
+                  {/* Audio player */}
+                  {modal.detail.mp3_path ? (
+                    <div>
+                      <div className="text-xs text-muted mb-2">Preview de audio</div>
+                      <audio controls className="w-full" src={`${API}/files/${modal.detail.mp3_path}`} style={{ borderRadius: "6px" }}>
+                        Tu navegador no soporta audio.
+                      </audio>
+                    </div>
+                  ) : (
+                    <div className="rounded px-3 py-2 text-xs text-center" style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444" }}>
+                      Este track no tiene preview de audio todavía.
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

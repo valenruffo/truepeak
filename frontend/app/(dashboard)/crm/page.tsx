@@ -1,53 +1,262 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 
-const CONTACTS = [
-  { name: "DJ Krill", email: "djkrill@gmail.com", track: "Midnight", status: "rejected", sent: false },
-  { name: "Anon", email: "anon.beats@proton.me", track: "Groove 03", status: "rejected", sent: true },
-  { name: "Mara Beats", email: "mara@soundcloud.com", track: "Deep Cut", status: "approved", sent: false },
-  { name: "Kael", email: "kael.music@gmail.com", track: "Drift", status: "approved", sent: true },
-];
+interface Submission {
+  id: string;
+  producer_name: string;
+  producer_email: string | null;
+  track_name: string;
+  status: "pending" | "approved" | "rejected";
+  bpm: number | null;
+  lufs: number | null;
+  phase_correlation: number | null;
+  musical_key: string | null;
+  created_at: string;
+}
 
-const TEMPLATES = [
-  { id: "reject-phase", label: "Rechazo — Problema de fase", subject: "Tu demo en Nocturnal Records — Feedback técnico", body: "Hola {producer},\n\nGracias por enviar \"{track}\" a Nocturnal Records. Lo escuchamos y analizamos con nuestro motor técnico.\n\nLamentablemente, detectamos un problema de fase invertida en los canales L/R que afecta la compatibilidad mono del track. Esto es crítico para nosotros ya que nuestro material se reproduce en sistemas de club.\n\nTe sugerimos revisar la correlación de fase en tu master y volver a enviar.\n\nSaludos,\nEquipo A&R — Nocturnal Records" },
-  { id: "reject-tempo", label: "Rechazo — Fuera de tempo", subject: "Tu demo en Nocturnal Records — Feedback técnico", body: "Hola {producer},\n\nGracias por enviar \"{track}\" a Nocturnal Records.\n\nTu track está en {bpm} BPM, mientras que nuestro rango aceptado es 120–128 BPM. Por eso no podemos considerarlo para nuestro catálogo actual.\n\nSi tenés material en el rango correcto, no dudes en enviarlo.\n\nSaludos,\nEquipo A&R — Nocturnal Records" },
-  { id: "approve", label: "Aprobación — Interés en el track", subject: "Tu demo fue aprobado en Nocturnal Records", body: "Hola {producer},\n\nBuenas noticias: \"{track}\" pasó nuestro filtro técnico y nos encantó.\n\nQueremos avanzar a la siguiente fase de revisión artística. Nuestro equipo de A&R va a contactarte en los próximos días.\n\nSaludos,\nEquipo A&R — Nocturnal Records" },
-  { id: "followup", label: "Seguimiento — Segunda versión", subject: "Re: Tu demo corregido en Nocturnal Records", body: "Hola {producer},\n\nRecibimos la versión corregida de \"{track}\". Estamos revisándola.\n\nTe avisamos en 48hs si pasa a la fase de escucha artística.\n\nGracias por la paciencia,\nEquipo A&R — Nocturnal Records" },
-];
+interface Contact {
+  name: string;
+  email: string;
+  track: string;
+  status: "approved" | "rejected";
+  bpm: string;
+  sent: boolean;
+}
+
+interface Template {
+  id: string;
+  label: string;
+  subject: string;
+  body: string;
+}
+
+function buildTemplates(labelName: string): Template[] {
+  return [
+    {
+      id: "reject-phase",
+      label: "Rechazo — Problema de fase",
+      subject: `Tu demo en ${labelName} — Feedback técnico`,
+      body: `Hola {producer},\n\nGracias por enviar "{track}" a ${labelName}. Lo escuchamos y analizamos con nuestro motor técnico.\n\nLamentablemente, detectamos un problema de fase invertida en los canales L/R que afecta la compatibilidad mono del track. Esto es crítico para nosotros ya que nuestro material se reproduce en sistemas de club.\n\nTe sugerimos revisar la correlación de fase en tu master y volver a enviar.\n\nSaludos,\nEquipo A&R — ${labelName}`,
+    },
+    {
+      id: "reject-tempo",
+      label: "Rechazo — Fuera de tempo",
+      subject: `Tu demo en ${labelName} — Feedback técnico`,
+      body: `Hola {producer},\n\nGracias por enviar "{track}" a ${labelName}.\n\nTu track está en {bpm} BPM, mientras que nuestro rango aceptado es 120–128 BPM. Por eso no podemos considerarlo para nuestro catálogo actual.\n\nSi tenés material en el rango correcto, no dudes en enviarlo.\n\nSaludos,\nEquipo A&R — ${labelName}`,
+    },
+    {
+      id: "approve",
+      label: "Aprobación — Interés en el track",
+      subject: `Tu demo fue aprobado en ${labelName}`,
+      body: `Hola {producer},\n\nBuenas noticias: "{track}" pasó nuestro filtro técnico y nos encantó.\n\nQueremos avanzar a la siguiente fase de revisión artística. Nuestro equipo de A&R va a contactarte en los próximos días.\n\nSaludos,\nEquipo A&R — ${labelName}`,
+    },
+    {
+      id: "followup",
+      label: "Seguimiento — Segunda versión",
+      subject: `Re: Tu demo corregido en ${labelName}`,
+      body: `Hola {producer},\n\nRecibimos la versión corregida de "{track}". Estamos revisándola.\n\nTe avisamos en 48hs si pasa a la fase de escucha artística.\n\nGracias por la paciencia,\nEquipo A&R — ${labelName}`,
+    },
+  ];
+}
 
 export default function CRMPage() {
   const [selectedTemplate, setSelectedTemplate] = useState("reject-phase");
   const [selectedContact, setSelectedContact] = useState(0);
-  const [emailBody, setEmailBody] = useState(TEMPLATES[0].body);
-  const [emailSubject, setEmailSubject] = useState(TEMPLATES[0].subject);
+  const [emailBody, setEmailBody] = useState("");
+  const [emailSubject, setEmailSubject] = useState("");
   const [sent, setSent] = useState(false);
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [labelName, setLabelName] = useState<string>("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
 
-  const contact = CONTACTS[selectedContact];
-  const template = TEMPLATES.find((t) => t.id === selectedTemplate)!;
+  useEffect(() => {
+    const fetchData = async () => {
+      const token = localStorage.getItem("token");
+      const slug = localStorage.getItem("slug");
+      const headers: Record<string, string> = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
 
-  const resolveTemplate = (tpl: typeof TEMPLATES[0], c: typeof CONTACTS[0]) => {
-    return tpl.body.replace(/{producer}/g, c.name).replace(/{track}/g, c.track).replace(/{bpm}/g, "118");
+      // Fetch label name
+      if (slug) {
+        try {
+          const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/labels/${slug}`);
+          if (res.ok) {
+            const data = await res.json();
+            setLabelName(data.name);
+          }
+        } catch {
+          setLabelName(slug);
+        }
+      }
+
+      // Fetch submissions
+      try {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/submissions`, { headers });
+        if (!res.ok) throw new Error(`Error ${res.status}`);
+        const data: Submission[] = await res.json();
+
+        // Filter to only non-pending (approved + rejected) for CRM contacts
+        const resolved = data.filter((s) => s.status !== "pending");
+        const mapped: Contact[] = resolved.map((s) => ({
+          name: s.producer_name || "Anónimo",
+          email: s.producer_email || "",
+          track: s.track_name || "Sin nombre",
+          status: s.status as "approved" | "rejected",
+          bpm: s.bpm != null ? String(Math.round(s.bpm)) : "—",
+          sent: false,
+        }));
+        setContacts(mapped);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Error desconocido");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  // Build templates with dynamic label name
+  const templates = buildTemplates(labelName || "tu sello");
+
+  const contact = contacts[selectedContact];
+  const template = templates.find((t) => t.id === selectedTemplate);
+
+  const resolveTemplate = (tpl: Template, c: Contact) => {
+    return tpl.body
+      .replace(/{producer}/g, c.name)
+      .replace(/{track}/g, c.track)
+      .replace(/{bpm}/g, c.bpm);
   };
 
   const handleTemplateChange = (id: string) => {
     setSelectedTemplate(id);
-    const t = TEMPLATES.find((t) => t.id === id)!;
+    const t = templates.find((t) => t.id === id)!;
     setEmailSubject(t.subject);
-    setEmailBody(resolveTemplate(t, CONTACTS[selectedContact]));
+    if (contact) {
+      setEmailBody(resolveTemplate(t, contact));
+    } else {
+      setEmailBody(t.body);
+    }
     setSent(false);
   };
 
   const handleContactChange = (idx: number) => {
     setSelectedContact(idx);
-    const t = TEMPLATES.find((t) => t.id === selectedTemplate)!;
-    setEmailBody(resolveTemplate(t, CONTACTS[idx]));
+    const t = templates.find((t) => t.id === selectedTemplate)!;
+    const c = contacts[idx];
+    if (c) {
+      setEmailBody(resolveTemplate(t, c));
+    } else {
+      setEmailBody(t.body);
+    }
     setSent(false);
   };
 
-  const rejectionCount = CONTACTS.filter((c) => c.status === "rejected").length;
-  const approvalCount = CONTACTS.filter((c) => c.status === "approved").length;
+  // Initialize email body when templates and contacts are ready
+  useEffect(() => {
+    if (template && contacts.length > 0 && !emailBody) {
+      setEmailSubject(template.subject);
+      setEmailBody(resolveTemplate(template, contacts[0]));
+    }
+  }, [template, contacts, labelName]);
+
+  const handleSendEmail = async () => {
+    if (!contact) return;
+    if (!contact.email) {
+      setSendError("Este contacto no tiene email registrado. No se puede enviar el email.");
+      return;
+    }
+    setSending(true);
+    setSendError(null);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/email/send`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          to: contact.email,
+          subject: emailSubject,
+          body: emailBody,
+          from_name: labelName,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.detail || `Error ${res.status}`);
+      }
+      setSent(true);
+      setContacts((prev) => prev.map((c, i) => (i === selectedContact ? { ...c, sent: true } : c)));
+    } catch (e) {
+      setSendError(e instanceof Error ? e.message : "Error al enviar el email.");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const rejectionCount = contacts.filter((c) => c.status === "rejected").length;
+  const approvalCount = contacts.filter((c) => c.status === "approved").length;
+
+  if (loading) {
+    return (
+      <div className="max-w-6xl mx-auto px-6 py-8">
+        <h1 className="font-display font-semibold text-xl mb-6">CRM de Emails</h1>
+        <div className="rounded border overflow-hidden animate-pulse" style={{ borderColor: "#27272a", background: "#0c0c0e" }}>
+          <div className="grid grid-cols-5" style={{ minHeight: "500px" }}>
+            <div className="col-span-2 border-r" style={{ borderColor: "#27272a" }}>
+              <div className="px-4 py-3 border-b" style={{ borderColor: "#27272a" }}>
+                <div className="h-3 w-24 rounded mb-2" style={{ background: "#1a1a1e" }} />
+                <div className="flex gap-2">
+                  <div className="h-4 w-16 rounded" style={{ background: "#1a1a1e" }} />
+                  <div className="h-4 w-16 rounded" style={{ background: "#1a1a1e" }} />
+                </div>
+              </div>
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="px-4 py-3 border-b" style={{ borderColor: "#1a1a1e" }}>
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="h-3 w-20 rounded" style={{ background: "#1a1a1e" }} />
+                    <div className="h-3 w-14 rounded" style={{ background: "#1a1a1e" }} />
+                  </div>
+                  <div className="h-2 w-32 rounded" style={{ background: "#1a1a1e" }} />
+                </div>
+              ))}
+            </div>
+            <div className="col-span-3 p-4">
+              <div className="h-3 w-16 rounded mb-3" style={{ background: "#1a1a1e" }} />
+              <div className="h-8 w-full rounded mb-3" style={{ background: "#1a1a1e" }} />
+              <div className="h-8 w-full rounded mb-3" style={{ background: "#1a1a1e" }} />
+              <div className="h-40 w-full rounded" style={{ background: "#1a1a1e" }} />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-6xl mx-auto px-6 py-8">
+        <h1 className="font-display font-semibold text-xl mb-6">CRM de Emails</h1>
+        <div className="rounded border p-8 text-center" style={{ borderColor: "#27272a", background: "#0c0c0e" }}>
+          <p className="text-sm" style={{ color: "#ef4444" }}>Error al cargar contactos: {error}</p>
+          <button
+            onClick={() => { setLoading(true); setError(null); }}
+            className="mt-4 px-4 py-2 rounded text-sm font-medium"
+            style={{ background: "#10b981", color: "#09090b" }}
+          >
+            Reintentar
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-6xl mx-auto px-6 py-8">
@@ -69,7 +278,7 @@ export default function CRMPage() {
               </div>
             </div>
             <div className="overflow-y-auto" style={{ maxHeight: "450px" }}>
-              {CONTACTS.map((c, i) => (
+              {contacts.length > 0 ? contacts.map((c, i) => (
                 <button
                   key={i}
                   onClick={() => handleContactChange(i)}
@@ -91,14 +300,18 @@ export default function CRMPage() {
                       {c.status === "rejected" ? "Rechazado" : "Aprobado"}
                     </span>
                   </div>
-                  <div className="text-[10px] text-muted truncate">{c.email}</div>
+                  <div className="text-[10px] text-muted truncate">{c.email || "Sin email"}</div>
                   <div className="flex items-center gap-2 mt-1">
                     <span className="text-[10px] text-muted">"{c.track}"</span>
                     {c.sent && <span className="text-[10px]" style={{ color: "#10b981" }}>✓ Enviado</span>}
                     {!c.sent && <span className="text-[10px] text-muted">Pendiente</span>}
                   </div>
                 </button>
-              ))}
+              )) : (
+                <div className="py-12 text-center text-muted text-sm">
+                  No hay contactos todavía. Las demos aprobadas o rechazadas aparecerán acá.
+                </div>
+              )}
             </div>
           </div>
 
@@ -108,7 +321,7 @@ export default function CRMPage() {
             <div className="px-4 py-3 border-b" style={{ borderColor: "#27272a" }}>
               <div className="text-[10px] font-mono uppercase tracking-wider text-muted mb-2">Plantilla</div>
               <div className="flex gap-1.5 flex-wrap">
-                {TEMPLATES.map((t) => (
+                {templates.map((t) => (
                   <button
                     key={t.id}
                     onClick={() => handleTemplateChange(t.id)}
@@ -129,7 +342,18 @@ export default function CRMPage() {
             <div className="flex-1 p-4 flex flex-col">
               <div className="mb-3">
                 <label className="text-[10px] font-mono uppercase tracking-wider text-muted mb-1 block">Para</label>
-                <div className="text-sm font-medium">{contact.name} &lt;{contact.email}&gt;</div>
+                {contact ? (
+                  <div className="text-sm font-medium">
+                    {contact.name}{" "}
+                    {contact.email ? (
+                      <span className="text-muted">&lt;{contact.email}&gt;</span>
+                    ) : (
+                      <span className="text-muted">(sin email)</span>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-sm text-muted">Seleccioná un contacto</div>
+                )}
               </div>
 
               <div className="mb-3">
@@ -143,30 +367,34 @@ export default function CRMPage() {
                 />
               </div>
 
-              <div className="flex-1 mb-4">
+              <div className="mb-4">
                 <label className="text-[10px] font-mono uppercase tracking-wider text-muted mb-1 block">Cuerpo</label>
                 <textarea
                   value={emailBody}
                   onChange={(e) => setEmailBody(e.target.value)}
-                  className="w-full h-full min-h-[200px] px-3 py-2 rounded border text-sm leading-relaxed bg-transparent resize-none"
-                  style={{ borderColor: "#27272a" }}
+                  className="w-full px-3 py-2 rounded border text-sm leading-relaxed bg-transparent resize-none"
+                  style={{ borderColor: "#27272a", minHeight: "200px" }}
+                  rows={8}
                 />
               </div>
 
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-3 mt-4">
                 <div className="text-xs text-muted">
                   {sent ? (
-                    <span style={{ color: "#10b981" }}>✓ Mail enviado a {contact.name}</span>
+                    <span style={{ color: "#10b981" }}>✓ Mail enviado a {contact?.name}</span>
+                  ) : sendError ? (
+                    <span style={{ color: "#ef4444" }}>{sendError}</span>
                   ) : (
                     <span>Variables auto-rellenadas: {"{producer}"}, {"{track}"}</span>
                   )}
                 </div>
                 <button
-                  onClick={() => setSent(true)}
-                  className="px-5 py-2 rounded text-sm font-medium transition-all hover:opacity-90"
+                  onClick={handleSendEmail}
+                  disabled={sending}
+                  className="px-5 py-2 rounded text-sm font-medium transition-all hover:opacity-90 disabled:opacity-50"
                   style={{ background: sent ? "#27272a" : "#10b981", color: sent ? "#71717a" : "#09090b" }}
                 >
-                  {sent ? "Enviado" : "Enviar"}
+                  {sending ? "Enviando..." : sent ? "Enviado" : "Enviar"}
                 </button>
               </div>
             </div>

@@ -1,18 +1,101 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
+
+interface SonicSignature {
+  bpm_min: number;
+  bpm_max: number;
+  lufs_target: number;
+  lufs_tolerance: number;
+  preferred_scales: string[];
+  auto_reject_rules: {
+    phase: boolean;
+    lufs: boolean;
+    tempo: boolean;
+  };
+}
 
 export default function ConfigPage() {
   const [bpmRange, setBpmRange] = useState([120, 128]);
   const [lufsTarget, setLufsTarget] = useState(-14);
   const [lufsTolerance, setLufsTolerance] = useState(2);
-  const [selectedScales, setSelectedScales] = useState(["Menor"]);
+  const [selectedScales, setSelectedScales] = useState<string[]>(["Menor"]);
   const [autoReject, setAutoReject] = useState({
     phase: true,
     lufs: true,
     tempo: true,
   });
+
+  // Logo upload state
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [logoError, setLogoError] = useState<string | null>(null);
+  const [logoSaved, setLogoSaved] = useState(false);
+  const [logoDragActive, setLogoDragActive] = useState(false);
+
+  // Fetch / save state
+  const [fetching, setFetching] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [noSlug, setNoSlug] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  const API = process.env.NEXT_PUBLIC_API_URL;
+
+  const getAuthHeaders = useCallback(() => {
+    const token = localStorage.getItem("token");
+    return token ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
+  }, []);
+
+  // Fetch label config on mount
+  useEffect(() => {
+    const fetchConfig = async () => {
+      const slug = localStorage.getItem("slug");
+      if (!slug) {
+        setNoSlug(true);
+        setFetching(false);
+        return;
+      }
+      try {
+        const res = await fetch(`${API}/api/labels/${slug}`, {
+          headers: getAuthHeaders(),
+        });
+        if (!res.ok) throw new Error(`Error ${res.status}`);
+        const data = await res.json();
+        const sig: SonicSignature | null = data.sonic_signature;
+        if (sig) {
+          setBpmRange([sig.bpm_min, sig.bpm_max]);
+          setLufsTarget(sig.lufs_target);
+          setLufsTolerance(sig.lufs_tolerance);
+          setSelectedScales(sig.preferred_scales ?? []);
+          setAutoReject({
+            phase: sig.auto_reject_rules?.phase ?? true,
+            lufs: sig.auto_reject_rules?.lufs ?? true,
+            tempo: sig.auto_reject_rules?.tempo ?? true,
+          });
+        }
+        if (data.logo_path) {
+          setLogoUrl(`${API}/logos/${data.logo_path}`);
+        }
+      } catch (e) {
+        setFetchError(e instanceof Error ? e.message : "Error desconocido");
+      } finally {
+        setFetching(false);
+      }
+    };
+    fetchConfig();
+  }, [API, getAuthHeaders]);
+
+  // Auto-dismiss success message after 2s
+  useEffect(() => {
+    if (!saved) return;
+    const timer = setTimeout(() => setSaved(false), 2000);
+    return () => clearTimeout(timer);
+  }, [saved]);
 
   const scales = ["Menor", "Mayor", "Dórica", "Frigia"];
 
@@ -22,12 +105,235 @@ export default function ConfigPage() {
     );
   };
 
+  const handleSave = async () => {
+    const slug = localStorage.getItem("slug");
+    if (!slug) return;
+    setSaving(true);
+    setSaveError(null);
+    setSaved(false);
+    try {
+      const res = await fetch(`${API}/api/labels/${slug}/config`, {
+        method: "PUT",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          sonic_signature: {
+            bpm_min: bpmRange[0],
+            bpm_max: bpmRange[1],
+            lufs_target: lufsTarget,
+            lufs_tolerance: lufsTolerance,
+            preferred_scales: selectedScales,
+            auto_reject_rules: {
+              phase: autoReject.phase,
+              lufs: autoReject.lufs,
+              tempo: autoReject.tempo,
+            },
+          },
+        }),
+      });
+      if (!res.ok) throw new Error(`Error ${res.status}`);
+      setSaved(true);
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : "Error desconocido");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Logo upload
+  const handleLogoFile = (f: File) => {
+    const validExts = [".jpg", ".jpeg", ".png", ".webp"];
+    const ext = "." + f.name.split(".").pop()?.toLowerCase();
+    if (!validExts.includes(ext)) {
+      setLogoError("Solo se aceptan imágenes JPG, PNG o WebP");
+      return;
+    }
+    if (f.size > 5 * 1024 * 1024) {
+      setLogoError("La imagen no puede superar los 5MB");
+      return;
+    }
+    setLogoError(null);
+    setLogoFile(f);
+    const reader = new FileReader();
+    reader.onload = (e) => setLogoPreview(e.target?.result as string);
+    reader.readAsDataURL(f);
+  };
+
+  const handleLogoDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setLogoDragActive(false);
+    const files = e.dataTransfer.files;
+    if (files && files[0]) handleLogoFile(files[0]);
+  };
+
+  const handleLogoDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") setLogoDragActive(true);
+    else if (e.type === "dragleave") setLogoDragActive(false);
+  };
+
+  const uploadLogo = async () => {
+    if (!logoFile) return;
+    const slug = localStorage.getItem("slug");
+    if (!slug) return;
+    setLogoUploading(true);
+    setLogoError(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", logoFile);
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API}/api/labels/${slug}/logo`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Error desconocido" }));
+        throw new Error(err.detail || `Error ${res.status}`);
+      }
+      const data = await res.json();
+      setLogoUrl(`${API}${data.logo_url}`);
+      setLogoSaved(true);
+      setLogoFile(null);
+      setLogoPreview(null);
+      setTimeout(() => setLogoSaved(false), 2000);
+    } catch (e) {
+      setLogoError(e instanceof Error ? e.message : "Error desconocido");
+    } finally {
+      setLogoUploading(false);
+    }
+  };
+
+  if (noSlug) {
+    return (
+      <div className="max-w-3xl mx-auto px-6 py-12">
+        <div className="text-xs font-mono uppercase tracking-wider text-muted mb-1">Configuración</div>
+        <div className="rounded border p-8 text-center" style={{ borderColor: "#27272a", background: "#0c0c0e" }}>
+          <p className="text-sm" style={{ color: "#ef4444" }}>No se encontró tu sello. Iniciá sesión de nuevo.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (fetching) {
+    return (
+      <div className="max-w-3xl mx-auto px-6 py-12">
+        <div className="text-xs font-mono uppercase tracking-wider text-muted mb-1">Configuración</div>
+        <h1 className="font-display font-semibold text-2xl mb-8">Firma sónica — Sello principal</h1>
+        <div className="rounded border p-8 text-center animate-pulse" style={{ borderColor: "#27272a", background: "#0c0c0e" }}>
+          <p className="text-sm text-muted">Cargando configuración...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <div className="max-w-3xl mx-auto px-6 py-12">
+        <div className="text-xs font-mono uppercase tracking-wider text-muted mb-1">Configuración</div>
+        <h1 className="font-display font-semibold text-2xl mb-8">Firma sónica — Sello principal</h1>
+        <div className="rounded border p-8 text-center" style={{ borderColor: "#27272a", background: "#0c0c0e" }}>
+          <p className="text-sm" style={{ color: "#ef4444" }}>Error al cargar configuración: {fetchError}</p>
+          <button
+            onClick={() => { setFetching(true); setFetchError(null); }}
+            className="mt-4 px-4 py-2 rounded text-sm font-medium"
+            style={{ background: "#10b981", color: "#09090b" }}
+          >
+            Reintentar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-3xl mx-auto px-6 py-12">
       <div className="text-xs font-mono uppercase tracking-wider text-muted mb-1">Configuración</div>
       <h1 className="font-display font-semibold text-2xl mb-8">Firma sónica — Sello principal</h1>
 
       <div className="space-y-8">
+        {/* Logo Upload */}
+        <div>
+          <label className="text-sm font-medium mb-1 block">Logo del sello</label>
+          <p className="text-xs text-muted mb-3">
+            Subí el logo de tu sello. Se mostrará en la página de recepción de demos.
+          </p>
+          {logoUrl && !logoPreview && (
+            <div className="mb-3">
+              <img
+                src={logoUrl}
+                alt="Logo actual"
+                className="w-16 h-16 rounded object-cover border"
+                style={{ borderColor: "#27272a" }}
+              />
+            </div>
+          )}
+          <div
+            onDragEnter={handleLogoDrag}
+            onDragLeave={handleLogoDrag}
+            onDragOver={handleLogoDrag}
+            onDrop={handleLogoDrop}
+            className="rounded border-2 border-dashed p-6 text-center cursor-pointer transition-colors"
+            style={{
+              borderColor: logoDragActive ? "#10b981" : logoPreview ? "#10b981" : "#27272a",
+              background: logoDragActive ? "rgba(16,185,129,0.05)" : "transparent",
+            }}
+            onClick={() => document.getElementById("logo-input")?.click()}
+          >
+            <input
+              id="logo-input"
+              type="file"
+              accept=".jpg,.jpeg,.png,.webp"
+              className="hidden"
+              onChange={(e) => e.target.files?.[0] && handleLogoFile(e.target.files[0])}
+            />
+            {logoPreview ? (
+              <div>
+                <img
+                  src={logoPreview}
+                  alt="Preview"
+                  className="w-16 h-16 rounded object-cover mx-auto mb-2 border"
+                  style={{ borderColor: "#27272a" }}
+                />
+                <div className="text-sm font-medium mb-1" style={{ color: "#10b981" }}>
+                  ✓ {logoFile?.name}
+                </div>
+                <div className="text-xs text-muted">
+                  {(logoFile!.size / (1024 * 1024)).toFixed(1)} MB
+                </div>
+              </div>
+            ) : (
+              <div>
+                <div className="text-sm mb-1">
+                  {logoUrl ? "Cambiar logo" : "Arrastrá tu logo acá"}
+                </div>
+                <div className="text-xs text-muted">
+                  o hacé clic para seleccionar · JPG, PNG, WebP · Max 5MB
+                </div>
+              </div>
+            )}
+          </div>
+          {logoError && (
+            <div className="mt-2 text-xs" style={{ color: "#ef4444" }}>{logoError}</div>
+          )}
+          {(logoPreview || logoUrl) && (
+            <div className="mt-3 flex items-center gap-3">
+              <button
+                onClick={uploadLogo}
+                disabled={logoUploading || !logoFile}
+                className="px-4 py-2 text-xs font-medium rounded transition-all hover:opacity-90 disabled:opacity-50"
+                style={{ background: "#10b981", color: "#09090b" }}
+              >
+                {logoUploading ? "Subiendo..." : logoUrl ? "Actualizar logo" : "Subir logo"}
+              </button>
+              {logoSaved && (
+                <span className="text-xs font-mono" style={{ color: "#10b981" }}>✓ Guardado</span>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* BPM Range */}
         <div>
           <div className="flex items-center justify-between mb-3">
@@ -170,12 +476,22 @@ export default function ConfigPage() {
 
         {/* Save Button */}
         <div className="pt-6 border-t" style={{ borderColor: "#27272a" }}>
-          <button
-            className="px-6 py-2.5 text-sm font-medium rounded transition-all hover:opacity-90"
-            style={{ background: "#10b981", color: "#09090b" }}
-          >
-            Guardar firma sónica
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="px-6 py-2.5 text-sm font-medium rounded transition-all hover:opacity-90 disabled:opacity-50"
+              style={{ background: "#10b981", color: "#09090b" }}
+            >
+              {saving ? "Guardando..." : "Guardar firma sónica"}
+            </button>
+            {saved && (
+              <span className="text-sm font-mono" style={{ color: "#10b981" }}>✓ Guardado</span>
+            )}
+            {saveError && (
+              <span className="text-sm" style={{ color: "#ef4444" }}>Error: {saveError}</span>
+            )}
+          </div>
         </div>
       </div>
     </div>

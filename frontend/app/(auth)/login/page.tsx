@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
   const router = useRouter();
+  const [slug, setSlug] = useState("");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -16,7 +16,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/labels/nocturnal-records/login`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/labels/${slug}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ owner_email: email }),
@@ -52,6 +52,19 @@ export default function LoginPage() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
+          <label className="text-sm font-medium mb-1.5 block">Slug del sello</label>
+          <input
+            type="text"
+            value={slug}
+            onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
+            className="w-full px-3 py-2.5 rounded border text-sm bg-transparent"
+            style={{ borderColor: "#27272a" }}
+            placeholder="tu-sello"
+            required
+          />
+        </div>
+
+        <div>
           <label className="text-sm font-medium mb-1.5 block">Email</label>
           <input
             type="email"
@@ -60,19 +73,6 @@ export default function LoginPage() {
             className="w-full px-3 py-2.5 rounded border text-sm bg-transparent"
             style={{ borderColor: "#27272a" }}
             placeholder="tu@email.com"
-            required
-          />
-        </div>
-
-        <div>
-          <label className="text-sm font-medium mb-1.5 block">Contraseña</label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full px-3 py-2.5 rounded border text-sm bg-transparent"
-            style={{ borderColor: "#27272a" }}
-            placeholder="••••••••"
             required
           />
         </div>
@@ -86,22 +86,6 @@ export default function LoginPage() {
           {loading ? "Ingresando..." : "Iniciar sesión"}
         </button>
       </form>
-
-      <div className="mt-6 pt-4 border-t" style={{ borderColor: "#27272a" }}>
-        <button
-          onClick={() => {
-            localStorage.setItem("admin", "true");
-            localStorage.setItem("token", "admin-token");
-            localStorage.setItem("label_id", "admin-label");
-            localStorage.setItem("slug", "admin");
-            router.push("/inbox");
-          }}
-          className="w-full py-2 text-xs font-mono rounded transition-colors"
-          style={{ background: "#18181b", color: "#71717a", border: "1px solid #27272a" }}
-        >
-          Modo Admin (demo)
-        </button>
-      </div>
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Header
 from pydantic import BaseModel
-from sqlmodel import Session, select
+from sqlmodel import Session, select, func
 
 from app.database import get_session
 from app.models import Label, Submission
@@ -26,18 +26,21 @@ class SubmissionDetail(BaseModel):
     status: str
     rejection_reason: str | None
     mp3_path: str | None
+    notes: str | None
     created_at: str
 
 
 class SubmissionSummary(BaseModel):
     id: str
     producer_name: str
+    producer_email: str | None
     track_name: str
     status: str
     bpm: float | None
     lufs: float | None
     phase_correlation: float | None
     musical_key: str | None
+    notes: str | None
     created_at: str
 
 
@@ -112,12 +115,14 @@ async def list_submissions(
         SubmissionSummary(
             id=s.id,
             producer_name=s.producer_name,
+            producer_email=s.producer_email,
             track_name=s.track_name,
             status=s.status,
             bpm=s.bpm,
             lufs=s.lufs,
             phase_correlation=s.phase_correlation,
             musical_key=s.musical_key,
+            notes=s.notes,
             created_at=s.created_at.isoformat(),
         )
         for s in submissions
@@ -150,6 +155,7 @@ async def get_submission(
         status=submission.status,
         rejection_reason=submission.rejection_reason,
         mp3_path=submission.mp3_path,
+        notes=submission.notes,
         created_at=submission.created_at.isoformat(),
     )
 
@@ -236,3 +242,66 @@ async def delete_submission(
     session.commit()
 
     return DeleteResponse(id=submission_id, deleted=True)
+
+
+class DeleteFileResponse(BaseModel):
+    deleted: bool
+
+
+class HQCountResponse(BaseModel):
+    count: int
+    limit: int
+
+
+@router.delete("/submissions/{submission_id}/file", response_model=DeleteFileResponse)
+async def delete_submission_file(
+    submission_id: str,
+    auth: dict = Depends(_get_label_from_token),
+    session: Session = Depends(get_session),
+):
+    """Delete only the MP3 file from a submission (sets mp3_path to null). Requires label owner auth."""
+    submission = session.get(Submission, submission_id)
+    if not submission:
+        raise HTTPException(status_code=404, detail="Submission not found.")
+
+    _verify_label_ownership(session, auth["label_id"], submission)
+
+    if not submission.mp3_path:
+        raise HTTPException(status_code=400, detail="No MP3 file associated with this submission.")
+
+    # Delete the MP3 file from disk
+    if os.path.exists(submission.mp3_path):
+        try:
+            os.remove(submission.mp3_path)
+        except OSError:
+            pass  # Best-effort
+
+    submission.mp3_path = None
+    session.add(submission)
+    session.commit()
+
+    return DeleteFileResponse(deleted=True)
+
+
+@router.get("/labels/{slug}/hq-count", response_model=HQCountResponse)
+async def get_label_hq_count(
+    slug: str,
+    auth: dict = Depends(_get_label_from_token),
+    session: Session = Depends(get_session),
+):
+    """Get the count of HQ (MP3) stored submissions for a label. Requires label owner auth."""
+    label = session.exec(select(Label).where(Label.slug == slug)).first()
+    if not label:
+        raise HTTPException(status_code=404, detail=f"Label '{slug}' not found.")
+
+    if label.id != auth["label_id"]:
+        raise HTTPException(status_code=403, detail="Access denied to this label.")
+
+    count = session.exec(
+        select(func.count()).where(
+            Submission.label_id == label.id,
+            Submission.mp3_path.isnot(None),
+        )
+    ).one()
+
+    return HQCountResponse(count=count, limit=10)

@@ -1,9 +1,11 @@
 """Label management API — create, config, login, stats."""
 
 from datetime import datetime, timezone
+from io import BytesIO
+from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
@@ -61,6 +63,9 @@ class LabelConfig(BaseModel):
     owner_email: str
     sonic_signature: dict[str, Any]
     created_at: str
+    logo_path: str | None = None
+    submission_title: str | None = None
+    submission_description: str | None = None
 
 
 class SonicSignatureUpdate(BaseModel):
@@ -143,6 +148,9 @@ async def get_label_config(
         owner_email=label.owner_email,
         sonic_signature=label.sonic_signature,
         created_at=label.created_at.isoformat(),
+        logo_path=label.logo_path,
+        submission_title=label.submission_title,
+        submission_description=label.submission_description,
     )
 
 
@@ -184,6 +192,9 @@ async def update_label_config(
         owner_email=label.owner_email,
         sonic_signature=label.sonic_signature,
         created_at=label.created_at.isoformat(),
+        logo_path=label.logo_path,
+        submission_title=label.submission_title,
+        submission_description=label.submission_description,
     )
 
 
@@ -240,3 +251,126 @@ async def get_label_stats(
     )
 
 
+# --- Logo upload ---
+
+LOGO_DIR = Path("/app/data/logos")
+LOGO_DIR.mkdir(parents=True, exist_ok=True)
+MAX_LOGO_SIZE = 5 * 1024 * 1024  # 5MB
+ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
+
+
+class LogoUploadResponse(BaseModel):
+    logo_url: str
+
+
+@router.post("/labels/{slug}/logo", response_model=LogoUploadResponse)
+async def upload_label_logo(
+    slug: str,
+    file: UploadFile = File(...),
+    auth: dict = Depends(_get_label_from_token),
+    session: Session = Depends(get_session),
+):
+    """Upload a logo for a label. Requires label owner auth.
+
+    Validates image type and size, resizes to max 512x512 with Pillow,
+    saves as optimized PNG, and updates the label's logo_path.
+    """
+    label = session.exec(select(Label).where(Label.slug == slug)).first()
+    if not label:
+        raise HTTPException(status_code=404, detail=f"Label '{slug}' not found.")
+
+    if label.id != auth["label_id"]:
+        raise HTTPException(status_code=403, detail="Access denied to this label.")
+
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No filename provided.")
+
+    ext = Path(file.filename).suffix.lower()
+    if ext not in ALLOWED_IMAGE_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail="Only JPG, PNG, and WebP images are accepted.",
+        )
+
+    content = await file.read()
+    if len(content) > MAX_LOGO_SIZE:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large. Maximum size is {MAX_LOGO_SIZE // (1024 * 1024)}MB.",
+        )
+
+    if len(content) == 0:
+        raise HTTPException(status_code=400, detail="Empty file received.")
+
+    # Process with Pillow if available, otherwise save raw
+    try:
+        from PIL import Image
+
+        img = Image.open(BytesIO(content))
+        # Convert to RGB if necessary (e.g., RGBA, P mode)
+        if img.mode in ("RGBA", "P", "LA"):
+            img = img.convert("RGB")
+        # Resize maintaining aspect ratio
+        img.thumbnail((512, 512), Image.Resampling.LANCZOS)
+        # Save as optimized PNG
+        output = BytesIO()
+        img.save(output, format="PNG", optimize=True)
+        output.seek(0)
+        processed_content = output.getvalue()
+    except ImportError:
+        # Pillow not available — save raw file (add pillow to dependencies)
+        processed_content = content
+
+    # Save to disk
+    logo_filename = f"{label.id}.png"
+    logo_path = LOGO_DIR / logo_filename
+    with open(logo_path, "wb") as f:
+        f.write(processed_content)
+
+    # Update label
+    label.logo_path = logo_filename
+    label.updated_at = datetime.now(timezone.utc)
+    session.add(label)
+    session.commit()
+
+    return LogoUploadResponse(logo_url=f"/logos/{logo_filename}")
+
+
+class SubmissionTextUpdate(BaseModel):
+    title: str | None = None
+    description: str | None = None
+
+
+class SubmissionTextResponse(BaseModel):
+    submission_title: str | None
+    submission_description: str | None
+
+
+@router.put("/labels/{slug}/submission-text", response_model=SubmissionTextResponse)
+async def update_submission_text(
+    slug: str,
+    body: SubmissionTextUpdate,
+    auth: dict = Depends(_get_label_from_token),
+    session: Session = Depends(get_session),
+):
+    """Update the submission page title and description for a label. Requires label owner auth."""
+    label = session.exec(select(Label).where(Label.slug == slug)).first()
+    if not label:
+        raise HTTPException(status_code=404, detail=f"Label '{slug}' not found.")
+
+    if label.id != auth["label_id"]:
+        raise HTTPException(status_code=403, detail="Access denied to this label.")
+
+    if body.title is not None:
+        label.submission_title = body.title
+    if body.description is not None:
+        label.submission_description = body.description
+    label.updated_at = datetime.now(timezone.utc)
+
+    session.add(label)
+    session.commit()
+
+    return SubmissionTextResponse(
+        submission_title=label.submission_title,
+        submission_description=label.submission_description,
+    )

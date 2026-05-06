@@ -118,7 +118,7 @@ async def process_submission(
             mp3_path = str(mp3_dir / f"{submission_id}.mp3")
 
             try:
-                convert_to_mp3(file_path, mp3_path, bitrate="128k")
+                convert_to_mp3(file_path, mp3_path, bitrate="320k")
             except ConversionError as e:
                 # Conversion failed — treat as rejected
                 status = "rejected"

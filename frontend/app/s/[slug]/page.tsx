@@ -1,18 +1,53 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useParams } from "next/navigation";
 
 export default function SubmissionPage() {
   const params = useParams();
   const slug = params.slug as string;
 
+  const [labelName, setLabelName] = useState<string | null>(null);
+  const [labelLogo, setLabelLogo] = useState<string | null>(null);
+  const [submissionTitle, setSubmissionTitle] = useState("Enviar demo");
+  const [submissionDescription, setSubmissionDescription] = useState(
+    "Subí tu WAV. Analizamos BPM, LUFS, fase y headroom antes de que el sello lo escuche."
+  );
+  const [labelLoading, setLabelLoading] = useState(true);
+  const [labelError, setLabelError] = useState(false);
+
+  useEffect(() => {
+    const fetchLabel = async () => {
+      try {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/labels/${slug}`);
+        if (res.ok) {
+          const data = await res.json();
+          setLabelName(data.name);
+          if (data.logo_path) {
+            setLabelLogo(`${process.env.NEXT_PUBLIC_API_URL}/logos/${data.logo_path}`);
+          }
+          if (data.submission_title) setSubmissionTitle(data.submission_title);
+          if (data.submission_description) setSubmissionDescription(data.submission_description);
+        } else {
+          setLabelError(true);
+        }
+      } catch {
+        setLabelError(true);
+      } finally {
+        setLabelLoading(false);
+      }
+    };
+    fetchLabel();
+  }, [slug]);
+
   const [dragActive, setDragActive] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [producerName, setProducerName] = useState("");
   const [producerEmail, setProducerEmail] = useState("");
   const [trackName, setTrackName] = useState("");
+  const [notes, setNotes] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
@@ -38,8 +73,10 @@ export default function SubmissionPage() {
   }, []);
 
   const handleFile = (f: File) => {
-    if (!f.name.toLowerCase().endsWith(".wav")) {
-      setError("Solo se aceptan archivos WAV");
+    const validExts = [".wav", ".flac", ".aiff", ".aif"];
+    const ext = "." + f.name.split(".").pop()?.toLowerCase();
+    if (!validExts.includes(ext)) {
+      setError("Solo se aceptan archivos WAV, FLAC o AIFF");
       return;
     }
     if (f.size > 100 * 1024 * 1024) {
@@ -49,7 +86,7 @@ export default function SubmissionPage() {
     setError("");
     setFile(f);
     if (!trackName) {
-      setTrackName(f.name.replace(/\.wav$/i, ""));
+      setTrackName(f.name.replace(/\.[^.]+$/i, ""));
     }
   };
 
@@ -67,33 +104,48 @@ export default function SubmissionPage() {
       formData.append("producer_email", producerEmail);
       formData.append("track_name", trackName);
       formData.append("label_slug", slug);
+      formData.append("notes", notes);
 
       const xhr = new XMLHttpRequest();
       xhr.open("POST", `${process.env.NEXT_PUBLIC_API_URL}/api/upload`);
 
       xhr.upload.onprogress = (event) => {
         if (event.lengthComputable) {
-          setProgress(Math.round((event.loaded / event.total) * 100));
+          const pct = Math.round((event.loaded / event.total) * 100);
+          setProgress(pct);
+          if (pct >= 100) {
+            setAnalyzing(true);
+          }
         }
       };
 
       xhr.onload = () => {
         setUploading(false);
+        setAnalyzing(false);
         if (xhr.status === 200) {
           setSubmitted(true);
         } else {
-          setError("Error al subir el archivo. Intentá de nuevo.");
+          let serverMsg = "Error al subir el archivo. Intentá de nuevo.";
+          try {
+            const resp = JSON.parse(xhr.responseText);
+            if (resp.detail) serverMsg = resp.detail;
+          } catch {
+            // fallback
+          }
+          setError(serverMsg);
         }
       };
 
       xhr.onerror = () => {
         setUploading(false);
+        setAnalyzing(false);
         setError("Error de conexión. Verificá tu internet.");
       };
 
       xhr.send(formData);
     } catch {
       setUploading(false);
+      setAnalyzing(false);
       setError("Error al subir el archivo.");
     }
   };
@@ -113,7 +165,7 @@ export default function SubmissionPage() {
             El sello te contactará si pasa el filtro técnico.
           </p>
           <button
-            onClick={() => { setSubmitted(false); setFile(null); setProducerName(""); setProducerEmail(""); setTrackName(""); }}
+            onClick={() => { setSubmitted(false); setFile(null); setProducerName(""); setProducerEmail(""); setTrackName(""); setNotes(""); }}
             className="px-6 py-2.5 text-sm font-medium rounded"
             style={{ background: "#10b981", color: "#09090b" }}
           >
@@ -129,12 +181,18 @@ export default function SubmissionPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-2 mb-4">
-            <div className="w-6 h-6 rounded" style={{ background: "#10b981" }} />
-            <span className="font-display font-semibold text-lg">True Peak AI</span>
+            {labelLogo ? (
+              <img src={labelLogo} alt="" className="w-8 h-8 rounded object-cover" />
+            ) : (
+              <div className="w-6 h-6 rounded" style={{ background: "#10b981" }} />
+            )}
+            <span className="font-display font-semibold text-lg">
+              {labelLoading ? "Cargando..." : labelError ? slug : labelName}
+            </span>
           </div>
-          <h1 className="font-display font-bold text-xl mb-2">Enviar demo</h1>
+          <h1 className="font-display font-bold text-xl mb-2">{submissionTitle}</h1>
           <p className="text-sm text-muted">
-            Subí tu WAV. Analizamos BPM, LUFS, fase y headroom antes de que el sello lo escuche.
+            {submissionDescription}
           </p>
         </div>
 
@@ -186,7 +244,7 @@ export default function SubmissionPage() {
             </div>
 
             <div>
-              <label className="text-sm font-medium mb-1.5 block">Archivo WAV</label>
+              <label className="text-sm font-medium mb-1.5 block">Archivo de audio</label>
               <div
                 onDragEnter={handleDrag}
                 onDragLeave={handleDrag}
@@ -202,7 +260,7 @@ export default function SubmissionPage() {
                 <input
                   id="file-input"
                   type="file"
-                  accept=".wav"
+                  accept=".wav,.flac,.aiff,.aif"
                   className="hidden"
                   onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
                 />
@@ -213,21 +271,50 @@ export default function SubmissionPage() {
                   </div>
                 ) : (
                   <div>
-                    <div className="text-sm mb-1">Arrastrá tu WAV acá</div>
+                    <div className="text-sm mb-1">Arrastrá tu audio acá</div>
                     <div className="text-xs text-muted">o hacé clic para seleccionar · Max 100MB</div>
                   </div>
                 )}
               </div>
             </div>
 
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Observaciones adicionales (opcional)</label>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                className="w-full px-3 py-2.5 rounded border text-sm bg-transparent"
+                style={{ borderColor: "#27272a" }}
+                placeholder="Referencias, notas de producción, etc."
+                rows={3}
+                suppressHydrationWarning
+              />
+            </div>
+
             {uploading && (
               <div>
                 <div className="flex items-center justify-between text-xs mb-1">
-                  <span className="text-muted">Subiendo...</span>
-                  <span className="font-mono" style={{ color: "#10b981" }}>{progress}%</span>
+                  <span className="text-muted">
+                    {analyzing ? (
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "#10b981" }} />
+                        Analizando audio...
+                      </span>
+                    ) : (
+                      `Subiendo...`
+                    )}
+                  </span>
+                  <span className="font-mono" style={{ color: "#10b981" }}>{analyzing ? "100%" : `${progress}%`}</span>
                 </div>
                 <div className="h-1.5 rounded-full" style={{ background: "#27272a" }}>
-                  <div className="h-full rounded-full transition-all duration-300" style={{ width: `${progress}%`, background: "#10b981" }} />
+                  <div
+                    className="h-full rounded-full transition-all duration-300"
+                    style={{
+                      width: `${progress}%`,
+                      background: "#10b981",
+                      ...(analyzing ? { animation: "pulse 1.5s ease-in-out infinite" } : {}),
+                    }}
+                  />
                 </div>
               </div>
             )}
@@ -235,16 +322,13 @@ export default function SubmissionPage() {
             <button
               type="submit"
               disabled={uploading || !file || !producerName || !producerEmail || !trackName}
+              suppressHydrationWarning
               className="w-full py-2.5 text-sm font-medium rounded transition-all hover:opacity-90 disabled:opacity-50"
               style={{ background: "#10b981", color: "#09090b" }}
             >
-              {uploading ? "Subiendo..." : "Enviar demo"}
+              {analyzing ? "Analizando..." : uploading ? "Subiendo..." : "Enviar demo"}
             </button>
           </form>
-        </div>
-
-        <div className="mt-6 text-center text-xs text-muted">
-          Requisitos técnicos: WAV · BPM 120-128 · LUFS -14±2 · Fase correcta
         </div>
       </div>
     </div>

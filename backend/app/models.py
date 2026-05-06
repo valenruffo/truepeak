@@ -34,6 +34,9 @@ class Label(SQLModel, table=True):
     updated_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
     )
+    logo_path: str | None = None
+    submission_title: str | None = None
+    submission_description: str | None = None
 
     submissions: list["Submission"] = Relationship(back_populates="label")
     email_templates: list["EmailTemplate"] = Relationship(back_populates="label")
@@ -56,6 +59,7 @@ class Submission(SQLModel, table=True):
     status: str = Field(default="pending", index=True)  # pending | approved | rejected
     rejection_reason: str | None = None
     mp3_path: str | None = None
+    notes: str | None = None
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
     )
