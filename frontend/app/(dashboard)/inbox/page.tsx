@@ -406,8 +406,8 @@ export default function InboxPage() {
                   <span className="font-mono text-[10px] px-2 py-0.5 rounded" style={{ background: "rgba(239,68,68,0.15)", color: "#ef4444" }}>Rechazado</span>
                 )}
               </div>
-              <div className="col-span-2 text-right flex items-center justify-end gap-1">
-                {/* Download WAV — shown for any track with a stored file */}
+              <div className="col-span-2 text-right flex items-center justify-end gap-1.5">
+                {/* Download — icon only, tooltip shows file type */}
                 {(d.original_path || d.mp3_path) && (
                   <button
                     onClick={(e) => {
@@ -425,20 +425,20 @@ export default function InboxPage() {
                           const url = URL.createObjectURL(blob);
                           const a = document.createElement("a");
                           a.href = url;
-                          a.download = `${d.track_name || d.id}.wav`;
+                          const ext = d.original_path ? ".wav" : ".mp3";
+                          a.download = `${d.track_name || d.id}${ext}`;
                           a.click();
                           URL.revokeObjectURL(url);
                         })
-                        .catch(() => alert("El archivo original no está disponible para descarga."));
+                        .catch(() => alert("Archivo no disponible para descarga."));
                     }}
-                    className="px-2 py-1 rounded text-[10px] font-medium flex items-center gap-0.5 transition-colors hover:opacity-80"
-                    style={{ background: "rgba(16,185,129,0.12)", color: "#10b981" }}
-                    title="Descargar original"
+                    className="w-6 h-6 rounded flex items-center justify-center transition-colors hover:bg-white/10"
+                    title={`Descargar ${d.original_path ? "original" : "MP3"}`}
+                    style={{ color: "#10b981" }}
                   >
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
                     </svg>
-                    WAV
                   </button>
                 )}
                 {d.status === "pending" && (
@@ -449,14 +449,22 @@ export default function InboxPage() {
                     <button onClick={() => handleApprove(d.id)} disabled={!!actionLoading[d.id]} className="px-3 py-1 rounded text-[10px] font-medium disabled:opacity-50" style={{ background: "#06b6d4", color: "#09090b" }}>
                       {actionLoading[d.id] === "approve" ? "..." : "Aprobar"}
                     </button>
-                    <button onClick={() => handleDiscard(d.id)} disabled={!!actionLoading[d.id]} className="px-3 py-1 rounded text-[10px] border disabled:opacity-50" style={{ borderColor: "#ef4444", color: "#ef4444" }}>
-                      {actionLoading[d.id] === "discard" ? "..." : "🗑"}
+                    <button onClick={() => handleDiscard(d.id)} disabled={!!actionLoading[d.id]} className="w-6 h-6 rounded flex items-center justify-center transition-colors hover:bg-white/10" title="Eliminar" style={{ color: "#ef4444" }}>
+                      {actionLoading[d.id] === "discard" ? (
+                        <span className="text-[10px]">...</span>
+                      ) : (
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                        </svg>
+                      )}
                     </button>
                   </>
                 )}
                 {(d.status === "approved" || d.status === "rejected") && (
-                  <button onClick={() => { if (confirm("¿Eliminar esta demo permanentemente?")) handleDiscard(d.id); }} className="px-2 py-1 rounded text-[10px] border transition-colors hover:opacity-80" style={{ borderColor: "#ef4444", color: "#ef4444" }}>
-                    🗑 Eliminar
+                  <button onClick={() => { if (confirm("¿Eliminar esta demo permanentemente?")) handleDiscard(d.id); }} className="w-6 h-6 rounded flex items-center justify-center transition-colors hover:bg-white/10" title="Eliminar" style={{ color: "#ef4444" }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                    </svg>
                   </button>
                 )}
               </div>

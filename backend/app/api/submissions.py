@@ -336,22 +336,24 @@ async def download_original(
     auth: dict = Depends(_get_label_from_token),
     session: Session = Depends(get_session),
 ):
-    """Download the original WAV/FLAC/AIFF file. Requires label owner auth."""
+    """Download the original or MP3 file. Requires label owner auth."""
     submission = session.get(Submission, submission_id)
     if not submission:
         raise HTTPException(status_code=404, detail="Submission not found.")
 
     _verify_label_ownership(session, auth["label_id"], submission)
 
-    if not submission.original_path or not os.path.exists(submission.original_path):
-        raise HTTPException(status_code=404, detail="Original file not available. Only recent uploads preserve originals.")
+    file_path = submission.original_path or submission.mp3_path
+    if not file_path or not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not available.")
 
-    # Determine original extension from the path
-    ext = Path(submission.original_path).suffix
+    ext = Path(file_path).suffix
     filename = f"{submission.track_name or submission.id}{ext}"
     
+    media_type = "audio/wav" if ext in (".wav",) else "audio/flac" if ext in (".flac",) else "audio/aiff" if ext in (".aiff", ".aif") else "audio/mpeg"
+    
     return FileResponse(
-        path=submission.original_path,
+        path=file_path,
         filename=filename,
-        media_type="audio/wav" if ext in (".wav",) else "audio/flac" if ext in (".flac",) else "application/octet-stream",
+        media_type=media_type,
     )
