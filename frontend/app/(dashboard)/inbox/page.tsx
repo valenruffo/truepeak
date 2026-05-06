@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
+import { usePlayer } from "@/lib/PlayerContext";
 
 type FilterStatus = "all" | "pending" | "approved" | "rejected";
 
@@ -71,6 +72,7 @@ export default function InboxPage() {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { playTrack, isPlaying, currentTrack } = usePlayer();
 
   // Modal state
   const [modal, setModal] = useState<{
@@ -302,9 +304,25 @@ export default function InboxPage() {
                 background: d.status === "pending" ? "rgba(6,182,212,0.04)" : "transparent",
               }}
             >
-              <div className="col-span-4">
-                <div className="font-medium">{d.track_name || "Sin nombre"}</div>
-                <div className="text-[10px] text-muted">{d.producer_name || "Anónimo"} · {formatRelativeTime(d.created_at)}</div>
+              <div className="col-span-4 flex items-center gap-2">
+                {d.mp3_path && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); playTrack({ id: d.id, track_name: d.track_name || "Sin nombre", producer_name: d.producer_name || "Anónimo", mp3_path: d.mp3_path }); }}
+                    className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center transition-colors hover:bg-white/10"
+                    title="Reproducir"
+                    style={{ color: currentTrack?.id === d.id ? "#10b981" : "#a1a1aa" }}
+                  >
+                    {currentTrack?.id === d.id && isPlaying ? (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>
+                    ) : (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+                    )}
+                  </button>
+                )}
+                <div className="min-w-0">
+                  <div className="font-medium truncate">{d.track_name || "Sin nombre"}</div>
+                  <div className="text-[10px] text-muted">{d.producer_name || "Anónimo"} · {formatRelativeTime(d.created_at)}</div>
+                </div>
               </div>
               <div className="col-span-1 text-center font-mono">{formatBpm(d.bpm)}</div>
               <div className="col-span-1 text-center font-mono">{formatLufs(d.lufs)}</div>
