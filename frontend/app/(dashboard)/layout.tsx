@@ -34,8 +34,10 @@ export default function DashboardLayout({
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
+    const slug = localStorage.getItem("slug");
+    const token = localStorage.getItem("token");
+
     const fetchLabel = async () => {
-      const slug = localStorage.getItem("slug");
       if (!slug) {
         setLabelName("");
         setPlanInfo("");
@@ -62,7 +64,6 @@ export default function DashboardLayout({
     // Fetch HQ count
     const fetchHqCount = async () => {
       try {
-        const token = localStorage.getItem("token");
         const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/labels/${slug}/hq-count`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
@@ -79,7 +80,6 @@ export default function DashboardLayout({
     // Fetch approved tracks with MP3
     const fetchTracks = async () => {
       try {
-        const token = localStorage.getItem("token");
         const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/submissions?status=approved`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
