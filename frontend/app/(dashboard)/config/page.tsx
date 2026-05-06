@@ -300,9 +300,9 @@ export default function ConfigPage() {
         <span className="text-[10px] text-muted">Carga valores sugeridos</span>
       </div>
 
-      <div className="space-y-10">
+      <div className="space-y-6">
         {/* Logo Upload */}
-        <div>
+        <div className="rounded-xl border p-5" style={{ borderColor: "#27272a", background: "#0c0c0e" }}>
           <label className="text-sm font-medium mb-3 block">Logo del sello</label>
           <div className="flex items-center gap-3">
             {(logoPreview || logoUrl) && (
@@ -330,7 +330,7 @@ export default function ConfigPage() {
         </div>
 
         {/* BPM Range */}
-        <div>
+        <div className="rounded-xl border p-5" style={{ borderColor: "#27272a", background: "#0c0c0e" }}>
           <div className="flex items-center justify-between mb-4">
             <label className="text-sm font-medium">Rango de BPM</label>
             <span className="font-mono text-sm px-3 py-1 rounded-lg" style={{ background: "#111114" }}>{bpmRange[0]} — {bpmRange[1]}</span>
@@ -354,7 +354,7 @@ export default function ConfigPage() {
         </div>
 
         {/* LUFS Target */}
-        <div>
+        <div className="rounded-xl border p-5" style={{ borderColor: "#27272a", background: "#0c0c0e" }}>
           <div className="flex items-center justify-between mb-4">
             <label className="text-sm font-medium">LUFS objetivo</label>
             <span className="font-mono text-sm px-3 py-1 rounded-lg" style={{ background: "#111114" }}>{lufsTarget} LUFS ± {lufsTolerance}</span>
@@ -378,7 +378,7 @@ export default function ConfigPage() {
         </div>
 
         {/* Duration Range */}
-        <div>
+        <div className="rounded-xl border p-5" style={{ borderColor: "#27272a", background: "#0c0c0e" }}>
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
               <label className="text-sm font-medium">Duración máxima</label>
@@ -401,7 +401,7 @@ export default function ConfigPage() {
         </div>
 
         {/* Preferred Scales */}
-        <div>
+        <div className="rounded-xl border p-5" style={{ borderColor: "#27272a", background: "#0c0c0e" }}>
           <label className="text-sm font-medium mb-3 block">Escala preferida</label>
           <div className="flex gap-2 flex-wrap">
             {scales.map((s) => (
@@ -422,7 +422,7 @@ export default function ConfigPage() {
         </div>
 
         {/* Auto-Reject Rules */}
-        <div>
+        <div className="rounded-xl border p-5" style={{ borderColor: "#27272a", background: "#0c0c0e" }}>
           <label className="text-sm font-medium mb-3 block">Rechazo automático</label>
           <div className="flex gap-2 flex-wrap">
             {[
@@ -469,3 +469,4 @@ export default function ConfigPage() {
     </div>
   );
 }
+

@@ -232,7 +232,7 @@ function InboxContent() {
     return (
       <div className="max-w-6xl mx-auto px-6 py-8">
         <div className="flex items-center gap-3 mb-6">
-          <h1 className="font-display font-semibold text-xl">Bandeja de demos</h1>
+          <h1 className="font-display font-semibold text-xl">Bandeja de tracks</h1>
         </div>
         <div className="rounded border overflow-hidden" style={{ borderColor: "#27272a", background: "#0c0c0e" }}>
           <div className="grid grid-cols-12 gap-2 px-4 py-2.5 text-[10px] font-mono uppercase tracking-wider text-muted border-b" style={{ borderColor: "#27272a" }}>
@@ -272,7 +272,7 @@ function InboxContent() {
   if (error) {
     return (
       <div className="max-w-6xl mx-auto px-6 py-8">
-        <h1 className="font-display font-semibold text-xl mb-6">Bandeja de demos</h1>
+        <h1 className="font-display font-semibold text-xl mb-6">Bandeja de tracks</h1>
         <div className="rounded border p-8 text-center" style={{ borderColor: "#27272a", background: "#0c0c0e" }}>
           <p className="text-sm" style={{ color: "#ef4444" }}>Error al cargar demos: {error}</p>
           <button
@@ -301,7 +301,7 @@ function InboxContent() {
       `}</style>
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <h1 className="font-display font-semibold text-xl">Bandeja de demos</h1>
+          <h1 className="font-display font-semibold text-xl">Bandeja de tracks</h1>
           {pendingCount > 0 && (
             <span className="font-mono text-xs px-2 py-0.5 rounded" style={{ background: "rgba(16,185,129,0.15)", color: "#10b981" }}>
               {pendingCount} nuevos

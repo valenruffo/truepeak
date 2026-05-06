@@ -233,7 +233,7 @@ function CRMContent() {
   if (loading) {
     return (
       <div className="max-w-6xl mx-auto px-6 py-8">
-        <h1 className="font-display font-semibold text-xl mb-6">CRM de Emails</h1>
+        <h1 className="font-display font-semibold text-xl mb-6">Emails</h1>
         <div className="rounded border overflow-hidden animate-pulse" style={{ borderColor: "#27272a", background: "#0c0c0e" }}>
           <div className="grid grid-cols-5" style={{ minHeight: "500px" }}>
             <div className="col-span-2 border-r" style={{ borderColor: "#27272a" }}>
@@ -269,7 +269,7 @@ function CRMContent() {
   if (error) {
     return (
       <div className="max-w-6xl mx-auto px-6 py-8">
-        <h1 className="font-display font-semibold text-xl mb-6">CRM de Emails</h1>
+        <h1 className="font-display font-semibold text-xl mb-6">Emails</h1>
         <div className="rounded border p-8 text-center" style={{ borderColor: "#27272a", background: "#0c0c0e" }}>
           <p className="text-sm" style={{ color: "#ef4444" }}>Error al cargar contactos: {error}</p>
           <button
@@ -296,7 +296,7 @@ function CRMContent() {
           100% { box-shadow: inset 0 0 0 rgba(16,185,129,0); }
         }
       `}</style>
-      <h1 className="font-display font-semibold text-xl mb-6">CRM de Emails</h1>
+      <h1 className="font-display font-semibold text-xl mb-6">Emails</h1>
 
       <div className="rounded border overflow-hidden" style={{ borderColor: "#27272a", background: "#0c0c0e" }}>
         <div className="grid grid-cols-5" style={{ minHeight: "500px" }}>

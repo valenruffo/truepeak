@@ -10,7 +10,7 @@ export default function GuidePage() {
       <div className="mb-8 p-5 rounded" style={{ background: "#0c0c0e", border: "1px solid #27272a" }}>
         <div className="flex items-center gap-3 mb-3">
           <span className="w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold" style={{ background: "#10b981", color: "#09090b" }}>1</span>
-          <h2 className="text-lg font-semibold">Compartí tu link de demos</h2>
+          <h2 className="text-lg font-semibold">Compartí tu link de Tracks</h2>
         </div>
         <p className="text-sm text-muted leading-relaxed">
           Andá a <strong style={{ color: "#10b981" }}>Link</strong> en el menú. Ahí vas a encontrar la URL pública de tu sello. 
@@ -58,10 +58,10 @@ export default function GuidePage() {
       <div className="mb-8 p-5 rounded" style={{ background: "#0c0c0e", border: "1px solid #27272a" }}>
         <div className="flex items-center gap-3 mb-3">
           <span className="w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold" style={{ background: "#10b981", color: "#09090b" }}>3</span>
-          <h2 className="text-lg font-semibold">Revisá las demos</h2>
+          <h2 className="text-lg font-semibold">Revisá las Tracks</h2>
         </div>
         <p className="text-sm text-muted leading-relaxed">
-          Andá a <strong style={{ color: "#10b981" }}>Demos</strong>. Acá ves todas las submissions que recibiste:
+          Andá a <strong style={{ color: "#10b981" }}>Tracks</strong>. Acá ves todas las submissions que recibiste:
           <br /><br />
           <strong>Pendientes</strong> (cyan) → tracks nuevos que pasaron los filtros automáticos.<br />
           <strong>Aprobados</strong> (verde) → los que ya escuchaste y te gustaron.<br />
@@ -78,13 +78,13 @@ export default function GuidePage() {
           <h2 className="text-lg font-semibold">Contactá a los productores</h2>
         </div>
         <p className="text-sm text-muted leading-relaxed">
-          Andá a <strong style={{ color: "#10b981" }}>CRM</strong>. Ahí aparecen automáticamente todos los productores cuyos tracks aprobaste o rechazaste.
+          Andá a <strong style={{ color: "#10b981" }}>Emails</strong>. Ahí aparecen automáticamente todos los productores cuyos tracks aprobaste o rechazaste.
           <br /><br />
           Elegí un contacto, seleccioná una plantilla de email (rechazo, aprobación, seguimiento) y 
           personalizá el mensaje. El email se envía desde <strong>tu sello</strong> y las respuestas llegan a 
           <strong>tu correo personal</strong>.
           <br /><br />
-          Tip: desde Demos podés saltar al CRM con el link 📧 al lado del productor, y viceversa.
+          Tip: desde Tracks podés saltar al Emails con el link 📧 al lado del productor, y viceversa.
         </p>
       </div>
 
@@ -102,7 +102,7 @@ export default function GuidePage() {
           </div>
           <div className="flex gap-2">
             <span style={{ color: "#10b981" }}>▪</span>
-            <span><strong>Almacenamiento:</strong> Límite de 10 demos HQ simultáneas. Eliminá las que no uses para liberar espacio (contador en sidebar).</span>
+            <span><strong>Almacenamiento:</strong> Límite de 10 Tracks HQ simultáneas. Eliminá las que no uses para liberar espacio (contador en sidebar).</span>
           </div>
         </div>
       </div>
@@ -133,3 +133,4 @@ export default function GuidePage() {
     </div>
   );
 }
+

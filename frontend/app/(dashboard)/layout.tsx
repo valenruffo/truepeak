@@ -10,8 +10,8 @@ import WhatsAppBubble from "@/components/WhatsAppBubble";
 const navItems = [
   { href: "/config", label: "Firma sónica" },
   { href: "/link", label: "Link" },
-  { href: "/inbox", label: "Demos" },
-  { href: "/crm", label: "CRM" },
+  { href: "/inbox", label: "Tracks" },
+  { href: "/crm", label: "Emails" },
   { href: "/guide", label: "Guía" },
 ];
 
