@@ -77,7 +77,8 @@ export default function ConfigPage() {
       }
       try {
         const res = await fetch(`${API}/api/labels/${slug}`, {
-          headers: getAuthHeaders(),`n        credentials: "include",
+          headers: getAuthHeaders(),
+          credentials: "include",
         });
         if (!res.ok) throw new Error(`Error ${res.status}`);
         const data = await res.json();
@@ -131,7 +132,8 @@ export default function ConfigPage() {
     try {
       const res = await fetch(`${API}/api/labels/${slug}/config`, {
         method: "PUT",
-        headers: getAuthHeaders(),`n        credentials: "include",
+        headers: getAuthHeaders(),
+        credentials: "include",
         body: JSON.stringify({
           sonic_signature: {
             bpm_min: bpmRange[0],
