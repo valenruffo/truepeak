@@ -1,6 +1,6 @@
 """Email API — send, generate draft, template CRUD."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
@@ -54,21 +54,22 @@ class EmailTemplateResponse(BaseModel):
     body_template: str
 
 
-# --- Auth helper ---
-
-from fastapi import Header
+# --- Auth helper (header + cookie) ---
 
 
-def _get_label_from_token(
-    authorization: str | None = Header(None),
-    x_label_token: str | None = Header(None),
-) -> dict[str, str]:
-    """Extract and verify JWT from Authorization header or X-Label-Token."""
-    token = None
-    if authorization and authorization.startswith("Bearer "):
-        token = authorization.split(" ", 1)[1]
-    elif x_label_token:
-        token = x_label_token
+def _get_label_from_token(request: Request) -> dict[str, str]:
+    """Extract and verify JWT from cookie, Authorization header, or X-Label-Token."""
+    token = request.cookies.get("token")
+
+    if not token:
+        authorization = request.headers.get("authorization")
+        if authorization and authorization.startswith("Bearer "):
+            token = authorization.split(" ", 1)[1]
+
+    if not token:
+        x_label_token = request.headers.get("x-label-token")
+        if x_label_token:
+            token = x_label_token
 
     if not token:
         raise HTTPException(status_code=401, detail="Authentication required.")

@@ -86,15 +86,12 @@ function CRMContent() {
 
   useEffect(() => {
     const fetchData = async () => {
-      const token = localStorage.getItem("token");
       const slug = localStorage.getItem("slug");
-      const headers: Record<string, string> = {};
-      if (token) headers.Authorization = `Bearer ${token}`;
 
       // Fetch label name
       if (slug) {
         try {
-          const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/labels/${slug}`);
+          const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/labels/${slug}`, { credentials: "include" });
           if (res.ok) {
             const data = await res.json();
             setLabelName(data.name);
@@ -106,7 +103,7 @@ function CRMContent() {
 
       // Fetch submissions
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/submissions`, { headers });
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/submissions`, { credentials: "include" });
         if (!res.ok) throw new Error(`Error ${res.status}`);
         const data: Submission[] = await res.json();
 
@@ -200,13 +197,10 @@ function CRMContent() {
     setSending(true);
     setSendError(null);
     try {
-      const token = localStorage.getItem("token");
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/email/send`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           to: contact.email,
           subject: emailSubject,

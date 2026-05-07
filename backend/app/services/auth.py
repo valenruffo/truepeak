@@ -1,14 +1,31 @@
-"""JWT-based authentication for label owners."""
+"""JWT-based authentication and password hashing for label owners."""
 
 import os
 from datetime import datetime, timedelta, timezone
 
-import jwt
-from jwt.exceptions import InvalidTokenError
+from jose import JWTError, jwt
+from passlib.context import CryptContext
+
+# --- Password hashing ---
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 JWT_SECRET = os.getenv("JWT_SECRET", "dev-secret-change-in-production")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRY_HOURS = 24
+
+
+def get_password_hash(password: str) -> str:
+    """Hash a password using bcrypt."""
+    return pwd_context.hash(password)
+
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Verify a plain password against a bcrypt hash."""
+    return pwd_context.verify(plain_password, hashed_password)
+
+
+# --- JWT token management ---
 
 
 def create_token(label_id: str, slug: str) -> str:
@@ -41,14 +58,10 @@ def verify_token(token: str) -> dict[str, str]:
         Dictionary containing label_id and slug.
 
     Raises:
-        jwt.ExpiredSignatureError: If the token has expired.
-        jwt.InvalidTokenError: If the token is invalid.
+        JWTError: If the token is invalid or expired.
     """
-    try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-        return {
-            "label_id": payload["label_id"],
-            "slug": payload["slug"],
-        }
-    except InvalidTokenError as e:
-        raise e
+    payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+    return {
+        "label_id": payload["label_id"],
+        "slug": payload["slug"],
+    }

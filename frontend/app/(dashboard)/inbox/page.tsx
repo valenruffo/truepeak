@@ -112,10 +112,7 @@ function InboxContent() {
   const API = process.env.NEXT_PUBLIC_API_URL;
 
   const getAuthHeaders = useCallback((): Record<string, string> => {
-    const token = localStorage.getItem("token");
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (token) headers["Authorization"] = `Bearer ${token}`;
-    return headers;
+    return { "Content-Type": "application/json" };
   }, []);
 
   // Open listen modal
@@ -125,6 +122,7 @@ function InboxContent() {
     try {
       const res = await fetch(`${API}/api/submissions/${id}`, {
         headers: getAuthHeaders(),
+        credentials: "include",
       });
       if (!res.ok) throw new Error(`Error ${res.status}`);
       const detail: SubmissionDetail = await res.json();
@@ -147,6 +145,7 @@ function InboxContent() {
       const res = await fetch(`${API}/api/submissions/${id}/status`, {
         method: "PATCH",
         headers: getAuthHeaders(),
+        credentials: "include",
         body: JSON.stringify({ status: "approved" }),
       });
       if (!res.ok) throw new Error(`Error ${res.status}`);
@@ -174,6 +173,7 @@ function InboxContent() {
       const res = await fetch(`${API}/api/submissions/${id}`, {
         method: "DELETE",
         headers: getAuthHeaders(),
+        credentials: "include",
       });
       if (!res.ok) throw new Error(`Error ${res.status}`);
       setSubmissions((prev) => prev.filter((s) => s.id !== id));
@@ -195,9 +195,8 @@ function InboxContent() {
   useEffect(() => {
     const fetchSubmissions = async () => {
       try {
-        const token = localStorage.getItem("token");
         const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/submissions`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          credentials: "include",
         });
         if (!res.ok) throw new Error(`Error ${res.status}`);
         const data: Submission[] = await res.json();
@@ -436,10 +435,8 @@ function InboxContent() {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      const token = localStorage.getItem("token");
-                      if (!token) return;
                       fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/submissions/${d.id}/download`, {
-                        headers: { Authorization: `Bearer ${token}` },
+                        credentials: "include",
                       })
                         .then((res) => {
                           if (!res.ok) throw new Error("No disponible");

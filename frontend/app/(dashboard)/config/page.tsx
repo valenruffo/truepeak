@@ -63,10 +63,7 @@ export default function ConfigPage() {
   const API = process.env.NEXT_PUBLIC_API_URL;
 
   const getAuthHeaders = useCallback((): Record<string, string> => {
-    const token = localStorage.getItem("token");
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (token) headers["Authorization"] = `Bearer ${token}`;
-    return headers;
+    return { "Content-Type": "application/json" };
   }, []);
 
   // Fetch label config on mount
@@ -80,7 +77,7 @@ export default function ConfigPage() {
       }
       try {
         const res = await fetch(`${API}/api/labels/${slug}`, {
-          headers: getAuthHeaders(),
+          headers: getAuthHeaders(),`n        credentials: "include",
         });
         if (!res.ok) throw new Error(`Error ${res.status}`);
         const data = await res.json();
@@ -134,7 +131,7 @@ export default function ConfigPage() {
     try {
       const res = await fetch(`${API}/api/labels/${slug}/config`, {
         method: "PUT",
-        headers: getAuthHeaders(),
+        headers: getAuthHeaders(),`n        credentials: "include",
         body: JSON.stringify({
           sonic_signature: {
             bpm_min: bpmRange[0],

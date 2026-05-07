@@ -1,34 +1,41 @@
-"""Label management API — create, config, login, stats."""
+"""Label management API — register, config, login, stats."""
 
 from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File
+from fastapi.responses import Response
+from pydantic import BaseModel, EmailStr, field_validator
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlmodel import Session, select
 
 from app.database import get_session
 from app.models import Label, Submission
-from app.services.auth import create_token, verify_token
-from fastapi import Header
+from app.services.auth import create_token, get_password_hash, verify_password, verify_token
 
 router = APIRouter(prefix="/api", tags=["labels"])
 
+limiter = Limiter(key_func=get_remote_address)
 
-# --- Auth helper ---
 
-def _get_label_from_token(
-    authorization: str | None = Header(None),
-    x_label_token: str | None = Header(None),
-) -> dict[str, str]:
-    """Extract and verify JWT from Authorization header or X-Label-Token."""
-    token = None
-    if authorization and authorization.startswith("Bearer "):
-        token = authorization.split(" ", 1)[1]
-    elif x_label_token:
-        token = x_label_token
+# --- Auth helper (header + cookie) ---
+
+def _get_label_from_token(request: Request) -> dict[str, str]:
+    """Extract and verify JWT from cookie, Authorization header, or X-Label-Token."""
+    token = request.cookies.get("token")
+
+    if not token:
+        authorization = request.headers.get("authorization")
+        if authorization and authorization.startswith("Bearer "):
+            token = authorization.split(" ", 1)[1]
+
+    if not token:
+        x_label_token = request.headers.get("x-label-token")
+        if x_label_token:
+            token = x_label_token
 
     if not token:
         raise HTTPException(status_code=401, detail="Authentication required.")
@@ -41,19 +48,47 @@ def _get_label_from_token(
 
 # --- Request / Response schemas ---
 
-class CreateLabelRequest(BaseModel):
+class RegisterRequest(BaseModel):
+    owner_email: EmailStr
+    password: str
     name: str
     slug: str
-    owner_email: str
-    sonic_signature: dict[str, Any] | None = None
+
+    @field_validator("password")
+    @classmethod
+    def password_min_length(cls, v: str) -> str:
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters")
+        return v
 
 
-class CreateLabelResponse(BaseModel):
+class RegisterResponse(BaseModel):
     id: str
     name: str
     slug: str
     owner_email: str
+    plan: str
     created_at: str
+
+
+class LoginRequest(BaseModel):
+    owner_email: EmailStr
+    password: str
+
+    @field_validator("password")
+    @classmethod
+    def password_min_length(cls, v: str) -> str:
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters")
+        return v
+
+
+class LoginResponse(BaseModel):
+    id: str
+    name: str
+    slug: str
+    owner_email: str
+    plan: str
 
 
 class LabelConfig(BaseModel):
@@ -74,16 +109,6 @@ class SonicSignatureUpdate(BaseModel):
     """Must include: bpm_min, bpm_max, lufs_target, lufs_tolerance, preferred_scales, auto_reject_rules"""
 
 
-class LoginRequest(BaseModel):
-    owner_email: str
-
-
-class LoginResponse(BaseModel):
-    token: str
-    label_id: str
-    slug: str
-
-
 class LabelStats(BaseModel):
     total: int
     pending: int
@@ -93,18 +118,28 @@ class LabelStats(BaseModel):
 
 # --- Endpoints ---
 
-@router.post("/labels", response_model=CreateLabelResponse)
-async def create_label(
-    body: CreateLabelRequest,
+@router.post("/labels/register", response_model=RegisterResponse, status_code=201)
+@limiter.limit("3/minute")
+async def register_label(
+    request: Request,
+    body: RegisterRequest,
+    response: Response,
     session: Session = Depends(get_session),
 ):
-    """Create a new label. No auth required for initial creation."""
+    """Register a new label with email and password."""
     # Check slug uniqueness
-    existing = session.exec(select(Label).where(Label.slug == body.slug)).first()
-    if existing:
+    existing_slug = session.exec(select(Label).where(Label.slug == body.slug)).first()
+    if existing_slug:
         raise HTTPException(status_code=409, detail=f"Slug '{body.slug}' is already taken.")
 
-    sonic_signature = body.sonic_signature or {
+    # Check email uniqueness
+    existing_email = session.exec(select(Label).where(Label.owner_email == body.owner_email)).first()
+    if existing_email:
+        raise HTTPException(status_code=409, detail="An account with this email already exists.")
+
+    password_hash = get_password_hash(body.password)
+
+    sonic_signature = {
         "bpm_min": 70,
         "bpm_max": 180,
         "lufs_target": -14.0,
@@ -117,17 +152,30 @@ async def create_label(
         name=body.name,
         slug=body.slug,
         owner_email=body.owner_email,
+        password_hash=password_hash,
         sonic_signature=sonic_signature,
     )
     session.add(label)
     session.commit()
     session.refresh(label)
 
-    return CreateLabelResponse(
+    # Set JWT as HTTPOnly cookie
+    token = create_token(label_id=label.id, slug=label.slug)
+    response.set_cookie(
+        key="token",
+        value=token,
+        httponly=True,
+        secure=False,  # Set True in production with HTTPS
+        samesite="lax",
+        max_age=86400,
+    )
+
+    return RegisterResponse(
         id=label.id,
         name=label.name,
         slug=label.slug,
         owner_email=label.owner_email,
+        plan=label.plan or "free",
         created_at=label.created_at.isoformat(),
     )
 
@@ -148,7 +196,7 @@ async def get_label_config(
         slug=label.slug,
         owner_email=label.owner_email,
         plan=label.plan or "free",
-            sonic_signature=label.sonic_signature,
+        sonic_signature=label.sonic_signature,
         created_at=label.created_at.isoformat(),
         logo_path=label.logo_path,
         submission_title=label.submission_title,
@@ -193,7 +241,7 @@ async def update_label_config(
         slug=label.slug,
         owner_email=label.owner_email,
         plan=label.plan or "free",
-            sonic_signature=label.sonic_signature,
+        sonic_signature=label.sonic_signature,
         created_at=label.created_at.isoformat(),
         logo_path=label.logo_path,
         submission_title=label.submission_title,
@@ -202,12 +250,15 @@ async def update_label_config(
 
 
 @router.post("/labels/{slug}/login", response_model=LoginResponse)
+@limiter.limit("5/minute")
 async def label_login(
     slug: str,
+    request: Request,
     body: LoginRequest,
+    response: Response,
     session: Session = Depends(get_session),
 ):
-    """Simple login: verify owner_email matches label, return JWT token."""
+    """Login with email and password. Sets JWT as HTTPOnly cookie."""
     label = session.exec(select(Label).where(Label.slug == slug)).first()
     if not label:
         raise HTTPException(status_code=404, detail=f"Label '{slug}' not found.")
@@ -215,12 +266,26 @@ async def label_login(
     if label.owner_email != body.owner_email:
         raise HTTPException(status_code=401, detail="Email does not match label owner.")
 
+    if not verify_password(body.password, label.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid password.")
+
     token = create_token(label_id=label.id, slug=label.slug)
 
+    response.set_cookie(
+        key="token",
+        value=token,
+        httponly=True,
+        secure=False,  # Set True in production with HTTPS
+        samesite="lax",
+        max_age=86400,
+    )
+
     return LoginResponse(
-        token=token,
-        label_id=label.id,
+        id=label.id,
+        name=label.name,
         slug=label.slug,
+        owner_email=label.owner_email,
+        plan=label.plan or "free",
     )
 
 
@@ -377,4 +442,3 @@ async def update_submission_text(
         submission_title=label.submission_title,
         submission_description=label.submission_description,
     )
-

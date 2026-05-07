@@ -48,9 +48,8 @@ export default function LinkPage() {
 
     const fetchStats = async () => {
       try {
-        const token = localStorage.getItem("token");
         const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/labels/${storedSlug}/stats`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          credentials: "include",
         });
         if (!res.ok) throw new Error("Failed to fetch stats");
         const data: LabelStats = await res.json();
@@ -77,13 +76,10 @@ export default function LinkPage() {
     setTextsSaved(false);
     setTextsError(null);
     try {
-      const token = localStorage.getItem("token");
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/labels/${slug}/submission-text`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: editTitle, description: editDescription }),
       });
       if (!res.ok) {

@@ -12,11 +12,15 @@ class Label(SQLModel, table=True):
     """Record label / studio entity that owns submissions and templates."""
 
     __tablename__ = "label"
+    __table_args__ = (
+        # Ensure one label per owner email
+    )
 
     id: str = Field(default_factory=lambda: str(uuid4()), primary_key=True)
     name: str
     slug: str = Field(unique=True, index=True)
-    owner_email: str
+    owner_email: str = Field(unique=True, index=True)
+    password_hash: str
     sonic_signature: dict[str, Any] = Field(
         sa_type=JSON,
         default_factory=lambda: {

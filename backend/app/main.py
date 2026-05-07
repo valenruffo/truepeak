@@ -7,8 +7,13 @@ from typing import AsyncGenerator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from app.database import init_db
+
+# Rate limiter
+limiter = Limiter(key_func=get_remote_address)
 
 
 @asynccontextmanager
@@ -25,7 +30,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS middleware — allow all origins in dev; restrict in production
+# CORS middleware — allow credentials (cookies)
 ALLOWED_ORIGINS = ["*"]  # TODO: restrict to specific origins in production
 
 app.add_middleware(
@@ -35,6 +40,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Attach limiter to app for decorator usage
+app.state.limiter = limiter
 
 
 @app.get("/")
