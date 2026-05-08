@@ -31,7 +31,11 @@ app = FastAPI(
 )
 
 # CORS middleware — allow credentials (cookies)
-ALLOWED_ORIGINS = ["*"]  # TODO: restrict to specific origins in production
+ALLOWED_ORIGINS = [
+    "https://www.truepeak.space",
+    "https://truepeak.space",
+    "http://localhost:3000",
+]
 
 app.add_middleware(
     CORSMiddleware,
