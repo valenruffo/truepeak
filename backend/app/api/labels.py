@@ -83,6 +83,19 @@ class LoginRequest(BaseModel):
         return v
 
 
+class LoginByEmailRequest(BaseModel):
+    """Login by email or slug — no slug in path."""
+    identifier: str  # email or slug
+    password: str
+
+    @field_validator("password")
+    @classmethod
+    def password_min_length(cls, v: str) -> str:
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters")
+        return v
+
+
 class LoginResponse(BaseModel):
     id: str
     name: str
@@ -249,6 +262,48 @@ async def update_label_config(
     )
 
 
+@router.post("/labels/login", response_model=LoginResponse)
+@limiter.limit("5/minute")
+async def label_login_by_identifier(
+    request: Request,
+    body: LoginByEmailRequest,
+    response: Response,
+    session: Session = Depends(get_session),
+):
+    """Login by email or slug. Sets JWT as HTTPOnly cookie."""
+    # Try email first
+    label = session.exec(select(Label).where(Label.owner_email == body.identifier)).first()
+
+    # Fall back to slug
+    if not label:
+        label = session.exec(select(Label).where(Label.slug == body.identifier)).first()
+
+    if not label:
+        raise HTTPException(status_code=404, detail="Sello no encontrado.")
+
+    if not verify_password(body.password, label.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid password.")
+
+    token = create_token(label_id=label.id, slug=label.slug)
+
+    response.set_cookie(
+        key="token",
+        value=token,
+        httponly=True,
+        secure=False,  # Set True in production with HTTPS
+        samesite="lax",
+        max_age=86400,
+    )
+
+    return LoginResponse(
+        id=label.id,
+        name=label.name,
+        slug=label.slug,
+        owner_email=label.owner_email,
+        plan=label.plan or "free",
+    )
+
+
 @router.post("/labels/{slug}/login", response_model=LoginResponse)
 @limiter.limit("5/minute")
 async def label_login(
@@ -287,6 +342,13 @@ async def label_login(
         owner_email=label.owner_email,
         plan=label.plan or "free",
     )
+
+
+@router.post("/labels/logout")
+async def label_logout(response: Response):
+    """Clear the authentication cookie."""
+    response.delete_cookie(key="token", httponly=True, samesite="lax")
+    return {"message": "Logged out"}
 
 
 @router.get("/labels/{slug}/stats", response_model=LabelStats)

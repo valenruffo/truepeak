@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { PlayerProvider, usePlayer, type PlayerTrack } from "@/lib/PlayerContext";
@@ -81,6 +81,7 @@ function PlayerBar() {
 
 function DashboardInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [labelName, setLabelName] = useState<string>("");
   const [planInfo, setPlanInfo] = useState<string>("");
   const [plan, setPlan] = useState<string>("free");
@@ -156,7 +157,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
         style={{ width: "240px", background: "#111114", borderRight: "1px solid #27272a" }}
       >
         <div className="px-5 pt-6 pb-4">
-          <Link href="/inbox"><img src="/logo.png" alt="True Peak AI" className="h-7 w-auto" /></Link>
+          <Link href="/"><img src="/logo.png" alt="True Peak AI" className="h-7 w-auto" /></Link>
         </div>
         <nav className="flex-1 px-3">
           {navItems.map((item) => {
@@ -183,13 +184,29 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
           </div>
         )}
         {labelName && (
-          <div className="px-5 pb-5">
+          <div className="px-5 pb-2">
             <div style={{ borderTop: "1px solid #27272a" }} className="pt-4">
               <div className="text-sm font-medium truncate">{labelName}</div>
               {planInfo && <div className="text-[10px] text-muted mt-0.5">{planInfo}</div>}
             </div>
           </div>
         )}
+        <div className="px-3 pb-5">
+          <button
+            onClick={() => {
+              localStorage.removeItem("slug");
+              localStorage.removeItem("label_id");
+              localStorage.removeItem("plan");
+              localStorage.removeItem("token");
+              fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/labels/logout`, { method: "POST", credentials: "include" }).catch(() => {});
+              router.push("/");
+            }}
+            className="w-full text-left text-sm px-3 py-2 rounded transition-colors hover:bg-white/5"
+            style={{ color: "#71717a" }}
+          >
+            Cerrar sesión
+          </button>
+        </div>
       </aside>
 
       <main className="flex-1 pt-12 md:pt-0" style={{ marginLeft: "0", paddingBottom: "80px" }}>
