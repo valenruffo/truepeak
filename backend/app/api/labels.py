@@ -181,6 +181,7 @@ async def register_label(
         secure=False,  # Set True in production with HTTPS
         samesite="lax",
         max_age=86400,
+        path="/",
     )
 
     return RegisterResponse(
@@ -297,6 +298,7 @@ async def label_login_by_identifier(
         secure=False,  # Set True in production with HTTPS
         samesite="lax",
         max_age=86400,
+        path="/",
     )
 
     return LoginResponse(
@@ -337,6 +339,7 @@ async def label_login(
         secure=False,  # Set True in production with HTTPS
         samesite="lax",
         max_age=86400,
+        path="/",
     )
 
     return LoginResponse(
