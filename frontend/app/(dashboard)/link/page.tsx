@@ -1,13 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/lib/i18n";
 
 type LabelStats = { total: number; pending: number; approved: number; rejected: number };
 type LabelInfo = { id: string; name: string; slug: string; owner_email: string; sonic_signature: string; created_at: string; submission_title?: string; submission_description?: string; plan?: string };
-
-const LEMON_SQUEEZY_URL = "https://truepeak.lemonsqueezy.com/checkout/buy/xxx";
 
 export default function LinkPage() {
   const { t } = useLanguage();
@@ -144,9 +143,9 @@ export default function LinkPage() {
             <div>
               <p className="text-sm font-medium mb-1" style={{ color: "#ef4444" }}>{t("link.limit.title")}</p>
               <p className="text-sm text-muted mb-4">{t("link.limit.desc")}</p>
-              <a href={LEMON_SQUEEZY_URL} target="_blank" rel="noopener noreferrer" className="inline-block px-5 py-2.5 rounded text-sm font-medium transition-all hover:opacity-90" style={{ background: "#10b981", color: "#09090b" }}>
-                {t("link.limit.cta")}
-              </a>
+              <Link href="/settings" className="inline-block px-5 py-2.5 rounded text-sm font-medium transition-all hover:opacity-90" style={{ background: "#10b981", color: "#09090b" }}>
+                Ver planes disponibles
+              </Link>
             </div>
           </div>
         </div>

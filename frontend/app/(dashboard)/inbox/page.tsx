@@ -647,7 +647,7 @@ function InboxContent() {
             ref={provided.innerRef}
             {...provided.draggableProps}
             className={cn(
-              "rounded border mb-2 transition-shadow",
+              "rounded border mb-2 transition-shadow overflow-hidden",
               snapshot.isDragging && "shadow-lg opacity-80"
             )}
             style={{
@@ -656,11 +656,19 @@ function InboxContent() {
               ...provided.draggableProps.style,
             }}
           >
-            {/* Drag handle + top row */}
+            {/* Drag handle strip */}
             <div
-              className="flex items-start gap-2 px-3 pt-2.5"
+              className="cursor-grab active:cursor-grabbing"
               {...provided.dragHandleProps}
-            >
+              style={{
+                height: "4px",
+                borderTop: "2px dashed var(--border)",
+                background: "rgba(255,255,255,0.02)",
+              }}
+            />
+
+            {/* Top row */}
+            <div className="flex items-start gap-2 px-3 pt-2.5">
               {/* Grip icon */}
               <div
                 className="mt-0.5 cursor-grab active:cursor-grabbing flex-shrink-0"

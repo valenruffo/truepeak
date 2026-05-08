@@ -354,6 +354,7 @@ async def get_label_hq_count(
     count = session.exec(
         select(func.count()).where(
             Submission.label_id == label.id,
+            Submission.deleted_at.is_(None),
             sa.or_(
                 Submission.original_path.isnot(None),
                 Submission.mp3_path.isnot(None),
@@ -364,7 +365,7 @@ async def get_label_hq_count(
     processed = session.exec(
         select(func.count()).where(
             Submission.label_id == label.id,
-            Submission.status.in_(["approved", "rejected", "shortlist", "auto_rejected"]),
+            Submission.deleted_at.is_(None),
         )
     ).one()
 

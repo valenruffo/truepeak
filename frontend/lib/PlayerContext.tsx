@@ -72,9 +72,10 @@ export function PlayerProvider({ children, initialTracks = [] }: { children: Rea
           audioRef.current.src = url;
           audioRef.current.load();
           setProgress(0);
-          if (isPlaying) {
-            audioRef.current.play().catch(() => setIsPlaying(false));
-          }
+          // Auto-play when track loads (user clicked Play on a card)
+          audioRef.current.play().then(() => {
+            setIsPlaying(true);
+          }).catch(() => setIsPlaying(false));
         }
       } catch {
         // silently fail

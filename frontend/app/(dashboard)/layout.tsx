@@ -225,15 +225,13 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
               remainingTracks === 0 ? (
                 <div className="px-3 py-1.5 rounded text-xs font-mono" style={{ background: "rgba(239,68,68,0.06)", color: "#ef4444" }}>
                   {t("dashboard.no_tracks")} —{" "}
-                  <a
-                    href="https://truepeak.lemonsqueezy.com/checkout/buy/xxx"
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <Link
+                    href="/settings"
                     className="underline hover:opacity-80"
                     style={{ color: "#ef4444" }}
                   >
                     {t("dashboard.upgrade")}
-                  </a>
+                  </Link>
                 </div>
               ) : remainingTracks < 5 ? (
                 <div className="px-3 py-1.5 rounded text-xs font-mono" style={{ background: "rgba(250,204,21,0.06)", color: "#facc15" }}>
@@ -241,9 +239,16 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
                 </div>
               ) : null
             )}
-            <div className="px-3 py-1.5 rounded text-xs font-mono" style={{ background: "rgba(16,185,129,0.06)", color: hqCount.count >= hqCount.limit ? "#ef4444" : "var(--text-muted)" }}>
-              📦 {hqCount.count}/{hqCount.limit} HQ
-            </div>
+            {plan !== "free" && hqCount && (
+              <div className="px-3 py-1.5 rounded text-xs font-mono" style={{ background: "rgba(16,185,129,0.06)", color: hqCount.count >= hqCount.limit ? "#ef4444" : "var(--text-muted)" }}>
+                📦 {hqCount.count}/{hqCount.limit} HQ
+              </div>
+            )}
+            {plan === "free" && hqCount && (
+              <div className="px-3 py-1.5 rounded text-xs font-mono" style={{ background: "rgba(16,185,129,0.06)", color: "var(--text-muted)" }}>
+                🎵 {hqCount.processed_count}/10 tracks usados
+              </div>
+            )}
           </div>
         )}
 
