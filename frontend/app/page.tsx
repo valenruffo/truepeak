@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import WhatsAppBubble from "@/components/WhatsAppBubble";
+import { useLanguage } from "@/lib/i18n";
 
 // ─── Icon Components ─────────────────────────────────────────────────────────
 
@@ -103,6 +104,7 @@ function IconCheck() {
 // ─── Demo Simulation ───────────────────────────────────────────────────────────
 
 function DemoSimulation() {
+  const { t } = useLanguage();
   const [trackState, setTrackState] = useState<"analyzing" | "error" | "approved">("analyzing");
   const [trackName, setTrackName] = useState("");
   const [detectedIssue, setDetectedIssue] = useState("");
@@ -150,11 +152,11 @@ function DemoSimulation() {
   }, [trackState]);
 
   const stateColor = trackState === "error" ? "#ef4444" : trackState === "approved" ? "#10b981" : "#06b6d4";
-  const stateLabel = trackState === "error" ? "RECHAZADO" : trackState === "approved" ? "APROBADO" : "ANALIZANDO";
+  const stateLabel = trackState === "error" ? t("demo.rejected") : trackState === "approved" ? t("demo.approved") : t("demo.analyzing");
 
   return (
-    <div className="rounded border overflow-hidden" style={{ borderColor: "#27272a", background: "#0c0c0e" }}>
-      <div className="flex items-center justify-between px-4 py-2 border-b" style={{ borderColor: "#27272a" }}>
+    <div className="rounded border overflow-hidden" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
+      <div className="flex items-center justify-between px-4 py-2 border-b" style={{ borderColor: "var(--border)" }}>
         <div className="flex items-center gap-2">
           <div className="w-1.5 h-1.5 rounded-full" style={{ background: stateColor }} />
           <span className="font-mono text-xs" style={{ color: stateColor }}>{stateLabel}</span>
@@ -164,7 +166,7 @@ function DemoSimulation() {
       <div className="relative p-3">
         <div className="grid grid-cols-12 gap-[2px] mb-3">
           {Array.from({ length: 48 }).map((_, i) => (
-            <div key={i} className="transition-all duration-300" style={{ height: "4px", background: activeNotes.has(i) ? stateColor : "#1a1a1e", opacity: activeNotes.has(i) ? 0.8 : 0.2 }} />
+            <div key={i} className="transition-all duration-300" style={{ height: "4px", background: activeNotes.has(i) ? stateColor : "var(--border-light)", opacity: activeNotes.has(i) ? 0.8 : 0.2 }} />
           ))}
         </div>
         <div className="flex items-end gap-[2px] h-14 mb-3 px-1">
@@ -176,25 +178,25 @@ function DemoSimulation() {
           <div className="absolute left-0 right-0 h-[1px]" style={{ background: "linear-gradient(90deg, transparent, rgba(16,185,129,0.4), transparent)", animation: "scan-line 3s linear infinite" }} />
         )}
       </div>
-      <div className="grid grid-cols-3 gap-px" style={{ background: "#27272a" }}>
+      <div className="grid grid-cols-3 gap-px" style={{ background: "var(--border)" }}>
         {[{ label: "BPM", value: metrics.bpm }, { label: "LUFS", value: metrics.lufs }, { label: "FASE", value: metrics.phase }].map((m) => (
-          <div key={m.label} className="px-3 py-2 text-center" style={{ background: "#111114" }}>
+          <div key={m.label} className="px-3 py-2 text-center" style={{ background: "var(--bg-card)" }}>
             <div className="text-[10px] uppercase tracking-wider text-muted font-mono">{m.label}</div>
-            <div className="font-mono text-sm" style={{ color: m.value === "INVERTIDA" ? "#ef4444" : m.value === "---" ? "#52525b" : "#fafafa" }}>{m.value}</div>
+            <div className="font-mono text-sm" style={{ color: m.value === "INVERTIDA" ? "#ef4444" : m.value === "---" ? "var(--text-muted-alt)" : "var(--text-primary)" }}>{m.value}</div>
           </div>
         ))}
       </div>
       {detectedIssue && (
-        <div className="px-4 py-2 border-t flex items-center gap-2" style={{ borderColor: "#27272a" }}>
+        <div className="px-4 py-2 border-t flex items-center gap-2" style={{ borderColor: "var(--border)" }}>
           <span className="font-mono text-xs" style={{ color: "#ef4444" }}>{detectedIssue}</span>
         </div>
       )}
       {trackState === "approved" && (
-        <div className="px-4 py-2 border-t flex items-center gap-2" style={{ borderColor: "#27272a" }}>
-          <span className="font-mono text-xs" style={{ color: "#10b981" }}>122 BPM, Mezcla OK, Fase correcta</span>
+        <div className="px-4 py-2 border-t flex items-center gap-2" style={{ borderColor: "var(--border)" }}>
+          <span className="font-mono text-xs" style={{ color: "#10b981" }}>{t("demo.approved_detail")}</span>
         </div>
       )}
-      <div className="h-px w-full" style={{ background: "#1a1a1e" }}>
+      <div className="h-px w-full" style={{ background: "var(--border-light)" }}>
         <div className="h-full transition-all duration-500 ease-out" style={{ width: `${progress}%`, background: stateColor }} />
       </div>
     </div>
@@ -204,6 +206,7 @@ function DemoSimulation() {
 // ─── Nav ──────────────────────────────────────────────────────────────────────
 
 function Nav() {
+  const { t } = useLanguage();
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -218,7 +221,7 @@ function Nav() {
       style={{
         background: scrolled ? "rgba(9,9,11,0.95)" : "transparent",
         backdropFilter: scrolled ? "blur(12px)" : "none",
-        borderBottom: scrolled ? "1px solid #27272a" : "1px solid transparent",
+        borderBottom: scrolled ? "1px solid var(--border)" : "1px solid transparent",
       }}
     >
       <div className="max-w-6xl mx-auto px-6 flex items-center justify-between" style={{ height: "56px" }}>
@@ -227,14 +230,14 @@ function Nav() {
         </Link>
 
         <div className="hidden md:flex items-center gap-8">
-          <a href="#how-it-works" className="text-sm transition-colors cursor-pointer" style={{ color: "#71717a" }} onMouseEnter={(e) => (e.currentTarget.style.color = "#fafafa")} onMouseLeave={(e) => (e.currentTarget.style.color = "#71717a")}>
-            Como funciona
+          <a href="#how-it-works" className="text-sm transition-colors cursor-pointer" style={{ color: "var(--text-muted)" }} onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text-primary)")} onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}>
+            {t("nav.how_it_works")}
           </a>
-          <a href="#features" className="text-sm transition-colors cursor-pointer" style={{ color: "#71717a" }} onMouseEnter={(e) => (e.currentTarget.style.color = "#fafafa")} onMouseLeave={(e) => (e.currentTarget.style.color = "#71717a")}>
-            Funcionalidades
+          <a href="#features" className="text-sm transition-colors cursor-pointer" style={{ color: "var(--text-muted)" }} onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text-primary)")} onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}>
+            {t("nav.features")}
           </a>
-          <a href="#pricing" className="text-sm transition-colors cursor-pointer" style={{ color: "#71717a" }} onMouseEnter={(e) => (e.currentTarget.style.color = "#fafafa")} onMouseLeave={(e) => (e.currentTarget.style.color = "#71717a")}>
-            Precios
+          <a href="#pricing" className="text-sm transition-colors cursor-pointer" style={{ color: "var(--text-muted)" }} onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text-primary)")} onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}>
+            {t("nav.pricing")}
           </a>
         </div>
 
@@ -242,18 +245,18 @@ function Nav() {
           <Link
             href="/login"
             className="px-4 py-1.5 text-sm transition-colors rounded cursor-pointer"
-            style={{ color: "#71717a", border: "1px solid #27272a" }}
-            onMouseEnter={(e) => { e.currentTarget.style.color = "#fafafa"; e.currentTarget.style.borderColor = "#52525b"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.color = "#71717a"; e.currentTarget.style.borderColor = "#27272a"; }}
+            style={{ color: "var(--text-muted)", border: "1px solid var(--border)" }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text-primary)"; e.currentTarget.style.borderColor = "#52525b"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-muted)"; e.currentTarget.style.borderColor = "var(--border)"; }}
           >
-            Iniciar sesion
+            {t("nav.login")}
           </Link>
           <Link
             href="/register"
             className="px-4 py-1.5 text-sm font-medium rounded transition-all hover:opacity-90 cursor-pointer"
             style={{ background: "#10b981", color: "#09090b" }}
           >
-            Registrarse
+            {t("nav.register")}
           </Link>
         </div>
       </div>
@@ -264,9 +267,9 @@ function Nav() {
 // ─── Hero ─────────────────────────────────────────────────────────────────────
 
 function Hero() {
+  const { t } = useLanguage();
   return (
     <section className="relative pt-32 pb-20 px-6 overflow-hidden">
-      {/* Subtle grid background */}
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
@@ -282,17 +285,15 @@ function Hero() {
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded mb-6" style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.2)" }}>
               <div className="w-1.5 h-1.5 rounded-full" style={{ background: "#10b981" }} />
-              <span className="text-xs font-mono" style={{ color: "#10b981" }}>B2B SaaS para sellos electronicos</span>
+              <span className="text-xs font-mono" style={{ color: "#10b981" }}>{t("hero.badge")}</span>
             </div>
 
-            <h1 className="font-bold text-4xl md:text-5xl lg:text-6xl leading-[1.08] tracking-tight mb-6" style={{ color: "#fafafa" }}>
+            <h1 className="font-bold text-4xl md:text-5xl lg:text-6xl leading-[1.08] tracking-tight mb-6" style={{ color: "var(--text-primary)" }}>
               True Peak AI
             </h1>
 
-            <p className="text-lg md:text-xl leading-relaxed mb-8 max-w-xl" style={{ color: "#71717a" }}>
-              El primer filtro de demos con analisis tecnico automatico.
-              Setea la firma sonica de tu sello y deja que el motor descarte
-              los tracks fuera de standard antes de que lleguen a tus oidos.
+            <p className="text-lg md:text-xl leading-relaxed mb-8 max-w-xl" style={{ color: "var(--text-muted)" }}>
+              {t("hero.description")}
             </p>
 
             <div className="flex flex-col sm:flex-row gap-3">
@@ -301,16 +302,16 @@ function Hero() {
                 className="px-6 py-3 text-sm font-medium rounded transition-all hover:opacity-90 text-center cursor-pointer"
                 style={{ background: "#10b981", color: "#09090b" }}
               >
-                Comenzar gratis
+                {t("hero.cta_primary")}
               </Link>
               <a
                 href="#how-it-works"
                 className="px-6 py-3 text-sm rounded transition-all text-center cursor-pointer"
-                style={{ border: "1px solid #27272a", color: "#fafafa" }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = "#0c0c0e")}
+                style={{ border: "1px solid var(--border)", color: "var(--text-primary)" }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-secondary)")}
                 onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
               >
-                Ver como funciona
+                {t("hero.cta_secondary")}
               </a>
             </div>
           </div>
@@ -325,71 +326,34 @@ function Hero() {
 
 // ─── How It Works ─────────────────────────────────────────────────────────────
 
-const steps = [
-  {
-    num: "01",
-    title: "Comparti tu link",
-    desc: "Los productores envian sus tracks a traves de tu URL personalizada. Sin registro, sin friccion. Solo suben el WAV y listo.",
-    icon: <IconLink />,
-  },
-  {
-    num: "02",
-    title: "Analisis automatico",
-    desc: "La IA analiza BPM, LUFS, fase, headroom y tonalidad musical. Rechaza automaticamente los tracks que no cumplen tus reglas.",
-    icon: <IconAnalysis />,
-  },
-  {
-    num: "03",
-    title: "Escucha y decidi",
-    desc: "Revisa los tracks pendientes en tu dashboard. Escucha, aproba o rechaza. Solo llega a tus oidos lo que vale la pena.",
-    icon: <IconHeadphones />,
-  },
-  {
-    num: "04",
-    title: "Contacta productores",
-    desc: "Envia emails desde la seccion Emails con plantillas pre-armadas. Variables como nombre y track se rellenan solas.",
-    icon: <IconMail />,
-  },
-];
-
 function HowItWorks() {
+  const { t } = useLanguage();
+  const steps = [
+    { num: "01", title: t("step.01.title"), desc: t("step.01.desc"), icon: <IconLink /> },
+    { num: "02", title: t("step.02.title"), desc: t("step.02.desc"), icon: <IconAnalysis /> },
+    { num: "03", title: t("step.03.title"), desc: t("step.03.desc"), icon: <IconHeadphones /> },
+    { num: "04", title: t("step.04.title"), desc: t("step.04.desc"), icon: <IconMail /> },
+  ];
+
   return (
-    <section id="how-it-works" className="py-20 px-6" style={{ borderTop: "1px solid #27272a" }}>
+    <section id="how-it-works" className="py-20 px-6" style={{ borderTop: "1px solid var(--border)" }}>
       <div className="max-w-6xl mx-auto">
         <div className="mb-12">
-          <div className="text-xs font-mono uppercase tracking-wider mb-3" style={{ color: "#71717a" }}>
-            Como funciona
-          </div>
-          <h2 className="font-bold text-2xl md:text-3xl tracking-tight" style={{ color: "#fafafa" }}>
-            De la configuracion al primer email{" "}
-            <span style={{ color: "#10b981" }}>en 5 minutos</span>
+          <div className="text-xs font-mono uppercase tracking-wider mb-3" style={{ color: "var(--text-muted)" }}>{t("how_it_works.section_label")}</div>
+          <h2 className="font-bold text-2xl md:text-3xl tracking-tight" style={{ color: "var(--text-primary)" }}>
+            {t("how_it_works.title")} <span style={{ color: "#10b981" }}>{t("how_it_works.title_accent")}</span>
           </h2>
         </div>
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {steps.map((step) => (
-            <div
-              key={step.num}
-              className="p-5 rounded border transition-all hover:border-zinc-600"
-              style={{ background: "#0c0c0e", borderColor: "#27272a" }}
-            >
+            <div key={step.num} className="p-5 rounded border transition-all hover:border-zinc-600" style={{ background: "var(--bg-secondary)", borderColor: "var(--border)" }}>
               <div className="flex items-center gap-3 mb-4">
-                <div
-                  className="w-9 h-9 rounded flex items-center justify-center"
-                  style={{ background: "rgba(16,185,129,0.1)", color: "#10b981" }}
-                >
-                  {step.icon}
-                </div>
-                <span className="font-mono text-xs" style={{ color: "#52525b" }}>
-                  {step.num}
-                </span>
+                <div className="w-9 h-9 rounded flex items-center justify-center" style={{ background: "rgba(16,185,129,0.1)", color: "#10b981" }}>{step.icon}</div>
+                <span className="font-mono text-xs" style={{ color: "var(--text-muted-alt)" }}>{step.num}</span>
               </div>
-              <h3 className="font-semibold text-sm mb-2" style={{ color: "#fafafa" }}>
-                {step.title}
-              </h3>
-              <p className="text-sm leading-relaxed" style={{ color: "#71717a" }}>
-                {step.desc}
-              </p>
+              <h3 className="font-semibold text-sm mb-2" style={{ color: "var(--text-primary)" }}>{step.title}</h3>
+              <p className="text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>{step.desc}</p>
             </div>
           ))}
         </div>
@@ -400,72 +364,33 @@ function HowItWorks() {
 
 // ─── Features ─────────────────────────────────────────────────────────────────
 
-const features = [
-  {
-    icon: <IconWaveform />,
-    title: "Analisis de audio completo",
-    desc: "BPM, LUFS integrado, correlacion de fase, headroom y deteccion de tonalidad musical en segundos.",
-  },
-  {
-    icon: <IconShield />,
-    title: "Rechazo automatico",
-    desc: "Reglas configurables que filtran demos fuera de standard. El productor recibe feedback tecnico inmediato.",
-  },
-  {
-    icon: <IconFingerprint />,
-    title: "Firma sonica personalizada",
-    desc: "Cada sello define su perfil: rango de BPM, escala preferida, tolerancia de LUFS y criterios de rechazo.",
-  },
-  {
-    icon: <IconFileAudio />,
-    title: "WAV y FLAC",
-    desc: "Soporte nativo para archivos sin perdida. Conversion automatica a stream ligero para el dashboard.",
-  },
-  {
-    icon: <IconTemplates />,
-    title: "Plantillas de email",
-    desc: "Templates pre-armados para rechazo, aprobacion y seguimiento. Variables auto-rellenadas desde el track.",
-  },
-  {
-    icon: <IconMail />,
-    title: "CRM integrado",
-    desc: "Mini CRM de contactos: ves quien fue aprobado o rechazado, historial de emails y estado de cada productor.",
-  },
-];
-
 function Features() {
+  const { t } = useLanguage();
+  const features = [
+    { icon: <IconWaveform />, title: t("feature.0.title"), desc: t("feature.0.desc") },
+    { icon: <IconShield />, title: t("feature.1.title"), desc: t("feature.1.desc") },
+    { icon: <IconFingerprint />, title: t("feature.2.title"), desc: t("feature.2.desc") },
+    { icon: <IconFileAudio />, title: t("feature.3.title"), desc: t("feature.3.desc") },
+    { icon: <IconTemplates />, title: t("feature.4.title"), desc: t("feature.4.desc") },
+    { icon: <IconMail />, title: t("feature.5.title"), desc: t("feature.5.desc") },
+  ];
+
   return (
-    <section id="features" className="py-20 px-6" style={{ borderTop: "1px solid #27272a" }}>
+    <section id="features" className="py-20 px-6" style={{ borderTop: "1px solid var(--border)" }}>
       <div className="max-w-6xl mx-auto">
         <div className="mb-12">
-          <div className="text-xs font-mono uppercase tracking-wider mb-3" style={{ color: "#71717a" }}>
-            Funcionalidades
-          </div>
-          <h2 className="font-bold text-2xl md:text-3xl tracking-tight" style={{ color: "#fafafa" }}>
-            Todo lo que tu sello necesita,{" "}
-            <span style={{ color: "#10b981" }}>nada que no</span>
+          <div className="text-xs font-mono uppercase tracking-wider mb-3" style={{ color: "var(--text-muted)" }}>{t("features.section_label")}</div>
+          <h2 className="font-bold text-2xl md:text-3xl tracking-tight" style={{ color: "var(--text-primary)" }}>
+            {t("features.title")} <span style={{ color: "#10b981" }}>{t("features.title_accent")}</span>
           </h2>
         </div>
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {features.map((f, i) => (
-            <div
-              key={i}
-              className="p-5 rounded border transition-all hover:border-zinc-600"
-              style={{ background: "#0c0c0e", borderColor: "#27272a" }}
-            >
-              <div
-                className="w-9 h-9 rounded flex items-center justify-center mb-4"
-                style={{ background: "rgba(16,185,129,0.1)", color: "#10b981" }}
-              >
-                {f.icon}
-              </div>
-              <h3 className="font-semibold text-sm mb-2" style={{ color: "#fafafa" }}>
-                {f.title}
-              </h3>
-              <p className="text-sm leading-relaxed" style={{ color: "#71717a" }}>
-                {f.desc}
-              </p>
+            <div key={i} className="p-5 rounded border transition-all hover:border-zinc-600" style={{ background: "var(--bg-secondary)", borderColor: "var(--border)" }}>
+              <div className="w-9 h-9 rounded flex items-center justify-center mb-4" style={{ background: "rgba(16,185,129,0.1)", color: "#10b981" }}>{f.icon}</div>
+              <h3 className="font-semibold text-sm mb-2" style={{ color: "var(--text-primary)" }}>{f.title}</h3>
+              <p className="text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>{f.desc}</p>
             </div>
           ))}
         </div>
@@ -479,104 +404,66 @@ function Features() {
 const checkoutUrl = "https://truepeak.lemonsqueezy.com/checkout/buy/60230548-372d-421b-8b00-f15a78817c76";
 
 function Pricing() {
+  const { t } = useLanguage();
   return (
-    <section id="pricing" className="py-20 px-6" style={{ borderTop: "1px solid #27272a" }}>
+    <section id="pricing" className="py-20 px-6" style={{ borderTop: "1px solid var(--border)" }}>
       <div className="max-w-3xl mx-auto">
         <div className="mb-12 text-center">
-          <div className="text-xs font-mono uppercase tracking-wider mb-3" style={{ color: "#71717a" }}>
-            Precios
-          </div>
-          <h2 className="font-bold text-2xl md:text-3xl tracking-tight" style={{ color: "#fafafa" }}>
-            Simple. <span style={{ color: "#10b981" }}>Sin sorpresas.</span>
+          <div className="text-xs font-mono uppercase tracking-wider mb-3" style={{ color: "var(--text-muted)" }}>{t("pricing.section_label")}</div>
+          <h2 className="font-bold text-2xl md:text-3xl tracking-tight" style={{ color: "var(--text-primary)" }}>
+            {t("pricing.title")} <span style={{ color: "#10b981" }}>{t("pricing.title_accent")}</span>
           </h2>
         </div>
 
         <div className="grid md:grid-cols-2 gap-4">
           {/* Starter */}
-          <div className="p-6 rounded border" style={{ background: "#0c0c0e", borderColor: "#27272a" }}>
+          <div className="p-6 rounded border" style={{ background: "var(--bg-secondary)", borderColor: "var(--border)" }}>
             <div className="flex items-baseline justify-between mb-6">
-              <span className="text-xs font-mono uppercase tracking-wider" style={{ color: "#71717a" }}>
-                Starter
-              </span>
+              <span className="text-xs font-mono uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>{t("pricing.starter")}</span>
               <div className="flex items-baseline gap-1">
-                <span className="font-bold text-3xl" style={{ color: "#fafafa" }}>US$29</span>
-                <span className="text-xs" style={{ color: "#71717a" }}>/mes</span>
+                <span className="font-bold text-3xl" style={{ color: "var(--text-primary)" }}>US$29</span>
+                <span className="text-xs" style={{ color: "var(--text-muted)" }}>{t("pricing.per_month")}</span>
               </div>
             </div>
 
             <ul className="space-y-3 mb-8">
-              {[
-                "Hasta 50 demos por mes",
-                "1 firma sonica personalizada",
-                "Analisis tecnico completo",
-                "Dashboard basico",
-                "CRM de emails con plantillas",
-                "Feedback automatico para rechazos",
-              ].map((f, i) => (
-                <li key={i} className="flex items-start gap-2 text-sm" style={{ color: "#71717a" }}>
-                  <span style={{ color: "#10b981", flexShrink: 0, marginTop: "2px" }}>
-                    <IconCheck />
-                  </span>
-                  {f}
+              {[0, 1, 2, 3, 4, 5].map((i) => (
+                <li key={i} className="flex items-start gap-2 text-sm" style={{ color: "var(--text-muted)" }}>
+                  <span style={{ color: "#10b981", flexShrink: 0, marginTop: "2px" }}><IconCheck /></span>
+                  {t(`pricing.starter.${i}` as any)}
                 </li>
               ))}
             </ul>
 
-            <a
-              href={checkoutUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full py-2.5 text-sm font-medium rounded transition-all hover:opacity-90 block text-center cursor-pointer"
-              style={{ border: "1px solid #27272a", color: "#fafafa" }}
-            >
-              Empezar ahora
+            <a href={checkoutUrl} target="_blank" rel="noopener noreferrer" className="w-full py-2.5 text-sm font-medium rounded transition-all hover:opacity-90 block text-center cursor-pointer" style={{ border: "1px solid var(--border)", color: "var(--text-primary)" }}>
+              {t("pricing.cta")}
             </a>
           </div>
 
           {/* Pro */}
-          <div className="p-6 rounded border" style={{ background: "#0c0c0e", borderColor: "#10b981" }}>
+          <div className="p-6 rounded border" style={{ background: "var(--bg-secondary)", borderColor: "#10b981" }}>
             <div className="flex items-baseline justify-between mb-6">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-mono uppercase tracking-wider" style={{ color: "#71717a" }}>
-                  Pro
-                </span>
-                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ background: "rgba(16,185,129,0.15)", color: "#10b981" }}>
-                  Popular
-                </span>
+                <span className="text-xs font-mono uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>{t("pricing.pro")}</span>
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ background: "rgba(16,185,129,0.15)", color: "#10b981" }}>{t("pricing.popular")}</span>
               </div>
               <div className="flex items-baseline gap-1">
-                <span className="font-bold text-3xl" style={{ color: "#fafafa" }}>US$79</span>
-                <span className="text-xs" style={{ color: "#71717a" }}>/mes</span>
+                <span className="font-bold text-3xl" style={{ color: "var(--text-primary)" }}>US$79</span>
+                <span className="text-xs" style={{ color: "var(--text-muted)" }}>{t("pricing.per_month")}</span>
               </div>
             </div>
 
             <ul className="space-y-3 mb-8">
-              {[
-                "Demos ilimitados",
-                "Hasta 5 firmas sonicas",
-                "Analisis avanzado + deteccion de samples",
-                "Dashboard completo + export CSV",
-                "CRM avanzado + plantillas custom",
-                "API para integrar con tu DAW",
-                "Soporte prioritario",
-              ].map((f, i) => (
-                <li key={i} className="flex items-start gap-2 text-sm" style={{ color: "#71717a" }}>
-                  <span style={{ color: "#10b981", flexShrink: 0, marginTop: "2px" }}>
-                    <IconCheck />
-                  </span>
-                  {f}
+              {[0, 1, 2, 3, 4, 5, 6].map((i) => (
+                <li key={i} className="flex items-start gap-2 text-sm" style={{ color: "var(--text-muted)" }}>
+                  <span style={{ color: "#10b981", flexShrink: 0, marginTop: "2px" }}><IconCheck /></span>
+                  {t(`pricing.pro.${i}` as any)}
                 </li>
               ))}
             </ul>
 
-            <a
-              href={checkoutUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full py-2.5 text-sm font-medium rounded transition-all hover:opacity-90 block text-center cursor-pointer"
-              style={{ background: "#10b981", color: "#09090b" }}
-            >
-              Empezar ahora
+            <a href={checkoutUrl} target="_blank" rel="noopener noreferrer" className="w-full py-2.5 text-sm font-medium rounded transition-all hover:opacity-90 block text-center cursor-pointer" style={{ background: "#10b981", color: "#09090b" }}>
+              {t("pricing.cta")}
             </a>
           </div>
         </div>
@@ -588,27 +475,28 @@ function Pricing() {
 // ─── Footer ───────────────────────────────────────────────────────────────────
 
 function Footer() {
+  const { t } = useLanguage();
   return (
-    <footer className="py-8 px-6" style={{ borderTop: "1px solid #27272a" }}>
+    <footer className="py-8 px-6" style={{ borderTop: "1px solid var(--border)" }}>
       <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
         <img src="/logo.png" alt="True Peak AI" className="h-8 w-auto" />
 
-        <div className="text-xs" style={{ color: "#71717a" }}>
-          &copy; 2026 True Peak AI. Hecho con cabeza en Buenos Aires.
+        <div className="text-xs" style={{ color: "var(--text-muted)" }}>
+          {t("footer.copy")}
         </div>
 
-        <div className="flex items-center gap-6 text-xs" style={{ color: "#71717a" }}>
-          <Link href="/login" className="cursor-pointer" style={{ color: "#71717a" }} onMouseEnter={(e) => (e.currentTarget.style.color = "#fafafa")} onMouseLeave={(e) => (e.currentTarget.style.color = "#71717a")}>
-            Iniciar sesion
+        <div className="flex items-center gap-6 text-xs" style={{ color: "var(--text-muted)" }}>
+          <Link href="/login" className="cursor-pointer" style={{ color: "var(--text-muted)" }} onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text-primary)")} onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}>
+            {t("nav.login")}
           </Link>
-          <Link href="/register" className="cursor-pointer" style={{ color: "#71717a" }} onMouseEnter={(e) => (e.currentTarget.style.color = "#fafafa")} onMouseLeave={(e) => (e.currentTarget.style.color = "#71717a")}>
-            Registrarse
+          <Link href="/register" className="cursor-pointer" style={{ color: "var(--text-muted)" }} onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text-primary)")} onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}>
+            {t("nav.register")}
           </Link>
-          <Link href="/terms-of-service" className="cursor-pointer" style={{ color: "#71717a" }} onMouseEnter={(e) => (e.currentTarget.style.color = "#fafafa")} onMouseLeave={(e) => (e.currentTarget.style.color = "#71717a")}>
-            Terminos
+          <Link href="/terms-of-service" className="cursor-pointer" style={{ color: "var(--text-muted)" }} onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text-primary)")} onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}>
+            {t("footer.terms")}
           </Link>
-          <Link href="/privacy-policy" className="cursor-pointer" style={{ color: "#71717a" }} onMouseEnter={(e) => (e.currentTarget.style.color = "#fafafa")} onMouseLeave={(e) => (e.currentTarget.style.color = "#71717a")}>
-            Privacidad
+          <Link href="/privacy-policy" className="cursor-pointer" style={{ color: "var(--text-muted)" }} onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text-primary)")} onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}>
+            {t("footer.privacy")}
           </Link>
         </div>
       </div>
@@ -620,7 +508,7 @@ function Footer() {
 
 export default function Home() {
   return (
-      <div className="min-h-screen" style={{ background: "#09090b", color: "#fafafa" }}>
+    <div className="min-h-screen" style={{ background: "var(--bg-primary)", color: "var(--text-primary)" }}>
       <style>{`
         @keyframes scan-line {
           0% { top: 0; }

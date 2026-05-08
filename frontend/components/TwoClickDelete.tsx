@@ -51,7 +51,7 @@ export default function TwoClickDelete({ onDelete, size = 22 }: TwoClickDeletePr
     <button
       onClick={handleFirstClick}
       className="flex items-center justify-center rounded transition-colors hover:bg-white/10"
-      style={{ width: size, height: size, color: "#71717a" }}
+      style={{ width: size, height: size, color: "var(--text-muted)" }}
       title="Eliminar"
     >
       <svg width={size * 0.55} height={size * 0.55} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

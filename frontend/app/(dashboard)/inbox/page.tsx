@@ -6,6 +6,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { usePlayer } from "@/lib/PlayerContext";
 import TwoClickDelete from "@/components/TwoClickDelete";
+import { useLanguage } from "@/lib/i18n";
 
 type FilterStatus = "all" | "pending" | "approved" | "rejected";
 
@@ -30,13 +31,6 @@ interface SubmissionDetail extends Submission {
   label_id: string;
   producer_email: string;
 }
-
-const FILTER_TABS: { key: FilterStatus; label: string }[] = [
-  { key: "all", label: "Todos" },
-  { key: "pending", label: "Pendientes" },
-  { key: "approved", label: "Aprobados" },
-  { key: "rejected", label: "Rechazados" },
-];
 
 function formatRelativeTime(isoDate: string): string {
   const now = new Date();
@@ -70,7 +64,7 @@ function formatLufs(lufs: number | null): string {
 }
 
 function formatPhase(phase: number | null): { text: string; color: string } {
-  if (phase == null) return { text: "—", color: "#71717a" };
+  if (phase == null) return { text: "—", color: "var(--text-muted)" };
   return phase > 0
     ? { text: "OK", color: "#10b981" }
     : { text: "INV", color: "#ef4444" };
@@ -82,13 +76,14 @@ function formatKey(key: string | null): string {
 
 export default function InboxPage() {
   return (
-    <Suspense fallback={<div className="animate-pulse h-96 rounded" style={{ background: "#0c0c0e", border: "1px solid #27272a" }} />}>
+    <Suspense fallback={<div className="animate-pulse h-96 rounded" style={{ background: "var(--bg-secondary)", border: "1px solid var(--border)" }} />}>
       <InboxContent />
     </Suspense>
   );
 }
 
 function InboxContent() {
+  const { t } = useLanguage();
   const [filter, setFilter] = useState<FilterStatus>("all");
   const [downloadableOnly, setDownloadableOnly] = useState(false);
   const searchParams = useSearchParams();
@@ -98,7 +93,6 @@ function InboxContent() {
   const [error, setError] = useState<string | null>(null);
   const { playTrack, togglePlay, isPlaying, currentTrack } = usePlayer();
 
-  // Modal state
   const [modal, setModal] = useState<{
     open: boolean;
     detail: SubmissionDetail | null;
@@ -106,7 +100,6 @@ function InboxContent() {
     error: string | null;
   }>({ open: false, detail: null, loading: false, error: null });
 
-  // Per-row action loading states
   const [actionLoading, setActionLoading] = useState<Record<string, "listen" | "approve" | "discard">>({});
 
   const API = "";
@@ -115,7 +108,6 @@ function InboxContent() {
     return { "Content-Type": "application/json" };
   }, []);
 
-  // Open listen modal
   const handleListen = async (id: string) => {
     setModal({ open: true, detail: null, loading: true, error: null });
     setActionLoading((prev) => ({ ...prev, [id]: "listen" }));
@@ -128,7 +120,7 @@ function InboxContent() {
       const detail: SubmissionDetail = await res.json();
       setModal({ open: true, detail, loading: false, error: null });
     } catch (e) {
-      setModal({ open: true, detail: null, loading: false, error: e instanceof Error ? e.message : "Error desconocido" });
+      setModal({ open: true, detail: null, loading: false, error: e instanceof Error ? e.message : t("inbox.error_unknown") });
     } finally {
       setActionLoading((prev) => {
         const next = { ...prev };
@@ -138,7 +130,6 @@ function InboxContent() {
     }
   };
 
-  // Approve submission
   const handleApprove = async (id: string) => {
     setActionLoading((prev) => ({ ...prev, [id]: "approve" }));
     try {
@@ -156,7 +147,7 @@ function InboxContent() {
         )
       );
     } catch (e) {
-      alert(`Error al aprobar: ${e instanceof Error ? e.message : "Error desconocido"}`);
+      alert(`${t("inbox.error_approve")}: ${e instanceof Error ? e.message : t("inbox.error_unknown")}`);
     } finally {
       setActionLoading((prev) => {
         const next = { ...prev };
@@ -166,7 +157,6 @@ function InboxContent() {
     }
   };
 
-  // Discard (delete) submission
   const handleDiscard = async (id: string) => {
     setActionLoading((prev) => ({ ...prev, [id]: "discard" }));
     try {
@@ -178,7 +168,7 @@ function InboxContent() {
       if (!res.ok) throw new Error(`Error ${res.status}`);
       setSubmissions((prev) => prev.filter((s) => s.id !== id));
     } catch (e) {
-      alert(`Error al descartar: ${e instanceof Error ? e.message : "Error desconocido"}`);
+      alert(`${t("inbox.error_discard")}: ${e instanceof Error ? e.message : t("inbox.error_unknown")}`);
     } finally {
       setActionLoading((prev) => {
         const next = { ...prev };
@@ -195,14 +185,12 @@ function InboxContent() {
   useEffect(() => {
     const fetchSubmissions = async () => {
       try {
-        const res = await fetch(`/api/submissions`, {
-          credentials: "include",
-        });
+        const res = await fetch(`/api/submissions`, { credentials: "include" });
         if (!res.ok) throw new Error(`Error ${res.status}`);
         const data: Submission[] = await res.json();
         setSubmissions(data);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Error desconocido");
+        setError(e instanceof Error ? e.message : t("inbox.error_unknown"));
       } finally {
         setLoading(false);
       }
@@ -217,7 +205,6 @@ function InboxContent() {
   const processedCount = submissions.filter((d) => d.status !== "pending").length;
   const downloadableCount = submissions.filter((d) => d.original_path || d.mp3_path).length;
 
-  // Scroll to highlighted submission from CRM link
   useEffect(() => {
     if (highlightParam && !loading && submissions.length > 0) {
       const el = document.getElementById(`sub-${highlightParam}`);
@@ -227,39 +214,46 @@ function InboxContent() {
     }
   }, [highlightParam, loading, submissions.length]);
 
+  const filterTabs: { key: FilterStatus; label: string }[] = [
+    { key: "all", label: t("inbox.filter.all") },
+    { key: "pending", label: t("inbox.filter.pending") },
+    { key: "approved", label: t("inbox.filter.approved") },
+    { key: "rejected", label: t("inbox.filter.rejected") },
+  ];
+
   if (loading) {
     return (
       <div className="max-w-6xl mx-auto px-6 py-8">
         <div className="flex items-center gap-3 mb-6">
-          <h1 className="font-display font-semibold text-xl">Bandeja de tracks</h1>
+          <h1 className="font-display font-semibold text-xl">{t("inbox.title")}</h1>
         </div>
-        <div className="rounded border overflow-hidden" style={{ borderColor: "#27272a", background: "#0c0c0e" }}>
-          <div className="grid grid-cols-12 gap-2 px-4 py-2.5 text-[10px] font-mono uppercase tracking-wider text-muted border-b" style={{ borderColor: "#27272a" }}>
-            <div className="col-span-3">Track</div>
-            <div className="col-span-1 text-center">BPM</div>
-            <div className="col-span-1 text-center">LUFS</div>
-            <div className="col-span-1 text-center">Dur</div>
-            <div className="col-span-1 text-center">Fase</div>
-            <div className="col-span-1 text-center">Escala</div>
-            <div className="col-span-2 text-center">Estado</div>
-            <div className="col-span-2 text-right">Acción</div>
+        <div className="rounded border overflow-hidden" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
+          <div className="grid grid-cols-12 gap-2 px-4 py-2.5 text-[10px] font-mono uppercase tracking-wider text-muted border-b" style={{ borderColor: "var(--border)" }}>
+            <div className="col-span-3">{t("inbox.header.track")}</div>
+            <div className="col-span-1 text-center">{t("inbox.header.bpm")}</div>
+            <div className="col-span-1 text-center">{t("inbox.header.lufs")}</div>
+            <div className="col-span-1 text-center">{t("inbox.header.dur")}</div>
+            <div className="col-span-1 text-center">{t("inbox.header.phase")}</div>
+            <div className="col-span-1 text-center">{t("inbox.header.key")}</div>
+            <div className="col-span-2 text-center">{t("inbox.header.status")}</div>
+            <div className="col-span-2 text-right">{t("inbox.header.action")}</div>
           </div>
           {[0, 1, 2, 3, 4].map((i) => (
-            <div key={i} className="grid grid-cols-12 gap-2 px-4 py-3 items-center border-b animate-pulse" style={{ borderColor: "#1a1a1e" }}>
+            <div key={i} className="grid grid-cols-12 gap-2 px-4 py-3 items-center border-b animate-pulse" style={{ borderColor: "var(--border-light)" }}>
               <div className="col-span-3">
-                <div className="h-3 rounded w-32 mb-1" style={{ background: "#1a1a1e" }} />
-                <div className="h-2 rounded w-20" style={{ background: "#1a1a1e" }} />
+                <div className="h-3 rounded w-32 mb-1" style={{ background: "var(--border-light)" }} />
+                <div className="h-2 rounded w-20" style={{ background: "var(--border-light)" }} />
               </div>
               {[0, 1, 2, 3, 4].map((j) => (
                 <div key={j} className="col-span-1 text-center">
-                  <div className="h-3 rounded w-8 mx-auto" style={{ background: "#1a1a1e" }} />
+                  <div className="h-3 rounded w-8 mx-auto" style={{ background: "var(--border-light)" }} />
                 </div>
               ))}
               <div className="col-span-2 text-center">
-                <div className="h-4 rounded w-16 mx-auto" style={{ background: "#1a1a1e" }} />
+                <div className="h-4 rounded w-16 mx-auto" style={{ background: "var(--border-light)" }} />
               </div>
               <div className="col-span-2 text-right">
-                <div className="h-5 rounded w-20 ml-auto" style={{ background: "#1a1a1e" }} />
+                <div className="h-5 rounded w-20 ml-auto" style={{ background: "var(--border-light)" }} />
               </div>
             </div>
           ))}
@@ -271,15 +265,15 @@ function InboxContent() {
   if (error) {
     return (
       <div className="max-w-6xl mx-auto px-6 py-8">
-        <h1 className="font-display font-semibold text-xl mb-6">Bandeja de tracks</h1>
-        <div className="rounded border p-8 text-center" style={{ borderColor: "#27272a", background: "#0c0c0e" }}>
-          <p className="text-sm" style={{ color: "#ef4444" }}>Error al cargar demos: {error}</p>
+        <h1 className="font-display font-semibold text-xl mb-6">{t("inbox.title")}</h1>
+        <div className="rounded border p-8 text-center" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
+          <p className="text-sm" style={{ color: "#ef4444" }}>{t("inbox.error_load")}: {error}</p>
           <button
             onClick={() => { setLoading(true); setError(null); }}
             className="mt-4 px-4 py-2 rounded text-sm font-medium"
             style={{ background: "#10b981", color: "#09090b" }}
           >
-            Reintentar
+            {t("inbox.retry")}
           </button>
         </div>
       </div>
@@ -300,29 +294,29 @@ function InboxContent() {
       `}</style>
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <h1 className="font-display font-semibold text-xl">Bandeja de tracks</h1>
+          <h1 className="font-display font-semibold text-xl">{t("inbox.title")}</h1>
           {pendingCount > 0 && (
             <span className="font-mono text-xs px-2 py-0.5 rounded" style={{ background: "rgba(16,185,129,0.15)", color: "#10b981" }}>
-              {pendingCount} nuevos
+              {pendingCount} {t("inbox.new")}
             </span>
           )}
           <span className="font-mono text-[11px] px-2 py-0.5 rounded" style={{ background: "rgba(16,185,129,0.10)", color: "#10b981" }}>
-            {processedCount}/100 procesados
+            {processedCount}/100 {t("inbox.processed")}
           </span>
         </div>
       </div>
 
       {/* Filter Tabs */}
       <div className="mb-6 flex gap-1 items-center">
-        {FILTER_TABS.map((tab) => (
+        {filterTabs.map((tab) => (
           <button
             key={tab.key}
             onClick={() => setFilter(tab.key)}
             className="px-4 py-1.5 text-sm font-medium rounded transition-colors"
             style={{
-              background: filter === tab.key ? "#18181b" : "transparent",
-              color: filter === tab.key ? "#fafafa" : "#71717a",
-              border: filter === tab.key ? "1px solid #27272a" : "1px solid transparent",
+              background: filter === tab.key ? "var(--bg-card-alt)" : "transparent",
+              color: filter === tab.key ? "var(--text-primary)" : "var(--text-muted)",
+              border: filter === tab.key ? "1px solid var(--border)" : "1px solid transparent",
             }}
           >
             {tab.label}
@@ -330,35 +324,35 @@ function InboxContent() {
         ))}
         <div className="flex-1" />
         <div className="flex items-center gap-2">
-          <span className="text-[10px] text-muted">HQ</span>
+          <span className="text-[10px] text-muted">{t("inbox.hq_toggle")}</span>
           <button
             onClick={() => setDownloadableOnly((p) => !p)}
             className="relative w-8 h-4 rounded-full transition-colors cursor-pointer"
-            style={{ background: downloadableOnly ? "#10b981" : "#27272a" }}
+            style={{ background: downloadableOnly ? "#10b981" : "var(--border)" }}
           >
             <div
               className="absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform"
               style={{ left: downloadableOnly ? "calc(100% - 14px)" : "2px" }}
             />
           </button>
-          <span className="text-[10px] font-mono" style={{ color: downloadableOnly ? "#10b981" : "#71717a" }}>
+          <span className="text-[10px] font-mono" style={{ color: downloadableOnly ? "#10b981" : "var(--text-muted)" }}>
             {downloadableCount}/10
           </span>
         </div>
       </div>
 
       {/* Table */}
-      <div className="rounded border overflow-hidden" style={{ borderColor: "#27272a", background: "#0c0c0e" }}>
+      <div className="rounded border overflow-hidden" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
         {/* Header */}
-        <div className="grid grid-cols-12 gap-2 px-4 py-2.5 text-[10px] font-mono uppercase tracking-wider text-muted border-b" style={{ borderColor: "#27272a" }}>
-          <div className="col-span-3">Track</div>
-          <div className="col-span-1 text-center">BPM</div>
-          <div className="col-span-1 text-center">LUFS</div>
-          <div className="col-span-1 text-center">Dur</div>
-          <div className="col-span-1 text-center">Fase</div>
-          <div className="col-span-1 text-center">Escala</div>
-          <div className="col-span-2 text-center">Estado</div>
-          <div className="col-span-2 text-right">Acción</div>
+        <div className="grid grid-cols-12 gap-2 px-4 py-2.5 text-[10px] font-mono uppercase tracking-wider text-muted border-b" style={{ borderColor: "var(--border)" }}>
+          <div className="col-span-3">{t("inbox.header.track")}</div>
+          <div className="col-span-1 text-center">{t("inbox.header.bpm")}</div>
+          <div className="col-span-1 text-center">{t("inbox.header.lufs")}</div>
+          <div className="col-span-1 text-center">{t("inbox.header.dur")}</div>
+          <div className="col-span-1 text-center">{t("inbox.header.phase")}</div>
+          <div className="col-span-1 text-center">{t("inbox.header.key")}</div>
+          <div className="col-span-2 text-center">{t("inbox.header.status")}</div>
+          <div className="col-span-2 text-right">{t("inbox.header.action")}</div>
         </div>
 
         {/* Rows */}
@@ -371,7 +365,7 @@ function InboxContent() {
               id={`sub-${d.id}`}
               className="grid grid-cols-12 gap-2 px-4 py-3 text-xs items-center border-b transition-all duration-500"
               style={{
-                borderColor: "#1a1a1e",
+                borderColor: "var(--border-light)",
                 background: isHighlighted
                   ? "rgba(16,185,129,0.08)"
                   : d.status === "pending"
@@ -384,10 +378,10 @@ function InboxContent() {
               <div className="col-span-3 flex items-center gap-2">
                 {d.mp3_path && (
                   <button
-                    onClick={(e) => { e.stopPropagation(); if (currentTrack?.id === d.id) { togglePlay(); } else { playTrack({ id: d.id, track_name: d.track_name || "Sin nombre", producer_name: d.producer_name || "Anónimo", mp3_path: d.mp3_path ?? null }); } }}
+                    onClick={(e) => { e.stopPropagation(); if (currentTrack?.id === d.id) { togglePlay(); } else { playTrack({ id: d.id, track_name: d.track_name || t("inbox.modal.no_name"), producer_name: d.producer_name || t("inbox.modal.anonymous"), mp3_path: d.mp3_path ?? null }); } }}
                     className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center transition-colors hover:bg-white/10"
                     title="Reproducir"
-                    style={{ color: currentTrack?.id === d.id ? "#10b981" : "#a1a1aa" }}
+                    style={{ color: currentTrack?.id === d.id ? "#10b981" : "var(--text-secondary)" }}
                   >
                     {currentTrack?.id === d.id && isPlaying ? (
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>
@@ -397,9 +391,9 @@ function InboxContent() {
                   </button>
                 )}
                 <div className="min-w-0 flex-1">
-                  <div className="font-medium truncate">{d.track_name || "Sin nombre"}</div>
+                  <div className="font-medium truncate">{d.track_name || t("inbox.modal.no_name")}</div>
                   <div className="text-[10px] text-muted flex items-center gap-1.5">
-                    <span>{d.producer_name || "Anónimo"} · {formatRelativeTime(d.created_at)}</span>
+                    <span>{d.producer_name || t("inbox.modal.anonymous")} · {formatRelativeTime(d.created_at)}</span>
                     {d.producer_email && (
                       <Link
                         href={`/crm?highlight=${d.id}`}
@@ -420,24 +414,21 @@ function InboxContent() {
               <div className="col-span-1 text-center font-mono text-muted">{formatKey(d.musical_key)}</div>
               <div className="col-span-2 text-center">
                 {d.status === "pending" && (
-                  <span className="font-mono text-[10px] px-2 py-0.5 rounded" style={{ background: "rgba(6,182,212,0.15)", color: "#06b6d4" }}>Pendiente</span>
+                  <span className="font-mono text-[10px] px-2 py-0.5 rounded" style={{ background: "rgba(6,182,212,0.15)", color: "#06b6d4" }}>{t("inbox.status.pending")}</span>
                 )}
                 {d.status === "approved" && (
-                  <span className="font-mono text-[10px] px-2 py-0.5 rounded" style={{ background: "rgba(16,185,129,0.15)", color: "#10b981" }}>Aprobado</span>
+                  <span className="font-mono text-[10px] px-2 py-0.5 rounded" style={{ background: "rgba(16,185,129,0.15)", color: "#10b981" }}>{t("inbox.status.approved")}</span>
                 )}
                 {d.status === "rejected" && (
-                  <span className="font-mono text-[10px] px-2 py-0.5 rounded" style={{ background: "rgba(239,68,68,0.15)", color: "#ef4444" }}>Rechazado</span>
+                  <span className="font-mono text-[10px] px-2 py-0.5 rounded" style={{ background: "rgba(239,68,68,0.15)", color: "#ef4444" }}>{t("inbox.status.rejected")}</span>
                 )}
               </div>
               <div className="col-span-2 text-right flex items-center justify-end gap-1.5">
-                {/* Download — icon only, tooltip shows file type */}
                 {(d.original_path || d.mp3_path) && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      fetch(`/api/submissions/${d.id}/download`, {
-                        credentials: "include",
-                      })
+                      fetch(`/api/submissions/${d.id}/download`, { credentials: "include" })
                         .then((res) => {
                           if (!res.ok) throw new Error("No disponible");
                           return res.blob();
@@ -451,10 +442,10 @@ function InboxContent() {
                           a.click();
                           URL.revokeObjectURL(url);
                         })
-                        .catch(() => alert("Archivo no disponible para descarga."));
+                        .catch(() => alert(t("inbox.download_unavailable")));
                     }}
                     className="w-6 h-6 rounded flex items-center justify-center transition-colors hover:bg-white/10"
-                    title={`Descargar ${d.original_path ? "original" : "MP3"}`}
+                    title={d.original_path ? t("inbox.action.download_original") : t("inbox.action.download_mp3")}
                     style={{ color: "#10b981" }}
                   >
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -465,10 +456,10 @@ function InboxContent() {
                 {d.status === "pending" && (
                   <>
                     <button onClick={() => handleListen(d.id)} disabled={!!actionLoading[d.id]} className="px-3 py-1 rounded text-[10px] font-medium disabled:opacity-50" style={{ background: "#10b981", color: "#09090b" }}>
-                      {actionLoading[d.id] === "listen" ? "..." : "Escuchar"}
+                      {actionLoading[d.id] === "listen" ? "..." : t("inbox.action.listen")}
                     </button>
                     <button onClick={() => handleApprove(d.id)} disabled={!!actionLoading[d.id]} className="px-3 py-1 rounded text-[10px] font-medium disabled:opacity-50" style={{ background: "#06b6d4", color: "#09090b" }}>
-                      {actionLoading[d.id] === "approve" ? "..." : "Aprobar"}
+                      {actionLoading[d.id] === "approve" ? "..." : t("inbox.action.approve")}
                     </button>
                     <TwoClickDelete onDelete={() => handleDiscard(d.id)} size={22} />
                   </>
@@ -481,9 +472,7 @@ function InboxContent() {
           );
         }) : (
           <div className="py-12 text-center text-muted">
-            {filter === "all"
-              ? "No hay demos todavía. Compartí tu link para empezar a recibir."
-              : "No hay demos en esta categoría."}
+            {filter === "all" ? t("inbox.empty.all") : t("inbox.empty.filter")}
           </div>
         )}
       </div>
@@ -497,25 +486,23 @@ function InboxContent() {
         >
           <div
             className="rounded border max-w-lg w-full mx-4 overflow-hidden"
-            style={{ borderColor: "#27272a", background: "#0c0c0e" }}
+            style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Modal header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: "#27272a" }}>
-              <h2 className="font-display font-semibold text-base">Detalle del track</h2>
+            <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: "var(--border)" }}>
+              <h2 className="font-display font-semibold text-base">{t("inbox.modal.title")}</h2>
               <button
                 onClick={closeModal}
                 className="w-7 h-7 rounded flex items-center justify-center text-muted hover:text-white transition-colors"
-                style={{ background: "#18181b" }}
+                style={{ background: "var(--bg-card-alt)" }}
               >
                 ✕
               </button>
             </div>
 
-            {/* Modal body */}
             <div className="px-5 py-4">
               {modal.loading && (
-                <div className="py-8 text-center text-muted text-sm animate-pulse">Cargando detalles...</div>
+                <div className="py-8 text-center text-muted text-sm animate-pulse">{t("inbox.modal.loading")}</div>
               )}
               {modal.error && (
                 <div className="py-8 text-center text-sm" style={{ color: "#ef4444" }}>
@@ -524,62 +511,58 @@ function InboxContent() {
               )}
               {modal.detail && (
                 <div className="space-y-4">
-                  {/* Track info */}
                   <div>
-                    <div className="font-medium text-sm">{modal.detail.track_name || "Sin nombre"}</div>
-                    <div className="text-xs text-muted mt-0.5">{modal.detail.producer_name || "Anónimo"} · {modal.detail.producer_email || "Sin email"}</div>
+                    <div className="font-medium text-sm">{modal.detail.track_name || t("inbox.modal.no_name")}</div>
+                    <div className="text-xs text-muted mt-0.5">{modal.detail.producer_name || t("inbox.modal.anonymous")} · {modal.detail.producer_email || t("inbox.modal.no_email")}</div>
                   </div>
 
-                  {/* Specs grid */}
                   <div className="grid grid-cols-4 gap-2">
-                    <div className="rounded px-3 py-2 text-center" style={{ background: "#18181b" }}>
-                      <div className="text-[10px] text-muted uppercase tracking-wider">BPM</div>
+                    <div className="rounded px-3 py-2 text-center" style={{ background: "var(--bg-card-alt)" }}>
+                      <div className="text-[10px] text-muted uppercase tracking-wider">{t("inbox.header.bpm")}</div>
                       <div className="font-mono text-sm mt-0.5">{formatBpm(modal.detail.bpm)}</div>
                     </div>
-                    <div className="rounded px-3 py-2 text-center" style={{ background: "#18181b" }}>
-                      <div className="text-[10px] text-muted uppercase tracking-wider">LUFS</div>
+                    <div className="rounded px-3 py-2 text-center" style={{ background: "var(--bg-card-alt)" }}>
+                      <div className="text-[10px] text-muted uppercase tracking-wider">{t("inbox.header.lufs")}</div>
                       <div className="font-mono text-sm mt-0.5">{formatLufs(modal.detail.lufs)}</div>
                     </div>
-                    <div className="rounded px-3 py-2 text-center" style={{ background: "#18181b" }}>
-                      <div className="text-[10px] text-muted uppercase tracking-wider">Fase</div>
+                    <div className="rounded px-3 py-2 text-center" style={{ background: "var(--bg-card-alt)" }}>
+                      <div className="text-[10px] text-muted uppercase tracking-wider">{t("inbox.header.phase")}</div>
                       <div className="font-mono text-sm mt-0.5" style={{ color: formatPhase(modal.detail.phase_correlation).color }}>
                         {formatPhase(modal.detail.phase_correlation).text}
                       </div>
                     </div>
-                    <div className="rounded px-3 py-2 text-center" style={{ background: "#18181b" }}>
-                      <div className="text-[10px] text-muted uppercase tracking-wider">Escala</div>
+                    <div className="rounded px-3 py-2 text-center" style={{ background: "var(--bg-card-alt)" }}>
+                      <div className="text-[10px] text-muted uppercase tracking-wider">{t("inbox.header.key")}</div>
                       <div className="font-mono text-sm mt-0.5">{formatKey(modal.detail.musical_key)}</div>
                     </div>
                   </div>
 
-                  {/* Status */}
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted">Estado:</span>
+                    <span className="text-xs text-muted">{t("inbox.modal.status_label")}:</span>
                     {modal.detail.status === "pending" && (
-                      <span className="font-mono text-[10px] px-2 py-0.5 rounded" style={{ background: "rgba(6,182,212,0.15)", color: "#06b6d4" }}>Pendiente</span>
+                      <span className="font-mono text-[10px] px-2 py-0.5 rounded" style={{ background: "rgba(6,182,212,0.15)", color: "#06b6d4" }}>{t("inbox.status.pending")}</span>
                     )}
                     {modal.detail.status === "approved" && (
-                      <span className="font-mono text-[10px] px-2 py-0.5 rounded" style={{ background: "rgba(16,185,129,0.15)", color: "#10b981" }}>Aprobado</span>
+                      <span className="font-mono text-[10px] px-2 py-0.5 rounded" style={{ background: "rgba(16,185,129,0.15)", color: "#10b981" }}>{t("inbox.status.approved")}</span>
                     )}
                     {modal.detail.status === "rejected" && (
-                      <span className="font-mono text-[10px] px-2 py-0.5 rounded" style={{ background: "rgba(239,68,68,0.15)", color: "#ef4444" }}>Rechazado</span>
+                      <span className="font-mono text-[10px] px-2 py-0.5 rounded" style={{ background: "rgba(239,68,68,0.15)", color: "#ef4444" }}>{t("inbox.status.rejected")}</span>
                     )}
                     {modal.detail.rejection_reason && (
                       <span className="text-xs" style={{ color: "#ef4444" }}>— {modal.detail.rejection_reason}</span>
                     )}
                   </div>
 
-                  {/* Audio player */}
                   {modal.detail.mp3_path ? (
                     <div>
-                      <div className="text-xs text-muted mb-2">Preview de audio</div>
+                      <div className="text-xs text-muted mb-2">{t("inbox.modal.audio_label")}</div>
                       <audio controls className="w-full" src={`${API}/files/${modal.detail.mp3_path}`} style={{ borderRadius: "6px" }}>
-                        Tu navegador no soporta audio.
+                        {t("inbox.modal.browser_no_audio")}
                       </audio>
                     </div>
                   ) : (
                     <div className="rounded px-3 py-2 text-xs text-center" style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444" }}>
-                      Este track no tiene preview de audio todavía.
+                      {t("inbox.modal.no_audio")}
                     </div>
                   )}
                 </div>
@@ -591,5 +574,3 @@ function InboxContent() {
     </div>
   );
 }
-
-

@@ -6,15 +6,8 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { PlayerProvider, usePlayer, type PlayerTrack } from "@/lib/PlayerContext";
 import WhatsAppBubble from "@/components/WhatsAppBubble";
-
-const navItems = [
-  { href: "/config", label: "Firma sónica" },
-  { href: "/link", label: "Link" },
-  { href: "/inbox", label: "Tracks" },
-  { href: "/crm", label: "Emails" },
-  { href: "/settings", label: "Ajustes" },
-  { href: "/guide", label: "Guía" },
-];
+import { useLanguage } from "@/lib/i18n";
+import { useTheme } from "@/lib/theme";
 
 function PlayerBar() {
   const { currentTrack, isPlaying, progress, duration, volume, hasTracks, togglePlay, prevTrack, nextTrack, setVolume, seekTo, formatTime, audioRef } = usePlayer();
@@ -31,8 +24,8 @@ function PlayerBar() {
       className="fixed bottom-0 left-0 right-0 z-50 flex items-center gap-2 md:gap-4 px-2 md:px-4 md:ml-[240px]"
       style={{
         height: "64px",
-        background: "#111114",
-        borderTop: "1px solid #27272a",
+        background: "var(--bg-card)",
+        borderTop: "1px solid var(--border)",
       }}
     >
       <button onClick={prevTrack} className="p-1.5 rounded transition-colors hover:bg-white/10" title="Anterior">
@@ -43,9 +36,9 @@ function PlayerBar() {
 
       <button onClick={togglePlay} className="p-2 rounded-full transition-colors hover:bg-white/10" title={isPlaying ? "Pausar" : "Reproducir"}>
         {isPlaying ? (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="#fafafa"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="var(--text-primary)"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>
         ) : (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="#fafafa"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="var(--text-primary)"><polygon points="5 3 19 12 5 21 5 3" /></svg>
         )}
       </button>
 
@@ -55,7 +48,7 @@ function PlayerBar() {
         </svg>
       </button>
 
-      <div className="flex-1 h-1.5 rounded-full cursor-pointer group" style={{ background: "#27272a" }} onClick={handleSeek}>
+      <div className="flex-1 h-1.5 rounded-full cursor-pointer group" style={{ background: "var(--border)" }} onClick={handleSeek}>
         <div className="h-full rounded-full transition-all duration-150 group-hover:h-2" style={{ width: `${progress}%`, background: "#10b981" }} />
       </div>
 
@@ -83,9 +76,12 @@ function PlayerBar() {
 function DashboardInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { t } = useLanguage();
+  const { toggleTheme } = useTheme();
   const [labelName, setLabelName] = useState<string>("");
   const [planInfo, setPlanInfo] = useState<string>("");
   const [plan, setPlan] = useState<string>("free");
+  const [logoPath, setLogoPath] = useState<string | null>(null);
   const [hqCount, setHqCount] = useState<{ count: number; limit: number; processed_count: number } | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [remainingTracks, setRemainingTracks] = useState<number | null>(null);
@@ -104,6 +100,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
           setLabelName(data.name || slug);
           setPlanInfo(data.plan || "");
           setPlan(data.plan || "free");
+          setLogoPath(data.logo_path || null);
           localStorage.setItem("plan", data.plan || "free");
         } else { setLabelName(slug); setPlanInfo(""); }
       } catch { setLabelName(slug); setPlanInfo(""); }
@@ -118,7 +115,6 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
         if (res.ok) {
           const data = await res.json();
           setHqCount(data);
-          // Calculate remaining free tracks
           if (data.plan === "free" || (data.plan === undefined && (localStorage.getItem("plan") || "free") === "free")) {
             const processedCount = data.processed_count ?? 0;
             const remaining = Math.max(0, 5 - processedCount);
@@ -144,13 +140,23 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
     fetchTracks();
   }, []);
 
+  const navItems = [
+    { href: "/config", label: t("dashboard.nav.config") },
+    { href: "/link", label: t("dashboard.nav.link") },
+    { href: "/inbox", label: t("dashboard.nav.inbox") },
+    { href: "/crm", label: t("dashboard.nav.crm") },
+    { href: "/guide", label: t("dashboard.nav.guide") },
+  ];
+
+  const labelInitial = labelName ? labelName.charAt(0).toUpperCase() : "?";
+
   return (
-    <div className="flex min-h-screen" style={{ background: "#09090b", color: "#fafafa" }}>
+    <div className="flex min-h-screen" style={{ background: "var(--bg-primary)", color: "var(--text-primary)" }}>
       {/* Mobile hamburger */}
       <button
         onClick={() => setSidebarOpen((p) => !p)}
         className="fixed top-3 left-3 z-50 md:hidden w-9 h-9 rounded flex items-center justify-center"
-        style={{ background: "#111114", border: "1px solid #27272a" }}
+        style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a1a1aa" strokeWidth="2">
           {sidebarOpen ? <><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></> : <><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" /></>}
@@ -165,29 +171,60 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
       {/* Sidebar */}
       <aside
         className={`fixed top-0 left-0 h-full flex flex-col z-40 transition-transform ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0`}
-        style={{ width: "240px", background: "#111114", borderRight: "1px solid #27272a" }}
+        style={{ width: "240px", background: "var(--bg-card)", borderRight: "1px solid var(--border)" }}
       >
         <div className="px-5 pt-6 pb-4">
           <Link href="/"><img src="/logo.png" alt="True Peak AI" className="h-7 w-auto" /></Link>
         </div>
-        <nav className="flex-1 px-3">
+
+        {/* Label info with logo/avatar */}
+        {labelName && (
+          <div className="px-5 pb-3">
+            <div style={{ borderBottom: "1px solid var(--border)" }} className="pb-3">
+              <div className="flex items-center gap-3">
+                {logoPath ? (
+                  <img
+                    src={`/logos/${logoPath}`}
+                    alt={labelName}
+                    className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+                    style={{ border: "1px solid var(--border)" }}
+                  />
+                ) : (
+                  <div
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0"
+                    style={{ background: "rgba(16,185,129,0.15)", color: "#10b981" }}
+                  >
+                    {labelInitial}
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium truncate">{labelName}</div>
+                  {planInfo && <div className="text-[10px] text-muted mt-0.5">{planInfo}</div>}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <nav className="flex-1 px-3 pt-3">
           {navItems.map((item) => {
             const isActive = pathname === item.href;
             return (
               <Link key={item.href} href={item.href} onClick={() => setSidebarOpen(false)}
                 className={cn("block text-sm px-3 py-2 rounded transition-colors mb-0.5", isActive ? "font-medium" : "hover:bg-white/5")}
-                style={{ color: isActive ? "#10b981" : "#a1a1aa", background: isActive ? "rgba(16,185,129,0.08)" : "transparent" }}>
+                style={{ color: isActive ? "#10b981" : "var(--text-secondary)", background: isActive ? "rgba(16,185,129,0.08)" : "transparent" }}>
                 {item.label}
               </Link>
             );
           })}
         </nav>
+
         {hqCount && (
           <div className="px-3 mb-1 space-y-1">
             {plan === "free" && remainingTracks !== null && (
               remainingTracks === 0 ? (
                 <div className="px-3 py-1.5 rounded text-xs font-mono" style={{ background: "rgba(239,68,68,0.06)", color: "#ef4444" }}>
-                  Sin tracks disponibles —{" "}
+                  {t("dashboard.no_tracks")} —{" "}
                   <a
                     href="https://truepeak.lemonsqueezy.com/checkout/buy/xxx"
                     target="_blank"
@@ -195,29 +232,31 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
                     className="underline hover:opacity-80"
                     style={{ color: "#ef4444" }}
                   >
-                    Upgrade a Pro
+                    {t("dashboard.upgrade")}
                   </a>
                 </div>
               ) : remainingTracks < 5 ? (
                 <div className="px-3 py-1.5 rounded text-xs font-mono" style={{ background: "rgba(250,204,21,0.06)", color: "#facc15" }}>
-                  ⚠ Te quedan {remainingTracks} tracks gratis
+                  ⚠ {t("dashboard.remaining")} {remainingTracks} {t("dashboard.tracks_free")}
                 </div>
               ) : null
             )}
-            <div className="px-3 py-1.5 rounded text-xs font-mono" style={{ background: "rgba(16,185,129,0.06)", color: hqCount.count >= hqCount.limit ? "#ef4444" : "#71717a" }}>
+            <div className="px-3 py-1.5 rounded text-xs font-mono" style={{ background: "rgba(16,185,129,0.06)", color: hqCount.count >= hqCount.limit ? "#ef4444" : "var(--text-muted)" }}>
               📦 {hqCount.count}/{hqCount.limit} HQ
             </div>
           </div>
         )}
-        {labelName && (
-          <div className="px-5 pb-2">
-            <div style={{ borderTop: "1px solid #27272a" }} className="pt-4">
-              <div className="text-sm font-medium truncate">{labelName}</div>
-              {planInfo && <div className="text-[10px] text-muted mt-0.5">{planInfo}</div>}
-            </div>
-          </div>
-        )}
+
+        {/* Bottom area: Settings + Logout */}
         <div className="px-3 pb-5">
+          <Link
+            href="/settings"
+            onClick={() => setSidebarOpen(false)}
+            className="block text-sm px-3 py-2 rounded transition-colors hover:bg-white/5"
+            style={{ color: "var(--text-muted)" }}
+          >
+            {t("dashboard.nav.settings")}
+          </Link>
           <button
             onClick={() => {
               localStorage.removeItem("slug");
@@ -228,9 +267,9 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
               router.push("/");
             }}
             className="w-full text-left text-sm px-3 py-2 rounded transition-colors hover:bg-white/5"
-            style={{ color: "#71717a" }}
+            style={{ color: "var(--text-muted)" }}
           >
-            Cerrar sesión
+            {t("dashboard.logout")}
           </button>
         </div>
       </aside>

@@ -2,14 +2,15 @@
 
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/lib/i18n";
 
 type LabelStats = { total: number; pending: number; approved: number; rejected: number };
 type LabelInfo = { id: string; name: string; slug: string; owner_email: string; sonic_signature: string; created_at: string; submission_title?: string; submission_description?: string; plan?: string };
-type Submission = { id: string; producer_name: string; producer_email: string | null; track_name: string; status: string; bpm: number | null; lufs: number | null; created_at: string; mp3_path?: string | null; notes?: string | null };
 
 const LEMON_SQUEEZY_URL = "https://truepeak.lemonsqueezy.com/checkout/buy/xxx";
 
 export default function LinkPage() {
+  const { t } = useLanguage();
   const [copied, setCopied] = useState(false);
   const [slug, setSlug] = useState<string | null>(null);
   const [labelName, setLabelName] = useState<string>("");
@@ -19,7 +20,6 @@ export default function LinkPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Editable submission texts
   const [editTitle, setEditTitle] = useState("Enviar demo");
   const [editDescription, setEditDescription] = useState("Subí tu WAV. Analizamos BPM, LUFS, fase y headroom antes de que el sello lo escuche.");
   const [savingTexts, setSavingTexts] = useState(false);
@@ -55,9 +55,7 @@ export default function LinkPage() {
 
     const fetchStats = async () => {
       try {
-        const res = await fetch(`/api/labels/${storedSlug}/stats`, {
-          credentials: "include",
-        });
+        const res = await fetch(`/api/labels/${storedSlug}/stats`, { credentials: "include" });
         if (!res.ok) throw new Error("Failed to fetch stats");
         const data: LabelStats = await res.json();
         setStats(data);
@@ -91,7 +89,7 @@ export default function LinkPage() {
       });
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.detail || "Error al guardar");
+        throw new Error(err.detail || t("link.edit.save_error"));
       }
       setTextsSaved(true);
       setTimeout(() => setTextsSaved(false), 3000);
@@ -105,10 +103,8 @@ export default function LinkPage() {
   if (error === "no-slug") {
     return (
       <div className="max-w-3xl mx-auto px-6 py-12">
-        <h1 className="font-display font-semibold text-2xl mb-4">Error</h1>
-        <p className="text-sm text-muted">
-          No se encontró tu sello. Iniciá sesión de nuevo.
-        </p>
+        <h1 className="font-display font-semibold text-2xl mb-4">{t("link.error.title")}</h1>
+        <p className="text-sm text-muted">{t("link.error.no_slug")}</p>
       </div>
     );
   }
@@ -116,14 +112,14 @@ export default function LinkPage() {
   if (loading) {
     return (
       <div className="max-w-3xl mx-auto px-6 py-12">
-        <div className="text-xs font-mono uppercase tracking-wider text-muted mb-1">Tu link de recepción</div>
-        <h1 className="font-display font-semibold text-2xl mb-6">Cargando...</h1>
+        <div className="text-xs font-mono uppercase tracking-wider text-muted mb-1">{t("link.section_label")}</div>
+        <h1 className="font-display font-semibold text-2xl mb-6">{t("link.loading")}</h1>
         <div className="animate-pulse space-y-4">
-          <div className="h-12 rounded" style={{ background: "#111114" }} />
-          <div className="h-40 rounded" style={{ background: "#111114" }} />
+          <div className="h-12 rounded" style={{ background: "var(--bg-card)" }} />
+          <div className="h-40 rounded" style={{ background: "var(--bg-card)" }} />
           <div className="grid grid-cols-4 gap-4">
             {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="h-20 rounded" style={{ background: "#111114" }} />
+              <div key={i} className="h-20 rounded" style={{ background: "var(--bg-card)" }} />
             ))}
           </div>
         </div>
@@ -134,57 +130,35 @@ export default function LinkPage() {
   const displayStats = stats ?? { total: 0, pending: 0, approved: 0, rejected: 0 };
   const isAtFreeLimit = plan === "free" && displayStats.total >= 5;
 
-  // Hard block: show banner instead of link when free tier limit reached
   if (isAtFreeLimit) {
     return (
       <div className="max-w-3xl mx-auto px-6 py-12">
-        <div className="text-xs font-mono uppercase tracking-wider text-muted mb-1">Tu link de recepción</div>
-        <h1 className="font-display font-semibold text-2xl mb-6">Compartí este link con productores</h1>
+        <div className="text-xs font-mono uppercase tracking-wider text-muted mb-1">{t("link.section_label")}</div>
+        <h1 className="font-display font-semibold text-2xl mb-6">{t("link.title")}</h1>
 
-        {/* Red banner — hard block */}
-        <div
-          className="rounded border p-6 mb-8"
-          style={{ borderColor: "rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.06)" }}
-        >
+        <div className="rounded border p-6 mb-8" style={{ borderColor: "rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.06)" }}>
           <div className="flex items-start gap-3">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" className="mt-0.5 flex-shrink-0">
-              <circle cx="12" cy="12" r="10" />
-              <line x1="12" y1="8" x2="12" y2="12" />
-              <line x1="12" y1="16" x2="12.01" y2="16" />
+              <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
             </svg>
             <div>
-              <p className="text-sm font-medium mb-1" style={{ color: "#ef4444" }}>
-                Límite alcanzado — 5/5 tracks procesados
-              </p>
-              <p className="text-sm text-muted mb-4">
-                Hacé upgrade a Pro para seguir recibiendo demos.
-              </p>
-              <a
-                href={LEMON_SQUEEZY_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-block px-5 py-2.5 rounded text-sm font-medium transition-all hover:opacity-90"
-                style={{ background: "#10b981", color: "#09090b" }}
-              >
-                Upgrade a Pro
+              <p className="text-sm font-medium mb-1" style={{ color: "#ef4444" }}>{t("link.limit.title")}</p>
+              <p className="text-sm text-muted mb-4">{t("link.limit.desc")}</p>
+              <a href={LEMON_SQUEEZY_URL} target="_blank" rel="noopener noreferrer" className="inline-block px-5 py-2.5 rounded text-sm font-medium transition-all hover:opacity-90" style={{ background: "#10b981", color: "#09090b" }}>
+                {t("link.limit.cta")}
               </a>
             </div>
           </div>
         </div>
 
-        {/* Stats still visible */}
         <div className="grid grid-cols-4 gap-4">
           {[
-            { label: "Total", value: String(displayStats.total) },
-            { label: "Pendientes", value: String(displayStats.pending) },
-            { label: "Aprobados", value: String(displayStats.approved) },
-            { label: "Rechazados", value: String(displayStats.rejected) },
+            { label: t("link.stats.total"), value: String(displayStats.total) },
+            { label: t("link.stats.pending"), value: String(displayStats.pending) },
+            { label: t("link.stats.approved"), value: String(displayStats.approved) },
+            { label: t("link.stats.rejected"), value: String(displayStats.rejected) },
           ].map((stat) => (
-            <div
-              key={stat.label}
-              className="rounded border p-4 text-center"
-              style={{ borderColor: "#27272a", background: "#111114" }}
-            >
+            <div key={stat.label} className="rounded border p-4 text-center" style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}>
               <div className="font-mono text-2xl font-bold">{stat.value}</div>
               <div className="text-xs text-muted mt-1">{stat.label}</div>
             </div>
@@ -196,52 +170,35 @@ export default function LinkPage() {
 
   return (
     <div className="max-w-3xl mx-auto px-6 py-12">
-      <div className="text-xs font-mono uppercase tracking-wider text-muted mb-1">Tu link de recepción</div>
-      <h1 className="font-display font-semibold text-2xl mb-6">Compartí este link con productores</h1>
+      <div className="text-xs font-mono uppercase tracking-wider text-muted mb-1">{t("link.section_label")}</div>
+      <h1 className="font-display font-semibold text-2xl mb-6">{t("link.title")}</h1>
 
       <div className="flex items-center gap-2 mb-4">
-        <div
-          className="flex-1 px-4 py-3 rounded border font-mono text-sm"
-          style={{ borderColor: "#27272a", background: "#111114" }}
-        >
+        <div className="flex-1 px-4 py-3 rounded border font-mono text-sm" style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}>
           {submissionUrl}
         </div>
-        <button
-          onClick={handleCopy}
-          className="px-4 py-3 rounded text-sm font-medium transition-all hover:opacity-90"
-          style={{ background: "#10b981", color: "#09090b" }}
-        >
-          {copied ? "✓ Copiado" : "Copiar"}
+        <button onClick={handleCopy} className="px-4 py-3 rounded text-sm font-medium transition-all hover:opacity-90" style={{ background: "#10b981", color: "#09090b" }}>
+          {copied ? t("link.copied") : t("link.copy")}
         </button>
       </div>
 
-      <p className="text-sm text-muted mb-8">
-        Los productores que entren por este link verán tu nombre de sello, tus requisitos técnicos y un formulario simple para subir su WAV.
-      </p>
+      <p className="text-sm text-muted mb-8">{t("link.description")}</p>
 
       {/* Preview */}
-      <div className="rounded border p-6" style={{ borderColor: "#27272a", background: "#111114" }}>
-        <div className="text-xs font-mono text-muted mb-4">Vista previa del link</div>
-        <div className="rounded border p-4" style={{ borderColor: "#27272a", background: "#0c0c0e" }}>
+      <div className="rounded border p-6" style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}>
+        <div className="text-xs font-mono text-muted mb-4">{t("link.preview_label")}</div>
+        <div className="rounded border p-4" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
           <div className="flex items-center gap-2 mb-3">
             <div className="w-5 h-5 rounded" style={{ background: "#10b981" }} />
             <span className="font-display font-semibold text-sm">{labelName || slug}</span>
           </div>
-          <p className="text-sm text-muted mb-4">
-            {editDescription}
-          </p>
+          <p className="text-sm text-muted mb-4">{editDescription}</p>
           <div className="flex items-center gap-2">
-            <div
-              className="flex-1 h-10 rounded border flex items-center px-3"
-              style={{ borderColor: "#27272a" }}
-            >
-              <span className="text-sm text-muted">Elegí tu archivo .wav…</span>
+            <div className="flex-1 h-10 rounded border flex items-center px-3" style={{ borderColor: "var(--border)" }}>
+              <span className="text-sm text-muted">{t("link.preview_placeholder")}</span>
             </div>
-            <button
-              className="px-5 h-10 rounded text-sm font-medium"
-              style={{ background: "#10b981", color: "#09090b" }}
-            >
-              Enviar
+            <button className="px-5 h-10 rounded text-sm font-medium" style={{ background: "#10b981", color: "#09090b" }}>
+              {t("link.preview_submit")}
             </button>
           </div>
         </div>
@@ -250,16 +207,12 @@ export default function LinkPage() {
       {/* Stats */}
       <div className="mt-8 grid grid-cols-4 gap-4">
         {[
-          { label: "Total", value: String(displayStats.total) },
-          { label: "Pendientes", value: String(displayStats.pending) },
-          { label: "Aprobados", value: String(displayStats.approved) },
-          { label: "Rechazados", value: String(displayStats.rejected) },
+          { label: t("link.stats.total"), value: String(displayStats.total) },
+          { label: t("link.stats.pending"), value: String(displayStats.pending) },
+          { label: t("link.stats.approved"), value: String(displayStats.approved) },
+          { label: t("link.stats.rejected"), value: String(displayStats.rejected) },
         ].map((stat) => (
-          <div
-            key={stat.label}
-            className="rounded border p-4 text-center"
-            style={{ borderColor: "#27272a", background: "#111114" }}
-          >
+          <div key={stat.label} className="rounded border p-4 text-center" style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}>
             <div className="font-mono text-2xl font-bold">{stat.value}</div>
             <div className="text-xs text-muted mt-1">{stat.label}</div>
           </div>
@@ -267,42 +220,22 @@ export default function LinkPage() {
       </div>
 
       {/* Editable submission texts */}
-      <div className="mt-8 rounded border p-6" style={{ borderColor: "#27272a", background: "#111114" }}>
-        <div className="text-xs font-mono text-muted mb-4">Editar textos de tu página</div>
+      <div className="mt-8 rounded border p-6" style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}>
+        <div className="text-xs font-mono text-muted mb-4">{t("link.edit.section")}</div>
         <div className="space-y-4">
           <div>
-            <label className="text-sm font-medium mb-1.5 block">Título</label>
-            <input
-              type="text"
-              value={editTitle}
-              onChange={(e) => setEditTitle(e.target.value)}
-              className="w-full px-3 py-2.5 rounded border text-sm bg-transparent"
-              style={{ borderColor: "#27272a" }}
-              placeholder="Enviar demo"
-            />
+            <label className="text-sm font-medium mb-1.5 block">{t("link.edit.title_label")}</label>
+            <input type="text" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="w-full px-3 py-2.5 rounded border text-sm bg-transparent" style={{ borderColor: "var(--border)" }} placeholder="Enviar demo" />
           </div>
           <div>
-            <label className="text-sm font-medium mb-1.5 block">Descripción</label>
-            <textarea
-              value={editDescription}
-              onChange={(e) => setEditDescription(e.target.value)}
-              className="w-full px-3 py-2.5 rounded border text-sm bg-transparent"
-              style={{ borderColor: "#27272a" }}
-              placeholder="Subí tu WAV. Analizamos BPM, LUFS, fase y headroom..."
-              rows={3}
-              suppressHydrationWarning
-            />
+            <label className="text-sm font-medium mb-1.5 block">{t("link.edit.desc_label")}</label>
+            <textarea value={editDescription} onChange={(e) => setEditDescription(e.target.value)} className="w-full px-3 py-2.5 rounded border text-sm bg-transparent" style={{ borderColor: "var(--border)" }} placeholder="Subí tu WAV. Analizamos BPM, LUFS, fase y headroom..." rows={3} suppressHydrationWarning />
           </div>
           <div className="flex items-center gap-3">
-            <button
-              onClick={handleSaveTexts}
-              disabled={savingTexts}
-              className="px-4 py-2 rounded text-sm font-medium transition-all hover:opacity-90 disabled:opacity-50"
-              style={{ background: "#10b981", color: "#09090b" }}
-            >
-              {savingTexts ? "Guardando..." : "Guardar textos"}
+            <button onClick={handleSaveTexts} disabled={savingTexts} className="px-4 py-2 rounded text-sm font-medium transition-all hover:opacity-90 disabled:opacity-50" style={{ background: "#10b981", color: "#09090b" }}>
+              {savingTexts ? t("link.edit.saving") : t("link.edit.save")}
             </button>
-            {textsSaved && <span className="text-xs" style={{ color: "#10b981" }}>✓ Guardado</span>}
+            {textsSaved && <span className="text-xs" style={{ color: "#10b981" }}>{t("link.edit.saved")}</span>}
             {textsError && <span className="text-xs" style={{ color: "#ef4444" }}>{textsError}</span>}
           </div>
         </div>
