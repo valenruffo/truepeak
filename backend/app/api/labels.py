@@ -130,12 +130,12 @@ async def register_label(
     # Check slug uniqueness
     existing_slug = session.exec(select(Label).where(Label.slug == body.slug)).first()
     if existing_slug:
-        raise HTTPException(status_code=409, detail=f"Slug '{body.slug}' is already taken.")
+        raise HTTPException(status_code=409, detail="Ese nombre ya está en uso. Elegí otro slug.")
 
     # Check email uniqueness
     existing_email = session.exec(select(Label).where(Label.owner_email == body.owner_email)).first()
     if existing_email:
-        raise HTTPException(status_code=409, detail="An account with this email already exists.")
+        raise HTTPException(status_code=409, detail="Ya existe una cuenta con ese email.")
 
     password_hash = get_password_hash(body.password)
 
@@ -188,7 +188,7 @@ async def get_label_config(
     """Get label configuration by slug. Public endpoint for submission page."""
     label = session.exec(select(Label).where(Label.slug == slug)).first()
     if not label:
-        raise HTTPException(status_code=404, detail=f"Label '{slug}' not found.")
+        raise HTTPException(status_code=404, detail="Sello no encontrado.")
 
     return LabelConfig(
         id=label.id,
@@ -214,7 +214,7 @@ async def update_label_config(
     """Update label sonic signature configuration. Requires label owner auth."""
     label = session.exec(select(Label).where(Label.slug == slug)).first()
     if not label:
-        raise HTTPException(status_code=404, detail=f"Label '{slug}' not found.")
+        raise HTTPException(status_code=404, detail="Sello no encontrado.")
 
     if label.id != auth["label_id"]:
         raise HTTPException(status_code=403, detail="Access denied to this label.")
@@ -261,7 +261,7 @@ async def label_login(
     """Login with email and password. Sets JWT as HTTPOnly cookie."""
     label = session.exec(select(Label).where(Label.slug == slug)).first()
     if not label:
-        raise HTTPException(status_code=404, detail=f"Label '{slug}' not found.")
+        raise HTTPException(status_code=404, detail="Sello no encontrado.")
 
     if label.owner_email != body.owner_email:
         raise HTTPException(status_code=401, detail="Email does not match label owner.")
@@ -298,7 +298,7 @@ async def get_label_stats(
     """Get submission stats for a label. Requires label owner auth."""
     label = session.exec(select(Label).where(Label.slug == slug)).first()
     if not label:
-        raise HTTPException(status_code=404, detail=f"Label '{slug}' not found.")
+        raise HTTPException(status_code=404, detail="Sello no encontrado.")
 
     if label.id != auth["label_id"]:
         raise HTTPException(status_code=403, detail="Access denied to this label.")
@@ -345,7 +345,7 @@ async def upload_label_logo(
     """
     label = session.exec(select(Label).where(Label.slug == slug)).first()
     if not label:
-        raise HTTPException(status_code=404, detail=f"Label '{slug}' not found.")
+        raise HTTPException(status_code=404, detail="Sello no encontrado.")
 
     if label.id != auth["label_id"]:
         raise HTTPException(status_code=403, detail="Access denied to this label.")
@@ -424,7 +424,7 @@ async def update_submission_text(
     """Update the submission page title and description for a label. Requires label owner auth."""
     label = session.exec(select(Label).where(Label.slug == slug)).first()
     if not label:
-        raise HTTPException(status_code=404, detail=f"Label '{slug}' not found.")
+        raise HTTPException(status_code=404, detail="Sello no encontrado.")
 
     if label.id != auth["label_id"]:
         raise HTTPException(status_code=403, detail="Access denied to this label.")
