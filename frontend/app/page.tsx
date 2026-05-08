@@ -405,9 +405,45 @@ const checkoutUrl = "https://truepeak.lemonsqueezy.com/checkout/buy/60230548-372
 
 function Pricing() {
   const { t } = useLanguage();
+  const tiers = [
+    {
+      name: t("pricing.free"),
+      price: t("pricing.free_price"),
+      cta: t("pricing.free_cta"),
+      href: "/register",
+      border: "var(--border)",
+      bg: "var(--bg-secondary)",
+      btnStyle: { border: "1px solid var(--border)", color: "var(--text-primary)" } as React.CSSProperties,
+      features: [0, 1, 2, 3],
+      keyPrefix: "pricing.free",
+    },
+    {
+      name: t("pricing.indie"),
+      price: t("pricing.indie_price"),
+      cta: t("pricing.indie_cta"),
+      href: checkoutUrl,
+      border: "#10b981",
+      bg: "var(--bg-secondary)",
+      btnStyle: { background: "#10b981", color: "#09090b" } as React.CSSProperties,
+      features: [0, 1, 2, 3, 4],
+      keyPrefix: "pricing.indie",
+    },
+    {
+      name: t("pricing.pro"),
+      price: t("pricing.pro_price"),
+      cta: t("pricing.pro_cta"),
+      href: checkoutUrl,
+      border: "var(--border)",
+      bg: "var(--bg-secondary)",
+      btnStyle: { border: "1px solid var(--border)", color: "var(--text-primary)" } as React.CSSProperties,
+      features: [0, 1, 2, 3, 4, 5, 6],
+      keyPrefix: "pricing.pro",
+    },
+  ];
+
   return (
     <section id="pricing" className="py-20 px-6" style={{ borderTop: "1px solid var(--border)" }}>
-      <div className="max-w-3xl mx-auto">
+      <div className="max-w-5xl mx-auto">
         <div className="mb-12 text-center">
           <div className="text-xs font-mono uppercase tracking-wider mb-3" style={{ color: "var(--text-muted)" }}>{t("pricing.section_label")}</div>
           <h2 className="font-bold text-2xl md:text-3xl tracking-tight" style={{ color: "var(--text-primary)" }}>
@@ -415,57 +451,37 @@ function Pricing() {
           </h2>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-4">
-          {/* Starter */}
-          <div className="p-6 rounded border" style={{ background: "var(--bg-secondary)", borderColor: "var(--border)" }}>
-            <div className="flex items-baseline justify-between mb-6">
-              <span className="text-xs font-mono uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>{t("pricing.starter")}</span>
-              <div className="flex items-baseline gap-1">
-                <span className="font-bold text-3xl" style={{ color: "var(--text-primary)" }}>US$29</span>
-                <span className="text-xs" style={{ color: "var(--text-muted)" }}>{t("pricing.per_month")}</span>
+        <div className="grid md:grid-cols-3 gap-4">
+          {tiers.map((tier) => (
+            <div key={tier.name} className="p-6 rounded border" style={{ background: tier.bg, borderColor: tier.border }}>
+              <div className="flex items-baseline justify-between mb-6">
+                <span className="text-xs font-mono uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>{tier.name}</span>
+                <div className="flex items-baseline gap-1">
+                  <span className="font-bold text-3xl" style={{ color: "var(--text-primary)" }}>{tier.price}</span>
+                  <span className="text-xs" style={{ color: "var(--text-muted)" }}>{t("pricing.per_month")}</span>
+                </div>
               </div>
+
+              <ul className="space-y-3 mb-8">
+                {tier.features.map((i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm" style={{ color: "var(--text-muted)" }}>
+                    <span style={{ color: "#10b981", flexShrink: 0, marginTop: "2px" }}><IconCheck /></span>
+                    {t(`${tier.keyPrefix}.${i}` as any)}
+                  </li>
+                ))}
+              </ul>
+
+              {tier.href.startsWith("/") ? (
+                <Link href={tier.href} className="w-full py-2.5 text-sm font-medium rounded transition-all hover:opacity-90 block text-center cursor-pointer" style={tier.btnStyle}>
+                  {tier.cta}
+                </Link>
+              ) : (
+                <a href={tier.href} target="_blank" rel="noopener noreferrer" className="w-full py-2.5 text-sm font-medium rounded transition-all hover:opacity-90 block text-center cursor-pointer" style={tier.btnStyle}>
+                  {tier.cta}
+                </a>
+              )}
             </div>
-
-            <ul className="space-y-3 mb-8">
-              {[0, 1, 2, 3, 4, 5].map((i) => (
-                <li key={i} className="flex items-start gap-2 text-sm" style={{ color: "var(--text-muted)" }}>
-                  <span style={{ color: "#10b981", flexShrink: 0, marginTop: "2px" }}><IconCheck /></span>
-                  {t(`pricing.starter.${i}` as any)}
-                </li>
-              ))}
-            </ul>
-
-            <a href={checkoutUrl} target="_blank" rel="noopener noreferrer" className="w-full py-2.5 text-sm font-medium rounded transition-all hover:opacity-90 block text-center cursor-pointer" style={{ border: "1px solid var(--border)", color: "var(--text-primary)" }}>
-              {t("pricing.cta")}
-            </a>
-          </div>
-
-          {/* Pro */}
-          <div className="p-6 rounded border" style={{ background: "var(--bg-secondary)", borderColor: "#10b981" }}>
-            <div className="flex items-baseline justify-between mb-6">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-mono uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>{t("pricing.pro")}</span>
-                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ background: "rgba(16,185,129,0.15)", color: "#10b981" }}>{t("pricing.popular")}</span>
-              </div>
-              <div className="flex items-baseline gap-1">
-                <span className="font-bold text-3xl" style={{ color: "var(--text-primary)" }}>US$79</span>
-                <span className="text-xs" style={{ color: "var(--text-muted)" }}>{t("pricing.per_month")}</span>
-              </div>
-            </div>
-
-            <ul className="space-y-3 mb-8">
-              {[0, 1, 2, 3, 4, 5, 6].map((i) => (
-                <li key={i} className="flex items-start gap-2 text-sm" style={{ color: "var(--text-muted)" }}>
-                  <span style={{ color: "#10b981", flexShrink: 0, marginTop: "2px" }}><IconCheck /></span>
-                  {t(`pricing.pro.${i}` as any)}
-                </li>
-              ))}
-            </ul>
-
-            <a href={checkoutUrl} target="_blank" rel="noopener noreferrer" className="w-full py-2.5 text-sm font-medium rounded transition-all hover:opacity-90 block text-center cursor-pointer" style={{ background: "#10b981", color: "#09090b" }}>
-              {t("pricing.cta")}
-            </a>
-          </div>
+          ))}
         </div>
       </div>
     </section>

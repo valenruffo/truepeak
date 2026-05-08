@@ -73,13 +73,13 @@ export default function SettingsPage() {
           <span
             className="px-2.5 py-1 rounded text-xs font-semibold uppercase tracking-wider"
             style={{
-              background: plan === "pro" ? "rgba(16,185,129,0.12)" : "rgba(161,161,170,0.1)",
-              color: plan === "pro" ? "#10b981" : "var(--text-secondary)",
+              background: plan === "pro" ? "rgba(16,185,129,0.12)" : plan === "indie" ? "rgba(16,185,129,0.08)" : "rgba(161,161,170,0.1)",
+              color: plan === "pro" || plan === "indie" ? "#10b981" : "var(--text-secondary)",
             }}
           >
-            {plan === "pro" ? t("settings.plan_pro") : t("settings.plan_free")}
+            {plan === "pro" ? t("settings.plan_pro") : plan === "indie" ? "Plan Indie" : t("settings.plan_free")}
           </span>
-          {plan === "pro" && (
+          {(plan === "pro" || plan === "indie") && (
             <span className="text-xs text-muted">{t("settings.plan_renew")}</span>
           )}
         </div>
@@ -93,7 +93,7 @@ export default function SettingsPage() {
           </div>
         )}
 
-        {plan === "pro" && (
+        {(plan === "pro" || plan === "indie") && (
           <div className="mb-4">
             <button onClick={() => setShowCancelModal(true)} className="px-5 py-2.5 rounded text-sm font-medium border transition-all hover:opacity-80" style={{ borderColor: "var(--border)", color: "var(--text-secondary)", background: "transparent" }}>
               {t("settings.cancel")}
@@ -108,20 +108,22 @@ export default function SettingsPage() {
               <tr style={{ background: "var(--bg-secondary)" }}>
                 <th className="text-left px-4 py-3 font-mono text-xs uppercase tracking-wider text-muted">{t("settings.feature")}</th>
                 <th className="text-center px-4 py-3 font-mono text-xs uppercase tracking-wider text-muted">Free</th>
+                <th className="text-center px-4 py-3 font-mono text-xs uppercase tracking-wider" style={{ color: "#10b981" }}>Indie</th>
                 <th className="text-center px-4 py-3 font-mono text-xs uppercase tracking-wider" style={{ color: "#10b981" }}>Pro</th>
               </tr>
             </thead>
             <tbody>
               {[
-                { feature: t("settings.feature.tracks"), free: "5", pro: t("settings.unlimited") },
-                { feature: t("settings.feature.storage"), free: "10", pro: "100" },
-                { feature: t("settings.feature.emails"), free: "✕", pro: "✓" },
-                { feature: t("settings.feature.link"), free: "✓", pro: "✓" },
-                { feature: t("settings.feature.support"), free: "Email", pro: "WhatsApp" },
+                { feature: t("settings.feature.tracks"), free: "10/mes", indie: "100/mes", pro: t("settings.unlimited") },
+                { feature: t("settings.feature.storage"), free: "0", indie: "7 días", pro: "14 días" },
+                { feature: t("settings.feature.emails"), free: "✕", indie: "100/mes", pro: "500/mes" },
+                { feature: t("settings.feature.link"), free: "✓", indie: "✓", pro: "✓" },
+                { feature: t("settings.feature.support"), free: "Email", indie: "Email", pro: "WhatsApp" },
               ].map((row, i) => (
                 <tr key={row.feature} style={{ borderTop: "1px solid var(--border)" }}>
                   <td className="px-4 py-3">{row.feature}</td>
                   <td className="px-4 py-3 text-center text-muted">{row.free}</td>
+                  <td className="px-4 py-3 text-center" style={{ color: "#10b981" }}>{row.indie}</td>
                   <td className="px-4 py-3 text-center" style={{ color: "#10b981" }}>{row.pro}</td>
                 </tr>
               ))}
