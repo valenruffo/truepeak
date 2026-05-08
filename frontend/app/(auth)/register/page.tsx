@@ -22,7 +22,7 @@ export default function RegisterPage() {
     if (password !== confirmPassword) { setError("Las contraseñas no coinciden."); return; }
     setLoading(true);
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/labels/register`, {
+      const res = await fetch(`/api/labels/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -96,3 +96,5 @@ export default function RegisterPage() {
     </div>
   );
 }
+
+

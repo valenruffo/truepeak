@@ -34,7 +34,7 @@ export default function LinkPage() {
 
     const fetchLabel = async () => {
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/labels/${storedSlug}`);
+        const res = await fetch(`/api/labels/${storedSlug}`);
         if (!res.ok) throw new Error("Failed to fetch label");
         const data: LabelInfo = await res.json();
         setLabelName(data.name);
@@ -48,7 +48,7 @@ export default function LinkPage() {
 
     const fetchStats = async () => {
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/labels/${storedSlug}/stats`, {
+        const res = await fetch(`/api/labels/${storedSlug}/stats`, {
           credentials: "include",
         });
         if (!res.ok) throw new Error("Failed to fetch stats");
@@ -76,7 +76,7 @@ export default function LinkPage() {
     setTextsSaved(false);
     setTextsError(null);
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/labels/${slug}/submission-text`, {
+      const res = await fetch(`/api/labels/${slug}/submission-text`, {
         method: "PUT",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -242,3 +242,5 @@ export default function LinkPage() {
     </div>
   );
 }
+
+

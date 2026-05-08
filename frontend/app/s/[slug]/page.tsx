@@ -19,12 +19,12 @@ export default function SubmissionPage() {
   useEffect(() => {
     const fetchLabel = async () => {
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/labels/${slug}`);
+        const res = await fetch(`/api/labels/${slug}`);
         if (res.ok) {
           const data = await res.json();
           setLabelName(data.name);
           if (data.logo_path) {
-            setLabelLogo(`${process.env.NEXT_PUBLIC_API_URL}/logos/${data.logo_path}`);
+            setLabelLogo(`/logos/${data.logo_path}`);
           }
           if (data.submission_title) setSubmissionTitle(data.submission_title);
           if (data.submission_description) setSubmissionDescription(data.submission_description);
@@ -107,7 +107,7 @@ export default function SubmissionPage() {
       formData.append("notes", notes);
 
       const xhr = new XMLHttpRequest();
-      xhr.open("POST", `${process.env.NEXT_PUBLIC_API_URL}/api/upload`);
+      xhr.open("POST", `/api/upload`);
 
       xhr.upload.onprogress = (event) => {
         if (event.lengthComputable) {
@@ -334,3 +334,5 @@ export default function SubmissionPage() {
     </div>
   );
 }
+
+

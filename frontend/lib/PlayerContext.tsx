@@ -56,7 +56,7 @@ export function PlayerProvider({ children, initialTracks = [] }: { children: Rea
     if (!audioRef.current || tracks.length === 0) return;
     const track = tracks[currentIndex];
     if (!track?.id) return;
-    audioRef.current.src = `${process.env.NEXT_PUBLIC_API_URL}/mp3s/${track.id}.mp3`;
+    audioRef.current.src = `/mp3s/${track.id}.mp3`;
     audioRef.current.load();
     setProgress(0);
     if (isPlaying) {
@@ -147,3 +147,5 @@ export function usePlayer() {
   if (!ctx) throw new Error("usePlayer must be used inside PlayerProvider");
   return ctx;
 }
+
+

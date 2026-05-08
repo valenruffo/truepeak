@@ -91,7 +91,7 @@ function CRMContent() {
       // Fetch label name
       if (slug) {
         try {
-          const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/labels/${slug}`, { credentials: "include" });
+          const res = await fetch(`/api/labels/${slug}`, { credentials: "include" });
           if (res.ok) {
             const data = await res.json();
             setLabelName(data.name);
@@ -103,7 +103,7 @@ function CRMContent() {
 
       // Fetch submissions
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/submissions`, { credentials: "include" });
+        const res = await fetch(`/api/submissions`, { credentials: "include" });
         if (!res.ok) throw new Error(`Error ${res.status}`);
         const data: Submission[] = await res.json();
 
@@ -197,7 +197,7 @@ function CRMContent() {
     setSending(true);
     setSendError(null);
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/email/send`, {
+      const res = await fetch(`/api/email/send`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -526,3 +526,5 @@ export default function CRMPage() {
     </Suspense>
   );
 }
+
+

@@ -96,7 +96,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
     const fetchLabel = async () => {
       if (!slug) { setLabelName(""); setPlanInfo(""); return; }
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/labels/${slug}`);
+        const res = await fetch(`/api/labels/${slug}`);
         if (res.ok) {
           const data = await res.json();
           setLabelName(data.name || slug);
@@ -110,7 +110,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
 
     const fetchHqCount = async () => {
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/labels/${slug}/hq-count`, {
+        const res = await fetch(`/api/labels/${slug}/hq-count`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         if (res.ok) setHqCount(await res.json());
@@ -120,7 +120,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
 
     const fetchTracks = async () => {
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/submissions?status=approved`, {
+        const res = await fetch(`/api/submissions?status=approved`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         if (res.ok) {
@@ -198,7 +198,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
               localStorage.removeItem("label_id");
               localStorage.removeItem("plan");
               localStorage.removeItem("token");
-              fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/labels/logout`, { method: "POST", credentials: "include" }).catch(() => {});
+              fetch(`/api/labels/logout`, { method: "POST", credentials: "include" }).catch(() => {});
               router.push("/");
             }}
             className="w-full text-left text-sm px-3 py-2 rounded transition-colors hover:bg-white/5"
@@ -226,3 +226,5 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     </PlayerProvider>
   );
 }
+
+

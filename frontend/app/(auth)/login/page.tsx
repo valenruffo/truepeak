@@ -16,7 +16,7 @@ export default function LoginPage() {
     e.preventDefault();
     setError(""); setLoading(true);
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/labels/login`, {
+      const res = await fetch(`/api/labels/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -68,3 +68,5 @@ export default function LoginPage() {
     </div>
   );
 }
+
+

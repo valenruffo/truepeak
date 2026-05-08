@@ -60,7 +60,7 @@ export default function ConfigPage() {
   const [noSlug, setNoSlug] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
-  const API = process.env.NEXT_PUBLIC_API_URL;
+  const API = "";
 
   const getAuthHeaders = useCallback((): Record<string, string> => {
     return { "Content-Type": "application/json" };
@@ -468,4 +468,6 @@ export default function ConfigPage() {
     </div>
   );
 }
+
+
 

@@ -109,7 +109,7 @@ function InboxContent() {
   // Per-row action loading states
   const [actionLoading, setActionLoading] = useState<Record<string, "listen" | "approve" | "discard">>({});
 
-  const API = process.env.NEXT_PUBLIC_API_URL;
+  const API = "";
 
   const getAuthHeaders = useCallback((): Record<string, string> => {
     return { "Content-Type": "application/json" };
@@ -195,7 +195,7 @@ function InboxContent() {
   useEffect(() => {
     const fetchSubmissions = async () => {
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/submissions`, {
+        const res = await fetch(`/api/submissions`, {
           credentials: "include",
         });
         if (!res.ok) throw new Error(`Error ${res.status}`);
@@ -435,7 +435,7 @@ function InboxContent() {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/submissions/${d.id}/download`, {
+                      fetch(`/api/submissions/${d.id}/download`, {
                         credentials: "include",
                       })
                         .then((res) => {
@@ -591,3 +591,5 @@ function InboxContent() {
     </div>
   );
 }
+
+
