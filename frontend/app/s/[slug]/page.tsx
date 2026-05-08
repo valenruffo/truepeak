@@ -107,7 +107,8 @@ export default function SubmissionPage() {
       formData.append("notes", notes);
 
       const xhr = new XMLHttpRequest();
-      xhr.open("POST", `/api/upload`);
+      const apiUrl = (process.env.NEXT_PUBLIC_API_URL || "");
+      xhr.open("POST", `${apiUrl}/api/upload`);
 
       xhr.upload.onprogress = (event) => {
         if (event.lengthComputable) {

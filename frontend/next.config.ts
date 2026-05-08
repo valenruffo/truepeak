@@ -5,6 +5,8 @@ const nextConfig: NextConfig = {
   images: {
     remotePatterns: [],
   },
+  // Allow large uploads through the proxy (up to 200MB)
+  serverExternalPackages: [],
   async rewrites() {
     return [
       {
