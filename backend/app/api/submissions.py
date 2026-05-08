@@ -1,6 +1,7 @@
 """Submission management API — list, detail, status updates, delete."""
 
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -54,7 +55,7 @@ class SubmissionSummary(BaseModel):
 
 
 class UpdateStatusRequest(BaseModel):
-    status: str  # "approved" | "rejected"
+    status: str  # "shortlist" | "rejected" | "approved" | "auto_rejected"
     rejection_reason: str | None = None
 
 
@@ -113,10 +114,13 @@ async def list_submissions(
     """List submissions with optional filters. Requires label owner auth."""
     label_id = auth["label_id"]
 
-    query = select(Submission).where(Submission.label_id == label_id)
+    query = select(Submission).where(
+        Submission.label_id == label_id,
+        Submission.deleted_at.is_(None),
+    )
 
     if status:
-        if status not in ("pending", "approved", "rejected"):
+        if status not in ("inbox", "shortlist", "rejected", "auto_rejected", "pending", "approved"):
             raise HTTPException(status_code=400, detail=f"Invalid status filter: {status}")
         query = query.where(Submission.status == status)
 
@@ -184,11 +188,11 @@ async def update_submission_status(
     auth: dict = Depends(_get_label_from_token),
     session: Session = Depends(get_session),
 ):
-    """Update submission status (approve/reject manually). Requires label owner auth."""
-    if body.status not in ("approved", "rejected"):
+    """Update submission status (shortlist/reject/auto_reject manually). Requires label owner auth."""
+    if body.status not in ("shortlist", "rejected", "approved", "auto_rejected"):
         raise HTTPException(
             status_code=400,
-            detail="Status must be 'approved' or 'rejected'.",
+            detail="Status must be 'shortlist', 'rejected', 'approved', or 'auto_rejected'.",
         )
 
     submission = session.get(Submission, submission_id)
@@ -197,7 +201,7 @@ async def update_submission_status(
 
     _verify_label_ownership(session, auth["label_id"], submission)
 
-    if submission.status not in ("pending",):
+    if submission.status not in ("inbox", "pending"):
         raise HTTPException(
             status_code=400,
             detail=f"Cannot update status of a '{submission.status}' submission.",
@@ -212,8 +216,8 @@ async def update_submission_status(
             )
         submission.rejection_reason = body.rejection_reason
 
-    # Approving requires MP3 preview availability
-    if body.status == "approved" and not submission.mp3_path:
+    # Approving/shortlisting requires MP3 preview availability
+    if body.status in ("approved", "shortlist") and not submission.mp3_path:
         raise HTTPException(
             status_code=400,
             detail="Cannot approve: MP3 preview not available. Run audio analysis first.",
@@ -239,7 +243,7 @@ async def delete_submission(
     auth: dict = Depends(_get_label_from_token),
     session: Session = Depends(get_session),
 ):
-    """Delete submission and all associated files. Requires label owner auth."""
+    """Soft-delete submission (sets deleted_at). Requires label owner auth."""
 
     submission = session.get(Submission, submission_id)
     if not submission:
@@ -247,21 +251,9 @@ async def delete_submission(
 
     _verify_label_ownership(session, auth["label_id"], submission)
 
-    # Delete MP3 file
-    if submission.mp3_path and os.path.exists(submission.mp3_path):
-        try:
-            os.remove(submission.mp3_path)
-        except OSError:
-            pass
-
-    # Delete original WAV/FLAC/AIFF file
-    if submission.original_path and os.path.exists(submission.original_path):
-        try:
-            os.remove(submission.original_path)
-        except OSError:
-            pass
-
-    session.delete(submission)
+    # Soft delete: set deleted_at timestamp
+    submission.deleted_at = datetime.now(timezone.utc)
+    session.add(submission)
     session.commit()
 
     return DeleteResponse(id=submission_id, deleted=True)
@@ -336,7 +328,7 @@ async def get_label_hq_count(
     processed = session.exec(
         select(func.count()).where(
             Submission.label_id == label.id,
-            Submission.status.in_(["approved", "rejected"]),
+            Submission.status.in_(["approved", "rejected", "shortlist", "auto_rejected"]),
         )
     ).one()
 

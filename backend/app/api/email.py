@@ -1,5 +1,6 @@
 """Email API — send, generate draft, template CRUD."""
 
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlmodel import Session, select
@@ -20,6 +21,7 @@ class SendEmailRequest(BaseModel):
     subject: str
     body: str
     from_name: str = "True Peak AI"
+    submission_id: str | None = None  # Optional: associate with submission for quota tracking
 
 
 class SendEmailResponse(BaseModel):
@@ -88,7 +90,41 @@ async def send_email_endpoint(
     auth: dict = Depends(_get_label_from_token),
     session: Session = Depends(get_session),
 ):
-    """Send an email via Resend API. Creates an EmailLog record."""
+    """Send an email via Resend API. Creates an EmailLog record.
+
+    If submission_id is provided:
+    - Checks human_email_sent flag (prevent double-send)
+    - Checks monthly email quota (max_emails_month)
+    """
+    # If submission_id provided, validate and check quota
+    if body.submission_id:
+        submission = session.get(Submission, body.submission_id)
+        if not submission:
+            raise HTTPException(status_code=404, detail="Submission not found.")
+        if submission.label_id != auth["label_id"]:
+            raise HTTPException(status_code=403, detail="Access denied to this submission.")
+
+        # Prevent double-send
+        if submission.human_email_sent:
+            raise HTTPException(
+                status_code=400,
+                detail="Email already sent for this submission.",
+            )
+
+        # Check monthly email quota
+        label = session.get(Label, auth["label_id"])
+        if label:
+            now = datetime.now(timezone.utc)
+            # Reset counter if new month
+            if label.emails_sent_month != now.month:
+                label.emails_sent_this_month = 0
+                label.emails_sent_month = now.month
+
+            if label.max_emails_month > 0 and label.emails_sent_this_month >= label.max_emails_month:
+                raise HTTPException(
+                    status_code=429,
+                    detail=f"Monthly email quota exceeded ({label.emails_sent_this_month}/{label.max_emails_month}).",
+                )
     try:
         # Get label owner email for reply-to
         label = session.get(Label, auth["label_id"])
@@ -104,11 +140,22 @@ async def send_email_endpoint(
 
         # Create EmailLog record
         log = EmailLog(
-            submission_id="",  # TODO: associate with submission if available
-            sent_at=__import__("datetime").datetime.now(__import__("datetime").timezone.utc),
+            submission_id=body.submission_id or "",
+            sent_at=datetime.now(timezone.utc),
             status="sent",
         )
         session.add(log)
+
+        # Mark submission as emailed and increment quota
+        if body.submission_id:
+            submission = session.get(Submission, body.submission_id)
+            if submission:
+                submission.human_email_sent = True
+
+            label = session.get(Label, auth["label_id"])
+            if label:
+                label.emails_sent_this_month += 1
+
         session.commit()
 
         return SendEmailResponse(id=result.id, status=result.status)
@@ -116,8 +163,8 @@ async def send_email_endpoint(
     except EmailSendError as e:
         # Log the failure
         log = EmailLog(
-            submission_id="",
-            sent_at=__import__("datetime").datetime.now(__import__("datetime").timezone.utc),
+            submission_id=body.submission_id or "",
+            sent_at=datetime.now(timezone.utc),
             status="failed",
             error=e.message,
         )

@@ -20,6 +20,22 @@ router = APIRouter(prefix="/api", tags=["labels"])
 
 limiter = Limiter(key_func=get_remote_address)
 
+# Plan limits configuration
+PLAN_LIMITS = {
+    "free":  {"max_tracks_month": 10,  "max_emails_month": 0,   "hq_retention_days": 0},
+    "indie": {"max_tracks_month": 100, "max_emails_month": 100, "hq_retention_days": 7},
+    "pro":   {"max_tracks_month": 1000, "max_emails_month": 500, "hq_retention_days": 14},
+}
+
+
+def _apply_plan_limits(label: Label, plan: str | None = None) -> None:
+    """Set plan limits on a label based on its plan tier."""
+    tier = (plan or label.plan or "free").lower()
+    limits = PLAN_LIMITS.get(tier, PLAN_LIMITS["free"])
+    label.max_tracks_month = limits["max_tracks_month"]
+    label.max_emails_month = limits["max_emails_month"]
+    label.hq_retention_days = limits["hq_retention_days"]
+
 
 # --- Auth helper (header + cookie) ---
 
@@ -110,6 +126,9 @@ class LabelConfig(BaseModel):
     slug: str
     owner_email: str
     plan: str = "free"
+    max_tracks_month: int = 10
+    max_emails_month: int = 0
+    hq_retention_days: int = 0
     sonic_signature: dict[str, Any]
     created_at: str
     logo_path: str | None = None
@@ -124,9 +143,10 @@ class SonicSignatureUpdate(BaseModel):
 
 class LabelStats(BaseModel):
     total: int
-    pending: int
-    approved: int
+    inbox: int
+    shortlist: int
     rejected: int
+    auto_rejected: int
 
 
 # --- Endpoints ---
@@ -168,6 +188,7 @@ async def register_label(
         password_hash=password_hash,
         sonic_signature=sonic_signature,
     )
+    _apply_plan_limits(label)
     session.add(label)
     session.commit()
     session.refresh(label)
@@ -210,6 +231,9 @@ async def get_label_config(
         slug=label.slug,
         owner_email=label.owner_email,
         plan=label.plan or "free",
+        max_tracks_month=label.max_tracks_month,
+        max_emails_month=label.max_emails_month,
+        hq_retention_days=label.hq_retention_days,
         sonic_signature=label.sonic_signature,
         created_at=label.created_at.isoformat(),
         logo_path=label.logo_path,
@@ -255,6 +279,9 @@ async def update_label_config(
         slug=label.slug,
         owner_email=label.owner_email,
         plan=label.plan or "free",
+        max_tracks_month=label.max_tracks_month,
+        max_emails_month=label.max_emails_month,
+        hq_retention_days=label.hq_retention_days,
         sonic_signature=label.sonic_signature,
         created_at=label.created_at.isoformat(),
         logo_path=label.logo_path,
@@ -376,15 +403,17 @@ async def get_label_stats(
         select(Submission).where(Submission.label_id == label.id)
     ).all()
 
-    pending = len([s for s in total if s.status == "pending"])
-    approved = len([s for s in total if s.status == "approved"])
+    inbox = len([s for s in total if s.status == "inbox"])
+    shortlist = len([s for s in total if s.status in ("shortlist", "approved")])
     rejected = len([s for s in total if s.status == "rejected"])
+    auto_rejected = len([s for s in total if s.status == "auto_rejected"])
 
     return LabelStats(
         total=len(total),
-        pending=pending,
-        approved=approved,
+        inbox=inbox,
+        shortlist=shortlist,
         rejected=rejected,
+        auto_rejected=auto_rejected,
     )
 
 

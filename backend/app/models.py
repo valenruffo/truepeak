@@ -39,7 +39,12 @@ class Label(SQLModel, table=True):
         default_factory=lambda: datetime.now(timezone.utc),
     )
     logo_path: str | None = None
-    plan: str = Field(default="free")  # "free" | "pro"
+    plan: str = Field(default="free")  # "free" | "indie" | "pro"
+    max_tracks_month: int = Field(default=10)
+    max_emails_month: int = Field(default=0)
+    hq_retention_days: int = Field(default=0)
+    emails_sent_this_month: int = Field(default=0)
+    emails_sent_month: int = Field(default=1)
     submission_title: str | None = None
     submission_description: str | None = None
 
@@ -62,7 +67,9 @@ class Submission(SQLModel, table=True):
     duration: float | None = None
     phase_correlation: float | None = None
     musical_key: str | None = None
-    status: str = Field(default="pending", index=True)  # pending | approved | rejected
+    status: str = Field(default="inbox", index=True)  # inbox | shortlist | rejected | auto_rejected
+    deleted_at: datetime | None = Field(default=None)
+    human_email_sent: bool = Field(default=False)
     rejection_reason: str | None = None
     mp3_path: str | None = None
     original_path: str | None = None  # WAV/FLAC/AIFF original for download

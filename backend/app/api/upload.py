@@ -12,7 +12,8 @@ from app.audio.exceptions import AudioAnalysisError, FileCleanupError
 from app.audio.lifecycle import process_submission
 from app.database import get_session
 from app.models import Label, Submission
-from sqlmodel import select
+from sqlmodel import select, func
+from datetime import datetime, timezone
 
 router = APIRouter(prefix="/api", tags=["upload"])
 
@@ -110,17 +111,23 @@ async def upload_audio(
             sonic_signature = label.sonic_signature
             label_id = label.id
 
-            # Free plan limit: max 5 total submissions
+            # Free plan limit: max tracks THIS MONTH
             current_plan = label.plan or "free"
             if current_plan == "free":
-                total_count = session.exec(
-                    select(Submission).where(Submission.label_id == label_id)
-                ).all()
-                if len(total_count) >= 5:
+                now = datetime.now(timezone.utc)
+                month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                month_count = session.exec(
+                    select(func.count(Submission.id)).where(
+                        Submission.label_id == label_id,
+                        Submission.created_at >= month_start,
+                        (Submission.deleted_at.is_(None)),
+                    )
+                ).one()
+                if month_count >= label.max_tracks_month:
                     _safe_remove(audio_path)
                     raise HTTPException(
                         status_code=400,
-                        detail="Plan gratuito: máximo 5 tracks. Hacé upgrade a Pro para subir más.",
+                        detail=f"Plan gratuito: máximo {label.max_tracks_month} tracks por mes. Esperá al mes próximo o hacé upgrade.",
                     )
 
             # HQ storage limit check: max 10 approved submissions with MP3
@@ -182,7 +189,7 @@ async def upload_audio(
                 duration=result["metrics"].get("duration") if result["metrics"] else None,
                 phase_correlation=result["metrics"].get("phase_correlation") if result["metrics"] else None,
                 musical_key=result["metrics"].get("musical_key") if result["metrics"] else None,
-                status=result["status"],
+                status="inbox" if result["status"] == "approved" else "auto_rejected",
                 rejection_reason=result["rejection_reason"],
                 mp3_path=result["mp3_path"],
                 original_path=original_path,

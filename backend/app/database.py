@@ -26,6 +26,15 @@ def _apply_migrations(session: Session) -> None:
         # Feature 3: label submission texts
         "ALTER TABLE label ADD COLUMN submission_title TEXT",
         "ALTER TABLE label ADD COLUMN submission_description TEXT",
+        # Phase 1: Label plan limits
+        "ALTER TABLE label ADD COLUMN max_tracks_month INTEGER DEFAULT 10",
+        "ALTER TABLE label ADD COLUMN max_emails_month INTEGER DEFAULT 0",
+        "ALTER TABLE label ADD COLUMN hq_retention_days INTEGER DEFAULT 0",
+        "ALTER TABLE label ADD COLUMN emails_sent_this_month INTEGER DEFAULT 0",
+        "ALTER TABLE label ADD COLUMN emails_sent_month INTEGER DEFAULT 1",
+        # Phase 1: Submission soft delete + email tracking
+        "ALTER TABLE submission ADD COLUMN deleted_at DATETIME",
+        "ALTER TABLE submission ADD COLUMN human_email_sent BOOLEAN DEFAULT 0",
     ]
     for sql in migrations:
         try:
