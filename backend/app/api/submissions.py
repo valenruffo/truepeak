@@ -71,6 +71,11 @@ class DeleteResponse(BaseModel):
     deleted: bool
 
 
+class RestoreResponse(BaseModel):
+    id: str
+    restored: bool
+
+
 # --- Auth helper (header + cookie) ---
 
 def _get_label_from_token(request: Request) -> dict[str, str]:
@@ -108,6 +113,9 @@ def _verify_label_ownership(session: Session, label_id: str, submission: Submiss
 async def list_submissions(
     label_id: str | None = None,
     status: str | None = None,
+    offset: int = 0,
+    limit: int = 100,
+    include_deleted: bool = False,
     auth: dict = Depends(_get_label_from_token),
     session: Session = Depends(get_session),
 ):
@@ -116,15 +124,17 @@ async def list_submissions(
 
     query = select(Submission).where(
         Submission.label_id == label_id,
-        Submission.deleted_at.is_(None),
     )
+
+    if not include_deleted:
+        query = query.where(Submission.deleted_at.is_(None))
 
     if status:
         if status not in ("inbox", "shortlist", "rejected", "auto_rejected", "pending", "approved"):
             raise HTTPException(status_code=400, detail=f"Invalid status filter: {status}")
         query = query.where(Submission.status == status)
 
-    query = query.order_by(Submission.created_at.desc())
+    query = query.order_by(Submission.created_at.desc()).offset(offset).limit(limit)
     submissions = session.exec(query).all()
 
     return [
@@ -201,12 +211,6 @@ async def update_submission_status(
 
     _verify_label_ownership(session, auth["label_id"], submission)
 
-    if submission.status not in ("inbox", "pending"):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Cannot update status of a '{submission.status}' submission.",
-        )
-
     # Rejecting requires a reason
     if body.status == "rejected":
         if not body.rejection_reason:
@@ -257,6 +261,38 @@ async def delete_submission(
     session.commit()
 
     return DeleteResponse(id=submission_id, deleted=True)
+
+
+@router.patch("/submissions/{submission_id}/restore", response_model=RestoreResponse)
+async def restore_submission(
+    submission_id: str,
+    auth: dict = Depends(_get_label_from_token),
+    session: Session = Depends(get_session),
+):
+    """Restore a soft-deleted submission if within 24h window. Requires label owner auth."""
+    submission = session.get(Submission, submission_id)
+    if not submission:
+        raise HTTPException(status_code=404, detail="Submission not found.")
+
+    _verify_label_ownership(session, auth["label_id"], submission)
+
+    if submission.deleted_at is None:
+        raise HTTPException(status_code=400, detail="Submission is not deleted.")
+
+    # Check 24h window
+    now = datetime.now(timezone.utc)
+    elapsed = (now - submission.deleted_at).total_seconds()
+    if elapsed > 86400:  # 24 hours
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot restore: deleted more than 24h ago (permanently removed by cron).",
+        )
+
+    submission.deleted_at = None
+    session.add(submission)
+    session.commit()
+
+    return RestoreResponse(id=submission_id, restored=True)
 
 
 class DeleteFileResponse(BaseModel):

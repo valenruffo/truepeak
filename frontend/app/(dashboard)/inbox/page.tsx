@@ -1,36 +1,71 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { usePlayer } from "@/lib/PlayerContext";
 import TwoClickDelete from "@/components/TwoClickDelete";
 import { useLanguage } from "@/lib/i18n";
+import {
+  DragDropContext,
+  Droppable,
+  Draggable,
+  type DropResult,
+} from "@hello-pangea/dnd";
 
-type FilterStatus = "all" | "pending" | "approved" | "rejected";
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-interface Submission {
+type TabKey = "kanban" | "system" | "trash";
+
+interface SubmissionSummary {
   id: string;
   producer_name: string;
   producer_email: string | null;
   track_name: string;
-  status: "pending" | "approved" | "rejected";
+  status: string;
   bpm: number | null;
   lufs: number | null;
   duration: number | null;
   phase_correlation: number | null;
   musical_key: string | null;
+  mp3_path: string | null;
+  original_path: string | null;
+  human_email_sent?: boolean;
   created_at: string;
-  mp3_path?: string | null;
-  original_path?: string | null;
-  rejection_reason?: string | null;
+  deleted_at?: string | null;
 }
 
-interface SubmissionDetail extends Submission {
-  label_id: string;
-  producer_email: string;
+interface EmailTemplate {
+  id: string;
+  name: string;
+  template_type: string;
+  subject_template: string;
+  body_template: string;
 }
+
+interface BoardState {
+  inbox: SubmissionSummary[];
+  shortlist: SubmissionSummary[];
+  rejected: SubmissionSummary[];
+}
+
+interface EmailModalState {
+  open: boolean;
+  submission: SubmissionSummary | null;
+  targetStatus: "shortlist" | "rejected" | null;
+  templates: EmailTemplate[];
+  selectedTemplate: string;
+  subject: string;
+  body: string;
+  sending: boolean;
+  sent: boolean;
+  error: string | null;
+}
+
+const PAGE_SIZE = 20;
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatRelativeTime(isoDate: string): string {
   const now = new Date();
@@ -48,13 +83,6 @@ function formatRelativeTime(isoDate: string): string {
   return date.toLocaleDateString("es-AR");
 }
 
-function formatDuration(sec: number | null): string {
-  if (sec == null || sec <= 0) return "—";
-  const m = Math.floor(sec / 60);
-  const s = Math.floor(sec % 60);
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
-
 function formatBpm(bpm: number | null): string {
   return bpm != null ? String(Math.round(bpm)) : "—";
 }
@@ -63,436 +91,1081 @@ function formatLufs(lufs: number | null): string {
   return lufs != null ? lufs.toFixed(1) : "—";
 }
 
-function formatPhase(phase: number | null): { text: string; color: string } {
-  if (phase == null) return { text: "—", color: "var(--text-muted)" };
-  return phase > 0
-    ? { text: "OK", color: "#10b981" }
-    : { text: "INV", color: "#ef4444" };
-}
-
 function formatKey(key: string | null): string {
   return key ?? "—";
 }
 
+function replaceVariables(
+  template: string,
+  sub: SubmissionSummary
+): string {
+  return template
+    .replace(/\{producer_name\}/g, sub.producer_name || "Productor")
+    .replace(/\{track_name\}/g, sub.track_name || "Track")
+    .replace(/\{producer\}/g, sub.producer_name || "Productor")
+    .replace(/\{track\}/g, sub.track_name || "Track");
+}
+
+function statusBadgeColor(status: string): { bg: string; color: string } {
+  switch (status) {
+    case "inbox":
+    case "pending":
+      return { bg: "rgba(6,182,212,0.15)", color: "#06b6d4" };
+    case "shortlist":
+    case "approved":
+      return { bg: "rgba(16,185,129,0.15)", color: "#10b981" };
+    case "rejected":
+    case "auto_rejected":
+      return { bg: "rgba(239,68,68,0.15)", color: "#ef4444" };
+    default:
+      return { bg: "rgba(161,161,170,0.15)", color: "#a1a1aa" };
+  }
+}
+
+function statusLabel(status: string, t: (key: "inbox.status.pending" | "inbox.status.approved" | "inbox.status.rejected") => string): string {
+  switch (status) {
+    case "inbox":
+    case "pending":
+      return t("inbox.status.pending");
+    case "shortlist":
+    case "approved":
+      return t("inbox.status.approved");
+    case "rejected":
+    case "auto_rejected":
+      return t("inbox.status.rejected");
+    default:
+      return status;
+  }
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
+
 export default function InboxPage() {
-  return (
-    <Suspense fallback={<div className="animate-pulse h-96 rounded" style={{ background: "var(--bg-secondary)", border: "1px solid var(--border)" }} />}>
-      <InboxContent />
-    </Suspense>
-  );
+  return <InboxContent />;
 }
 
 function InboxContent() {
   const { t } = useLanguage();
-  const [filter, setFilter] = useState<FilterStatus>("all");
-  const [downloadableOnly, setDownloadableOnly] = useState(false);
+  const { playTrack, togglePlay, isPlaying, currentTrack } = usePlayer();
   const searchParams = useSearchParams();
   const highlightParam = searchParams.get("highlight");
-  const [submissions, setSubmissions] = useState<Submission[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const { playTrack, togglePlay, isPlaying, currentTrack } = usePlayer();
 
-  const [modal, setModal] = useState<{
-    open: boolean;
-    detail: SubmissionDetail | null;
-    loading: boolean;
-    error: string | null;
-  }>({ open: false, detail: null, loading: false, error: null });
+  const [activeTab, setActiveTab] = useState<TabKey>("kanban");
 
-  const [actionLoading, setActionLoading] = useState<Record<string, "listen" | "approve" | "discard">>({});
+  // Kanban board state
+  const [board, setBoard] = useState<BoardState>({
+    inbox: [],
+    shortlist: [],
+    rejected: [],
+  });
+  const [boardOffsets, setBoardOffsets] = useState({ inbox: 0, shortlist: 0, rejected: 0 });
+  const [boardHasMore, setBoardHasMore] = useState({ inbox: true, shortlist: true, rejected: true });
+  const [boardLoading, setBoardLoading] = useState<Record<string, boolean>>({});
+
+  // System filtered (auto_rejected)
+  const [systemItems, setSystemItems] = useState<SubmissionSummary[]>([]);
+  const [systemOffset, setSystemOffset] = useState(0);
+  const [systemHasMore, setSystemHasMore] = useState(true);
+  const [systemLoading, setSystemLoading] = useState(false);
+
+  // Trash (soft deleted)
+  const [trashItems, setTrashItems] = useState<SubmissionSummary[]>([]);
+  const [trashOffset, setTrashOffset] = useState(0);
+  const [trashHasMore, setTrashHasMore] = useState(true);
+  const [trashLoading, setTrashLoading] = useState(false);
+
+  // Email modal
+  const [emailModal, setEmailModal] = useState<EmailModalState>({
+    open: false,
+    submission: null,
+    targetStatus: null,
+    templates: [],
+    selectedTemplate: "",
+    subject: "",
+    body: "",
+    sending: false,
+    sent: false,
+    error: null,
+  });
+
+  // Action loading per card
+  const [actionLoading, setActionLoading] = useState<Record<string, string>>({});
+
+  // Rejection reason for drag-to-reject
+  const [pendingReject, setPendingReject] = useState<{
+    sub: SubmissionSummary;
+    reason: string;
+  } | null>(null);
+
+  // Scroll refs for infinite scroll
+  const inboxScrollRef = useRef<HTMLDivElement>(null);
+  const shortlistScrollRef = useRef<HTMLDivElement>(null);
+  const rejectedScrollRef = useRef<HTMLDivElement>(null);
+  const systemScrollRef = useRef<HTMLDivElement>(null);
+  const trashScrollRef = useRef<HTMLDivElement>(null);
 
   const API = "";
 
-  const getAuthHeaders = useCallback((): Record<string, string> => {
-    return { "Content-Type": "application/json" };
-  }, []);
+  // ─── Fetch helpers ────────────────────────────────────────────────────────
 
-  const handleListen = async (id: string) => {
-    setModal({ open: true, detail: null, loading: true, error: null });
-    setActionLoading((prev) => ({ ...prev, [id]: "listen" }));
-    try {
-      const res = await fetch(`${API}/api/submissions/${id}`, {
-        headers: getAuthHeaders(),
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error(`Error ${res.status}`);
-      const detail: SubmissionDetail = await res.json();
-      setModal({ open: true, detail, loading: false, error: null });
-    } catch (e) {
-      setModal({ open: true, detail: null, loading: false, error: e instanceof Error ? e.message : t("inbox.error_unknown") });
-    } finally {
-      setActionLoading((prev) => {
-        const next = { ...prev };
-        delete next[id];
-        return next;
-      });
-    }
-  };
+  const fetchColumn = useCallback(
+    async (column: "inbox" | "shortlist" | "rejected", append = false) => {
+      const statusMap = {
+        inbox: "inbox",
+        shortlist: "shortlist",
+        rejected: "rejected",
+      };
+      const offset = append ? boardOffsets[column] : 0;
+      const key = column;
 
-  const handleApprove = async (id: string) => {
-    setActionLoading((prev) => ({ ...prev, [id]: "approve" }));
-    try {
-      const res = await fetch(`${API}/api/submissions/${id}/status`, {
-        method: "PATCH",
-        headers: getAuthHeaders(),
-        credentials: "include",
-        body: JSON.stringify({ status: "approved" }),
-      });
-      if (!res.ok) throw new Error(`Error ${res.status}`);
-      const updated = await res.json();
-      setSubmissions((prev) =>
-        prev.map((s) =>
-          s.id === id ? { ...s, status: "approved" as const, mp3_path: updated.mp3_path ?? s.mp3_path } : s
-        )
-      );
-    } catch (e) {
-      alert(`${t("inbox.error_approve")}: ${e instanceof Error ? e.message : t("inbox.error_unknown")}`);
-    } finally {
-      setActionLoading((prev) => {
-        const next = { ...prev };
-        delete next[id];
-        return next;
-      });
-    }
-  };
-
-  const handleDiscard = async (id: string) => {
-    setActionLoading((prev) => ({ ...prev, [id]: "discard" }));
-    try {
-      const res = await fetch(`${API}/api/submissions/${id}`, {
-        method: "DELETE",
-        headers: getAuthHeaders(),
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error(`Error ${res.status}`);
-      setSubmissions((prev) => prev.filter((s) => s.id !== id));
-    } catch (e) {
-      alert(`${t("inbox.error_discard")}: ${e instanceof Error ? e.message : t("inbox.error_unknown")}`);
-    } finally {
-      setActionLoading((prev) => {
-        const next = { ...prev };
-        delete next[id];
-        return next;
-      });
-    }
-  };
-
-  const closeModal = () => {
-    setModal({ open: false, detail: null, loading: false, error: null });
-  };
-
-  useEffect(() => {
-    const fetchSubmissions = async () => {
+      setBoardLoading((p) => ({ ...p, [key]: true }));
       try {
-        const res = await fetch(`/api/submissions`, { credentials: "include" });
+        const res = await fetch(
+          `/api/submissions?status=${statusMap[column]}&offset=${offset}&limit=${PAGE_SIZE}`,
+          { credentials: "include" }
+        );
         if (!res.ok) throw new Error(`Error ${res.status}`);
-        const data: Submission[] = await res.json();
-        setSubmissions(data);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : t("inbox.error_unknown"));
+        const data: SubmissionSummary[] = await res.json();
+        setBoard((prev) => ({
+          ...prev,
+          [column]: append ? [...prev[column], ...data] : data,
+        }));
+        setBoardOffsets((prev) => ({
+          ...prev,
+          [column]: append ? prev[column] + data.length : data.length,
+        }));
+        setBoardHasMore((prev) => ({
+          ...prev,
+          [column]: data.length === PAGE_SIZE,
+        }));
+      } catch {
+        // silent
       } finally {
-        setLoading(false);
+        setBoardLoading((p) => ({ ...p, [key]: false }));
       }
-    };
-    fetchSubmissions();
-  }, []);
+    },
+    [boardOffsets]
+  );
 
-  const filtered = submissions
-    .filter((d) => filter === "all" || d.status === filter)
-    .filter((d) => !downloadableOnly || d.original_path || d.mp3_path);
-  const pendingCount = submissions.filter((d) => d.status === "pending").length;
-  const processedCount = submissions.filter((d) => d.status !== "pending").length;
-  const downloadableCount = submissions.filter((d) => d.original_path || d.mp3_path).length;
+  const fetchSystem = useCallback(
+    async (append = false) => {
+      const offset = append ? systemOffset : 0;
+      setSystemLoading(true);
+      try {
+        const res = await fetch(
+          `/api/submissions?status=auto_rejected&offset=${offset}&limit=${PAGE_SIZE}`,
+          { credentials: "include" }
+        );
+        if (!res.ok) throw new Error(`Error ${res.status}`);
+        const data: SubmissionSummary[] = await res.json();
+        setSystemItems((prev) => (append ? [...prev, ...data] : data));
+        setSystemOffset(append ? offset + data.length : data.length);
+        setSystemHasMore(data.length === PAGE_SIZE);
+      } catch {
+        // silent
+      } finally {
+        setSystemLoading(false);
+      }
+    },
+    [systemOffset]
+  );
+
+  const fetchTrash = useCallback(
+    async (append = false) => {
+      const offset = append ? trashOffset : 0;
+      setTrashLoading(true);
+      try {
+        const res = await fetch(
+          `/api/submissions?offset=${offset}&limit=${PAGE_SIZE}`,
+          { credentials: "include" }
+        );
+        if (!res.ok) throw new Error(`Error ${res.status}`);
+        const data: SubmissionSummary[] = await res.json();
+        // Filter to only deleted items (backend may return all)
+        const deleted = data.filter((d) => d.deleted_at);
+        setTrashItems((prev) => (append ? [...prev, ...deleted] : deleted));
+        setTrashOffset(append ? offset + deleted.length : deleted.length);
+        setTrashHasMore(deleted.length === PAGE_SIZE);
+      } catch {
+        // silent
+      } finally {
+        setTrashLoading(false);
+      }
+    },
+    [trashOffset]
+  );
+
+  // ─── Initial load ─────────────────────────────────────────────────────────
 
   useEffect(() => {
-    if (highlightParam && !loading && submissions.length > 0) {
-      const el = document.getElementById(`sub-${highlightParam}`);
-      if (el) {
-        el.scrollIntoView({ behavior: "smooth", block: "center" });
+    fetchColumn("inbox");
+    fetchColumn("shortlist");
+    fetchColumn("rejected");
+    fetchSystem();
+    fetchTrash();
+  }, []);
+
+  // ─── Infinite scroll handlers ─────────────────────────────────────────────
+
+  const handleScroll = useCallback(
+    (
+      e: React.UIEvent<HTMLDivElement>,
+      column: "inbox" | "shortlist" | "rejected" | "system" | "trash"
+    ) => {
+      const el = e.currentTarget;
+      const nearBottom =
+        el.scrollHeight - el.scrollTop - el.clientHeight < 200;
+      if (!nearBottom) return;
+
+      if (column === "inbox" && boardHasMore.inbox && !boardLoading.inbox) {
+        fetchColumn("inbox", true);
+      } else if (
+        column === "shortlist" &&
+        boardHasMore.shortlist &&
+        !boardLoading.shortlist
+      ) {
+        fetchColumn("shortlist", true);
+      } else if (
+        column === "rejected" &&
+        boardHasMore.rejected &&
+        !boardLoading.rejected
+      ) {
+        fetchColumn("rejected", true);
+      } else if (column === "system" && systemHasMore && !systemLoading) {
+        fetchSystem(true);
+      } else if (column === "trash" && trashHasMore && !trashLoading) {
+        fetchTrash(true);
+      }
+    },
+    [
+      boardHasMore,
+      boardLoading,
+      systemHasMore,
+      systemLoading,
+      trashHasMore,
+      trashLoading,
+      fetchColumn,
+      fetchSystem,
+      fetchTrash,
+    ]
+  );
+
+  // ─── Drag & Drop ──────────────────────────────────────────────────────────
+
+  const handleDragEnd = async (result: DropResult) => {
+    const { source, destination, draggableId } = result;
+    if (!destination) return;
+    if (
+      source.droppableId === destination.droppableId &&
+      source.index === destination.index
+    )
+      return;
+
+    const subId = draggableId;
+
+    // Find the submission
+    let sub: SubmissionSummary | null = null;
+    let sourceCol: string = source.droppableId;
+    for (const col of ["inbox", "shortlist", "rejected"]) {
+      const found = board[col as keyof BoardState].find(
+        (s) => s.id === subId
+      );
+      if (found) {
+        sub = found;
+        break;
       }
     }
-  }, [highlightParam, loading, submissions.length]);
+    if (!sub) return;
 
-  const filterTabs: { key: FilterStatus; label: string }[] = [
-    { key: "all", label: t("inbox.filter.all") },
-    { key: "pending", label: t("inbox.filter.pending") },
-    { key: "approved", label: t("inbox.filter.approved") },
-    { key: "rejected", label: t("inbox.filter.rejected") },
-  ];
+    const targetStatus =
+      destination.droppableId === "shortlist"
+        ? "shortlist"
+        : destination.droppableId === "rejected"
+        ? "rejected"
+        : null;
 
-  if (loading) {
+    // If dropping to same column or inbox, no status change needed
+    if (!targetStatus || destination.droppableId === sourceCol) return;
+
+    // If rejecting, we need a reason — open rejection modal
+    if (targetStatus === "rejected") {
+      setPendingReject({ sub, reason: "" });
+      return;
+    }
+
+    // Shortlist: update status then open email modal
+    await updateStatus(sub, "shortlist");
+  };
+
+  const updateStatus = async (
+    sub: SubmissionSummary,
+    status: "shortlist" | "rejected",
+    reason?: string
+  ) => {
+    setActionLoading((p) => ({ ...p, [sub.id]: status }));
+    try {
+      const body: Record<string, unknown> = { status };
+      if (status === "rejected" && reason) {
+        body.rejection_reason = reason;
+      }
+      const res = await fetch(`/api/submissions/${sub.id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `Error ${res.status}`);
+      }
+
+      // Remove from source column, add to target
+      setBoard((prev) => {
+        const next = { ...prev };
+        for (const col of ["inbox", "shortlist", "rejected"] as const) {
+          next[col] = next[col].filter((s) => s.id !== sub.id);
+        }
+        const updated = { ...sub, status };
+        if (status === "shortlist") {
+          next.shortlist = [updated, ...next.shortlist];
+        } else if (status === "rejected") {
+          next.rejected = [updated, ...next.rejected];
+        }
+        return next;
+      });
+
+      // Open email modal for shortlist or rejected
+      if (status === "shortlist" || status === "rejected") {
+        openEmailModal(sub, status);
+      }
+    } catch (e) {
+      alert(e instanceof Error ? e.message : t("inbox.error_unknown"));
+    } finally {
+      setActionLoading((p) => {
+        const next = { ...p };
+        delete next[sub.id];
+        return next;
+      });
+    }
+  };
+
+  // ─── Email Modal ──────────────────────────────────────────────────────────
+
+  const openEmailModal = async (
+    sub: SubmissionSummary,
+    targetStatus: "shortlist" | "rejected"
+  ) => {
+    // Fetch templates
+    let templates: EmailTemplate[] = [];
+    try {
+      const res = await fetch("/api/email/templates", {
+        credentials: "include",
+      });
+      if (res.ok) templates = await res.json();
+    } catch {
+      // silent
+    }
+
+    // Pick first matching template
+    const targetType =
+      targetStatus === "shortlist" ? "approval" : "rejection";
+    const firstMatch = templates.find(
+      (t) => t.template_type === targetType
+    );
+
+    setEmailModal({
+      open: true,
+      submission: sub,
+      targetStatus,
+      templates,
+      selectedTemplate: firstMatch?.id || "",
+      subject: firstMatch
+        ? replaceVariables(firstMatch.subject_template, sub)
+        : "",
+      body: firstMatch
+        ? replaceVariables(firstMatch.body_template, sub)
+        : "",
+      sending: false,
+      sent: false,
+      error: null,
+    });
+  };
+
+  const handleTemplateChange = (templateId: string) => {
+    const tmpl = emailModal.templates.find((t) => t.id === templateId);
+    if (!tmpl || !emailModal.submission) return;
+    setEmailModal((prev) => ({
+      ...prev,
+      selectedTemplate: templateId,
+      subject: replaceVariables(tmpl.subject_template, prev.submission!),
+      body: replaceVariables(tmpl.body_template, prev.submission!),
+    }));
+  };
+
+  const handleSendEmail = async () => {
+    if (!emailModal.submission) return;
+    setEmailModal((p) => ({ ...p, sending: true, error: null }));
+    try {
+      const res = await fetch("/api/email/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          to: emailModal.submission.producer_email || "",
+          subject: emailModal.subject,
+          body: emailModal.body,
+          from_name: "True Peak AI",
+          submission_id: emailModal.submission.id,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `Error ${res.status}`);
+      }
+      setEmailModal((p) => ({ ...p, sending: false, sent: true }));
+      setTimeout(() => {
+        setEmailModal((p) => ({ ...p, open: false }));
+      }, 1500);
+    } catch (e) {
+      setEmailModal((p) => ({
+        ...p,
+        sending: false,
+        error: e instanceof Error ? e.message : t("inbox.kanban.email_error"),
+      }));
+    }
+  };
+
+  const closeEmailModal = () => {
+    setEmailModal((p) => ({ ...p, open: false }));
+  };
+
+  // ─── Delete / Restore ─────────────────────────────────────────────────────
+
+  const handleDelete = async (sub: SubmissionSummary) => {
+    setActionLoading((p) => ({ ...p, [sub.id]: "delete" }));
+    try {
+      const res = await fetch(`/api/submissions/${sub.id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error(`Error ${res.status}`);
+      // Remove from board
+      setBoard((prev) => {
+        const next = { ...prev };
+        for (const col of ["inbox", "shortlist", "rejected"] as const) {
+          next[col] = next[col].filter((s) => s.id !== sub.id);
+        }
+        return next;
+      });
+    } catch (e) {
+      alert(e instanceof Error ? e.message : t("inbox.error_unknown"));
+    } finally {
+      setActionLoading((p) => {
+        const next = { ...p };
+        delete next[sub.id];
+        return next;
+      });
+    }
+  };
+
+  const handleRestore = async (sub: SubmissionSummary) => {
+    setActionLoading((p) => ({ ...p, [sub.id]: "restore" }));
+    try {
+      const res = await fetch(
+        `/api/submissions/${sub.id}/restore`,
+        {
+          method: "PATCH",
+          credentials: "include",
+        }
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(
+          err.detail || t("inbox.kanban.restore_expired")
+        );
+      }
+      // Remove from trash
+      setTrashItems((prev) => prev.filter((s) => s.id !== sub.id));
+      // Refresh inbox column
+      setBoardOffsets((prev) => ({ ...prev, inbox: 0 }));
+      setBoardHasMore((prev) => ({ ...prev, inbox: true }));
+      fetchColumn("inbox");
+    } catch (e) {
+      alert(e instanceof Error ? e.message : t("inbox.error_unknown"));
+    } finally {
+      setActionLoading((p) => {
+        const next = { ...p };
+        delete next[sub.id];
+        return next;
+      });
+    }
+  };
+
+  // ─── Listen ───────────────────────────────────────────────────────────────
+
+  const handleListen = (sub: SubmissionSummary) => {
+    if (!sub.mp3_path) return;
+    if (currentTrack?.id === sub.id) {
+      togglePlay();
+    } else {
+      playTrack({
+        id: sub.id,
+        track_name: sub.track_name || t("inbox.modal.no_name"),
+        producer_name: sub.producer_name || t("inbox.modal.anonymous"),
+        mp3_path: sub.mp3_path,
+      });
+    }
+  };
+
+  // ─── Handle pending reject submit ─────────────────────────────────────────
+
+  const handleRejectSubmit = () => {
+    if (!pendingReject) return;
+    if (!pendingReject.reason.trim()) {
+      alert(t("inbox.kanban.rejection_reason_required"));
+      return;
+    }
+    updateStatus(
+      pendingReject.sub,
+      "rejected",
+      pendingReject.reason.trim()
+    );
+    setPendingReject(null);
+  };
+
+  // ─── Render: Kanban Card ──────────────────────────────────────────────────
+
+  const renderCard = (sub: SubmissionSummary, index: number, colId: string) => {
+    const badge = statusBadgeColor(sub.status);
+    const isLoading = actionLoading[sub.id];
+    const isPlayingThis = currentTrack?.id === sub.id && isPlaying;
+
     return (
-      <div className="max-w-6xl mx-auto px-6 py-8">
-        <div className="flex items-center gap-3 mb-6">
-          <h1 className="font-display font-semibold text-xl">{t("inbox.title")}</h1>
-        </div>
-        <div className="rounded border overflow-hidden" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
-          <div className="grid grid-cols-12 gap-2 px-4 py-2.5 text-[10px] font-mono uppercase tracking-wider text-muted border-b" style={{ borderColor: "var(--border)" }}>
-            <div className="col-span-3">{t("inbox.header.track")}</div>
-            <div className="col-span-1 text-center">{t("inbox.header.bpm")}</div>
-            <div className="col-span-1 text-center">{t("inbox.header.lufs")}</div>
-            <div className="col-span-1 text-center">{t("inbox.header.dur")}</div>
-            <div className="col-span-1 text-center">{t("inbox.header.phase")}</div>
-            <div className="col-span-1 text-center">{t("inbox.header.key")}</div>
-            <div className="col-span-2 text-center">{t("inbox.header.status")}</div>
-            <div className="col-span-2 text-right">{t("inbox.header.action")}</div>
-          </div>
-          {[0, 1, 2, 3, 4].map((i) => (
-            <div key={i} className="grid grid-cols-12 gap-2 px-4 py-3 items-center border-b animate-pulse" style={{ borderColor: "var(--border-light)" }}>
-              <div className="col-span-3">
-                <div className="h-3 rounded w-32 mb-1" style={{ background: "var(--border-light)" }} />
-                <div className="h-2 rounded w-20" style={{ background: "var(--border-light)" }} />
+      <Draggable key={sub.id} draggableId={sub.id} index={index}>
+        {(provided, snapshot) => (
+          <div
+            ref={provided.innerRef}
+            {...provided.draggableProps}
+            className={cn(
+              "rounded border mb-2 transition-shadow",
+              snapshot.isDragging && "shadow-lg opacity-80"
+            )}
+            style={{
+              background: "var(--bg-card)",
+              borderColor: "var(--border)",
+              ...provided.draggableProps.style,
+            }}
+          >
+            {/* Drag handle + top row */}
+            <div
+              className="flex items-start gap-2 px-3 pt-2.5"
+              {...provided.dragHandleProps}
+            >
+              {/* Grip icon */}
+              <div
+                className="mt-0.5 cursor-grab active:cursor-grabbing flex-shrink-0"
+                style={{ color: "var(--text-muted)" }}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                  <circle cx="9" cy="6" r="1.5" />
+                  <circle cx="15" cy="6" r="1.5" />
+                  <circle cx="9" cy="12" r="1.5" />
+                  <circle cx="15" cy="12" r="1.5" />
+                  <circle cx="9" cy="18" r="1.5" />
+                  <circle cx="15" cy="18" r="1.5" />
+                </svg>
               </div>
-              {[0, 1, 2, 3, 4].map((j) => (
-                <div key={j} className="col-span-1 text-center">
-                  <div className="h-3 rounded w-8 mx-auto" style={{ background: "var(--border-light)" }} />
+
+              <div className="min-w-0 flex-1">
+                <div className="font-medium text-sm truncate">
+                  {sub.track_name || t("inbox.modal.no_name")}
                 </div>
-              ))}
-              <div className="col-span-2 text-center">
-                <div className="h-4 rounded w-16 mx-auto" style={{ background: "var(--border-light)" }} />
-              </div>
-              <div className="col-span-2 text-right">
-                <div className="h-5 rounded w-20 ml-auto" style={{ background: "var(--border-light)" }} />
+                <div className="text-[11px] text-muted mt-0.5">
+                  {sub.producer_name || t("inbox.modal.anonymous")}
+                </div>
               </div>
             </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
 
-  if (error) {
+            {/* Metrics row */}
+            <div className="flex items-center gap-3 px-3 py-1.5 text-[11px] font-mono">
+              <span>{formatBpm(sub.bpm)} BPM</span>
+              <span>{formatLufs(sub.lufs)} LUFS</span>
+              <span>{formatKey(sub.musical_key)}</span>
+            </div>
+
+            {/* Badges row */}
+            <div className="flex items-center gap-1.5 px-3 pb-1.5">
+              <span
+                className="font-mono text-[10px] px-1.5 py-0.5 rounded"
+                style={{ background: badge.bg, color: badge.color }}
+              >
+                {statusLabel(sub.status, t)}
+              </span>
+              {sub.human_email_sent && (
+                <span
+                  className="font-mono text-[10px] px-1.5 py-0.5 rounded"
+                  style={{
+                    background: "rgba(16,185,129,0.10)",
+                    color: "#10b981",
+                  }}
+                >
+                  {t("inbox.kanban.email_sent")}
+                </span>
+              )}
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex items-center gap-1 px-3 pb-2.5">
+              {sub.mp3_path && (
+                <button
+                  onClick={() => handleListen(sub)}
+                  disabled={!!isLoading}
+                  className="w-6 h-6 rounded flex items-center justify-center transition-colors hover:bg-white/10 disabled:opacity-50"
+                  style={{
+                    color: isPlayingThis ? "#10b981" : "var(--text-secondary)",
+                  }}
+                  title="Reproducir"
+                >
+                  {isPlayingThis ? (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                      <rect x="6" y="4" width="4" height="16" />
+                      <rect x="14" y="4" width="4" height="16" />
+                    </svg>
+                  ) : (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                      <polygon points="5 3 19 12 5 21 5 3" />
+                    </svg>
+                  )}
+                </button>
+              )}
+              {sub.producer_email && (
+                <Link
+                  href={`/crm?highlight=${sub.id}`}
+                  className="w-6 h-6 rounded flex items-center justify-center transition-colors hover:bg-white/10"
+                  style={{ color: "#10b981" }}
+                  title="Ver en CRM"
+                >
+                  📧
+                </Link>
+              )}
+              <div className="flex-1" />
+              {colId !== "shortlist" && (
+                <button
+                  onClick={() => updateStatus(sub, "shortlist")}
+                  disabled={!!isLoading}
+                  className="px-2 py-0.5 rounded text-[10px] font-medium disabled:opacity-50 transition-colors hover:bg-white/10"
+                  style={{ background: "#10b981", color: "#09090b" }}
+                >
+                  {isLoading === "shortlist"
+                    ? "..."
+                    : t("inbox.kanban.approve")}
+                </button>
+              )}
+              {colId !== "rejected" && (
+                <button
+                  onClick={() => {
+                    setPendingReject({ sub, reason: "" });
+                  }}
+                  disabled={!!isLoading}
+                  className="px-2 py-0.5 rounded text-[10px] font-medium disabled:opacity-50 transition-colors hover:bg-white/10"
+                  style={{ background: "rgba(239,68,68,0.15)", color: "#ef4444" }}
+                >
+                  {isLoading === "rejected"
+                    ? "..."
+                    : t("inbox.kanban.reject")}
+                </button>
+              )}
+              <TwoClickDelete
+                onDelete={() => handleDelete(sub)}
+                size={20}
+              />
+            </div>
+          </div>
+        )}
+      </Draggable>
+    );
+  };
+
+  // ─── Render: Kanban Column ────────────────────────────────────────────────
+
+  const renderColumn = (
+    colId: "inbox" | "shortlist" | "rejected",
+    title: string,
+    accentColor: string
+  ) => {
+    const items = board[colId];
+    const loading = boardLoading[colId];
+    const hasMore = boardHasMore[colId];
+
     return (
-      <div className="max-w-6xl mx-auto px-6 py-8">
-        <h1 className="font-display font-semibold text-xl mb-6">{t("inbox.title")}</h1>
-        <div className="rounded border p-8 text-center" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
-          <p className="text-sm" style={{ color: "#ef4444" }}>{t("inbox.error_load")}: {error}</p>
-          <button
-            onClick={() => { setLoading(true); setError(null); }}
-            className="mt-4 px-4 py-2 rounded text-sm font-medium"
-            style={{ background: "#10b981", color: "#09090b" }}
+      <div
+        className="flex flex-col rounded border overflow-hidden"
+        style={{
+          background: "var(--bg-secondary)",
+          borderColor: "var(--border)",
+          minWidth: 0,
+        }}
+      >
+        {/* Column header */}
+        <div
+          className="px-3 py-2 border-b flex items-center gap-2"
+          style={{ borderColor: "var(--border)" }}
+        >
+          <div
+            className="w-2 h-2 rounded-full"
+            style={{ background: accentColor }}
+          />
+          <span className="text-xs font-semibold uppercase tracking-wider">
+            {title}
+          </span>
+          <span
+            className="text-[10px] font-mono ml-auto"
+            style={{ color: "var(--text-muted)" }}
           >
-            {t("inbox.retry")}
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="max-w-6xl mx-auto px-6 py-8">
-      <style>{`
-        @keyframes breathe {
-          0% { box-shadow: inset 0 0 0 rgba(16,185,129,0); }
-          20% { box-shadow: inset 0 0 14px rgba(16,185,129,0.18); }
-          40% { box-shadow: inset 0 0 6px rgba(16,185,129,0.08); }
-          60% { box-shadow: inset 0 0 14px rgba(16,185,129,0.18); }
-          80% { box-shadow: inset 0 0 6px rgba(16,185,129,0.08); }
-          100% { box-shadow: inset 0 0 0 rgba(16,185,129,0); }
-        }
-      `}</style>
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <h1 className="font-display font-semibold text-xl">{t("inbox.title")}</h1>
-          {pendingCount > 0 && (
-            <span className="font-mono text-xs px-2 py-0.5 rounded" style={{ background: "rgba(16,185,129,0.15)", color: "#10b981" }}>
-              {pendingCount} {t("inbox.new")}
-            </span>
-          )}
-          <span className="font-mono text-[11px] px-2 py-0.5 rounded" style={{ background: "rgba(16,185,129,0.10)", color: "#10b981" }}>
-            {processedCount}/100 {t("inbox.processed")}
+            {items.length}
           </span>
         </div>
+
+        {/* Droppable area */}
+        <Droppable droppableId={colId}>
+          {(provided, snapshot) => (
+            <div
+              ref={provided.innerRef}
+              {...provided.droppableProps}
+              className="flex-1 overflow-y-auto p-2"
+              style={{
+                minHeight: "200px",
+                maxHeight: "calc(100vh - 280px)",
+                background: snapshot.isDraggingOver
+                  ? "rgba(16,185,129,0.03)"
+                  : "transparent",
+              }}
+              onScroll={(e) => handleScroll(e, colId)}
+            >
+              {items.map((sub, index) => renderCard(sub, index, colId))}
+              {provided.placeholder}
+
+              {loading && items.length === 0 && (
+                <div className="py-8 text-center text-muted text-xs animate-pulse">
+                  {t("inbox.modal.loading")}
+                </div>
+              )}
+
+              {!loading && items.length === 0 && (
+                <div className="py-8 text-center text-muted text-xs">
+                  {t("inbox.kanban.empty_column")}
+                </div>
+              )}
+
+              {loading && items.length > 0 && (
+                <div className="py-3 text-center text-muted text-[10px]">
+                  {t("inbox.kanban.loading_more")}
+                </div>
+              )}
+            </div>
+          )}
+        </Droppable>
+      </div>
+    );
+  };
+
+  // ─── Render: System Filtered Tab ──────────────────────────────────────────
+
+  const renderSystemTab = () => (
+    <div
+      ref={systemScrollRef}
+      className="rounded border overflow-hidden"
+      style={{
+        background: "var(--bg-secondary)",
+        borderColor: "var(--border)",
+      }}
+      onScroll={(e) => handleScroll(e, "system")}
+    >
+      {/* Header */}
+      <div
+        className="grid grid-cols-12 gap-2 px-4 py-2.5 text-[10px] font-mono uppercase tracking-wider text-muted border-b"
+        style={{ borderColor: "var(--border)" }}
+      >
+        <div className="col-span-3">{t("inbox.header.track")}</div>
+        <div className="col-span-1 text-center">{t("inbox.header.bpm")}</div>
+        <div className="col-span-1 text-center">{t("inbox.header.lufs")}</div>
+        <div className="col-span-1 text-center">{t("inbox.header.dur")}</div>
+        <div className="col-span-1 text-center">{t("inbox.header.phase")}</div>
+        <div className="col-span-1 text-center">{t("inbox.header.key")}</div>
+        <div className="col-span-2 text-center">{t("inbox.header.status")}</div>
+        <div className="col-span-2 text-right">{t("inbox.header.action")}</div>
       </div>
 
-      {/* Filter Tabs */}
-      <div className="mb-6 flex gap-1 items-center">
-        {filterTabs.map((tab) => (
+      {systemItems.length > 0 ? (
+        systemItems.map((d) => {
+          const badge = statusBadgeColor(d.status);
+          return (
+            <div
+              key={d.id}
+              className="grid grid-cols-12 gap-2 px-4 py-3 text-xs items-center border-b"
+              style={{ borderColor: "var(--border-light)" }}
+            >
+              <div className="col-span-3 flex items-center gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium truncate">
+                    {d.track_name || t("inbox.modal.no_name")}
+                  </div>
+                  <div className="text-[10px] text-muted">
+                    {d.producer_name || t("inbox.modal.anonymous")} ·{" "}
+                    {formatRelativeTime(d.created_at)}
+                  </div>
+                </div>
+              </div>
+              <div className="col-span-1 text-center font-mono">
+                {formatBpm(d.bpm)}
+              </div>
+              <div className="col-span-1 text-center font-mono">
+                {formatLufs(d.lufs)}
+              </div>
+              <div className="col-span-1 text-center font-mono text-muted">
+                {d.duration != null
+                  ? `${Math.floor(d.duration / 60)}:${Math.floor(d.duration % 60)
+                      .toString()
+                      .padStart(2, "0")}`
+                  : "—"}
+              </div>
+              <div className="col-span-1 text-center font-mono text-muted">—</div>
+              <div className="col-span-1 text-center font-mono text-muted">
+                {formatKey(d.musical_key)}
+              </div>
+              <div className="col-span-2 text-center">
+                <span
+                  className="font-mono text-[10px] px-2 py-0.5 rounded"
+                  style={{ background: badge.bg, color: badge.color }}
+                >
+                  Auto-rechazado
+                </span>
+              </div>
+              <div className="col-span-2 text-right flex items-center justify-end gap-1.5">
+                <TwoClickDelete
+                  onDelete={() => handleDelete(d)}
+                  size={22}
+                />
+              </div>
+            </div>
+          );
+        })
+      ) : (
+        <div className="py-12 text-center text-muted">
+          {t("inbox.kanban.empty_system")}
+        </div>
+      )}
+
+      {systemLoading && systemItems.length > 0 && (
+        <div className="py-3 text-center text-muted text-[10px]">
+          {t("inbox.kanban.loading_more")}
+        </div>
+      )}
+    </div>
+  );
+
+  // ─── Render: Trash Tab ────────────────────────────────────────────────────
+
+  const renderTrashTab = () => (
+    <div
+      ref={trashScrollRef}
+      className="rounded border overflow-hidden"
+      style={{
+        background: "var(--bg-secondary)",
+        borderColor: "var(--border)",
+      }}
+      onScroll={(e) => handleScroll(e, "trash")}
+    >
+      {/* Header */}
+      <div
+        className="grid grid-cols-12 gap-2 px-4 py-2.5 text-[10px] font-mono uppercase tracking-wider text-muted border-b"
+        style={{ borderColor: "var(--border)" }}
+      >
+        <div className="col-span-4">{t("inbox.header.track")}</div>
+        <div className="col-span-2 text-center">{t("inbox.header.status")}</div>
+        <div className="col-span-3 text-center">Eliminado</div>
+        <div className="col-span-3 text-right">{t("inbox.header.action")}</div>
+      </div>
+
+      {trashItems.length > 0 ? (
+        trashItems.map((d) => {
+          const deletedAt = d.deleted_at ? new Date(d.deleted_at) : null;
+          const hoursAgo = deletedAt
+            ? Math.floor(
+                (Date.now() - deletedAt.getTime()) / (1000 * 60 * 60)
+              )
+            : null;
+          const canRestore = hoursAgo !== null && hoursAgo < 24;
+          const isLoading = actionLoading[d.id];
+
+          return (
+            <div
+              key={d.id}
+              className="grid grid-cols-12 gap-2 px-4 py-3 text-xs items-center border-b"
+              style={{ borderColor: "var(--border-light)", opacity: 0.6 }}
+            >
+              <div className="col-span-4 flex items-center gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium truncate">
+                    {d.track_name || t("inbox.modal.no_name")}
+                  </div>
+                  <div className="text-[10px] text-muted">
+                    {d.producer_name || t("inbox.modal.anonymous")}
+                  </div>
+                </div>
+              </div>
+              <div className="col-span-2 text-center">
+                <span
+                  className="font-mono text-[10px] px-2 py-0.5 rounded"
+                  style={{
+                    background: "rgba(161,161,170,0.15)",
+                    color: "#a1a1aa",
+                  }}
+                >
+                  {statusLabel(d.status, t)}
+                </span>
+              </div>
+              <div className="col-span-3 text-center text-muted text-[11px]">
+                {hoursAgo !== null
+                  ? hoursAgo < 1
+                    ? "Hace menos de 1h"
+                    : `Hace ${hoursAgo}h`
+                  : "—"}
+              </div>
+              <div className="col-span-3 text-right flex items-center justify-end gap-1.5">
+                {canRestore && (
+                  <button
+                    onClick={() => handleRestore(d)}
+                    disabled={!!isLoading}
+                    className="px-3 py-1 rounded text-[10px] font-medium disabled:opacity-50 transition-colors hover:bg-white/10"
+                    style={{ background: "#06b6d4", color: "#09090b" }}
+                  >
+                    {isLoading === "restore"
+                      ? "..."
+                      : t("inbox.kanban.restore")}
+                  </button>
+                )}
+                {!canRestore && (
+                  <span
+                    className="text-[10px] text-muted"
+                    title={t("inbox.kanban.restore_expired")}
+                  >
+                    Expirado
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        })
+      ) : (
+        <div className="py-12 text-center text-muted">
+          {t("inbox.kanban.empty_trash")}
+        </div>
+      )}
+
+      {trashLoading && trashItems.length > 0 && (
+        <div className="py-3 text-center text-muted text-[10px]">
+          {t("inbox.kanban.loading_more")}
+        </div>
+      )}
+    </div>
+  );
+
+  // ─── Main Render ──────────────────────────────────────────────────────────
+
+  const tabs: { key: TabKey; label: string }[] = [
+    { key: "kanban", label: t("inbox.kanban_tab") },
+    { key: "system", label: t("inbox.kanban.system_tab") },
+    { key: "trash", label: t("inbox.kanban.trash_tab") },
+  ];
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-5">
+        <h1 className="font-display font-semibold text-xl">
+          {t("inbox.title")}
+        </h1>
+      </div>
+
+      {/* Tabs */}
+      <div className="mb-5 flex gap-1 items-center">
+        {tabs.map((tab) => (
           <button
             key={tab.key}
-            onClick={() => setFilter(tab.key)}
+            onClick={() => setActiveTab(tab.key)}
             className="px-4 py-1.5 text-sm font-medium rounded transition-colors"
             style={{
-              background: filter === tab.key ? "var(--bg-card-alt)" : "transparent",
-              color: filter === tab.key ? "var(--text-primary)" : "var(--text-muted)",
-              border: filter === tab.key ? "1px solid var(--border)" : "1px solid transparent",
+              background:
+                activeTab === tab.key
+                  ? "var(--bg-card-alt)"
+                  : "transparent",
+              color:
+                activeTab === tab.key
+                  ? "var(--text-primary)"
+                  : "var(--text-muted)",
+              border:
+                activeTab === tab.key
+                  ? "1px solid var(--border)"
+                  : "1px solid transparent",
             }}
           >
             {tab.label}
           </button>
         ))}
-        <div className="flex-1" />
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] text-muted">{t("inbox.hq_toggle")}</span>
-          <button
-            onClick={() => setDownloadableOnly((p) => !p)}
-            className="relative w-8 h-4 rounded-full transition-colors cursor-pointer"
-            style={{ background: downloadableOnly ? "#10b981" : "var(--border)" }}
-          >
-            <div
-              className="absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform"
-              style={{ left: downloadableOnly ? "calc(100% - 14px)" : "2px" }}
-            />
-          </button>
-          <span className="text-[10px] font-mono" style={{ color: downloadableOnly ? "#10b981" : "var(--text-muted)" }}>
-            {downloadableCount}/10
-          </span>
-        </div>
       </div>
 
-      {/* Table */}
-      <div className="rounded border overflow-hidden" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
-        {/* Header */}
-        <div className="grid grid-cols-12 gap-2 px-4 py-2.5 text-[10px] font-mono uppercase tracking-wider text-muted border-b" style={{ borderColor: "var(--border)" }}>
-          <div className="col-span-3">{t("inbox.header.track")}</div>
-          <div className="col-span-1 text-center">{t("inbox.header.bpm")}</div>
-          <div className="col-span-1 text-center">{t("inbox.header.lufs")}</div>
-          <div className="col-span-1 text-center">{t("inbox.header.dur")}</div>
-          <div className="col-span-1 text-center">{t("inbox.header.phase")}</div>
-          <div className="col-span-1 text-center">{t("inbox.header.key")}</div>
-          <div className="col-span-2 text-center">{t("inbox.header.status")}</div>
-          <div className="col-span-2 text-right">{t("inbox.header.action")}</div>
-        </div>
-
-        {/* Rows */}
-        {filtered.length > 0 ? filtered.map((d) => {
-          const phase = formatPhase(d.phase_correlation);
-          const isHighlighted = highlightParam === d.id;
-          return (
-            <div
-              key={d.id}
-              id={`sub-${d.id}`}
-              className="grid grid-cols-12 gap-2 px-4 py-3 text-xs items-center border-b transition-all duration-500"
-              style={{
-                borderColor: "var(--border-light)",
-                background: isHighlighted
-                  ? "rgba(16,185,129,0.08)"
-                  : d.status === "pending"
-                    ? "rgba(6,182,212,0.04)"
-                    : "transparent",
-                animation: isHighlighted ? "breathe 1.2s ease-in-out 1 forwards" : "none",
-                transition: "background 1.5s ease-out",
-              }}
-            >
-              <div className="col-span-3 flex items-center gap-2">
-                {d.mp3_path && (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); if (currentTrack?.id === d.id) { togglePlay(); } else { playTrack({ id: d.id, track_name: d.track_name || t("inbox.modal.no_name"), producer_name: d.producer_name || t("inbox.modal.anonymous"), mp3_path: d.mp3_path ?? null }); } }}
-                    className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center transition-colors hover:bg-white/10"
-                    title="Reproducir"
-                    style={{ color: currentTrack?.id === d.id ? "#10b981" : "var(--text-secondary)" }}
-                  >
-                    {currentTrack?.id === d.id && isPlaying ? (
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>
-                    ) : (
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
-                    )}
-                  </button>
-                )}
-                <div className="min-w-0 flex-1">
-                  <div className="font-medium truncate">{d.track_name || t("inbox.modal.no_name")}</div>
-                  <div className="text-[10px] text-muted flex items-center gap-1.5">
-                    <span>{d.producer_name || t("inbox.modal.anonymous")} · {formatRelativeTime(d.created_at)}</span>
-                    {d.producer_email && (
-                      <Link
-                        href={`/crm?highlight=${d.id}`}
-                        className="hover:underline"
-                        style={{ color: "#10b981" }}
-                        title="Ver en CRM"
-                      >
-                        📧
-                      </Link>
-                    )}
-                  </div>
-                </div>
-              </div>
-              <div className="col-span-1 text-center font-mono">{formatBpm(d.bpm)}</div>
-              <div className="col-span-1 text-center font-mono">{formatLufs(d.lufs)}</div>
-              <div className="col-span-1 text-center font-mono text-muted">{formatDuration(d.duration)}</div>
-              <div className="col-span-1 text-center font-mono" style={{ color: phase.color }}>{phase.text}</div>
-              <div className="col-span-1 text-center font-mono text-muted">{formatKey(d.musical_key)}</div>
-              <div className="col-span-2 text-center">
-                {d.status === "pending" && (
-                  <span className="font-mono text-[10px] px-2 py-0.5 rounded" style={{ background: "rgba(6,182,212,0.15)", color: "#06b6d4" }}>{t("inbox.status.pending")}</span>
-                )}
-                {d.status === "approved" && (
-                  <span className="font-mono text-[10px] px-2 py-0.5 rounded" style={{ background: "rgba(16,185,129,0.15)", color: "#10b981" }}>{t("inbox.status.approved")}</span>
-                )}
-                {d.status === "rejected" && (
-                  <span className="font-mono text-[10px] px-2 py-0.5 rounded" style={{ background: "rgba(239,68,68,0.15)", color: "#ef4444" }}>{t("inbox.status.rejected")}</span>
-                )}
-              </div>
-              <div className="col-span-2 text-right flex items-center justify-end gap-1.5">
-                {(d.original_path || d.mp3_path) && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      fetch(`/api/submissions/${d.id}/download`, { credentials: "include" })
-                        .then((res) => {
-                          if (!res.ok) throw new Error("No disponible");
-                          return res.blob();
-                        })
-                        .then((blob) => {
-                          const url = URL.createObjectURL(blob);
-                          const a = document.createElement("a");
-                          a.href = url;
-                          const ext = d.original_path ? ".wav" : ".mp3";
-                          a.download = `${d.track_name || d.id}${ext}`;
-                          a.click();
-                          URL.revokeObjectURL(url);
-                        })
-                        .catch(() => alert(t("inbox.download_unavailable")));
-                    }}
-                    className="w-6 h-6 rounded flex items-center justify-center transition-colors hover:bg-white/10"
-                    title={d.original_path ? t("inbox.action.download_original") : t("inbox.action.download_mp3")}
-                    style={{ color: "#10b981" }}
-                  >
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
-                    </svg>
-                  </button>
-                )}
-                {d.status === "pending" && (
-                  <>
-                    <button onClick={() => handleListen(d.id)} disabled={!!actionLoading[d.id]} className="px-3 py-1 rounded text-[10px] font-medium disabled:opacity-50" style={{ background: "#10b981", color: "#09090b" }}>
-                      {actionLoading[d.id] === "listen" ? "..." : t("inbox.action.listen")}
-                    </button>
-                    <button onClick={() => handleApprove(d.id)} disabled={!!actionLoading[d.id]} className="px-3 py-1 rounded text-[10px] font-medium disabled:opacity-50" style={{ background: "#06b6d4", color: "#09090b" }}>
-                      {actionLoading[d.id] === "approve" ? "..." : t("inbox.action.approve")}
-                    </button>
-                    <TwoClickDelete onDelete={() => handleDiscard(d.id)} size={22} />
-                  </>
-                )}
-                {(d.status === "approved" || d.status === "rejected") && (
-                  <TwoClickDelete onDelete={() => handleDiscard(d.id)} size={22} />
-                )}
-              </div>
-            </div>
-          );
-        }) : (
-          <div className="py-12 text-center text-muted">
-            {filter === "all" ? t("inbox.empty.all") : t("inbox.empty.filter")}
+      {/* Tab Content */}
+      {activeTab === "kanban" && (
+        <DragDropContext onDragEnd={handleDragEnd}>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {renderColumn("inbox", t("inbox.kanban.inbox_col"), "#06b6d4")}
+            {renderColumn(
+              "shortlist",
+              t("inbox.kanban.shortlist_col"),
+              "#10b981"
+            )}
+            {renderColumn(
+              "rejected",
+              t("inbox.kanban.rejected_col"),
+              "#ef4444"
+            )}
           </div>
-        )}
-      </div>
+        </DragDropContext>
+      )}
 
-      {/* Detail Modal */}
-      {modal.open && (
+      {activeTab === "system" && renderSystemTab()}
+      {activeTab === "trash" && renderTrashTab()}
+
+      {/* ─── Email Modal ─────────────────────────────────────────────────── */}
+      {emailModal.open && emailModal.submission && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center"
           style={{ background: "rgba(0,0,0,0.7)" }}
-          onClick={closeModal}
+          onClick={closeEmailModal}
         >
           <div
             className="rounded border max-w-lg w-full mx-4 overflow-hidden"
-            style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}
+            style={{
+              borderColor: "var(--border)",
+              background: "var(--bg-secondary)",
+            }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: "var(--border)" }}>
-              <h2 className="font-display font-semibold text-base">{t("inbox.modal.title")}</h2>
+            {/* Header */}
+            <div
+              className="flex items-center justify-between px-5 py-4 border-b"
+              style={{ borderColor: "var(--border)" }}
+            >
+              <h2 className="font-display font-semibold text-base">
+                {t("inbox.kanban.email_title").replace(
+                  "{producer_name}",
+                  emailModal.submission.producer_name ||
+                    t("inbox.modal.anonymous")
+                )}
+              </h2>
               <button
-                onClick={closeModal}
+                onClick={closeEmailModal}
                 className="w-7 h-7 rounded flex items-center justify-center text-muted hover:text-white transition-colors"
                 style={{ background: "var(--bg-card-alt)" }}
               >
@@ -500,73 +1173,209 @@ function InboxContent() {
               </button>
             </div>
 
-            <div className="px-5 py-4">
-              {modal.loading && (
-                <div className="py-8 text-center text-muted text-sm animate-pulse">{t("inbox.modal.loading")}</div>
-              )}
-              {modal.error && (
-                <div className="py-8 text-center text-sm" style={{ color: "#ef4444" }}>
-                  {modal.error}
+            <div className="px-5 py-4 space-y-4">
+              {emailModal.sent && (
+                <div className="py-6 text-center text-sm" style={{ color: "#10b981" }}>
+                  {t("inbox.kanban.email_sent_success")}
                 </div>
               )}
-              {modal.detail && (
-                <div className="space-y-4">
+
+              {!emailModal.sent && (
+                <>
+                  {/* Template selector */}
                   <div>
-                    <div className="font-medium text-sm">{modal.detail.track_name || t("inbox.modal.no_name")}</div>
-                    <div className="text-xs text-muted mt-0.5">{modal.detail.producer_name || t("inbox.modal.anonymous")} · {modal.detail.producer_email || t("inbox.modal.no_email")}</div>
+                    <label className="text-[10px] text-muted uppercase tracking-wider block mb-1">
+                      Plantilla
+                    </label>
+                    <select
+                      value={emailModal.selectedTemplate}
+                      onChange={(e) => handleTemplateChange(e.target.value)}
+                      className="w-full rounded px-3 py-2 text-sm border"
+                      style={{
+                        background: "var(--bg-card)",
+                        borderColor: "var(--border)",
+                        color: "var(--text-primary)",
+                      }}
+                    >
+                      <option value="">
+                        {t("inbox.kanban.no_templates")}
+                      </option>
+                      {emailModal.templates.map((tmpl) => (
+                        <option key={tmpl.id} value={tmpl.id}>
+                          {tmpl.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
-                  <div className="grid grid-cols-4 gap-2">
-                    <div className="rounded px-3 py-2 text-center" style={{ background: "var(--bg-card-alt)" }}>
-                      <div className="text-[10px] text-muted uppercase tracking-wider">{t("inbox.header.bpm")}</div>
-                      <div className="font-mono text-sm mt-0.5">{formatBpm(modal.detail.bpm)}</div>
-                    </div>
-                    <div className="rounded px-3 py-2 text-center" style={{ background: "var(--bg-card-alt)" }}>
-                      <div className="text-[10px] text-muted uppercase tracking-wider">{t("inbox.header.lufs")}</div>
-                      <div className="font-mono text-sm mt-0.5">{formatLufs(modal.detail.lufs)}</div>
-                    </div>
-                    <div className="rounded px-3 py-2 text-center" style={{ background: "var(--bg-card-alt)" }}>
-                      <div className="text-[10px] text-muted uppercase tracking-wider">{t("inbox.header.phase")}</div>
-                      <div className="font-mono text-sm mt-0.5" style={{ color: formatPhase(modal.detail.phase_correlation).color }}>
-                        {formatPhase(modal.detail.phase_correlation).text}
-                      </div>
-                    </div>
-                    <div className="rounded px-3 py-2 text-center" style={{ background: "var(--bg-card-alt)" }}>
-                      <div className="text-[10px] text-muted uppercase tracking-wider">{t("inbox.header.key")}</div>
-                      <div className="font-mono text-sm mt-0.5">{formatKey(modal.detail.musical_key)}</div>
-                    </div>
+                  {/* Subject */}
+                  <div>
+                    <label className="text-[10px] text-muted uppercase tracking-wider block mb-1">
+                      {t("inbox.kanban.email_subject")}
+                    </label>
+                    <input
+                      type="text"
+                      value={emailModal.subject}
+                      onChange={(e) =>
+                        setEmailModal((p) => ({
+                          ...p,
+                          subject: e.target.value,
+                        }))
+                      }
+                      className="w-full rounded px-3 py-2 text-sm border"
+                      style={{
+                        background: "var(--bg-card)",
+                        borderColor: "var(--border)",
+                        color: "var(--text-primary)",
+                      }}
+                    />
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted">{t("inbox.modal.status_label")}:</span>
-                    {modal.detail.status === "pending" && (
-                      <span className="font-mono text-[10px] px-2 py-0.5 rounded" style={{ background: "rgba(6,182,212,0.15)", color: "#06b6d4" }}>{t("inbox.status.pending")}</span>
-                    )}
-                    {modal.detail.status === "approved" && (
-                      <span className="font-mono text-[10px] px-2 py-0.5 rounded" style={{ background: "rgba(16,185,129,0.15)", color: "#10b981" }}>{t("inbox.status.approved")}</span>
-                    )}
-                    {modal.detail.status === "rejected" && (
-                      <span className="font-mono text-[10px] px-2 py-0.5 rounded" style={{ background: "rgba(239,68,68,0.15)", color: "#ef4444" }}>{t("inbox.status.rejected")}</span>
-                    )}
-                    {modal.detail.rejection_reason && (
-                      <span className="text-xs" style={{ color: "#ef4444" }}>— {modal.detail.rejection_reason}</span>
-                    )}
+                  {/* Body */}
+                  <div>
+                    <label className="text-[10px] text-muted uppercase tracking-wider block mb-1">
+                      {t("inbox.kanban.email_body")}
+                    </label>
+                    <textarea
+                      value={emailModal.body}
+                      onChange={(e) =>
+                        setEmailModal((p) => ({
+                          ...p,
+                          body: e.target.value,
+                        }))
+                      }
+                      rows={6}
+                      className="w-full rounded px-3 py-2 text-sm border resize-none"
+                      style={{
+                        background: "var(--bg-card)",
+                        borderColor: "var(--border)",
+                        color: "var(--text-primary)",
+                      }}
+                    />
                   </div>
 
-                  {modal.detail.mp3_path ? (
-                    <div>
-                      <div className="text-xs text-muted mb-2">{t("inbox.modal.audio_label")}</div>
-                      <audio controls className="w-full" src={`${API}/files/${modal.detail.mp3_path}`} style={{ borderRadius: "6px" }}>
-                        {t("inbox.modal.browser_no_audio")}
-                      </audio>
-                    </div>
-                  ) : (
-                    <div className="rounded px-3 py-2 text-xs text-center" style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444" }}>
-                      {t("inbox.modal.no_audio")}
+                  {/* Error */}
+                  {emailModal.error && (
+                    <div
+                      className="rounded px-3 py-2 text-xs text-center"
+                      style={{
+                        background: "rgba(239,68,68,0.1)",
+                        color: "#ef4444",
+                      }}
+                    >
+                      {emailModal.error}
                     </div>
                   )}
-                </div>
+
+                  {/* Buttons */}
+                  <div className="flex items-center gap-2 justify-end pt-2">
+                    <button
+                      onClick={closeEmailModal}
+                      className="px-4 py-2 rounded text-sm font-medium transition-colors hover:bg-white/10"
+                      style={{
+                        background: "var(--bg-card-alt)",
+                        color: "var(--text-secondary)",
+                      }}
+                    >
+                      {t("inbox.kanban.email_skip")}
+                    </button>
+                    <button
+                      onClick={handleSendEmail}
+                      disabled={emailModal.sending}
+                      className="px-4 py-2 rounded text-sm font-medium disabled:opacity-50 transition-colors"
+                      style={{
+                        background: "#10b981",
+                        color: "#09090b",
+                      }}
+                    >
+                      {emailModal.sending
+                        ? t("inbox.kanban.email_sending")
+                        : t("inbox.kanban.email_send")}
+                    </button>
+                  </div>
+                </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Rejection Reason Modal ──────────────────────────────────────── */}
+      {pendingReject && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: "rgba(0,0,0,0.7)" }}
+          onClick={() => setPendingReject(null)}
+        >
+          <div
+            className="rounded border max-w-md w-full mx-4 overflow-hidden"
+            style={{
+              borderColor: "var(--border)",
+              background: "var(--bg-secondary)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className="flex items-center justify-between px-5 py-4 border-b"
+              style={{ borderColor: "var(--border)" }}
+            >
+              <h2 className="font-display font-semibold text-base">
+                {t("inbox.kanban.reject")} —{" "}
+                {pendingReject.sub.track_name || t("inbox.modal.no_name")}
+              </h2>
+              <button
+                onClick={() => setPendingReject(null)}
+                className="w-7 h-7 rounded flex items-center justify-center text-muted hover:text-white transition-colors"
+                style={{ background: "var(--bg-card-alt)" }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="px-5 py-4 space-y-4">
+              <div>
+                <label className="text-[10px] text-muted uppercase tracking-wider block mb-1">
+                  {t("inbox.kanban.rejection_reason_placeholder")}
+                </label>
+                <textarea
+                  value={pendingReject.reason}
+                  onChange={(e) =>
+                    setPendingReject((p) =>
+                      p ? { ...p, reason: e.target.value } : null
+                    )
+                  }
+                  rows={3}
+                  className="w-full rounded px-3 py-2 text-sm border resize-none"
+                  style={{
+                    background: "var(--bg-card)",
+                    borderColor: "var(--border)",
+                    color: "var(--text-primary)",
+                  }}
+                  placeholder={t(
+                    "inbox.kanban.rejection_reason_placeholder"
+                  )}
+                />
+              </div>
+
+              <div className="flex items-center gap-2 justify-end pt-2">
+                <button
+                  onClick={() => setPendingReject(null)}
+                  className="px-4 py-2 rounded text-sm font-medium transition-colors hover:bg-white/10"
+                  style={{
+                    background: "var(--bg-card-alt)",
+                    color: "var(--text-secondary)",
+                  }}
+                >
+                  {t("inbox.kanban.email_skip")}
+                </button>
+                <button
+                  onClick={handleRejectSubmit}
+                  className="px-4 py-2 rounded text-sm font-medium transition-colors"
+                  style={{ background: "#ef4444", color: "#fff" }}
+                >
+                  {t("inbox.kanban.reject")}
+                </button>
+              </div>
             </div>
           </div>
         </div>
