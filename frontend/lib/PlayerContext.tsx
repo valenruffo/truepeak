@@ -51,17 +51,38 @@ export function PlayerProvider({ children, initialTracks = [] }: { children: Rea
     }
   }, []);
 
-  // Update source when track changes
+  // Update source when track changes — fetch with auth, create blob
   useEffect(() => {
     if (!audioRef.current || tracks.length === 0) return;
     const track = tracks[currentIndex];
     if (!track?.id) return;
-    audioRef.current.src = `/mp3s/${track.id}.mp3`;
-    audioRef.current.load();
-    setProgress(0);
-    if (isPlaying) {
-      audioRef.current.play().catch(() => setIsPlaying(false));
-    }
+
+    let cancelled = false;
+
+    const loadAudio = async () => {
+      try {
+        const res = await fetch(`/api/submissions/${track.id}/download`, {
+          credentials: "include",
+        });
+        if (!res.ok || cancelled) return;
+        const blob = await res.blob();
+        if (cancelled) return;
+        const url = URL.createObjectURL(blob);
+        if (audioRef.current) {
+          audioRef.current.src = url;
+          audioRef.current.load();
+          setProgress(0);
+          if (isPlaying) {
+            audioRef.current.play().catch(() => setIsPlaying(false));
+          }
+        }
+      } catch {
+        // silently fail
+      }
+    };
+
+    loadAudio();
+    return () => { cancelled = true; };
   }, [currentIndex, tracks]);
 
   // Play/pause

@@ -12,6 +12,7 @@ const navItems = [
   { href: "/link", label: "Link" },
   { href: "/inbox", label: "Tracks" },
   { href: "/crm", label: "Emails" },
+  { href: "/settings", label: "Ajustes" },
   { href: "/guide", label: "Guía" },
 ];
 
@@ -87,6 +88,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
   const [plan, setPlan] = useState<string>("free");
   const [hqCount, setHqCount] = useState<{ count: number; limit: number; processed_count: number } | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [remainingTracks, setRemainingTracks] = useState<number | null>(null);
   const { queueTracks } = usePlayer();
 
   useEffect(() => {
@@ -113,7 +115,16 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
         const res = await fetch(`/api/labels/${slug}/hq-count`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
-        if (res.ok) setHqCount(await res.json());
+        if (res.ok) {
+          const data = await res.json();
+          setHqCount(data);
+          // Calculate remaining free tracks
+          if (data.plan === "free" || (data.plan === undefined && (localStorage.getItem("plan") || "free") === "free")) {
+            const processedCount = data.processed_count ?? 0;
+            const remaining = Math.max(0, 5 - processedCount);
+            setRemainingTracks(remaining);
+          }
+        }
       } catch { /* silent */ }
     };
     if (slug) fetchHqCount();
@@ -173,10 +184,25 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
         </nav>
         {hqCount && (
           <div className="px-3 mb-1 space-y-1">
-            {plan === "free" && (
-              <div className="px-3 py-1.5 rounded text-xs font-mono" style={{ background: "rgba(16,185,129,0.06)", color: hqCount.processed_count >= 5 ? "#ef4444" : "#71717a" }}>
-                🎵 {hqCount.processed_count}/5 tracks
-              </div>
+            {plan === "free" && remainingTracks !== null && (
+              remainingTracks === 0 ? (
+                <div className="px-3 py-1.5 rounded text-xs font-mono" style={{ background: "rgba(239,68,68,0.06)", color: "#ef4444" }}>
+                  Sin tracks disponibles —{" "}
+                  <a
+                    href="https://truepeak.lemonsqueezy.com/checkout/buy/xxx"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline hover:opacity-80"
+                    style={{ color: "#ef4444" }}
+                  >
+                    Upgrade a Pro
+                  </a>
+                </div>
+              ) : remainingTracks < 5 ? (
+                <div className="px-3 py-1.5 rounded text-xs font-mono" style={{ background: "rgba(250,204,21,0.06)", color: "#facc15" }}>
+                  ⚠ Te quedan {remainingTracks} tracks gratis
+                </div>
+              ) : null
             )}
             <div className="px-3 py-1.5 rounded text-xs font-mono" style={{ background: "rgba(16,185,129,0.06)", color: hqCount.count >= hqCount.limit ? "#ef4444" : "#71717a" }}>
               📦 {hqCount.count}/{hqCount.limit} HQ
@@ -226,5 +252,3 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     </PlayerProvider>
   );
 }
-
-
