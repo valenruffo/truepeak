@@ -182,38 +182,6 @@ function CRMContent() {
   const plan = typeof window !== "undefined" ? localStorage.getItem("plan") : "free";
   const isFree = plan === "free" || !plan;
 
-  if (isFree) {
-    return (
-      <div className="max-w-6xl mx-auto px-6 py-8 relative">
-        <div className="rounded border overflow-hidden" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)", filter: "blur(6px)", pointerEvents: "none", userSelect: "none" }}>
-          <div className="grid grid-cols-5" style={{ minHeight: "500px" }}>
-            <div className="col-span-2 border-r p-4" style={{ borderColor: "var(--border)" }}>
-              {[1,2,3].map(i => <div key={i} className="h-16 rounded mb-2" style={{ background: "var(--bg-card)" }} />)}
-            </div>
-            <div className="col-span-3 p-4">
-              <div className="h-8 rounded w-1/3 mb-4" style={{ background: "var(--bg-card)" }} />
-              <div className="h-32 rounded" style={{ background: "var(--bg-card)" }} />
-            </div>
-          </div>
-        </div>
-        <div className="absolute inset-0 flex flex-col items-center justify-center z-10">
-          <div className="text-center p-8 rounded border" style={{ background: "var(--bg-secondary)", borderColor: "var(--border)" }}>
-            <div className="w-14 h-14 mx-auto mb-4 rounded-full flex items-center justify-center" style={{ background: "rgba(16,185,129,0.1)" }}>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="1.5">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
-              </svg>
-            </div>
-            <h2 className="text-lg font-semibold mb-2">{t("crm.locked.title")}</h2>
-            <p className="text-sm text-muted mb-6 max-w-sm">{t("crm.locked.desc")}</p>
-            <Link href="/settings" className="inline-block px-6 py-2.5 text-sm font-medium rounded transition-all hover:opacity-90 cursor-pointer" style={{ background: "#10b981", color: "#09090b" }}>
-              Ver planes disponibles
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   if (loading) {
     return (
       <div className="max-w-6xl mx-auto px-6 py-8">
@@ -257,7 +225,24 @@ function CRMContent() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-6 py-8">
+    <div className="max-w-6xl mx-auto px-6 py-8 relative">
+      {isFree && (
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center mx-6 my-8" style={{ pointerEvents: "auto" }}>
+          <div className="text-center p-8 rounded border max-w-sm" style={{ background: "var(--bg-card)", borderColor: "var(--border)" }}>
+            <div className="w-12 h-12 mx-auto mb-3 rounded-full flex items-center justify-center" style={{ background: "rgba(16,185,129,0.1)" }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="1.5">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+            </div>
+            <h3 className="text-base font-semibold mb-1" style={{ color: "var(--text-primary)" }}>Plan Indie o Pro</h3>
+            <p className="text-xs text-muted mb-5">Los emails están disponibles en los planes Indie y Pro. Hacé upgrade para contactar productores.</p>
+            <Link href="/settings" className="inline-block px-5 py-2 text-sm font-medium rounded transition-all hover:opacity-90 cursor-pointer" style={{ background: "#10b981", color: "#09090b" }}>
+              Ver planes
+            </Link>
+          </div>
+        </div>
+      )}
+      <div style={isFree ? { filter: "blur(4px)", pointerEvents: "none", userSelect: "none" } : undefined}>
       <style>{`
         @keyframes breathe {
           0% { box-shadow: inset 0 0 0 rgba(16,185,129,0); }
@@ -361,6 +346,7 @@ function CRMContent() {
             </div>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

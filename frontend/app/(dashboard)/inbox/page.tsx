@@ -656,24 +656,13 @@ function InboxContent() {
               ...provided.draggableProps.style,
             }}
           >
-            {/* Drag handle strip */}
-            <div
-              className="cursor-grab active:cursor-grabbing"
-              {...provided.dragHandleProps}
-              style={{
-                height: "4px",
-                borderTop: "2px dashed var(--border)",
-                background: "rgba(255,255,255,0.02)",
-              }}
-            />
+            {/* Drag handle — thin visual indicator */}
+            <div className="h-1" style={{ background: "rgba(255,255,255,0.03)", borderTop: "1px solid rgba(255,255,255,0.04)" }} />
 
-            {/* Top row */}
-            <div className="flex items-start gap-2 px-3 pt-2.5">
-              {/* Grip icon */}
-              <div
-                className="mt-0.5 cursor-grab active:cursor-grabbing flex-shrink-0"
-                style={{ color: "var(--text-muted)" }}
-              >
+            {/* Top row — full-width drag zone */}
+            <div className="flex items-start gap-2 px-3 pt-2.5 cursor-grab active:cursor-grabbing" {...provided.dragHandleProps}>
+              {/* Grip icon — subtle visual cue */}
+              <div className="mt-0.5 flex-shrink-0" style={{ color: "var(--text-muted)" }}>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
                   <circle cx="9" cy="6" r="1.5" />
                   <circle cx="15" cy="6" r="1.5" />
