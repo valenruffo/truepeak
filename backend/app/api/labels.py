@@ -270,9 +270,13 @@ async def label_login_by_identifier(
     response: Response,
     session: Session = Depends(get_session),
 ):
-    """Login by email or slug. Sets JWT as HTTPOnly cookie."""
+    """Login by email, name, or slug. Sets JWT as HTTPOnly cookie."""
     # Try email first
     label = session.exec(select(Label).where(Label.owner_email == body.identifier)).first()
+
+    # Fall back to name (case-insensitive)
+    if not label:
+        label = session.exec(select(Label).where(Label.name.ilike(body.identifier))).first()
 
     # Fall back to slug
     if not label:
