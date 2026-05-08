@@ -326,14 +326,149 @@ function Hero() {
 
 // ─── How It Works ─────────────────────────────────────────────────────────────
 
+const stepsData = [
+  {
+    key: "step.01",
+    titleKey: "step.01.title" as const,
+    descKey: "step.01.desc" as const,
+  },
+  {
+    key: "step.02",
+    titleKey: "step.02.title" as const,
+    descKey: "step.02.desc" as const,
+  },
+  {
+    key: "step.03",
+    titleKey: "step.03.title" as const,
+    descKey: "step.03.desc" as const,
+  },
+  {
+    key: "step.04",
+    titleKey: "step.04.title" as const,
+    descKey: "step.04.desc" as const,
+  },
+];
+
+function StepVisual({ step }: { step: number }) {
+  const visuals: Record<number, React.ReactNode> = {
+    0: (
+      <div className="rounded border overflow-hidden" style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}>
+        <div className="px-4 py-2 border-b flex items-center gap-2" style={{ borderColor: "var(--border)" }}>
+          <div className="w-2 h-2 rounded-full" style={{ background: "#ef4444" }} />
+          <div className="w-2 h-2 rounded-full" style={{ background: "#f59e0b" }} />
+          <div className="w-2 h-2 rounded-full" style={{ background: "#10b981" }} />
+          <span className="ml-2 text-[10px] font-mono" style={{ color: "var(--text-muted)" }}>truepeak.space/s/tu-sello</span>
+        </div>
+        <div className="p-4 space-y-3">
+          <div className="h-6 rounded w-2/3" style={{ background: "var(--bg-secondary)" }} />
+          <div className="space-y-2">
+            <div className="h-8 rounded" style={{ background: "var(--bg-secondary)" }} />
+            <div className="h-8 rounded" style={{ background: "var(--bg-secondary)" }} />
+            <div className="h-8 rounded" style={{ background: "var(--bg-secondary)" }} />
+          </div>
+          <div className="border-2 border-dashed rounded p-6 text-center" style={{ borderColor: "#10b981", background: "rgba(16,185,129,0.03)" }}>
+            <div className="text-xs" style={{ color: "#10b981" }}>Arrastrá tu audio acá</div>
+            <div className="text-[10px]" style={{ color: "var(--text-muted)" }}>o hacé clic para seleccionar · WAV, FLAC, AIFF</div>
+          </div>
+          <div className="h-9 rounded w-full" style={{ background: "#10b981" }} />
+        </div>
+      </div>
+    ),
+    1: (
+      <div className="rounded border overflow-hidden" style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}>
+        <div className="px-4 py-2 border-b flex items-center justify-between" style={{ borderColor: "var(--border)" }}>
+          <div className="flex items-center gap-2">
+            <div className="w-1.5 h-1.5 rounded-full" style={{ background: "#06b6d4" }} />
+            <span className="font-mono text-[10px]" style={{ color: "#06b6d4" }}>ANALIZANDO</span>
+          </div>
+          <span className="font-mono text-[10px]" style={{ color: "var(--text-muted)" }}>DJ_Krill_Midni...</span>
+        </div>
+        <div className="p-3">
+          <div className="grid grid-cols-12 gap-[2px] mb-3">
+            {Array.from({ length: 48 }).map((_, i) => (
+              <div key={i} className="transition-all" style={{ height: "4px", background: i % 3 === 0 ? "#06b6d4" : "var(--bg-secondary)", opacity: i % 3 === 0 ? 0.7 : 0.15 }} />
+            ))}
+          </div>
+          <div className="flex items-end gap-[2px] h-10 mb-2">
+            {Array.from({ length: 16 }).map((_, i) => (
+              <div key={i} className="flex-1 rounded-sm" style={{ height: `${20 + Math.sin(i * 0.8) * 40 + 30}%`, background: "#06b6d4", opacity: 0.5 }} />
+            ))}
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-px" style={{ background: "var(--border)" }}>
+          {["BPM", "LUFS", "FASE"].map((m) => (
+            <div key={m} className="px-3 py-2 text-center" style={{ background: "var(--bg-secondary)" }}>
+              <div className="text-[9px] uppercase tracking-wider font-mono" style={{ color: "var(--text-muted)" }}>{m}</div>
+              <div className="font-mono text-xs" style={{ color: "var(--text-primary)" }}>{m === "BPM" ? "128" : m === "LUFS" ? "-6.2" : "INVERTIDA"}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    ),
+    2: (
+      <div className="rounded border overflow-hidden" style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}>
+        <div className="px-4 py-2 border-b flex items-center justify-between" style={{ borderColor: "var(--border)" }}>
+          <span className="font-mono text-[10px] font-semibold" style={{ color: "var(--text-primary)" }}>Bandeja de tracks</span>
+          <span className="font-mono text-[10px]" style={{ color: "#10b981" }}>3 nuevos</span>
+        </div>
+        <div className="divide-y" style={{ borderColor: "var(--border)" }}>
+          {[
+            { name: "Midnight Protocol", bpm: "128", lufs: "-14.0", status: "Pendiente", color: "#06b6d4", bg: "rgba(6,182,212,0.08)" },
+            { name: "Deep Cut", bpm: "122", lufs: "-12.8", status: "Aprobado", color: "#10b981", bg: "rgba(16,185,129,0.08)" },
+            { name: "Groove 03", bpm: "140", lufs: "-4.1", status: "Rechazado", color: "#ef4444", bg: "rgba(239,68,68,0.08)" },
+          ].map((t, i) => (
+            <div key={i} className="px-3 py-2.5 grid grid-cols-12 items-center gap-2 text-[10px]">
+              <span className="col-span-4 truncate font-medium" style={{ color: "var(--text-primary)" }}>{t.name}</span>
+              <span className="col-span-2 font-mono text-right" style={{ color: "var(--text-muted)" }}>{t.bpm}</span>
+              <span className="col-span-2 font-mono text-right" style={{ color: "var(--text-muted)" }}>{t.lufs}</span>
+              <span className="col-span-2 font-mono text-right" style={{ color: "var(--text-muted)" }}>3:42</span>
+              <span className="col-span-2 text-right">
+                <span className="font-mono px-1.5 py-0.5 rounded text-[9px]" style={{ background: t.bg, color: t.color }}>{t.status}</span>
+              </span>
+            </div>
+          ))}
+        </div>
+        <div className="px-3 py-2 border-t flex items-center gap-3" style={{ borderColor: "var(--border)" }}>
+          {["Todos", "Pendientes", "Aprobados", "Rechazados"].map((f) => (
+            <span key={f} className="text-[10px] font-mono" style={{ color: f === "Pendientes" ? "#fafafa" : "var(--text-muted)" }}>{f}</span>
+          ))}
+        </div>
+      </div>
+    ),
+    3: (
+      <div className="rounded border overflow-hidden" style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}>
+        <div className="px-4 py-2 border-b" style={{ borderColor: "var(--border)" }}>
+          <span className="font-mono text-[10px] font-semibold" style={{ color: "var(--text-primary)" }}>Enviar email</span>
+        </div>
+        <div className="p-3 space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-mono" style={{ color: "var(--text-muted)" }}>Para:</span>
+            <span className="text-[10px] font-mono" style={{ color: "var(--text-primary)" }}>dj_krill@email.com</span>
+          </div>
+          <div className="h-7 rounded" style={{ background: "var(--bg-secondary)" }} />
+          <div className="h-24 rounded" style={{ background: "var(--bg-secondary)" }}>
+            <div className="p-2 text-[10px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
+              Hola DJ Krill,<br /><br />
+              Gracias por enviarnos <span style={{ color: "#10b981" }}>Midnight Protocol</span>. Nos gustó mucho el track pero la fase está invertida en el canal derecho.<br /><br />
+              ¿Podrías revisarlo y mandarnos una versión corregida?<br /><br />
+              Saludos,<br />
+              <span style={{ color: "var(--text-primary)" }}>Tu Sello</span>
+            </div>
+          </div>
+          <div className="h-8 rounded w-full" style={{ background: "#10b981", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <span className="text-[10px] font-medium" style={{ color: "#09090b" }}>Enviar email</span>
+          </div>
+        </div>
+      </div>
+    ),
+  };
+
+  return <>{visuals[step]}</>;
+}
+
 function HowItWorks() {
   const { t } = useLanguage();
-  const steps = [
-    { num: "01", title: t("step.01.title"), desc: t("step.01.desc"), icon: <IconLink /> },
-    { num: "02", title: t("step.02.title"), desc: t("step.02.desc"), icon: <IconAnalysis /> },
-    { num: "03", title: t("step.03.title"), desc: t("step.03.desc"), icon: <IconHeadphones /> },
-    { num: "04", title: t("step.04.title"), desc: t("step.04.desc"), icon: <IconMail /> },
-  ];
+  const [activeStep, setActiveStep] = useState(0);
 
   return (
     <section id="how-it-works" className="py-20 px-6" style={{ borderTop: "1px solid var(--border)" }}>
@@ -345,17 +480,50 @@ function HowItWorks() {
           </h2>
         </div>
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {steps.map((step) => (
-            <div key={step.num} className="p-5 rounded border transition-all hover:border-zinc-600" style={{ background: "var(--bg-secondary)", borderColor: "var(--border)" }}>
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-9 h-9 rounded flex items-center justify-center" style={{ background: "rgba(16,185,129,0.1)", color: "#10b981" }}>{step.icon}</div>
-                <span className="font-mono text-xs" style={{ color: "var(--text-muted-alt)" }}>{step.num}</span>
-              </div>
-              <h3 className="font-semibold text-sm mb-2" style={{ color: "var(--text-primary)" }}>{step.title}</h3>
-              <p className="text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>{step.desc}</p>
+        <div className="grid md:grid-cols-2 gap-8 lg:gap-12">
+          {/* Left: Steps */}
+          <div className="space-y-1">
+            {stepsData.map((step, i) => (
+              <button
+                key={step.key}
+                onClick={() => setActiveStep(i)}
+                className="w-full text-left p-4 rounded border transition-all cursor-pointer"
+                style={{
+                  background: activeStep === i ? "var(--bg-card)" : "transparent",
+                  borderColor: activeStep === i ? "#10b981" : "transparent",
+                }}
+              >
+                <div className="flex items-start gap-3">
+                  <div
+                    className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-mono font-bold flex-shrink-0 mt-0.5 transition-all"
+                    style={{
+                      background: activeStep === i ? "#10b981" : "var(--bg-secondary)",
+                      color: activeStep === i ? "#09090b" : "var(--text-muted)",
+                    }}
+                  >
+                    {i + 1}
+                  </div>
+                  <div>
+                    <div className="font-semibold text-sm mb-1" style={{ color: activeStep === i ? "var(--text-primary)" : "var(--text-muted)" }}>
+                      {t(step.titleKey)}
+                    </div>
+                    {activeStep === i && (
+                      <p className="text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                        {t(step.descKey)}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+
+          {/* Right: Visual */}
+          <div className="hidden md:block">
+            <div className="sticky top-24">
+              <StepVisual step={activeStep} />
             </div>
-          ))}
+          </div>
         </div>
       </div>
     </section>
