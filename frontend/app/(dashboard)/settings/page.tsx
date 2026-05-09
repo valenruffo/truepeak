@@ -7,7 +7,7 @@ import { useTheme } from "@/lib/theme";
 
 const PAYPAL_CLIENT_ID = "BAAcn11PNIEN7F9LhCR70qkow9_ojjmfDUyz6U6pV8QaFIF5Mq-FWWIC9DJU1erHEq4qi24_-PdKzs-5_E";
 const PAYPAL_PLAN_INDIE = "P-54C90346FG305414DNH7ILLI";
-const PAYPAL_PLAN_PRO = "P-54C90346FG305414DNH7ILLI"; // Same plan ID for now
+const PAYPAL_PLAN_PRO = "P-7HL262224H175470NNH7IRJA";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -117,13 +117,7 @@ export default function SettingsPage() {
 
         {plan === "free" && (
           <div className="mb-4">
-            <p className="text-sm text-muted mb-4">{t("settings.upgrade_desc")}</p>
-            <div className="flex flex-col sm:flex-row gap-3">
-              {/* PayPal Indie Button */}
-              <div id="paypal-button-indie" className="min-w-[200px]" />
-              {/* PayPal Pro Button */}
-              <div id="paypal-button-pro" className="min-w-[200px]" />
-            </div>
+            <p className="text-sm text-muted mb-3">{t("settings.upgrade_desc")}</p>
           </div>
         )}
 
@@ -163,6 +157,18 @@ export default function SettingsPage() {
               ))}
             </tbody>
           </table>
+          {plan === "free" && (
+            <div className="grid grid-cols-4 border-t" style={{ borderColor: "var(--border)" }}>
+              <div className="px-4 py-3" />
+              <div className="px-3 py-3 text-center text-xs text-muted">Gratis</div>
+              <div className="px-3 py-2 flex items-center justify-center">
+                <div id="paypal-button-indie" className="w-full" style={{ maxWidth: "180px" }} />
+              </div>
+              <div className="px-3 py-2 flex items-center justify-center">
+                <div id="paypal-button-pro" className="w-full" style={{ maxWidth: "180px" }} />
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
