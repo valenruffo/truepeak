@@ -56,6 +56,12 @@ export function SubmissionCard({
               </p>
             </div>
           )}
+          {submission.musical_key && (
+            <div>
+              <span className="text-muted">Key</span>
+              <p className="font-bold" style={{ color: "#10b981" }}>{submission.musical_key}</p>
+            </div>
+          )}
           {submission.duration && (
             <div>
               <span className="text-muted">Duration</span>

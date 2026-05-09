@@ -43,6 +43,7 @@ export interface UploadResponse {
     true_peak: number;
     phase_correlation: number;
     duration: number;
+    musical_key: string;
   };
 }
 
@@ -58,6 +59,7 @@ export interface Submission {
   lufs: number | null;
   true_peak: number | null;
   phase_correlation: number | null;
+  musical_key: string | null;
   duration: number | null;
   mp3_path: string | null;
   created_at: string;

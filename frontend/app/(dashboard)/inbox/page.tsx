@@ -29,6 +29,8 @@ interface SubmissionSummary {
   duration: number | null;
   phase_correlation: number | null;
   musical_key: string | null;
+  true_peak: number | null;
+  crest_factor: number | null;
   mp3_path: string | null;
   original_path: string | null;
   human_email_sent?: boolean;
@@ -95,6 +97,14 @@ function formatKey(key: string | null): string {
   return key ?? "—";
 }
 
+function formatPeak(peak: number | null): string {
+  return peak != null ? peak.toFixed(2) : "—";
+}
+
+function formatCrest(crest: number | null): string {
+  return crest != null ? crest.toFixed(1) : "—";
+}
+
 function replaceVariables(
   template: string,
   sub: SubmissionSummary
@@ -155,6 +165,7 @@ function InboxContent() {
   const highlightParam = searchParams.get("highlight");
 
   const [activeTab, setActiveTab] = useState<TabKey>("kanban");
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   // Kanban board state
   const [board, setBoard] = useState<BoardState>({
@@ -210,11 +221,22 @@ function InboxContent() {
 
   const API = "";
 
+  // ─── Auth headers helper ─────────────────────────────────────────────────
+
+  const getAuthHeaders = (): Record<string, string> => {
+    const headers: Record<string, string> = {};
+    if (typeof window !== "undefined") {
+      const token = localStorage.getItem("token");
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+    }
+    return headers;
+  };
+
   // ─── Fetch helpers ────────────────────────────────────────────────────────
 
   const fetchColumn = useCallback(
     async (column: "inbox" | "shortlist" | "rejected", append = false) => {
-      const statusMap = {
+      const statusMap: Record<"inbox" | "shortlist" | "rejected", string> = {
         inbox: "inbox",
         shortlist: "shortlist",
         rejected: "rejected",
@@ -226,10 +248,14 @@ function InboxContent() {
       try {
         const res = await fetch(
           `/api/submissions?status=${statusMap[column]}&offset=${offset}&limit=${PAGE_SIZE}`,
-          { credentials: "include" }
+          { credentials: "include", headers: getAuthHeaders() }
         );
-        if (!res.ok) throw new Error(`Error ${res.status}`);
+        if (!res.ok) {
+          const errBody = await res.json().catch(() => ({}));
+          throw new Error(`[${column}] HTTP ${res.status}: ${errBody?.detail || res.statusText}`);
+        }
         const data: SubmissionSummary[] = await res.json();
+        setFetchError(null);
         setBoard((prev) => ({
           ...prev,
           [column]: append ? [...prev[column], ...data] : data,
@@ -242,8 +268,8 @@ function InboxContent() {
           ...prev,
           [column]: data.length === PAGE_SIZE,
         }));
-      } catch {
-        // silent
+      } catch (e) {
+        setFetchError(e instanceof Error ? e.message : "Error desconocido cargando submissions");
       } finally {
         setBoardLoading((p) => ({ ...p, [key]: false }));
       }
@@ -258,15 +284,19 @@ function InboxContent() {
       try {
         const res = await fetch(
           `/api/submissions?status=auto_rejected&offset=${offset}&limit=${PAGE_SIZE}`,
-          { credentials: "include" }
+          { credentials: "include", headers: getAuthHeaders() }
         );
-        if (!res.ok) throw new Error(`Error ${res.status}`);
+        if (!res.ok) {
+          const errBody = await res.json().catch(() => ({}));
+          throw new Error(`[system] HTTP ${res.status}: ${errBody?.detail || res.statusText}`);
+        }
         const data: SubmissionSummary[] = await res.json();
+        setFetchError(null);
         setSystemItems((prev) => (append ? [...prev, ...data] : data));
         setSystemOffset(append ? offset + data.length : data.length);
         setSystemHasMore(data.length === PAGE_SIZE);
-      } catch {
-        // silent
+      } catch (e) {
+        setFetchError(e instanceof Error ? e.message : "Error cargando auto-rechazados");
       } finally {
         setSystemLoading(false);
       }
@@ -280,18 +310,21 @@ function InboxContent() {
       setTrashLoading(true);
       try {
         const res = await fetch(
-          `/api/submissions?offset=${offset}&limit=${PAGE_SIZE}`,
-          { credentials: "include" }
+          `/api/submissions?include_deleted=true&offset=${offset}&limit=${PAGE_SIZE}`,
+          { credentials: "include", headers: getAuthHeaders() }
         );
-        if (!res.ok) throw new Error(`Error ${res.status}`);
+        if (!res.ok) {
+          const errBody = await res.json().catch(() => ({}));
+          throw new Error(`[trash] HTTP ${res.status}: ${errBody?.detail || res.statusText}`);
+        }
         const data: SubmissionSummary[] = await res.json();
-        // Filter to only deleted items (backend may return all)
+        // Keep only soft-deleted items
         const deleted = data.filter((d) => d.deleted_at);
         setTrashItems((prev) => (append ? [...prev, ...deleted] : deleted));
         setTrashOffset(append ? offset + deleted.length : deleted.length);
         setTrashHasMore(deleted.length === PAGE_SIZE);
-      } catch {
-        // silent
+      } catch (e) {
+        setFetchError(e instanceof Error ? e.message : "Error cargando papelera");
       } finally {
         setTrashLoading(false);
       }
@@ -688,10 +721,12 @@ function InboxContent() {
             </div>
 
             {/* Metrics row */}
-            <div className="flex items-center gap-3 px-3 py-1.5 text-[11px] font-mono">
+            <div className="flex items-center gap-3 px-3 py-1.5 text-[11px] font-mono flex-wrap">
               <span>{formatBpm(sub.bpm)} BPM</span>
               <span>{formatLufs(sub.lufs)} LUFS</span>
               <span>{formatKey(sub.musical_key)}</span>
+              <span className="text-muted">{t("inbox.header.peak")} {formatPeak(sub.true_peak)}</span>
+              <span className="text-muted">{t("inbox.header.crest")} {formatCrest(sub.crest_factor)}</span>
             </div>
 
             {/* Badges row */}
@@ -890,9 +925,9 @@ function InboxContent() {
         <div className="col-span-3">{t("inbox.header.track")}</div>
         <div className="col-span-1 text-center">{t("inbox.header.bpm")}</div>
         <div className="col-span-1 text-center">{t("inbox.header.lufs")}</div>
-        <div className="col-span-1 text-center">{t("inbox.header.dur")}</div>
+        <div className="col-span-1 text-center">{t("inbox.header.peak")}</div>
+        <div className="col-span-1 text-center">{t("inbox.header.crest")}</div>
         <div className="col-span-1 text-center">{t("inbox.header.phase")}</div>
-        <div className="col-span-1 text-center">{t("inbox.header.key")}</div>
         <div className="col-span-2 text-center">{t("inbox.header.status")}</div>
         <div className="col-span-2 text-right">{t("inbox.header.action")}</div>
       </div>
@@ -924,15 +959,13 @@ function InboxContent() {
                 {formatLufs(d.lufs)}
               </div>
               <div className="col-span-1 text-center font-mono text-muted">
-                {d.duration != null
-                  ? `${Math.floor(d.duration / 60)}:${Math.floor(d.duration % 60)
-                      .toString()
-                      .padStart(2, "0")}`
-                  : "—"}
+                {formatPeak(d.true_peak)}
               </div>
-              <div className="col-span-1 text-center font-mono text-muted">—</div>
               <div className="col-span-1 text-center font-mono text-muted">
-                {formatKey(d.musical_key)}
+                {formatCrest(d.crest_factor)}
+              </div>
+              <div className="col-span-1 text-center font-mono text-muted">
+                {d.phase_correlation != null ? d.phase_correlation.toFixed(2) : "—"}
               </div>
               <div className="col-span-2 text-center">
                 <span
@@ -1076,7 +1109,7 @@ function InboxContent() {
 
   const tabs: { key: TabKey; label: string }[] = [
     { key: "kanban", label: t("inbox.kanban_tab") },
-    { key: "system", label: t("inbox.kanban.system_tab") },
+    { key: "system", label: "Auto-Rechazados" },
     { key: "trash", label: t("inbox.kanban.trash_tab") },
   ];
 
@@ -1088,6 +1121,20 @@ function InboxContent() {
           {t("inbox.title")}
         </h1>
       </div>
+
+      {/* Fetch error banner */}
+      {fetchError && (
+        <div
+          className="mb-4 px-4 py-3 rounded border text-xs font-mono"
+          style={{
+            background: "rgba(239,68,68,0.08)",
+            borderColor: "rgba(239,68,68,0.3)",
+            color: "#ef4444",
+          }}
+        >
+          ⚠ Error cargando datos: {fetchError}
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="mb-5 flex gap-1 items-center">

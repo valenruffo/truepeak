@@ -189,6 +189,8 @@ async def upload_audio(
                 duration=result["metrics"].get("duration") if result["metrics"] else None,
                 phase_correlation=result["metrics"].get("phase_correlation") if result["metrics"] else None,
                 musical_key=result["metrics"].get("musical_key") if result["metrics"] else None,
+                true_peak=result["metrics"].get("true_peak") if result["metrics"] else None,
+                crest_factor=result["metrics"].get("crest_factor") if result["metrics"] else None,
                 status="inbox" if result["status"] == "approved" else "auto_rejected",
                 rejection_reason=result["rejection_reason"],
                 mp3_path=result["mp3_path"],

@@ -12,19 +12,17 @@ interface SonicSignature {
   preferred_scales: string[];
   duration_enabled?: boolean;
   duration_max?: number;
-  auto_reject_rules: { phase: boolean; lufs: boolean; tempo: boolean; };
+  auto_reject_rules: { phase: boolean; lufs: boolean; tempo: boolean; clipping?: boolean; dynamics?: boolean; reject_clipping?: boolean; reject_low_dynamic_range?: boolean };
 }
 
-const GENRE_PRESETS: Record<string, { bpm: [number, number]; lufs: number; scales: string[]; durMax?: number }> = {
-  "Progressive House": { bpm: [120, 128], lufs: -10, scales: ["Menor"], durMax: 480 },
-  "Melodic Techno": { bpm: [120, 126], lufs: -10, scales: ["Menor"], durMax: 480 },
-  "Techno": { bpm: [128, 140], lufs: -9, scales: ["Menor"], durMax: 420 },
-  "House": { bpm: [122, 128], lufs: -10, scales: ["Menor"], durMax: 420 },
-  "Deep House": { bpm: [115, 125], lufs: -12, scales: ["Menor"], durMax: 420 },
-  "Tech House": { bpm: [124, 130], lufs: -9, scales: ["Menor"], durMax: 420 },
-  "Minimal": { bpm: [124, 130], lufs: -12, scales: ["Menor"], durMax: 480 },
-  "Drum & Bass": { bpm: [160, 180], lufs: -7, scales: ["Menor"], durMax: 360 },
-  "Trance": { bpm: [134, 142], lufs: -8, scales: ["Menor"], durMax: 480 },
+const GENRE_PRESETS: Record<string, { bpm: [number, number]; lufs: number; durMax?: number; color: string }> = {
+  "Techno": { bpm: [126, 138], lufs: -8, durMax: 420, color: "#06b6d4" },
+  "House": { bpm: [122, 126], lufs: -10, durMax: 480, color: "#10b981" },
+  "Tech House": { bpm: [124, 128], lufs: -9, durMax: 420, color: "#fbbf24" },
+  "Progressive": { bpm: [120, 126], lufs: -11, durMax: 540, color: "#8b5cf6" },
+  "Minimal": { bpm: [124, 128], lufs: -12, durMax: 540, color: "#64748b" },
+  "Drum & Bass": { bpm: [170, 176], lufs: -6, durMax: 360, color: "#ef4444" },
+  "Melodic": { bpm: [120, 125], lufs: -10, durMax: 540, color: "#ec4899" },
 };
 
 export default function ConfigPage() {
@@ -32,18 +30,11 @@ export default function ConfigPage() {
   const [bpmRange, setBpmRange] = useState([120, 128]);
   const [lufsTarget, setLufsTarget] = useState(-14);
   const [lufsTolerance, setLufsTolerance] = useState(2);
-  const [selectedScales, setSelectedScales] = useState<string[]>(["Menor"]);
-  const [autoReject, setAutoReject] = useState({ phase: true, lufs: true, tempo: true });
+  const [selectedCamelotKeys, setSelectedCamelotKeys] = useState<string[]>([]);
+  const [activePreset, setActivePreset] = useState<string | null>(null);
+  const [autoReject, setAutoReject] = useState({ phase: true, lufs: true, tempo: true, clipping: false, dynamics: false });
   const [durationEnabled, setDurationEnabled] = useState(false);
   const [durationMax, setDurationMax] = useState(600);
-
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
-  const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [logoPreview, setLogoPreview] = useState<string | null>(null);
-  const [logoUploading, setLogoUploading] = useState(false);
-  const [logoError, setLogoError] = useState<string | null>(null);
-  const [logoSaved, setLogoSaved] = useState(false);
-  const [logoDragActive, setLogoDragActive] = useState(false);
 
   const [fetching, setFetching] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -69,8 +60,14 @@ export default function ConfigPage() {
           setBpmRange([sig.bpm_min, sig.bpm_max]);
           setLufsTarget(sig.lufs_target);
           setLufsTolerance(sig.lufs_tolerance);
-          setSelectedScales(sig.preferred_scales ?? []);
-          setAutoReject({ phase: sig.auto_reject_rules?.phase ?? true, lufs: sig.auto_reject_rules?.lufs ?? true, tempo: sig.auto_reject_rules?.tempo ?? true });
+          setSelectedCamelotKeys(sig.target_camelot_keys ?? []);
+          setAutoReject({ 
+            phase: sig.auto_reject_rules?.phase ?? true, 
+            lufs: sig.auto_reject_rules?.lufs ?? true, 
+            tempo: sig.auto_reject_rules?.tempo ?? true,
+            clipping: sig.auto_reject_rules?.reject_clipping ?? true, 
+            dynamics: sig.auto_reject_rules?.reject_low_dynamic_range ?? true
+          });
           setDurationEnabled(sig.duration_enabled ?? false);
           if (sig.duration_max) setDurationMax(sig.duration_max);
         }
@@ -87,10 +84,13 @@ export default function ConfigPage() {
     return () => clearTimeout(timer);
   }, [saved]);
 
-  const scales = ["Menor", "Mayor", "Dórica", "Frigia"];
+  const camelotKeys = [
+    "1B", "2B", "3B", "4B", "5B", "6B", "7B", "8B", "9B", "10B", "11B", "12B",
+    "1A", "2A", "3A", "4A", "5A", "6A", "7A", "8A", "9A", "10A", "11A", "12A"
+  ];
 
-  const toggleScale = (scale: string) => {
-    setSelectedScales((prev) => prev.includes(scale) ? prev.filter((s) => s !== scale) : [...prev, scale]);
+  const toggleCamelotKey = (key: string) => {
+    setSelectedCamelotKeys((prev) => prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]);
   };
 
   const handleSave = async () => {
@@ -100,7 +100,7 @@ export default function ConfigPage() {
     try {
       const res = await fetch(`${API}/api/labels/${slug}/config`, {
         method: "PUT", headers: getAuthHeaders(), credentials: "include",
-        body: JSON.stringify({ sonic_signature: { bpm_min: bpmRange[0], bpm_max: bpmRange[1], lufs_target: lufsTarget, lufs_tolerance: lufsTolerance, preferred_scales: selectedScales, duration_enabled: durationEnabled, duration_max: durationEnabled ? durationMax : null, auto_reject_rules: { phase: autoReject.phase, lufs: autoReject.lufs, tempo: autoReject.tempo } } }),
+        body: JSON.stringify({ sonic_signature: { bpm_min: bpmRange[0], bpm_max: bpmRange[1], lufs_target: lufsTarget, lufs_tolerance: lufsTolerance, target_camelot_keys: selectedCamelotKeys, preferred_scales: selectedCamelotKeys, duration_enabled: durationEnabled, duration_max: durationEnabled ? durationMax : null, auto_reject_rules: { phase: autoReject.phase, lufs: autoReject.lufs, tempo: autoReject.tempo, reject_clipping: autoReject.clipping, reject_low_dynamic_range: autoReject.dynamics } } }),
       });
       if (!res.ok) throw new Error(`Error ${res.status}`);
       setSaved(true);
@@ -108,42 +108,19 @@ export default function ConfigPage() {
     finally { setSaving(false); }
   };
 
-  const handleLogoFile = (f: File) => {
-    const validExts = [".jpg", ".jpeg", ".png", ".webp"];
-    const ext = "." + f.name.split(".").pop()?.toLowerCase();
-    if (!validExts.includes(ext)) { setLogoError(t("config.logo_error_ext")); return; }
-    if (f.size > 5 * 1024 * 1024) { setLogoError(t("config.logo_error_size")); return; }
-    setLogoError(null); setLogoFile(f);
-    const reader = new FileReader();
-    reader.onload = (e) => setLogoPreview(e.target?.result as string);
-    reader.readAsDataURL(f);
-  };
-
-  const handleLogoDrop = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); setLogoDragActive(false); if (e.dataTransfer.files[0]) handleLogoFile(e.dataTransfer.files[0]); };
-  const handleLogoDrag = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); if (e.type === "dragenter" || e.type === "dragover") setLogoDragActive(true); else if (e.type === "dragleave") setLogoDragActive(false); };
-
-  const uploadLogo = async () => {
-    if (!logoFile) return;
-    const slug = localStorage.getItem("slug");
-    if (!slug) return;
-    setLogoUploading(true); setLogoError(null);
-    try {
-      const formData = new FormData();
-      formData.append("file", logoFile);
-      const token = localStorage.getItem("token");
-      const res = await fetch(`${API}/api/labels/${slug}/logo`, { method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : {}, body: formData });
-      if (!res.ok) { const err = await res.json().catch(() => ({ detail: t("inbox.error_unknown") })); throw new Error(err.detail || `Error ${res.status}`); }
-      const data = await res.json();
-      setLogoUrl(`${API}${data.logo_url}`); setLogoSaved(true); setLogoFile(null); setLogoPreview(null);
-      setTimeout(() => setLogoSaved(false), 2000);
-    } catch (e) { setLogoError(e instanceof Error ? e.message : t("inbox.error_unknown")); }
-    finally { setLogoUploading(false); }
+  const togglePreset = (genre: string) => {
+    if (activePreset === genre) {
+      setActivePreset(null);
+    } else {
+      applyPreset(genre);
+      setActivePreset(genre);
+    }
   };
 
   const applyPreset = (genre: string) => {
     const p = GENRE_PRESETS[genre];
     if (!p) return;
-    setBpmRange(p.bpm); setLufsTarget(p.lufs); setSelectedScales(p.scales);
+    setBpmRange(p.bpm); setLufsTarget(p.lufs);
     if (p.durMax) { setDurationMax(p.durMax); setDurationEnabled(true); }
   };
 
@@ -184,37 +161,35 @@ export default function ConfigPage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-4 md:px-6 py-8 md:py-12">
+    <div className="max-w-6xl mx-auto px-4 md:px-6 py-8 md:py-12">
       <div className="text-xs font-mono uppercase tracking-wider text-muted mb-1">{t("config.section_label")}</div>
       <h1 className="font-display font-semibold text-2xl mb-6">{t("config.title")}</h1>
 
-      {/* Genre Preset Selector */}
-      <div className="mb-6 flex items-center gap-3">
-        <label className="text-sm font-medium whitespace-nowrap">{t("config.preset_label")}:</label>
-        <select onChange={(e) => { if (e.target.value) applyPreset(e.target.value); e.target.value = ""; }} className="flex-1 px-3 py-2 rounded border text-sm bg-transparent cursor-pointer" style={{ borderColor: "var(--border)", color: "var(--text-primary)", maxWidth: "240px" }} defaultValue="">
-          <option value="" disabled style={{ color: "var(--text-muted)" }}>{t("config.preset_placeholder")}</option>
-          {Object.keys(GENRE_PRESETS).map((g) => (<option key={g} value={g} style={{ background: "var(--bg-secondary)", color: "var(--text-primary)" }}>{g}</option>))}
-        </select>
-        <span className="text-[10px] text-muted">{t("config.preset_hint")}</span>
-      </div>
-
-      <div className="space-y-6">
-        {/* Logo Upload */}
-        <div className="rounded border p-5" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
-          <label className="text-sm font-medium mb-3 block">{t("config.logo_label")}</label>
-          <div className="flex items-center gap-3">
-            {(logoPreview || logoUrl) && (<img src={logoPreview || logoUrl || ""} alt="Logo" className="w-14 h-14 rounded-xl object-cover border flex-shrink-0" style={{ borderColor: "var(--border)" }} />)}
-            <div className="flex items-center gap-2">
-              <div onDragEnter={handleLogoDrag} onDragLeave={handleLogoDrag} onDragOver={handleLogoDrag} onDrop={handleLogoDrop} className="rounded border border-dashed px-4 py-3 text-xs cursor-pointer transition-colors" style={{ borderColor: logoDragActive ? "#10b981" : "var(--border)", background: logoDragActive ? "rgba(16,185,129,0.05)" : "transparent", maxWidth: "280px" }} onClick={() => document.getElementById("logo-input")?.click()}>
-                <input id="logo-input" type="file" accept=".jpg,.jpeg,.png,.webp" className="hidden" onChange={(e) => e.target.files?.[0] && handleLogoFile(e.target.files[0])} />
-                <span className="text-muted">{logoPreview ? `${logoFile?.name} (${(logoFile!.size / 1024).toFixed(0)} KB)` : logoUrl ? t("config.logo_change") : t("config.logo_upload_hint")}</span>
-              </div>
-              {logoFile && (<button onClick={uploadLogo} disabled={logoUploading} className="px-4 py-2 text-xs font-medium rounded-lg transition-all hover:opacity-90 disabled:opacity-50 flex-shrink-0" style={{ background: "#10b981", color: "#09090b" }}>{logoUploading ? t("config.logo_uploading") : t("config.logo_save")}</button>)}
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2 space-y-6">
+          {/* Genre Preset Selector */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium">{t("config.preset_label")}</label>
+              <span className="text-[10px] text-muted">{t("config.preset_hint")}</span>
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              {Object.keys(GENRE_PRESETS).map((g) => (
+                <button 
+                  key={g} 
+                  onClick={() => togglePreset(g)} 
+                  className="px-4 py-1.5 rounded-lg text-xs font-semibold border transition-all active:scale-95" 
+                  style={{ 
+                    borderColor: activePreset === g ? "#10b981" : "var(--border)", 
+                    background: activePreset === g ? "rgba(16,185,129,0.1)" : "transparent", 
+                    color: activePreset === g ? "#10b981" : "var(--text-muted)" 
+                  }}
+                >
+                  {g}
+                </button>
+              ))}
             </div>
           </div>
-          {logoError && <div className="mt-2 text-xs" style={{ color: "#ef4444" }}>{logoError}</div>}
-          {logoSaved && <div className="mt-2 text-xs font-mono" style={{ color: "#10b981" }}>{t("config.logo_saved")}</div>}
-        </div>
 
         {/* BPM Range */}
         <div className="rounded border p-5" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
@@ -225,11 +200,11 @@ export default function ConfigPage() {
           <div className="grid grid-cols-2 gap-6">
             <div>
               <div className="flex items-center justify-between mb-1"><span className="text-xs text-muted">{t("config.bpm_min")}</span><span className="font-mono text-xs" style={{ color: "#10b981" }}>{bpmRange[0]}</span></div>
-              <input type="range" min={60} max={200} value={bpmRange[0]} onChange={(e) => setBpmRange([Math.min(+e.target.value, bpmRange[1] - 5), bpmRange[1]])} className="w-full cursor-pointer accent-emerald-500" />
+              <input type="range" min={60} max={200} value={bpmRange[0]} onChange={(e) => { setBpmRange([Math.min(+e.target.value, bpmRange[1] - 5), bpmRange[1]]); setActivePreset(null); }} className="w-full cursor-pointer accent-emerald-500" />
             </div>
             <div>
               <div className="flex items-center justify-between mb-1"><span className="text-xs text-muted">{t("config.bpm_max")}</span><span className="font-mono text-xs" style={{ color: "#10b981" }}>{bpmRange[1]}</span></div>
-              <input type="range" min={60} max={200} value={bpmRange[1]} onChange={(e) => setBpmRange([bpmRange[0], Math.max(+e.target.value, bpmRange[0] + 5)])} className="w-full cursor-pointer accent-emerald-500" />
+              <input type="range" min={60} max={200} value={bpmRange[1]} onChange={(e) => { setBpmRange([bpmRange[0], Math.max(+e.target.value, bpmRange[0] + 5)]); setActivePreset(null); }} className="w-full cursor-pointer accent-emerald-500" />
             </div>
           </div>
         </div>
@@ -243,11 +218,11 @@ export default function ConfigPage() {
           <div className="grid grid-cols-2 gap-6">
             <div>
               <div className="flex items-center justify-between mb-1"><span className="text-xs text-muted">{t("config.lufs_target")}</span><span className="font-mono text-xs" style={{ color: "#10b981" }}>{lufsTarget}</span></div>
-              <input type="range" min={-20} max={-6} value={lufsTarget} onChange={(e) => setLufsTarget(+e.target.value)} className="w-full cursor-pointer accent-emerald-500" />
+              <input type="range" min={-20} max={-6} value={lufsTarget} onChange={(e) => { setLufsTarget(+e.target.value); setActivePreset(null); }} className="w-full cursor-pointer accent-emerald-500" />
             </div>
             <div>
               <div className="flex items-center justify-between mb-1"><span className="text-xs text-muted">{t("config.lufs_tolerance")}</span><span className="font-mono text-xs" style={{ color: "#10b981" }}>± {lufsTolerance}</span></div>
-              <input type="range" min={0.5} max={4} step={0.5} value={lufsTolerance} onChange={(e) => setLufsTolerance(+e.target.value)} className="w-full cursor-pointer accent-emerald-500" />
+              <input type="range" min={0.5} max={4} step={0.5} value={lufsTolerance} onChange={(e) => { setLufsTolerance(+e.target.value); setActivePreset(null); }} className="w-full cursor-pointer accent-emerald-500" />
             </div>
           </div>
         </div>
@@ -272,21 +247,40 @@ export default function ConfigPage() {
           )}
         </div>
 
-        {/* Preferred Scales */}
+        {/* Camelot Wheel Selection */}
         <div className="rounded border p-5" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
-          <label className="text-sm font-medium mb-3 block">{t("config.scales_label")}</label>
-          <div className="flex gap-2 flex-wrap">
-            {scales.map((s) => (
-              <button key={s} onClick={() => toggleScale(s)} className="text-xs px-3 py-1.5 rounded-lg border transition-all active:scale-95" style={{ borderColor: selectedScales.includes(s) ? "#10b981" : "var(--border)", color: selectedScales.includes(s) ? "#10b981" : "var(--text-muted)", background: selectedScales.includes(s) ? "rgba(16,185,129,0.1)" : "transparent" }}>{s}</button>
+          <label className="text-sm font-medium mb-4 block">{t("config.scales_label")}</label>
+          <div className="grid grid-cols-6 sm:grid-cols-12 gap-1.5">
+            {camelotKeys.map((k) => (
+              <button 
+                key={k} 
+                onClick={() => toggleCamelotKey(k)} 
+                className="aspect-square flex items-center justify-center text-[10px] font-bold rounded-md border transition-all active:scale-95" 
+                style={{ 
+                  borderColor: selectedCamelotKeys.includes(k) ? "#10b981" : "var(--border)", 
+                  color: selectedCamelotKeys.includes(k) ? "#09090b" : "var(--text-muted)", 
+                  background: selectedCamelotKeys.includes(k) ? "#10b981" : "transparent",
+                  opacity: selectedCamelotKeys.includes(k) ? 1 : 0.6
+                }}
+              >
+                {k}
+              </button>
             ))}
           </div>
+          <p className="text-[10px] text-muted mt-3 italic">Sistema Camelot: Fila superior (B) para tonos Mayores, fila inferior (A) para tonos Menores.</p>
         </div>
 
         {/* Auto-Reject Rules */}
         <div className="rounded border p-5" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
           <label className="text-sm font-medium mb-3 block">{t("config.auto_reject_label")}</label>
           <div className="flex gap-2 flex-wrap">
-            {[{ key: "phase" as const, label: t("config.auto_reject.phase") }, { key: "lufs" as const, label: t("config.auto_reject.lufs") }, { key: "tempo" as const, label: t("config.auto_reject.tempo") }].map((rule) => (
+            {[
+              { key: "phase" as const, label: t("config.auto_reject.phase") }, 
+              { key: "lufs" as const, label: t("config.auto_reject.lufs") }, 
+              { key: "tempo" as const, label: t("config.auto_reject.tempo") },
+              { key: "clipping" as const, label: t("config.auto_reject.clipping") },
+              { key: "dynamics" as const, label: t("config.auto_reject.dynamics") }
+            ].map((rule) => (
               <button key={rule.key} onClick={() => setAutoReject((prev) => ({ ...prev, [rule.key]: !prev[rule.key] }))} className="text-xs px-3 py-1.5 rounded-lg border transition-all active:scale-95" style={{ borderColor: autoReject[rule.key] ? "#ef4444" : "var(--border)", color: autoReject[rule.key] ? "#ef4444" : "var(--text-muted)", background: autoReject[rule.key] ? "rgba(239,68,68,0.1)" : "transparent" }}>{rule.label}</button>
             ))}
           </div>
@@ -298,6 +292,53 @@ export default function ConfigPage() {
             <button onClick={handleSave} disabled={saving} className="px-6 py-2.5 text-sm font-medium rounded transition-all hover:opacity-90 disabled:opacity-50" style={{ background: "#10b981", color: "#09090b" }}>{saving ? t("config.saving") : t("config.save")}</button>
             {saved && (<span className="text-sm font-mono" style={{ color: "#10b981" }}>{t("config.saved")}</span>)}
             {saveError && (<span className="text-sm" style={{ color: "#ef4444" }}>{t("config.save_error")}: {saveError}</span>)}
+          </div>
+        </div>
+        </div>
+
+        {/* Info Sidebar */}
+        <div className="lg:col-span-1">
+          <div className="rounded border p-6 sticky top-24" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
+            <h3 className="font-display font-semibold text-base mb-6 pb-4 border-b" style={{ borderColor: "var(--border)" }}>
+              {t("config.glossary.title")}
+            </h3>
+            
+            <div className="space-y-6">
+              <div>
+                <h4 className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "#10b981" }}>{t("config.glossary.bpm.title")}</h4>
+                <p className="text-sm text-muted">{t("config.glossary.bpm.desc")}</p>
+              </div>
+              
+              <div>
+                <h4 className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "#10b981" }}>{t("config.glossary.lufs.title")}</h4>
+                <p className="text-sm text-muted">{t("config.glossary.lufs.desc")}</p>
+              </div>
+              
+              <div>
+                <h4 className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "#10b981" }}>{t("config.glossary.duration.title")}</h4>
+                <p className="text-sm text-muted">{t("config.glossary.duration.desc")}</p>
+              </div>
+              
+              <div>
+                <h4 className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "#10b981" }}>{t("config.glossary.scales.title")}</h4>
+                <p className="text-sm text-muted">{t("config.glossary.scales.desc")}</p>
+              </div>
+
+              <div>
+                <h4 className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "#ef4444" }}>{t("config.glossary.clipping.title")}</h4>
+                <p className="text-sm text-muted">{t("config.glossary.clipping.desc")}</p>
+              </div>
+
+              <div>
+                <h4 className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "#ef4444" }}>{t("config.glossary.dynamics.title")}</h4>
+                <p className="text-sm text-muted">{t("config.glossary.dynamics.desc")}</p>
+              </div>
+
+              <div>
+                <h4 className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "#ef4444" }}>{t("config.glossary.phase.title")}</h4>
+                <p className="text-sm text-muted">{t("config.glossary.phase.desc")}</p>
+              </div>
+            </div>
           </div>
         </div>
       </div>

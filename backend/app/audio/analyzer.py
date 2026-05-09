@@ -12,21 +12,19 @@ from app.audio.exceptions import AudioAnalysisError
 
 
 def _detect_musical_key(chroma: np.ndarray) -> str:
-    """Detect the musical key from chroma features using the Krumhansl-Schmuckler algorithm."""
-    major_profile = np.array([
-        6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88,
-    ])
-    minor_profile = np.array([
-        6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17,
-    ])
+    """Detect the musical key and map to Camelot Wheel format (1A-12B)."""
+    major_profile = np.array([6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88])
+    minor_profile = np.array([6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17])
 
-    note_names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+    # Camelot mappings: index 0=C, 1=C#, 2=D, 3=D#, 4=E, 5=F, 6=F#, 7=G, 8=G#, 9=A, 10=A#, 11=B
+    camelot_major = ["8B", "3B", "10B", "5B", "12B", "7B", "2B", "9B", "4B", "11B", "6B", "1B"]
+    camelot_minor = ["5A", "12A", "7A", "2A", "9A", "4A", "11A", "6A", "1A", "8A", "3A", "10A"]
 
     chroma_mean = np.mean(chroma, axis=1)
     chroma_norm = chroma_mean / np.max(chroma_mean) if np.max(chroma_mean) > 0 else chroma_mean
 
     best_correlation = -1
-    best_key = "C"
+    best_key_index = 0
     best_mode = "major"
 
     for i in range(12):
@@ -38,16 +36,15 @@ def _detect_musical_key(chroma: np.ndarray) -> str:
 
         if major_corr > best_correlation:
             best_correlation = major_corr
-            best_key = note_names[i]
+            best_key_index = i
             best_mode = "major"
 
         if minor_corr > best_correlation:
             best_correlation = minor_corr
-            best_key = note_names[i]
+            best_key_index = i
             best_mode = "minor"
 
-    suffix = "" if best_mode == "major" else "m"
-    return f"{best_key}{suffix}"
+    return camelot_major[best_key_index] if best_mode == "major" else camelot_minor[best_key_index]
 
 
 def _compute_phase_correlation(y: np.ndarray) -> float:
@@ -106,9 +103,19 @@ def _analyze_audio_sync(file_path: str) -> dict[str, Any]:
         # --- Duration ---
         duration = float(len(y_mono) / sr) if sr and len(y_mono) > 0 else 0.0
 
+        # --- Peak and Crest Factor ---
+        # Calculate max absolute peak (Sample Peak)
+        true_peak = float(np.max(np.abs(y)))
+
+        # Calculate Crest Factor in dB: 20 * log10(peak / (rms + epsilon))
+        rms = float(np.sqrt(np.mean(y**2)))
+        crest_factor = float(20 * np.log10(true_peak / (rms + 1e-10))) if rms > 0 else 0.0
+
         return {
             "bpm": round(bpm, 2),
             "lufs": round(lufs, 2),
+            "true_peak": round(true_peak, 4),
+            "crest_factor": round(crest_factor, 2),
             "phase_correlation": round(phase_correlation, 4),
             "musical_key": musical_key,
             "duration": round(duration, 1),

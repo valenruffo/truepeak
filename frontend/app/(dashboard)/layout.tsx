@@ -82,9 +82,10 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
   const [planInfo, setPlanInfo] = useState<string>("");
   const [plan, setPlan] = useState<string>("free");
   const [logoPath, setLogoPath] = useState<string | null>(null);
-  const [hqCount, setHqCount] = useState<{ count: number; limit: number; processed_count: number } | null>(null);
+  const [hqCount, setHqCount] = useState<{ count: number; limit: number } | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [remainingTracks, setRemainingTracks] = useState<number | null>(null);
+  const [monthlyUsed, setMonthlyUsed] = useState<number>(0);
+  const [maxTracksMonth, setMaxTracksMonth] = useState<number>(10);
   const { queueTracks } = usePlayer();
 
   useEffect(() => {
@@ -101,11 +102,28 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
           setPlanInfo(data.plan || "");
           setPlan(data.plan || "free");
           setLogoPath(data.logo_path || null);
+          setMaxTracksMonth(data.max_tracks_month || 10);
           localStorage.setItem("plan", data.plan || "free");
         } else { setLabelName(slug); setPlanInfo(""); }
       } catch { setLabelName(slug); setPlanInfo(""); }
     };
     fetchLabel();
+
+    const fetchStats = async () => {
+      if (!slug) return;
+      try {
+        const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+        const res = await fetch(`/api/labels/${slug}/stats`, {
+          credentials: "include",
+          headers: authHeaders,
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setMonthlyUsed(data.total ?? 0);
+        }
+      } catch { /* silent */ }
+    };
+    fetchStats();
 
     const fetchHqCount = async () => {
       try {
@@ -114,12 +132,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
         });
         if (res.ok) {
           const data = await res.json();
-          setHqCount(data);
-          if (data.plan === "free" || (data.plan === undefined && (localStorage.getItem("plan") || "free") === "free")) {
-            const processedCount = data.processed_count ?? 0;
-            const remaining = Math.max(0, 5 - processedCount);
-            setRemainingTracks(remaining);
-          }
+          setHqCount({ count: data.count, limit: data.limit });
         }
       } catch { /* silent */ }
     };
@@ -127,7 +140,8 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
 
     const fetchTracks = async () => {
       try {
-        const res = await fetch(`/api/submissions?status=approved`, {
+        const res = await fetch(`/api/submissions?status=inbox&limit=100`, {
+          credentials: "include",
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         if (res.ok) {
@@ -219,36 +233,34 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
-        {hqCount && (
+        {plan === "free" && (
           <div className="px-3 mb-1 space-y-1">
-            {plan === "free" && remainingTracks !== null && (
-              remainingTracks === 0 ? (
-                <div className="px-3 py-1.5 rounded text-xs font-mono" style={{ background: "rgba(239,68,68,0.06)", color: "#ef4444" }}>
-                  {t("dashboard.no_tracks")} —{" "}
-                  <Link
-                    href="/settings"
-                    className="underline hover:opacity-80"
-                    style={{ color: "#ef4444" }}
-                  >
-                    {t("dashboard.upgrade")}
-                  </Link>
-                </div>
-              ) : remainingTracks < 5 ? (
-                <div className="px-3 py-1.5 rounded text-xs font-mono" style={{ background: "rgba(250,204,21,0.06)", color: "#facc15" }}>
-                  ⚠ {t("dashboard.remaining")} {remainingTracks} {t("dashboard.tracks_free")}
-                </div>
-              ) : null
-            )}
-            {plan !== "free" && hqCount && (
-              <div className="px-3 py-1.5 rounded text-xs font-mono" style={{ background: "rgba(16,185,129,0.06)", color: hqCount.count >= hqCount.limit ? "#ef4444" : "var(--text-muted)" }}>
-                📦 {hqCount.count}/{hqCount.limit} HQ
+            {monthlyUsed >= maxTracksMonth ? (
+              <div className="px-3 py-1.5 rounded text-xs font-mono" style={{ background: "rgba(239,68,68,0.06)", color: "#ef4444" }}>
+                {t("dashboard.no_tracks")} —{" "}
+                <Link
+                  href="/settings"
+                  className="underline hover:opacity-80"
+                  style={{ color: "#ef4444" }}
+                >
+                  {t("dashboard.upgrade")}
+                </Link>
               </div>
-            )}
-            {plan === "free" && hqCount && (
-              <div className="px-3 py-1.5 rounded text-xs font-mono" style={{ background: "rgba(16,185,129,0.06)", color: "var(--text-muted)" }}>
-                🎵 {hqCount.processed_count}/10 tracks usados
+            ) : maxTracksMonth - monthlyUsed <= 3 ? (
+              <div className="px-3 py-1.5 rounded text-xs font-mono" style={{ background: "rgba(250,204,21,0.06)", color: "#facc15" }}>
+                ⚠ Te quedan {maxTracksMonth - monthlyUsed} tracks
               </div>
-            )}
+            ) : null}
+            <div className="px-3 py-1.5 rounded text-xs font-mono" style={{ background: "rgba(16,185,129,0.06)", color: "var(--text-muted)" }}>
+              🎵 {monthlyUsed}/{maxTracksMonth} tracks este mes
+            </div>
+          </div>
+        )}
+        {plan !== "free" && hqCount && (
+          <div className="px-3 mb-1">
+            <div className="px-3 py-1.5 rounded text-xs font-mono" style={{ background: "rgba(16,185,129,0.06)", color: hqCount.count >= hqCount.limit ? "#ef4444" : "var(--text-muted)" }}>
+              📦 {hqCount.count}/{hqCount.limit} HQ almacenados
+            </div>
           </div>
         )}
 

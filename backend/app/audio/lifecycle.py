@@ -45,15 +45,24 @@ def _check_sonic_signature(
         if metrics["bpm"] < bpm_min or metrics["bpm"] > bpm_max:
             return "rejected", "out_of_tempo"
 
-    # Musical key check (optional)
+    # Clipping check
+    if rules.get("reject_clipping", False):
+        if metrics.get("true_peak", 0) >= 0.99:
+            return "rejected", "digital_clipping"
+
+    # Dynamic range / Crest Factor check
+    if rules.get("reject_low_dynamic_range", False):
+        # A default threshold of 5.0 dB represents a very squashed brickwall track
+        cf_threshold = sonic_signature.get("crest_factor_min", 5.0)
+        if metrics.get("crest_factor", 10.0) < cf_threshold:
+            return "rejected", "low_dynamic_range"
+
+    # Musical key check (Camelot Wheel)
     if rules.get("reject_wrong_key", False):
-        preferred_scales = sonic_signature.get("preferred_scales", [])
-        if preferred_scales:
-            detected_key = metrics["musical_key"]
-            # Check if detected key matches any preferred scale
-            # Simple suffix matching: "Am" matches ["minor", "m"]
-            key_suffix = "m" if detected_key.endswith("m") else "major"
-            if key_suffix not in preferred_scales and detected_key not in preferred_scales:
+        target_keys = sonic_signature.get("target_camelot_keys", [])
+        if target_keys:
+            detected_key = metrics.get("musical_key")
+            if detected_key not in target_keys:
                 return "rejected", "wrong_musical_key"
 
     return "approved", None

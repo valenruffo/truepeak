@@ -28,7 +28,7 @@ class Label(SQLModel, table=True):
             "bpm_max": 180,
             "lufs_target": -14.0,
             "lufs_tolerance": 1.0,
-            "preferred_scales": [],
+            "target_camelot_keys": [],
             "auto_reject_rules": {},
         },
     )
@@ -67,6 +67,8 @@ class Submission(SQLModel, table=True):
     duration: float | None = None
     phase_correlation: float | None = None
     musical_key: str | None = None
+    true_peak: float | None = None
+    crest_factor: float | None = None
     status: str = Field(default="inbox", index=True)  # inbox | shortlist | rejected | auto_rejected
     deleted_at: datetime | None = Field(default=None)
     human_email_sent: bool = Field(default=False)

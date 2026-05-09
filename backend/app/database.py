@@ -35,6 +35,9 @@ def _apply_migrations(session: Session) -> None:
         # Phase 1: Submission soft delete + email tracking
         "ALTER TABLE submission ADD COLUMN deleted_at DATETIME",
         "ALTER TABLE submission ADD COLUMN human_email_sent BOOLEAN DEFAULT 0",
+        # Phase 2: Audio metrics
+        "ALTER TABLE submission ADD COLUMN true_peak FLOAT",
+        "ALTER TABLE submission ADD COLUMN crest_factor FLOAT",
     ]
     for sql in migrations:
         try:

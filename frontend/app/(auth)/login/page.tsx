@@ -32,6 +32,7 @@ export default function LoginPage() {
       localStorage.setItem("slug", data.slug);
       localStorage.setItem("label_id", data.id);
       localStorage.setItem("plan", data.plan || "free");
+      if (data.token) localStorage.setItem("token", data.token);
       router.push("/inbox");
     } catch (err) {
       setError(err instanceof Error ? err.message : t("login.error"));

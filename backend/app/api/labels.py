@@ -148,6 +148,8 @@ class LabelStats(BaseModel):
     shortlist: int
     rejected: int
     auto_rejected: int
+    max_tracks_month: int
+    emails_sent_this_month: int
 
 
 # --- Endpoints ---
@@ -178,8 +180,14 @@ async def register_label(
         "bpm_max": 180,
         "lufs_target": -14.0,
         "lufs_tolerance": 1.0,
-        "preferred_scales": [],
-        "auto_reject_rules": {},
+        "target_camelot_keys": [],
+        "auto_reject_rules": {
+            "phase": True,
+            "lufs": True,
+            "tempo": True,
+            "reject_clipping": True,
+            "reject_low_dynamic_range": True,
+        },
     }
 
     label = Label(
@@ -259,7 +267,7 @@ async def update_label_config(
         raise HTTPException(status_code=403, detail="Access denied to this label.")
 
     # Validate required keys
-    required_keys = {"bpm_min", "bpm_max", "lufs_target", "lufs_tolerance", "preferred_scales", "auto_reject_rules"}
+    required_keys = {"bpm_min", "bpm_max", "lufs_target", "lufs_tolerance", "target_camelot_keys", "auto_reject_rules"}
     missing = required_keys - set(body.sonic_signature.keys())
     if missing:
         raise HTTPException(
@@ -402,21 +410,27 @@ async def get_label_stats(
     if label.id != auth["label_id"]:
         raise HTTPException(status_code=403, detail="Access denied to this label.")
 
-    total = session.exec(
-        select(Submission).where(Submission.label_id == label.id)
+    # Filter out deleted submissions
+    total_active = session.exec(
+        select(Submission).where(
+            Submission.label_id == label.id,
+            Submission.deleted_at.is_(None)
+        )
     ).all()
 
-    inbox = len([s for s in total if s.status == "inbox"])
-    shortlist = len([s for s in total if s.status in ("shortlist", "approved")])
-    rejected = len([s for s in total if s.status == "rejected"])
-    auto_rejected = len([s for s in total if s.status == "auto_rejected"])
+    inbox = len([s for s in total_active if s.status == "inbox"])
+    shortlist = len([s for s in total_active if s.status in ("shortlist", "approved")])
+    rejected = len([s for s in total_active if s.status == "rejected"])
+    auto_rejected = len([s for s in total_active if s.status == "auto_rejected"])
 
     return LabelStats(
-        total=len(total),
+        total=len(total_active),
         inbox=inbox,
         shortlist=shortlist,
         rejected=rejected,
         auto_rejected=auto_rejected,
+        max_tracks_month=label.max_tracks_month,
+        emails_sent_this_month=label.emails_sent_this_month,
     )
 
 
