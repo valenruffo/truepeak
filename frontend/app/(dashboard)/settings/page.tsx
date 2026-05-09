@@ -55,7 +55,7 @@ export default function SettingsPage() {
       }).render("#paypal-button-indie");
 
       paypal.Buttons({
-        style: { shape: "rect", color: "blue", layout: "vertical", label: "subscribe" },
+        style: { shape: "rect", color: "gold", layout: "vertical", label: "subscribe" },
         createSubscription: (_data: any, actions: any) => actions.subscription.create({ plan_id: PAYPAL_PLAN_PRO }),
         onApprove: (data: any) => { alert(`Suscripción creada: ${data.subscriptionID}`); },
       }).render("#paypal-button-pro");
@@ -156,19 +156,21 @@ export default function SettingsPage() {
                 </tr>
               ))}
             </tbody>
+            {plan === "free" && (
+              <tfoot>
+                <tr style={{ borderTop: "1px solid var(--border)" }}>
+                  <td className="px-4 py-3" />
+                  <td className="px-4 py-3 text-center text-muted">Gratis</td>
+                  <td className="px-4 py-3 text-center" style={{ verticalAlign: "middle" }}>
+                    <div id="paypal-button-indie" />
+                  </td>
+                  <td className="px-4 py-3 text-center" style={{ verticalAlign: "middle" }}>
+                    <div id="paypal-button-pro" />
+                  </td>
+                </tr>
+              </tfoot>
+            )}
           </table>
-          {plan === "free" && (
-            <div className="grid grid-cols-4 border-t" style={{ borderColor: "var(--border)" }}>
-              <div className="px-4 py-3" />
-              <div className="px-3 py-3 text-center text-xs text-muted">Gratis</div>
-              <div className="px-3 py-2 flex items-center justify-center">
-                <div id="paypal-button-indie" className="w-full" style={{ maxWidth: "180px" }} />
-              </div>
-              <div className="px-3 py-2 flex items-center justify-center">
-                <div id="paypal-button-pro" className="w-full" style={{ maxWidth: "180px" }} />
-              </div>
-            </div>
-          )}
         </div>
       </div>
 

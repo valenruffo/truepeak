@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -141,7 +141,11 @@ function statusLabel(status: string, t: (key: "inbox.status.pending" | "inbox.st
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function InboxPage() {
-  return <InboxContent />;
+  return (
+    <Suspense fallback={<div className="max-w-7xl mx-auto px-6 py-8"><div className="animate-pulse h-96 rounded" style={{ background: "var(--bg-secondary)", border: "1px solid var(--border)" }} /></div>}>
+      <InboxContent />
+    </Suspense>
+  );
 }
 
 function InboxContent() {
