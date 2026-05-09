@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/lib/i18n";
 import { useTheme } from "@/lib/theme";
 
-const LEMON_SQUEEZY_URL = "https://truepeak.lemonsqueezy.com/checkout/buy/xxx";
+const PAYPAL_CLIENT_ID = "BAAcn11PNIEN7F9LhCR70qkow9_ojjmfDUyz6U6pV8QaFIF5Mq-FWWIC9DJU1erHEq4qi24_-PdKzs-5_E";
+const PAYPAL_PLAN_INDIE = "P-54C90346FG305414DNH7ILLI";
+const PAYPAL_PLAN_PRO = "P-54C90346FG305414DNH7ILLI"; // Same plan ID for now
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -32,6 +34,35 @@ export default function SettingsPage() {
         .catch(() => {});
     }
   }, []);
+
+  // PayPal subscription buttons
+  const paypalLoaded = useRef(false);
+  useEffect(() => {
+    if (plan !== "free" || paypalLoaded.current) return;
+    paypalLoaded.current = true;
+
+    const script = document.createElement("script");
+    script.src = `https://www.paypal.com/sdk/js?client-id=${PAYPAL_CLIENT_ID}&vault=true&intent=subscription`;
+    script.setAttribute("data-sdk-integration-source", "button-factory");
+    script.onload = () => {
+      const paypal = (window as any).paypal;
+      if (!paypal) return;
+
+      paypal.Buttons({
+        style: { shape: "rect", color: "blue", layout: "vertical", label: "subscribe" },
+        createSubscription: (_data: any, actions: any) => actions.subscription.create({ plan_id: PAYPAL_PLAN_INDIE }),
+        onApprove: (data: any) => { alert(`Suscripción creada: ${data.subscriptionID}`); },
+      }).render("#paypal-button-indie");
+
+      paypal.Buttons({
+        style: { shape: "rect", color: "blue", layout: "vertical", label: "subscribe" },
+        createSubscription: (_data: any, actions: any) => actions.subscription.create({ plan_id: PAYPAL_PLAN_PRO }),
+        onApprove: (data: any) => { alert(`Suscripción creada: ${data.subscriptionID}`); },
+      }).render("#paypal-button-pro");
+    };
+    document.body.appendChild(script);
+    return () => { document.body.removeChild(script); };
+  }, [plan]);
 
   const handleCancelSubscription = async () => {
     setCancelling(true);
@@ -86,10 +117,13 @@ export default function SettingsPage() {
 
         {plan === "free" && (
           <div className="mb-4">
-            <p className="text-sm text-muted mb-3">{t("settings.upgrade_desc")}</p>
-            <a href={LEMON_SQUEEZY_URL} target="_blank" rel="noopener noreferrer" className="inline-block px-5 py-2.5 rounded text-sm font-medium transition-all hover:opacity-90" style={{ background: "#10b981", color: "#09090b" }}>
-              {t("settings.upgrade_cta")}
-            </a>
+            <p className="text-sm text-muted mb-4">{t("settings.upgrade_desc")}</p>
+            <div className="flex flex-col sm:flex-row gap-3">
+              {/* PayPal Indie Button */}
+              <div id="paypal-button-indie" className="min-w-[200px]" />
+              {/* PayPal Pro Button */}
+              <div id="paypal-button-pro" className="min-w-[200px]" />
+            </div>
           </div>
         )}
 
