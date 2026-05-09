@@ -118,6 +118,7 @@ class LoginResponse(BaseModel):
     slug: str
     owner_email: str
     plan: str
+    token: str | None = None  # Included for clients that can't rely on cookie forwarding
 
 
 class LabelConfig(BaseModel):
@@ -334,6 +335,7 @@ async def label_login_by_identifier(
         slug=label.slug,
         owner_email=label.owner_email,
         plan=label.plan or "free",
+        token=token,
     )
 
 
@@ -375,6 +377,7 @@ async def label_login(
         slug=label.slug,
         owner_email=label.owner_email,
         plan=label.plan or "free",
+        token=token,
     )
 
 
