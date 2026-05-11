@@ -42,7 +42,7 @@ export default function PrivacyPolicy() {
             <li>Solicitar la eliminación de tu cuenta y datos asociados.</li>
             <li>Oponerte al procesamiento de tus datos.</li>
           </ul>
-          <p>Para ejercer estos derechos, contactanos a <span className="text-foreground">privacidad@truepeak.ai</span>.</p>
+          <p>Para ejercer estos derechos, contactanos a <span className="text-foreground">privacidad@truepeak.space</span>.</p>
 
           <h2 className="font-display font-semibold text-lg text-foreground mt-8 mb-2">6. Cookies</h2>
           <p>Usamos cookies esenciales para el funcionamiento de la plataforma (autenticación, preferencias). No usamos cookies de terceros para publicidad ni tracking.</p>
@@ -54,7 +54,7 @@ export default function PrivacyPolicy() {
           <p>Podemos actualizar esta política ocasionalmente. Te notificaremos cambios significativos por email o mediante un aviso en la plataforma.</p>
 
           <h2 className="font-display font-semibold text-lg text-foreground mt-8 mb-2">9. Contacto</h2>
-          <p>Para consultas sobre privacidad, escribinos a <span className="text-foreground">privacidad@truepeak.ai</span>.</p>
+          <p>Para consultas sobre privacidad, escribinos a <span className="text-foreground">privacidad@truepeak.space</span>.</p>
         </div>
       </div>
     </div>

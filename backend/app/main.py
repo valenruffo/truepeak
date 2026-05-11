@@ -74,6 +74,11 @@ from app.api.health import router as health_router
 
 app.include_router(health_router)
 
+# Polar webhook handler (payments)
+from app.api.polar_webhook import router as polar_webhook_router
+
+app.include_router(polar_webhook_router)
+
 # Serve label logos
 LOGOS_DIR = Path("/app/data/logos")
 LOGOS_DIR.mkdir(parents=True, exist_ok=True)

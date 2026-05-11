@@ -1,13 +1,12 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/lib/i18n";
 import { useTheme } from "@/lib/theme";
 
-const PAYPAL_CLIENT_ID = "BAAcn11PNIEN7F9LhCR70qkow9_ojjmfDUyz6U6pV8QaFIF5Mq-FWWIC9DJU1erHEq4qi24_-PdKzs-5_E";
-const PAYPAL_PLAN_INDIE = "P-54C90346FG305414DNH7ILLI";
-const PAYPAL_PLAN_PRO = "P-7HL262224H175470NNH7IRJA";
+const POLAR_CHECKOUT_INDIE = "https://buy.polar.sh/polar_cl_HmWbpa6oeLs6vcSucDQR5rlWXMPsne5p33MOi2RZPFg";
+const POLAR_CHECKOUT_PRO = "https://buy.polar.sh/polar_cl_4u3xFxj5G4klKE5jhYIDGMXmhyL7kjaTQe9Ux34e9Wb";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -34,67 +33,6 @@ export default function SettingsPage() {
         .catch(() => {});
     }
   }, []);
-
-  // PayPal subscription buttons
-  const paypalLoaded = useRef(false);
-  useEffect(() => {
-    if (plan !== "free" || paypalLoaded.current) return;
-    paypalLoaded.current = true;
-
-    const script = document.createElement("script");
-    script.src = `https://www.paypal.com/sdk/js?client-id=${PAYPAL_CLIENT_ID}&vault=true&intent=subscription`;
-    script.setAttribute("data-sdk-integration-source", "button-factory");
-    script.onload = () => {
-      const paypal = (window as any).paypal;
-      if (!paypal) return;
-
-      paypal.Buttons({
-        style: { shape: "rect", color: "blue", layout: "vertical", label: "subscribe" },
-        createSubscription: (_data: any, actions: any) => actions.subscription.create({ plan_id: PAYPAL_PLAN_INDIE }),
-        onApprove: async (data: any) => {
-          const slug = localStorage.getItem("slug");
-          if (slug) {
-            try {
-              const res = await fetch(`/api/labels/${slug}/plan`, {
-                method: "PATCH",
-                credentials: "include",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ plan: "indie" }),
-              });
-              if (res.ok) {
-                localStorage.setItem("plan", "indie");
-                setPlan("indie");
-              }
-            } catch (e) { console.error("Plan update failed", e); }
-          }
-        },
-      }).render("#paypal-button-indie");
-
-      paypal.Buttons({
-        style: { shape: "rect", color: "gold", layout: "vertical", label: "subscribe" },
-        createSubscription: (_data: any, actions: any) => actions.subscription.create({ plan_id: PAYPAL_PLAN_PRO }),
-        onApprove: async (data: any) => {
-          const slug = localStorage.getItem("slug");
-          if (slug) {
-            try {
-              const res = await fetch(`/api/labels/${slug}/plan`, {
-                method: "PATCH",
-                credentials: "include",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ plan: "pro" }),
-              });
-              if (res.ok) {
-                localStorage.setItem("plan", "pro");
-                setPlan("pro");
-              }
-            } catch (e) { console.error("Plan update failed", e); }
-          }
-        },
-      }).render("#paypal-button-pro");
-    };
-    document.body.appendChild(script);
-    return () => { document.body.removeChild(script); };
-  }, [plan]);
 
   const handleCancelSubscription = async () => {
     setCancelling(true);
@@ -193,11 +131,27 @@ export default function SettingsPage() {
                 <tr style={{ borderTop: "1px solid var(--border)" }}>
                   <td className="px-4 py-3" />
                   <td className="px-4 py-3 text-center text-muted">Gratis</td>
-                  <td className="px-4 py-3 text-center" style={{ verticalAlign: "middle" }}>
-                    <div id="paypal-button-indie" />
+                  <td className="px-4 py-3 text-center">
+                    <a
+                      href={POLAR_CHECKOUT_INDIE}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-block px-4 py-2 rounded text-xs font-medium transition-all hover:opacity-90"
+                      style={{ background: "#10b981", color: "#09090b" }}
+                    >
+                      Suscribirse — $9/mes
+                    </a>
                   </td>
-                  <td className="px-4 py-3 text-center" style={{ verticalAlign: "middle" }}>
-                    <div id="paypal-button-pro" />
+                  <td className="px-4 py-3 text-center">
+                    <a
+                      href={POLAR_CHECKOUT_PRO}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-block px-4 py-2 rounded text-xs font-medium transition-all hover:opacity-90"
+                      style={{ background: "#10b981", color: "#09090b" }}
+                    >
+                      Suscribirse — $29/mes
+                    </a>
                   </td>
                 </tr>
               </tfoot>

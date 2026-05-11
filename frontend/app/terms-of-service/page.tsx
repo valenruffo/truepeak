@@ -34,7 +34,7 @@ export default function TermsOfService() {
           <p>Estos términos se rigen por las leyes de la República Argentina. Cualquier disputa se resolverá en los tribunales de la Ciudad de Buenos Aires.</p>
 
           <h2 className="font-display font-semibold text-lg text-foreground mt-8 mb-2">9. Contacto</h2>
-          <p>Para consultas sobre estos términos, escribinos a <span className="text-foreground">legal@truepeak.ai</span>.</p>
+          <p>Para consultas sobre estos términos, escribinos a <span className="text-foreground">legal@truepeak.space</span>.</p>
         </div>
       </div>
     </div>

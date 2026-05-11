@@ -693,7 +693,8 @@ function Features() {
 
 // ─── Pricing ──────────────────────────────────────────────────────────────────
 
-const checkoutUrl = "https://truepeak.lemonsqueezy.com/checkout/buy/60230548-372d-421b-8b00-f15a78817c76";
+const polarCheckoutIndie = "https://buy.polar.sh/polar_cl_HmWbpa6oeLs6vcSucDQR5rlWXMPsne5p33MOi2RZPFg";
+const polarCheckoutPro = "https://buy.polar.sh/polar_cl_4u3xFxj5G4klKE5jhYIDGMXmhyL7kjaTQe9Ux34e9Wb";
 
 function Pricing() {
   const { t } = useLanguage();
@@ -713,7 +714,7 @@ function Pricing() {
       name: t("pricing.indie"),
       price: t("pricing.indie_price"),
       cta: t("pricing.indie_cta"),
-      href: checkoutUrl,
+      href: polarCheckoutIndie,
       border: "#10b981",
       bg: "var(--bg-secondary)",
       btnStyle: { background: "#10b981", color: "#09090b" } as React.CSSProperties,
@@ -724,7 +725,7 @@ function Pricing() {
       name: t("pricing.pro"),
       price: t("pricing.pro_price"),
       cta: t("pricing.pro_cta"),
-      href: checkoutUrl,
+      href: polarCheckoutPro,
       border: "var(--border)",
       bg: "var(--bg-secondary)",
       btnStyle: { border: "1px solid var(--border)", color: "var(--text-primary)" } as React.CSSProperties,

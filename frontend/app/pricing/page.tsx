@@ -3,11 +3,15 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+const POLAR_CHECKOUT_BOUTIQUE = "https://buy.polar.sh/polar_cl_HmWbpa6oeLs6vcSucDQR5rlWXMPsne5p33MOi2RZPFg";
+const POLAR_CHECKOUT_PRO = "https://buy.polar.sh/polar_cl_4u3xFxj5G4klKE5jhYIDGMXmhyL7kjaTQe9Ux34e9Wb";
+
 const PLANS = [
   {
     id: "boutique",
     name: "Boutique",
     price: 29,
+    checkoutUrl: POLAR_CHECKOUT_BOUTIQUE,
     features: [
       "Hasta 50 demos/mes",
       "1 firma sónica personalizada",
@@ -22,6 +26,7 @@ const PLANS = [
     name: "Label Pro",
     price: 79,
     highlighted: true,
+    checkoutUrl: POLAR_CHECKOUT_PRO,
     features: [
       "Demos ilimitados",
       "Hasta 5 firmas sónicas",
@@ -39,31 +44,13 @@ export default function PricingPage() {
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleCheckout = async (planId: string) => {
+  const handleCheckout = (planId: string) => {
+    const plan = PLANS.find((p) => p.id === planId);
+    if (!plan) return;
     setSelectedPlan(planId);
     setLoading(true);
-
-    try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/stripe/create-checkout`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          plan: planId,
-          success_url: `${window.location.origin}/inbox?payment=success`,
-          cancel_url: `${window.location.origin}/pricing`,
-        }),
-      });
-
-      if (!res.ok) throw new Error("Error al crear la sesión de pago");
-
-      const { url } = await res.json();
-      window.location.href = url;
-    } catch {
-      // Fallback: just redirect to dashboard for now
-      router.push("/inbox");
-    } finally {
-      setLoading(false);
-    }
+    // Direct redirect to Polar checkout
+    window.location.href = plan.checkoutUrl;
   };
 
   return (
