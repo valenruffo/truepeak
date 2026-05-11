@@ -14,10 +14,44 @@ const translations = {
     "nav.register": "Registrarse",
 
     // Hero
-    "hero.badge": "B2B SaaS para sellos electronicos",
-    "hero.cta_primary": "Comenzar gratis",
-    "hero.cta_secondary": "Ver como funciona",
-    "hero.description": "El primer filtro de demos con análisis técnico Automático. Setea la firma sónica de tu sello y deja que el motor descartar los tracks fuera de standard antes de que lleguen a tus oidos.",
+    "hero.badge": "El estandar DSP para la industria electronica",
+    "hero.cta_primary": "Soy un Sello Discografico",
+    "hero.cta_secondary": "Soy un DJ de Gira",
+    "hero.description": "True Peak AI es el primer asistente A&R automatizado. Analizamos el audio a nivel de ingenieria (Fase, Dinamica, True Peak) y rechazamos la basura automaticamente para que solo escuches la musica que esta lista para el club.",
+
+    // Landing - Sellos section
+    "sellos.section_label": "Para Sellos Discograficos",
+    "sellos.title": "Encontra tu proximo release en minutos, no en horas.",
+    "sellos.description": "Olvídate del infierno de los links rotos de SoundCloud y las bandejas de Gmail colapsadas. True Peak AI recibe los WAVs de los productores, analiza la calidad de mezcla en milisegundos y organiza los tracks válidos en un Kanban visual.",
+    "sellos.benefit0.title": "Filtro Implacable",
+    "sellos.benefit0.desc": "Rechazo automatico de tracks fuera de tu Firma Sónica (BPM, LUFS, Crest Factor).",
+    "sellos.benefit1.title": "Cero Friccion",
+    "sellos.benefit1.desc": "Escucha, aprueba o descarta desde un solo panel. Sin descargar nada.",
+    "sellos.benefit2.title": "CRM Integrado",
+    "sellos.benefit2.desc": "Mails de rechazo automatico y plantillas pre-armadas para pedir pre-masters y firmar contratos con un solo clic.",
+
+    // Landing - DJs section
+    "djs.section_label": "Para DJs de Gira",
+    "djs.title": "El escudo definitivo para tu pendrive.",
+    "djs.description": "Recibir cientos de promos por semana es un privilegio, pero analizarlos en Rekordbox uno por uno es una pesadilla. Configura tu link publico, compartilo con agencias de PR y deja que nuestro motor separe los bangers del ruido.",
+    "djs.benefit0.title": "Mix Perfecto",
+    "djs.benefit0.desc": "Filtra automaticamente por Sistema Camelot (1A a 12B) para asegurar mezclas armonicas.",
+    "djs.benefit1.title": "Calidad de Club",
+    "djs.benefit1.desc": "Dile adios a los temas con la fase invertida que desaparecen en sistemas Mono.",
+    "djs.benefit2.title": "Descarga Limpia",
+    "djs.benefit2.desc": "Exporta a tu disco duro solo el 10% de los temas que realmente vas a tocar este fin de semana.",
+
+    // Landing - Tech Proof section
+    "tech.section_label": "Prueba Tecnica",
+    "tech.title": "No usamos IA para adivinar. Usamos algoritmos DSP para asegurar.",
+    "tech.card0.title": "Clipping Digital",
+    "tech.card0.desc": "Detectamos saturacion destructiva en el limite de los 0 dBFS.",
+    "tech.card1.title": "Correlacion de Fase",
+    "tech.card1.desc": "Analisis estereo para prevenir cancelaciones en pistas de club.",
+    "tech.card2.title": "Crest Factor",
+    "tech.card2.desc": "Medimos el rango dinamico en decibeles. Rechazamos la hipercompresion.",
+    "tech.card3.title": "Camelot Wheel",
+    "tech.card3.desc": "Deteccion de tonalidad exacta impulsada por Krumhansl-Schmuckler.",
 
     // Demo simulation
     "demo.rejected": "RECHAZADO",
@@ -423,10 +457,44 @@ const translations = {
     "nav.register": "Sign up",
 
     // Hero
-    "hero.badge": "B2B SaaS for electronic labels",
-    "hero.cta_primary": "Get started free",
-    "hero.cta_secondary": "See how it works",
-    "hero.description": "The first demo filter with automatic technical analysis. Set your label's sonic signature and let the engine reject off-standard tracks before they reach your ears.",
+    "hero.badge": "The DSP standard for the electronic industry",
+    "hero.cta_primary": "I am a Record Label",
+    "hero.cta_secondary": "I am a Touring DJ",
+    "hero.description": "True Peak AI is the first automated A&R assistant. We analyze audio at the engineering level (Phase, Dynamics, True Peak) and automatically reject the garbage so you only hear music that is club-ready.",
+
+    // Landing - Sellos section
+    "sellos.section_label": "For Record Labels",
+    "sellos.title": "Find your next release in minutes, not hours.",
+    "sellos.description": "Forget the nightmare of broken SoundCloud links and overflowing Gmail inboxes. True Peak AI receives WAVs from producers, analyzes mix quality in milliseconds, and organizes valid tracks in a visual Kanban.",
+    "sellos.benefit0.title": "Relentless Filter",
+    "sellos.benefit0.desc": "Automatic rejection of tracks outside your Sonic Signature (BPM, LUFS, Crest Factor).",
+    "sellos.benefit1.title": "Zero Friction",
+    "sellos.benefit1.desc": "Listen, approve or discard from a single panel. No downloads needed.",
+    "sellos.benefit2.title": "Integrated CRM",
+    "sellos.benefit2.desc": "Automatic rejection emails and pre-built templates to request pre-masters and sign contracts with one click.",
+
+    // Landing - DJs section
+    "djs.section_label": "For Touring DJs",
+    "djs.title": "The ultimate shield for your USB drive.",
+    "djs.description": "Receiving hundreds of promos per week is a privilege, but analyzing them one by one in Rekordbox is a nightmare. Set up your public link, share it with PR agencies, and let our engine separate the bangers from the noise.",
+    "djs.benefit0.title": "Perfect Mix",
+    "djs.benefit0.desc": "Automatically filter by Camelot System (1A to 12B) for harmonic mixing.",
+    "djs.benefit1.title": "Club Quality",
+    "djs.benefit1.desc": "Say goodbye to tracks with inverted phase that disappear on mono systems.",
+    "djs.benefit2.title": "Clean Export",
+    "djs.benefit2.desc": "Export to your hard drive only the 10% of tracks you will actually play this weekend.",
+
+    // Landing - Tech Proof section
+    "tech.section_label": "Technical Proof",
+    "tech.title": "We do not use AI to guess. We use DSP algorithms to guarantee.",
+    "tech.card0.title": "Digital Clipping",
+    "tech.card0.desc": "We detect destructive saturation at the 0 dBFS limit.",
+    "tech.card1.title": "Phase Correlation",
+    "tech.card1.desc": "Stereo analysis to prevent cancellations on club sound systems.",
+    "tech.card2.title": "Crest Factor",
+    "tech.card2.desc": "We measure dynamic range in decibels. We reject hypercompression.",
+    "tech.card3.title": "Camelot Wheel",
+    "tech.card3.desc": "Exact key detection powered by Krumhansl-Schmuckler.",
 
     // Demo simulation
     "demo.rejected": "REJECTED",

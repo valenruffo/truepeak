@@ -284,12 +284,13 @@ function Hero() {
         <div className="grid md:grid-cols-2 gap-8 lg:gap-12 items-center">
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded mb-6" style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.2)" }}>
-              <div className="w-1.5 h-1.5 rounded-full" style={{ background: "#10b981" }} />
+              <span className="text-sm">🚀</span>
               <span className="text-xs font-mono" style={{ color: "#10b981" }}>{t("hero.badge")}</span>
             </div>
 
             <h1 className="font-bold text-4xl md:text-5xl lg:text-6xl leading-[1.08] tracking-tight mb-6" style={{ color: "var(--text-primary)" }}>
-              True Peak AI
+              Tu bandeja de entrada musical,<br />
+              <span style={{ color: "#10b981" }}>filtrada por matematica pura.</span>
             </h1>
 
             <p className="text-lg md:text-xl leading-relaxed mb-8 max-w-xl" style={{ color: "var(--text-muted)" }}>
@@ -297,15 +298,15 @@ function Hero() {
             </p>
 
             <div className="flex flex-col sm:flex-row gap-3">
-              <Link
-                href="/register"
+              <a
+                href="#sellos"
                 className="px-6 py-3 text-sm font-medium rounded transition-all hover:opacity-90 text-center cursor-pointer"
                 style={{ background: "#10b981", color: "#09090b" }}
               >
                 {t("hero.cta_primary")}
-              </Link>
+              </a>
               <a
-                href="#how-it-works"
+                href="#djs"
                 className="px-6 py-3 text-sm rounded transition-all text-center cursor-pointer"
                 style={{ border: "1px solid var(--border)", color: "var(--text-primary)" }}
                 onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-secondary)")}
@@ -318,6 +319,115 @@ function Hero() {
           <div className="hidden md:block max-w-sm mx-auto w-full">
             <DemoSimulation />
           </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── Sellos Section ───────────────────────────────────────────────────────────
+
+function SellosSection() {
+  const { t } = useLanguage();
+  const benefits = [
+    { icon: <IconShield />, title: t("sellos.benefit0.title"), desc: t("sellos.benefit0.desc") },
+    { icon: <IconHeadphones />, title: t("sellos.benefit1.title"), desc: t("sellos.benefit1.desc") },
+    { icon: <IconMail />, title: t("sellos.benefit2.title"), desc: t("sellos.benefit2.desc") },
+  ];
+
+  return (
+    <section id="sellos" className="py-20 px-6" style={{ borderTop: "1px solid var(--border)" }}>
+      <div className="max-w-6xl mx-auto">
+        <div className="mb-12">
+          <div className="text-xs font-mono uppercase tracking-wider mb-3" style={{ color: "#10b981" }}>{t("sellos.section_label")}</div>
+          <h2 className="font-bold text-2xl md:text-3xl tracking-tight mb-4" style={{ color: "var(--text-primary)" }}>
+            {t("sellos.title")}
+          </h2>
+          <p className="text-lg leading-relaxed max-w-2xl" style={{ color: "var(--text-muted)" }}>
+            {t("sellos.description")}
+          </p>
+        </div>
+
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {benefits.map((b, i) => (
+            <div key={i} className="p-5 rounded border transition-all hover:border-zinc-600" style={{ background: "var(--bg-secondary)", borderColor: "var(--border)" }}>
+              <div className="w-9 h-9 rounded flex items-center justify-center mb-4" style={{ background: "rgba(16,185,129,0.1)", color: "#10b981" }}>{b.icon}</div>
+              <h3 className="font-semibold text-sm mb-2" style={{ color: "var(--text-primary)" }}>{b.title}</h3>
+              <p className="text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>{b.desc}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── DJs Section ──────────────────────────────────────────────────────────────
+
+function DJsSection() {
+  const { t } = useLanguage();
+  const benefits = [
+    { icon: <IconFingerprint />, title: t("djs.benefit0.title"), desc: t("djs.benefit0.desc") },
+    { icon: <IconShield />, title: t("djs.benefit1.title"), desc: t("djs.benefit1.desc") },
+    { icon: <IconFileAudio />, title: t("djs.benefit2.title"), desc: t("djs.benefit2.desc") },
+  ];
+
+  return (
+    <section id="djs" className="py-20 px-6" style={{ borderTop: "1px solid var(--border)" }}>
+      <div className="max-w-6xl mx-auto">
+        <div className="mb-12">
+          <div className="text-xs font-mono uppercase tracking-wider mb-3" style={{ color: "#06b6d4" }}>{t("djs.section_label")}</div>
+          <h2 className="font-bold text-2xl md:text-3xl tracking-tight mb-4" style={{ color: "var(--text-primary)" }}>
+            {t("djs.title")}
+          </h2>
+          <p className="text-lg leading-relaxed max-w-2xl" style={{ color: "var(--text-muted)" }}>
+            {t("djs.description")}
+          </p>
+        </div>
+
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {benefits.map((b, i) => (
+            <div key={i} className="p-5 rounded border transition-all hover:border-zinc-600" style={{ background: "var(--bg-secondary)", borderColor: "var(--border)" }}>
+              <div className="w-9 h-9 rounded flex items-center justify-center mb-4" style={{ background: "rgba(6,182,212,0.1)", color: "#06b6d4" }}>{b.icon}</div>
+              <h3 className="font-semibold text-sm mb-2" style={{ color: "var(--text-primary)" }}>{b.title}</h3>
+              <p className="text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>{b.desc}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── Tech Proof Section ───────────────────────────────────────────────────────
+
+function TechProof() {
+  const { t } = useLanguage();
+  const cards = [
+    { icon: <IconWaveform />, title: t("tech.card0.title"), desc: t("tech.card0.desc") },
+    { icon: <IconAnalysis />, title: t("tech.card1.title"), desc: t("tech.card1.desc") },
+    { icon: <IconShield />, title: t("tech.card2.title"), desc: t("tech.card2.desc") },
+    { icon: <IconFingerprint />, title: t("tech.card3.title"), desc: t("tech.card3.desc") },
+  ];
+
+  return (
+    <section id="tech-proof" className="py-20 px-6" style={{ borderTop: "1px solid var(--border)" }}>
+      <div className="max-w-6xl mx-auto">
+        <div className="mb-12 text-center">
+          <div className="text-xs font-mono uppercase tracking-wider mb-3" style={{ color: "var(--text-muted)" }}>{t("tech.section_label")}</div>
+          <h2 className="font-bold text-2xl md:text-3xl tracking-tight" style={{ color: "var(--text-primary)" }}>
+            {t("tech.title")}
+          </h2>
+        </div>
+
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {cards.map((c, i) => (
+            <div key={i} className="p-5 rounded border transition-all hover:border-zinc-600" style={{ background: "var(--bg-secondary)", borderColor: "var(--border)" }}>
+              <div className="w-9 h-9 rounded flex items-center justify-center mb-4" style={{ background: "rgba(16,185,129,0.1)", color: "#10b981" }}>{c.icon}</div>
+              <h3 className="font-semibold text-sm mb-2" style={{ color: "var(--text-primary)" }}>{c.title}</h3>
+              <p className="text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>{c.desc}</p>
+            </div>
+          ))}
         </div>
       </div>
     </section>
@@ -701,6 +811,9 @@ export default function Home() {
       `}</style>
       <Nav />
       <Hero />
+      <SellosSection />
+      <DJsSection />
+      <TechProof />
       <HowItWorks />
       <Features />
       <Pricing />
