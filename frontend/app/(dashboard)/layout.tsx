@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { PlayerProvider, usePlayer, type PlayerTrack } from "@/lib/PlayerContext";
+import { ToastProvider } from "@/components/ui/toast";
 import WhatsAppBubble from "@/components/WhatsAppBubble";
 import { useLanguage } from "@/lib/i18n";
 import { useTheme } from "@/lib/theme";
@@ -382,7 +383,9 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <PlayerProvider>
-      <DashboardInner>{children}</DashboardInner>
+      <ToastProvider>
+        <DashboardInner>{children}</DashboardInner>
+      </ToastProvider>
     </PlayerProvider>
   );
 }
