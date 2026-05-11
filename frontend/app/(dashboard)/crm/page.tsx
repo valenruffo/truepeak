@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Suspense } from "react";
 import { cn } from "@/lib/utils";
 import { usePlayer } from "@/lib/PlayerContext";
 import { useLanguage } from "@/lib/i18n";
+import { useUndoableState, useUndoRedoKey } from "@/lib/useUndoableState";
 
 interface Submission {
   id: string;
@@ -73,8 +74,10 @@ function CRMContent() {
   const { t } = useLanguage();
   const [selectedTemplate, setSelectedTemplate] = useState("reject-phase");
   const [selectedContact, setSelectedContact] = useState(0);
-  const [emailBody, setEmailBody] = useState("");
-  const [emailSubject, setEmailSubject] = useState("");
+  const emailBodyState = useUndoableState("");
+  const emailSubjectState = useUndoableState("");
+  const { value: emailBody, set: setEmailBody, undo: undoEmailBody, redo: redoEmailBody } = emailBodyState;
+  const { value: emailSubject, set: setEmailSubject, undo: undoEmailSubject, redo: redoEmailSubject } = emailSubjectState;
   const [sent, setSent] = useState(false);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [labelName, setLabelName] = useState<string>("");
@@ -161,6 +164,43 @@ function CRMContent() {
     }
   }, [template, contacts, labelName]);
 
+  const rejectionCount = contacts.filter((c) => c.status === "rejected").length;
+  const approvalCount = contacts.filter((c) => c.status === "approved").length;
+  const plan = typeof window !== "undefined" ? localStorage.getItem("plan") : "free";
+  const isFree = plan === "free" || !plan;
+
+  const [activeTab, setActiveTab] = useState<"bandeja" | "templates">("bandeja");
+  const [dbTemplates, setDbTemplates] = useState<any[]>([]);
+  const [templateName, setTemplateName] = useState("");
+  const [templateType, setTemplateType] = useState("rejection");
+  const templateSubjectState = useUndoableState("");
+  const templateBodyState = useUndoableState("");
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [bodyCursor, setBodyCursor] = useState(0);
+  const [subjectCursor, setSubjectCursor] = useState(0);
+  const [bodyRef, setBodyRef] = useState<HTMLTextAreaElement | null>(null);
+  const [subjectRef, setSubjectRef] = useState<HTMLInputElement | null>(null);
+  const [emailBodyRef, setEmailBodyRef] = useState<HTMLTextAreaElement | null>(null);
+  const [emailSubjectRef, setEmailSubjectRef] = useState<HTMLInputElement | null>(null);
+  const [emailBodyCursor, setEmailBodyCursor] = useState(0);
+  const [emailSubjectCursor, setEmailSubjectCursor] = useState(0);
+  const [dragOverField, setDragOverField] = useState<"email-body" | "email-subject" | "template-body" | "template-subject" | null>(null);
+  const [dragCursorPos, setDragCursorPos] = useState(0);
+
+  // Wire undo/redo for email composer (active when on bandeja tab)
+  useUndoRedoKey({
+    onUndo: () => { undoEmailBody(); undoEmailSubject(); },
+    onRedo: () => { redoEmailBody(); redoEmailSubject(); },
+    enabled: activeTab === "bandeja",
+  });
+
+  // Wire undo/redo for template form (active when on templates tab)
+  useUndoRedoKey({
+    onUndo: () => { templateBodyState.undo(); templateSubjectState.undo(); },
+    onRedo: () => { templateBodyState.redo(); templateSubjectState.redo(); },
+    enabled: activeTab === "templates",
+  });
+
   const handleSendEmail = async () => {
     if (!contact) return;
     if (!contact.email) { setSendError(t("crm.send_error_no_email")); return; }
@@ -177,24 +217,6 @@ function CRMContent() {
     finally { setSending(false); }
   };
 
-  const rejectionCount = contacts.filter((c) => c.status === "rejected").length;
-  const approvalCount = contacts.filter((c) => c.status === "approved").length;
-  const plan = typeof window !== "undefined" ? localStorage.getItem("plan") : "free";
-  const isFree = plan === "free" || !plan;
-
-  const [activeTab, setActiveTab] = useState<"bandeja" | "templates">("bandeja");
-  const [dbTemplates, setDbTemplates] = useState<any[]>([]);
-  const [templateForm, setTemplateForm] = useState({ name: "", type: "rejection", subject: "", body: "" });
-  const [savingTemplate, setSavingTemplate] = useState(false);
-  const [bodyCursor, setBodyCursor] = useState(0);
-  const [subjectCursor, setSubjectCursor] = useState(0);
-  const [bodyRef, setBodyRef] = useState<HTMLTextAreaElement | null>(null);
-  const [subjectRef, setSubjectRef] = useState<HTMLInputElement | null>(null);
-  const [emailBodyRef, setEmailBodyRef] = useState<HTMLTextAreaElement | null>(null);
-  const [emailSubjectRef, setEmailSubjectRef] = useState<HTMLInputElement | null>(null);
-  const [emailBodyCursor, setEmailBodyCursor] = useState(0);
-  const [emailSubjectCursor, setEmailSubjectCursor] = useState(0);
-
   const variables = [
     { key: "{producer}", label: "Productor", desc: "Nombre del productor" },
     { key: "{track}", label: "Track", desc: "Nombre del track" },
@@ -202,22 +224,72 @@ function CRMContent() {
     { key: "{label}", label: "Sello", desc: "Nombre del sello" },
   ];
 
+  /** Get character offset in a textarea/input from mouse event coordinates */
+  const getCaretOffsetFromPoint = useCallback((el: HTMLInputElement | HTMLTextAreaElement, x: number, y: number): number => {
+    // Standard API
+    if (typeof document.caretPositionFromPoint === "function") {
+      const pos = document.caretPositionFromPoint(x, y);
+      if (pos && pos.offsetNode === el) return pos.offset;
+      // If the offset node is a text node inside the element, calculate offset
+      if (pos && pos.offsetNode?.nodeType === Node.TEXT_NODE && el.contains(pos.offsetNode)) {
+        const textNode = pos.offsetNode as Text;
+        // For textarea/input, the text node is the element itself
+        return pos.offset;
+      }
+    }
+    // WebKit fallback
+    if (typeof document.caretRangeFromPoint === "function") {
+      const range = document.caretRangeFromPoint(x, y);
+      if (range && range.startContainer === el) return range.startOffset;
+    }
+    // Fallback: estimate based on character width (monospace approximation)
+    const rect = el.getBoundingClientRect();
+    const style = window.getComputedStyle(el);
+    const fontSize = parseFloat(style.fontSize);
+    const charWidth = fontSize * 0.6; // approximate
+    const relX = x - rect.left - parseFloat(style.paddingLeft || "0");
+    return Math.max(0, Math.min(el.value.length, Math.round(relX / charWidth)));
+  }, []);
+
+  /** Real-time drag cursor tracking — moves the native caret to show drop position */
+  const handleDragOverField = useCallback((e: React.DragEvent, field: "email-body" | "email-subject" | "template-body" | "template-subject") => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+    setDragOverField(field);
+
+    const el = e.currentTarget as HTMLInputElement | HTMLTextAreaElement;
+    const offset = getCaretOffsetFromPoint(el, e.clientX, e.clientY);
+    setDragCursorPos(offset);
+
+    // Move the native browser caret to show where the variable will be inserted
+    if (el.tagName === "TEXTAREA") {
+      (el as HTMLTextAreaElement).setSelectionRange(offset, offset);
+    } else {
+      (el as HTMLInputElement).setSelectionRange(offset, offset);
+    }
+  }, [getCaretOffsetFromPoint]);
+
+  const handleDragLeave = useCallback(() => {
+    setDragOverField(null);
+  }, []);
+
   const insertVariable = (variable: string, field: "body" | "subject") => {
     if (field === "body" && bodyRef) {
-      const pos = bodyCursor;
-      const before = templateForm.body.slice(0, pos);
-      const after = templateForm.body.slice(pos);
-      setTemplateForm({ ...templateForm, body: before + variable + after });
+      const pos = dragOverField === "template-body" ? dragCursorPos : bodyCursor;
+      const before = templateBodyState.value.slice(0, pos);
+      const after = templateBodyState.value.slice(pos);
+      templateBodyState.set(before + variable + after);
       const newPos = pos + variable.length;
       setTimeout(() => { bodyRef.focus(); bodyRef.setSelectionRange(newPos, newPos); }, 0);
     } else if (field === "subject" && subjectRef) {
-      const pos = subjectCursor;
-      const before = templateForm.subject.slice(0, pos);
-      const after = templateForm.subject.slice(pos);
-      setTemplateForm({ ...templateForm, subject: before + variable + after });
+      const pos = dragOverField === "template-subject" ? dragCursorPos : subjectCursor;
+      const before = templateSubjectState.value.slice(0, pos);
+      const after = templateSubjectState.value.slice(pos);
+      templateSubjectState.set(before + variable + after);
       const newPos = pos + variable.length;
       setTimeout(() => { subjectRef.focus(); subjectRef.setSelectionRange(newPos, newPos); }, 0);
     }
+    setDragOverField(null);
   };
 
   const handleDragStart = (e: React.DragEvent, variable: string) => {
@@ -231,24 +303,26 @@ function CRMContent() {
     if (variable && variables.some(v => v.key === variable)) {
       insertVariable(variable, field);
     }
+    setDragOverField(null);
   };
 
   const insertEmailVariable = (variable: string, field: "body" | "subject") => {
     if (field === "body" && emailBodyRef) {
-      const pos = emailBodyCursor;
+      const pos = dragOverField === "email-body" ? dragCursorPos : emailBodyCursor;
       const before = emailBody.slice(0, pos);
       const after = emailBody.slice(pos);
       setEmailBody(before + variable + after);
       const newPos = pos + variable.length;
       setTimeout(() => { emailBodyRef.focus(); emailBodyRef.setSelectionRange(newPos, newPos); }, 0);
     } else if (field === "subject" && emailSubjectRef) {
-      const pos = emailSubjectCursor;
+      const pos = dragOverField === "email-subject" ? dragCursorPos : emailSubjectCursor;
       const before = emailSubject.slice(0, pos);
       const after = emailSubject.slice(pos);
       setEmailSubject(before + variable + after);
       const newPos = pos + variable.length;
       setTimeout(() => { emailSubjectRef.focus(); emailSubjectRef.setSelectionRange(newPos, newPos); }, 0);
     }
+    setDragOverField(null);
   };
 
   const handleEmailDrop = (e: React.DragEvent, field: "body" | "subject") => {
@@ -257,12 +331,13 @@ function CRMContent() {
     if (variable && variables.some(v => v.key === variable)) {
       insertEmailVariable(variable, field);
     }
+    setDragOverField(null);
   };
 
-  const handleBodySelect = () => { if (bodyRef) setBodyCursor(bodyRef.selectionStart); };
-  const handleSubjectSelect = () => { if (subjectRef) setSubjectCursor(subjectRef.selectionStart); };
-  const handleEmailBodySelect = () => { if (emailBodyRef) setEmailBodyCursor(emailBodyRef.selectionStart); };
-  const handleEmailSubjectSelect = () => { if (emailSubjectRef) setEmailSubjectCursor(emailSubjectRef.selectionStart); };
+  const handleBodySelect = () => { if (bodyRef && bodyRef.selectionStart != null) setBodyCursor(bodyRef.selectionStart); };
+  const handleSubjectSelect = () => { if (subjectRef && subjectRef.selectionStart != null) setSubjectCursor(subjectRef.selectionStart); };
+  const handleEmailBodySelect = () => { if (emailBodyRef && emailBodyRef.selectionStart != null) setEmailBodyCursor(emailBodyRef.selectionStart); };
+  const handleEmailSubjectSelect = () => { if (emailSubjectRef && emailSubjectRef.selectionStart != null) setEmailSubjectCursor(emailSubjectRef.selectionStart); };
 
   const VariableChips = ({ target }: { target: "email" | "template" }) => (
     <div className="flex gap-1.5 flex-wrap mb-2">
@@ -306,14 +381,17 @@ function CRMContent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           label_id: labelId,
-          name: templateForm.name,
-          template_type: templateForm.type,
-          subject_template: templateForm.subject,
-          body_template: templateForm.body,
+          name: templateName,
+          template_type: templateType,
+          subject_template: templateSubjectState.value,
+          body_template: templateBodyState.value,
         }),
       });
       if (res.ok) {
-        setTemplateForm({ name: "", type: "rejection", subject: "", body: "" });
+        setTemplateName("");
+        setTemplateType("rejection");
+        templateSubjectState.reset();
+        templateBodyState.reset();
         fetchTemplates();
       }
     } catch (e) { console.error("Error saving template", e); }
@@ -485,13 +563,13 @@ function CRMContent() {
                 <div className="mb-3">
                   <label className="text-[10px] font-mono uppercase tracking-wider text-muted mb-1 block">{t("crm.subject_label")}</label>
                   <VariableChips target="email" />
-                  <input ref={setEmailSubjectRef} type="text" value={emailSubject} onChange={(e) => setEmailSubject(e.target.value)} onDragOver={(e) => e.preventDefault()} onDrop={(e) => handleEmailDrop(e, "subject")} onSelect={handleEmailSubjectSelect} onClick={handleEmailSubjectSelect} className="w-full px-3 py-2 rounded border text-sm bg-transparent" style={{ borderColor: "var(--border)" }} />
+                  <input ref={setEmailSubjectRef} type="text" value={emailSubject} onChange={(e) => setEmailSubject(e.target.value)} onDragOver={(e) => handleDragOverField(e, "email-subject")} onDragLeave={handleDragLeave} onDrop={(e) => handleEmailDrop(e, "subject")} onSelect={handleEmailSubjectSelect} onClick={handleEmailSubjectSelect} className="w-full px-3 py-2 rounded border text-sm bg-transparent" style={{ borderColor: "var(--border)" }} />
                 </div>
 
                 <div className="mb-4">
                   <label className="text-[10px] font-mono uppercase tracking-wider text-muted mb-1 block">{t("crm.body_label")}</label>
                   <VariableChips target="email" />
-                  <textarea ref={setEmailBodyRef} value={emailBody} onChange={(e) => setEmailBody(e.target.value)} onDragOver={(e) => e.preventDefault()} onDrop={(e) => handleEmailDrop(e, "body")} onSelect={handleEmailBodySelect} onClick={handleEmailBodySelect} className="w-full px-3 py-2 rounded border text-sm leading-relaxed bg-transparent resize-none" style={{ borderColor: "var(--border)", minHeight: "200px" }} rows={8} />
+                  <textarea ref={setEmailBodyRef} value={emailBody} onChange={(e) => setEmailBody(e.target.value)} onDragOver={(e) => handleDragOverField(e, "email-body")} onDragLeave={handleDragLeave} onDrop={(e) => handleEmailDrop(e, "body")} onSelect={handleEmailBodySelect} onClick={handleEmailBodySelect} className="w-full px-3 py-2 rounded border text-sm leading-relaxed bg-transparent resize-none" style={{ borderColor: "var(--border)", minHeight: "200px" }} rows={8} />
                 </div>
 
                 <div className="flex items-center justify-between gap-3 mt-4">
@@ -519,8 +597,8 @@ function CRMContent() {
                 <label className="text-[10px] text-muted uppercase tracking-wider block mb-1">Nombre</label>
                 <input 
                   type="text" 
-                  value={templateForm.name} 
-                  onChange={(e) => setTemplateForm({...templateForm, name: e.target.value})}
+                  value={templateName} 
+                  onChange={(e) => setTemplateName(e.target.value)}
                   className="w-full px-3 py-2 rounded border text-sm bg-transparent" 
                   placeholder="Ej: Rechazo por Tempo"
                   style={{ borderColor: "var(--border)" }} 
@@ -529,8 +607,8 @@ function CRMContent() {
               <div>
                 <label className="text-[10px] text-muted uppercase tracking-wider block mb-1">Tipo</label>
                 <select 
-                  value={templateForm.type}
-                  onChange={(e) => setTemplateForm({...templateForm, type: e.target.value})}
+                  value={templateType}
+                  onChange={(e) => setTemplateType(e.target.value)}
                   className="w-full px-3 py-2 rounded border text-sm bg-transparent" 
                   style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
                 >
@@ -545,9 +623,10 @@ function CRMContent() {
                 <input 
                   ref={setSubjectRef}
                   type="text" 
-                  value={templateForm.subject}
-                  onChange={(e) => setTemplateForm({...templateForm, subject: e.target.value})}
-                  onDragOver={(e) => e.preventDefault()}
+                  value={templateSubjectState.value}
+                  onChange={(e) => templateSubjectState.set(e.target.value)}
+                  onDragOver={(e) => handleDragOverField(e, "template-subject")}
+                  onDragLeave={handleDragLeave}
                   onDrop={(e) => handleDrop(e, "subject")}
                   onSelect={handleSubjectSelect}
                   onClick={handleSubjectSelect}
@@ -561,9 +640,10 @@ function CRMContent() {
                 <VariableChips target="template" />
                 <textarea 
                   ref={setBodyRef}
-                  value={templateForm.body}
-                  onChange={(e) => setTemplateForm({...templateForm, body: e.target.value})}
-                  onDragOver={(e) => e.preventDefault()}
+                  value={templateBodyState.value}
+                  onChange={(e) => templateBodyState.set(e.target.value)}
+                  onDragOver={(e) => handleDragOverField(e, "template-body")}
+                  onDragLeave={handleDragLeave}
                   onDrop={(e) => handleDrop(e, "body")}
                   onSelect={handleBodySelect}
                   onClick={handleBodySelect}
@@ -575,7 +655,7 @@ function CRMContent() {
               </div>
               <button 
                 onClick={handleSaveTemplate}
-                disabled={savingTemplate || !templateForm.name}
+                disabled={savingTemplate || !templateName}
                 className="w-full py-2 rounded text-sm font-medium transition-all hover:opacity-90 disabled:opacity-50"
                 style={{ background: "#10b981", color: "#09090b" }}
               >
@@ -601,7 +681,14 @@ function CRMContent() {
                   </div>
                   <div className="text-[11px] text-muted truncate mb-2">{tpl.subject_template}</div>
                   <button 
-                    onClick={() => setTemplateForm({ name: tpl.name, type: tpl.template_type, subject: tpl.subject_template, body: tpl.body_template })}
+                    onClick={() => {
+                      setTemplateName(tpl.name);
+                      setTemplateType(tpl.template_type);
+                      templateSubjectState.reset();
+                      templateSubjectState.set(tpl.subject_template);
+                      templateBodyState.reset();
+                      templateBodyState.set(tpl.body_template);
+                    }}
                     className="text-[10px] text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1"
                   >
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>

@@ -69,6 +69,24 @@
   ::-webkit-scrollbar-thumb:hover {
     background: var(--text-muted);
   }
+
+  /* Override default browser focus ring (purple) with subtle green */
+  input:focus,
+  textarea:focus,
+  select:focus {
+    outline: none;
+    border-color: #10b981 !important;
+    box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.3);
+  }
+
+  /* Remove Tailwind focus ring if applied */
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    outline: none;
+    border-color: #10b981 !important;
+    box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.3);
+  }
 }
 
 @keyframes scan-line {
