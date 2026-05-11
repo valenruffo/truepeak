@@ -18,6 +18,8 @@ export default function SettingsPage() {
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
   const [logoutLoading, setLogoutLoading] = useState(false);
+  const [syncingPlan, setSyncingPlan] = useState(false);
+  const [planSynced, setPlanSynced] = useState(false);
 
   useEffect(() => {
     const storedPlan = localStorage.getItem("plan") || "free";
@@ -29,10 +31,34 @@ export default function SettingsPage() {
         .then((res) => res.ok ? res.json() : null)
         .then((data) => {
           if (data?.name) setLabelName(data.name);
+          // Sync plan from server if different from localStorage
+          if (data?.plan && data.plan !== storedPlan) {
+            setPlan(data.plan);
+            localStorage.setItem("plan", data.plan);
+          }
         })
         .catch(() => {});
     }
   }, []);
+
+  const handleSyncPlan = async () => {
+    setSyncingPlan(true);
+    setPlanSynced(false);
+    const slug = localStorage.getItem("slug");
+    if (!slug) { setSyncingPlan(false); return; }
+    try {
+      const res = await fetch(`/api/labels/${slug}`);
+      if (res.ok) {
+        const data = await res.json();
+        const serverPlan = data.plan || "free";
+        setPlan(serverPlan);
+        localStorage.setItem("plan", serverPlan);
+        setPlanSynced(true);
+        setTimeout(() => setPlanSynced(false), 3000);
+      }
+    } catch { /* silent */ }
+    setSyncingPlan(false);
+  };
 
   const handleCancelSubscription = async () => {
     setCancelling(true);
@@ -83,6 +109,18 @@ export default function SettingsPage() {
           {(plan === "pro" || plan === "indie") && (
             <span className="text-xs text-muted">{t("settings.plan_renew")}</span>
           )}
+          <button
+            onClick={handleSyncPlan}
+            disabled={syncingPlan}
+            className="px-2.5 py-1 rounded text-[10px] font-mono uppercase transition-all disabled:opacity-50"
+            style={{
+              background: planSynced ? "rgba(16,185,129,0.1)" : "rgba(161,161,170,0.08)",
+              color: planSynced ? "#10b981" : "var(--text-muted)",
+              border: "1px solid var(--border)",
+            }}
+          >
+            {syncingPlan ? "Syncing..." : planSynced ? "✓ Synced" : "Sync plan"}
+          </button>
         </div>
 
         {plan === "free" && (

@@ -11,6 +11,10 @@ function SuccessContent() {
   const [countdown, setCountdown] = useState(5);
 
   useEffect(() => {
+    // Signal to dashboard that payment completed — trigger plan re-fetch
+    localStorage.setItem("payment_completed", "true");
+    localStorage.setItem("payment_checkout_id", checkoutId || "");
+
     const timer = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
@@ -22,7 +26,7 @@ function SuccessContent() {
       });
     }, 1000);
     return () => clearInterval(timer);
-  }, [router]);
+  }, [router, checkoutId]);
 
   return (
     <div className="min-h-screen flex items-center justify-center px-6" style={{ background: "#09090b" }}>

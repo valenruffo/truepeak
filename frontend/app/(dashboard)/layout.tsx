@@ -126,6 +126,28 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
     };
     fetchLabel();
 
+    // If user just completed a payment, re-fetch plan after a short delay
+    // to give the webhook time to process
+    if (localStorage.getItem("payment_completed") === "true") {
+      localStorage.removeItem("payment_completed");
+      setTimeout(async () => {
+        try {
+          const res = await fetch(`/api/labels/${slug}`);
+          if (res.ok) {
+            const data = await res.json();
+            const newPlan = data.plan || "free";
+            const oldPlan = localStorage.getItem("plan") || "free";
+            if (newPlan !== oldPlan) {
+              setPlan(newPlan);
+              setPlanInfo(newPlan.charAt(0).toUpperCase() + newPlan.slice(1));
+              localStorage.setItem("plan", newPlan);
+              window.location.reload(); // Reload to apply new plan limits
+            }
+          }
+        } catch { /* silent */ }
+      }, 3000); // Wait 3s for webhook to process
+    }
+
     const fetchStats = async () => {
       if (!slug) return;
       try {
