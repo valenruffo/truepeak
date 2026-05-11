@@ -757,3 +757,29 @@ async def admin_update_label_role(
     session.refresh(label)
 
     return {"id": label.id, "slug": label.slug, "role": label.role}
+
+
+class PlanUpdateByEmail(BaseModel):
+    email: str
+    plan: str
+
+
+@router.post("/admin/labels/by-email/plan")
+async def admin_update_label_plan_by_email(
+    body: PlanUpdateByEmail,
+    session: Session = Depends(get_session),
+):
+    """Admin endpoint to update label plan by owner email. Used by Polar webhook proxy."""
+    label = session.exec(select(Label).where(Label.owner_email == body.email)).first()
+    if not label:
+        raise HTTPException(status_code=404, detail="Label not found for email.")
+
+    label.plan = body.plan.lower()
+    _apply_plan_limits(label)
+    label.updated_at = datetime.now(timezone.utc)
+
+    session.add(label)
+    session.commit()
+    session.refresh(label)
+
+    return {"id": label.id, "slug": label.slug, "plan": label.plan}
