@@ -410,7 +410,31 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
       </aside>
 
       <main className="flex-1 pt-12 md:pt-0" style={{ marginLeft: "0", paddingBottom: "80px" }}>
-        <div className="mx-auto max-w-6xl px-3 md:px-6 py-4 md:py-8 md:ml-[240px]">{children}</div>
+        <div className="mx-auto max-w-6xl px-3 md:px-6 py-4 md:py-8 md:ml-[240px]">
+          {/* Upgrade banner for Free users */}
+          {plan === "free" && (
+            <div
+              className="mb-4 px-4 py-3 rounded border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
+              style={{
+                background: "rgba(16,185,129,0.06)",
+                borderColor: "rgba(16,185,129,0.2)",
+              }}
+            >
+              <div className="text-sm">
+                <span className="font-semibold" style={{ color: "#10b981" }}>Upgrade your plan</span>
+                <span className="text-muted ml-1">— Get more tracks, CRM emails, and HQ retention.</span>
+              </div>
+              <Link
+                href="/settings"
+                className="px-4 py-1.5 rounded text-xs font-medium whitespace-nowrap transition-all hover:opacity-90"
+                style={{ background: "#10b981", color: "#09090b" }}
+              >
+                View plans
+              </Link>
+            </div>
+          )}
+          {children}
+        </div>
       </main>
 
       <PlayerBar />

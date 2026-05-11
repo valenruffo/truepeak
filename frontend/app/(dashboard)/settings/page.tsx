@@ -139,7 +139,7 @@ export default function SettingsPage() {
                       className="inline-block px-4 py-2 rounded text-xs font-medium transition-all hover:opacity-90"
                       style={{ background: "#10b981", color: "#09090b" }}
                     >
-                      Suscribirse — $9/mes
+                      Suscribirse — $12/mes
                     </a>
                   </td>
                   <td className="px-4 py-3 text-center">
