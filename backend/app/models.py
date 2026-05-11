@@ -47,6 +47,7 @@ class Label(SQLModel, table=True):
     emails_sent_month: int = Field(default=1)
     submission_title: str | None = None
     submission_description: str | None = None
+    role: str = Field(default="label")  # "label" | "dj"
 
     submissions: list["Submission"] = Relationship(back_populates="label")
     email_templates: list["EmailTemplate"] = Relationship(back_populates="label")

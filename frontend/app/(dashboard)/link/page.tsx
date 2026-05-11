@@ -14,7 +14,7 @@ type LabelStats = {
   max_tracks_month: number;
   emails_sent_this_month: number;
 };
-type LabelInfo = { id: string; name: string; slug: string; owner_email: string; sonic_signature: string; created_at: string; submission_title?: string; submission_description?: string; plan?: string; max_tracks_month?: number };
+type LabelInfo = { id: string; name: string; slug: string; owner_email: string; sonic_signature: string; created_at: string; submission_title?: string; submission_description?: string; plan?: string; max_tracks_month?: number; logo_path?: string | null };
 
 export default function LinkPage() {
   const { t } = useLanguage();
@@ -43,7 +43,7 @@ export default function LinkPage() {
   const [logoDragActive, setLogoDragActive] = useState(false);
 
   const API = "";
-  const getAuthHeaders = () => {
+  const getAuthHeaders = (): Record<string, string> => {
     const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
     return token ? { "Authorization": `Bearer ${token}` } : {};
   };
@@ -88,7 +88,7 @@ export default function LinkPage() {
         setStats(data);
         if (data.max_tracks_month) setMaxTracks(data.max_tracks_month);
       } catch {
-        setStats({ total: 0, inbox: 0, shortlist: 0, rejected: 0, auto_rejected: 0 });
+        setStats({ total: 0, inbox: 0, shortlist: 0, rejected: 0, auto_rejected: 0, max_tracks_month: 0, emails_sent_this_month: 0 });
       }
     };
 

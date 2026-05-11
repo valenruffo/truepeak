@@ -8,6 +8,7 @@ import { PlayerProvider, usePlayer, type PlayerTrack } from "@/lib/PlayerContext
 import WhatsAppBubble from "@/components/WhatsAppBubble";
 import { useLanguage } from "@/lib/i18n";
 import { useTheme } from "@/lib/theme";
+import { Music, Clock, AlertTriangle } from "lucide-react";
 
 function PlayerBar() {
   const { currentTrack, isPlaying, progress, duration, volume, hasTracks, togglePlay, prevTrack, nextTrack, setVolume, seekTo, formatTime, audioRef } = usePlayer();
@@ -86,9 +87,11 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [monthlyUsed, setMonthlyUsed] = useState<number>(0);
   const [maxTracksMonth, setMaxTracksMonth] = useState<number>(10);
+  const [mounted, setMounted] = useState(false);
   const { queueTracks } = usePlayer();
 
   useEffect(() => {
+    setMounted(true);
     const slug = localStorage.getItem("slug");
     const token = localStorage.getItem("token");
 
@@ -99,11 +102,21 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
         if (res.ok) {
           const data = await res.json();
           setLabelName(data.name || slug);
-          setPlanInfo(data.plan || "");
-          setPlan(data.plan || "free");
+          
+          // Check for admin override
+          const overridePlan = localStorage.getItem("admin_plan_override");
+          if (overridePlan) {
+            setPlanInfo(overridePlan.charAt(0).toUpperCase() + overridePlan.slice(1) + " (Override)");
+            setPlan(overridePlan);
+            localStorage.setItem("plan", overridePlan);
+          } else {
+            setPlanInfo(data.plan || "");
+            setPlan(data.plan || "free");
+            localStorage.setItem("plan", data.plan || "free");
+          }
+          
           setLogoPath(data.logo_path || null);
           setMaxTracksMonth(data.max_tracks_month || 10);
-          localStorage.setItem("plan", data.plan || "free");
         } else { setLabelName(slug); setPlanInfo(""); }
       } catch { setLabelName(slug); setPlanInfo(""); }
     };
@@ -112,7 +125,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
     const fetchStats = async () => {
       if (!slug) return;
       try {
-        const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+        const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
         const res = await fetch(`/api/labels/${slug}/stats`, {
           credentials: "include",
           headers: authHeaders,
@@ -127,8 +140,9 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
 
     const fetchHqCount = async () => {
       try {
+        const hqHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
         const res = await fetch(`/api/labels/${slug}/hq-count`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          headers: hqHeaders,
         });
         if (res.ok) {
           const data = await res.json();
@@ -247,19 +261,83 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
                 </Link>
               </div>
             ) : maxTracksMonth - monthlyUsed <= 3 ? (
-              <div className="px-3 py-1.5 rounded text-xs font-mono" style={{ background: "rgba(250,204,21,0.06)", color: "#facc15" }}>
-                ⚠ Te quedan {maxTracksMonth - monthlyUsed} tracks
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono" style={{ background: "rgba(250,204,21,0.06)", color: "#facc15" }}>
+                <AlertTriangle className="w-3.5 h-3.5" /> Te quedan {maxTracksMonth - monthlyUsed} tracks
               </div>
             ) : null}
-            <div className="px-3 py-1.5 rounded text-xs font-mono" style={{ background: "rgba(16,185,129,0.06)", color: "var(--text-muted)" }}>
-              🎵 {monthlyUsed}/{maxTracksMonth} tracks este mes
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono" style={{ background: "rgba(16,185,129,0.06)", color: "var(--text-muted)" }}>
+              <Music className="w-3.5 h-3.5" /> {monthlyUsed}/{maxTracksMonth} tracks este mes
             </div>
           </div>
         )}
-        {plan !== "free" && hqCount && (
+        {plan === "indie" && (
           <div className="px-3 mb-1">
-            <div className="px-3 py-1.5 rounded text-xs font-mono" style={{ background: "rgba(16,185,129,0.06)", color: hqCount.count >= hqCount.limit ? "#ef4444" : "var(--text-muted)" }}>
-              📦 {hqCount.count}/{hqCount.limit} HQ almacenados
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-mono text-emerald-500" style={{ background: "rgba(16,185,129,0.06)" }}>
+              <Clock className="w-3.5 h-3.5" /> HQ guardados por 7 días
+            </div>
+          </div>
+        )}
+        {plan === "pro" && (
+          <div className="px-3 mb-1">
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-mono text-emerald-500" style={{ background: "rgba(16,185,129,0.06)" }}>
+              <Clock className="w-3.5 h-3.5" /> HQ guardados por 14 días
+            </div>
+          </div>
+        )}
+
+        {/* Admin Plan Switcher (Localhost or VPS IP) */}
+        {mounted && (
+          window.location.hostname === "localhost" || 
+          window.location.hostname === "127.0.0.1" || 
+          window.location.hostname === "164.152.194.196"
+        ) && (
+          <div className="px-3 mb-3 mt-4 pt-4 border-t" style={{ borderColor: "var(--border)" }}>
+            <div className="text-[10px] font-mono uppercase tracking-widest text-emerald-500 mb-2 px-3">Admin Plan Switcher</div>
+            <div className="flex flex-col gap-1 px-1">
+              {["free", "indie", "pro"].map((p) => (
+                <button
+                  key={p}
+                  onClick={async () => {
+                    localStorage.setItem("admin_plan_override", p);
+                    localStorage.setItem("plan", p);
+                    
+                    // Also update in DB so backend limits sync up
+                    const slug = localStorage.getItem("slug");
+                    try {
+                      await fetch(`/api/labels/${slug}/plan`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ plan: p }),
+                        credentials: "include"
+                      });
+                    } catch (err) {
+                      console.error("Failed to sync plan to DB:", err);
+                    }
+
+                    setPlan(p);
+                    setPlanInfo(p.charAt(0).toUpperCase() + p.slice(1) + " (Override)");
+                    // Force reload to update all contexts and sub-pages
+                    window.location.reload();
+                  }}
+                  className={cn(
+                    "text-[10px] px-3 py-1.5 rounded font-mono uppercase transition-all",
+                    plan === p 
+                      ? "bg-emerald-500 text-black font-bold shadow-[0_0_10px_rgba(16,185,129,0.3)]" 
+                      : "text-muted hover:bg-white/5"
+                  )}
+                >
+                  {p}
+                </button>
+              ))}
+              <button
+                onClick={() => {
+                  localStorage.removeItem("admin_plan_override");
+                  window.location.reload();
+                }}
+                className="text-[10px] px-3 py-1.5 rounded font-mono uppercase transition-all text-red-500 hover:bg-red-500/10 mt-1"
+              >
+                Reset to DB
+              </button>
             </div>
           </div>
         )}

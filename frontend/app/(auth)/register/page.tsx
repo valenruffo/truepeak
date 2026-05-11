@@ -10,6 +10,7 @@ export default function RegisterPage() {
   const { t } = useLanguage();
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
+  const [role, setRole] = useState<"label" | "dj">("label");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -28,7 +29,7 @@ export default function RegisterPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ name, slug: slug.toLowerCase().replace(/\s+/g, "-"), owner_email: email, password }),
+        body: JSON.stringify({ name, slug: slug.toLowerCase().replace(/\s+/g, "-"), owner_email: email, password, role }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({ detail: t("register.error_create") }));
@@ -38,6 +39,7 @@ export default function RegisterPage() {
       localStorage.setItem("slug", data.slug);
       localStorage.setItem("label_id", data.id);
       localStorage.setItem("plan", data.plan || "free");
+      localStorage.setItem("role", data.role || "label");
       router.push("/inbox");
     } catch (err) {
       setError(err instanceof Error ? err.message : t("register.error_create"));
@@ -63,6 +65,51 @@ export default function RegisterPage() {
           <input type="text" value={slug} onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))} className="w-full px-3 py-2.5 rounded border text-sm bg-transparent" style={{ borderColor: "var(--border)" }} placeholder={t("register.slug_placeholder")} required />
           <p className="text-xs text-muted mt-1">{typeof window !== "undefined" ? window.location.origin : ""}/s/{slug || "tu-sello"}</p>
         </div>
+
+        {/* Role selector */}
+        <div>
+          <label className="text-sm font-medium mb-2 block">{t("register.role_label")}</label>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setRole("label")}
+              className="p-4 rounded border text-left transition-all"
+              style={{
+                borderColor: role === "label" ? "#10b981" : "var(--border)",
+                background: role === "label" ? "rgba(16,185,129,0.08)" : "transparent",
+              }}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={role === "label" ? "#10b981" : "var(--text-muted)"} strokeWidth="1.5">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M8 12h8M12 8v8" />
+                </svg>
+                <span className="text-sm font-medium">{t("register.role_sello")}</span>
+              </div>
+              <p className="text-xs text-muted">{t("register.role_sello_desc")}</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setRole("dj")}
+              className="p-4 rounded border text-left transition-all"
+              style={{
+                borderColor: role === "dj" ? "#06b6d4" : "var(--border)",
+                background: role === "dj" ? "rgba(6,182,212,0.08)" : "transparent",
+              }}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={role === "dj" ? "#06b6d4" : "var(--text-muted)"} strokeWidth="1.5">
+                  <path d="M9 18V5l12-2v13" />
+                  <circle cx="6" cy="18" r="3" />
+                  <circle cx="18" cy="16" r="3" />
+                </svg>
+                <span className="text-sm font-medium">{t("register.role_dj")}</span>
+              </div>
+              <p className="text-xs text-muted">{t("register.role_dj_desc")}</p>
+            </button>
+          </div>
+        </div>
+
         <div>
           <label className="text-sm font-medium mb-1.5 block">{t("register.email_label")}</label>
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-3 py-2.5 rounded border text-sm bg-transparent" style={{ borderColor: "var(--border)" }} placeholder={t("register.email_placeholder")} required />

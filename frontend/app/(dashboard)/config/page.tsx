@@ -10,6 +10,7 @@ interface SonicSignature {
   lufs_target: number;
   lufs_tolerance: number;
   preferred_scales: string[];
+  target_camelot_keys?: string[];
   duration_enabled?: boolean;
   duration_max?: number;
   auto_reject_rules: { phase: boolean; lufs: boolean; tempo: boolean; clipping?: boolean; dynamics?: boolean; reject_clipping?: boolean; reject_low_dynamic_range?: boolean };
@@ -71,7 +72,6 @@ export default function ConfigPage() {
           setDurationEnabled(sig.duration_enabled ?? false);
           if (sig.duration_max) setDurationMax(sig.duration_max);
         }
-        if (data.logo_path) setLogoUrl(`${API}/logos/${data.logo_path}`);
       } catch (e) { setFetchError(e instanceof Error ? e.message : t("inbox.error_unknown")); }
       finally { setFetching(false); }
     };

@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from typing import Generator
 
-from sqlmodel import SQLModel, create_engine, Session
+from sqlmodel import SQLModel, create_engine, Session, text
 
 DATA_DIR = os.getenv("DATA_DIR", str(Path(__file__).parent.parent.parent / "data"))
 DATABASE_URL = f"sqlite:///{DATA_DIR}/database.db"
@@ -38,10 +38,12 @@ def _apply_migrations(session: Session) -> None:
         # Phase 2: Audio metrics
         "ALTER TABLE submission ADD COLUMN true_peak FLOAT",
         "ALTER TABLE submission ADD COLUMN crest_factor FLOAT",
+        # Role onboarding
+        "ALTER TABLE label ADD COLUMN role TEXT DEFAULT 'label'",
     ]
     for sql in migrations:
         try:
-            session.exec(sql)  # type: ignore[arg-type]
+            session.exec(text(sql))  # type: ignore[arg-type]
             session.commit()
         except Exception:
             session.rollback()  # Column already exists — skip

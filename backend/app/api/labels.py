@@ -13,7 +13,7 @@ from slowapi.util import get_remote_address
 from sqlmodel import Session, select
 
 from app.database import get_session
-from app.models import Label, Submission
+from app.models import Label, Submission, EmailTemplate
 from app.services.auth import create_token, get_password_hash, verify_password, verify_token
 
 router = APIRouter(prefix="/api", tags=["labels"])
@@ -35,6 +35,78 @@ def _apply_plan_limits(label: Label, plan: str | None = None) -> None:
     label.max_tracks_month = limits["max_tracks_month"]
     label.max_emails_month = limits["max_emails_month"]
     label.hq_retention_days = limits["hq_retention_days"]
+
+
+def _get_default_templates(label_id: str, role: str) -> list[dict]:
+    """Return role-specific default email templates."""
+    if role == "dj":
+        return [
+            {
+                "label_id": label_id,
+                "name": "Promo rechazada",
+                "template_type": "rejection",
+                "subject_template": "Tu promo no fue seleccionada",
+                "body_template": "<p>Hola,</p><p>Gracias por enviar tu promo. Después de listenarla, no fue seleccionada para nuestros sets.</p><p>Te deseamos lo mejor en tus próximas productions.</p><p>Saludos</p>",
+            },
+            {
+                "label_id": label_id,
+                "name": "Promo seleccionada",
+                "template_type": "approval",
+                "subject_template": "Nos interesa tu promo",
+                "body_template": "<p>Hola,</p><p>Tu promo nos gustó. Vamos a estar en contacto soon para discutir los detalles.</p><p>Saludos</p>",
+            },
+            {
+                "label_id": label_id,
+                "name": "Seguimiento",
+                "template_type": "followup",
+                "subject_template": "Seguimiento de tu promo",
+                "body_template": "<p>Hola,</p><p>Queríamos saber si la promo que enviaste está aún disponible. Quedamos atentos.</p><p>Saludos</p>",
+            },
+        ]
+    # Label defaults
+    return [
+        {
+            "label_id": label_id,
+            "name": "Rechazo — Problema de fase",
+            "template_type": "rejection",
+            "subject_template": "Tu demo tiene problemas de fase",
+            "body_template": "<p>Hola,</p><p>Gracias por enviar tu track. Después de analizarlo detectamos problemas de correlación de fase que impiden que sea considerado para nuestro catálogo.</p><p>Te recomendamos revisar la fase estéreo de tu master antes de volver a enviar.</p><p>Saludos</p>",
+        },
+        {
+            "label_id": label_id,
+            "name": "Rechazo — Fuera de tempo",
+            "template_type": "rejection",
+            "subject_template": "Tu demo está fuera del rango de tempo",
+            "body_template": "<p>Hola,</p><p>Gracias por enviar tu track. El tempo no se ajusta al rango que buscamos actualmente. Estate atento a futuras búsquedas.</p><p>Saludos</p>",
+        },
+        {
+            "label_id": label_id,
+            "name": "Aprobacion — Interes en el track",
+            "template_type": "approval",
+            "subject_template": "Nos interesa tu track",
+            "body_template": "<p>Hola,</p><p>Tu track nos gustó mucho. Creemos que puede encajar en nuestra visión. Quedamos en contacto para conocer más sobre ti y tu música.</p><p>Saludos</p>",
+        },
+        {
+            "label_id": label_id,
+            "name": "Seguimiento — Segunda version",
+            "template_type": "followup",
+            "subject_template": "Seguimiento de tu demo",
+            "body_template": "<p>Hola,</p><p>Te escribimos para saber si tenés una nueva versión de tu track o si hay alguna actualización. Quedamos atentos.</p><p>Saludos</p>",
+        },
+    ]
+
+
+def _provision_default_templates(session: Session, label: Label) -> None:
+    """Create role-specific default email templates if none exist."""
+    existing = session.exec(
+        select(EmailTemplate).where(EmailTemplate.label_id == label.id)
+    ).all()
+    if existing:
+        return  # Already has templates
+    templates = _get_default_templates(label.id, label.role)
+    for tmpl in templates:
+        session.add(EmailTemplate(**tmpl))
+    session.commit()
 
 
 # --- Auth helper (header + cookie) ---
@@ -69,12 +141,20 @@ class RegisterRequest(BaseModel):
     password: str
     name: str
     slug: str
+    role: str = "label"
 
     @field_validator("password")
     @classmethod
     def password_min_length(cls, v: str) -> str:
         if len(v) < 8:
             raise ValueError("Password must be at least 8 characters")
+        return v
+
+    @field_validator("role")
+    @classmethod
+    def validate_role(cls, v: str) -> str:
+        if v not in ("label", "dj"):
+            raise ValueError("Role must be 'label' or 'dj'")
         return v
 
 
@@ -84,6 +164,7 @@ class RegisterResponse(BaseModel):
     slug: str
     owner_email: str
     plan: str
+    role: str
     created_at: str
 
 
@@ -118,6 +199,7 @@ class LoginResponse(BaseModel):
     slug: str
     owner_email: str
     plan: str
+    role: str
     token: str | None = None  # Included for clients that can't rely on cookie forwarding
 
 
@@ -140,6 +222,10 @@ class LabelConfig(BaseModel):
 class SonicSignatureUpdate(BaseModel):
     sonic_signature: dict[str, Any]
     """Must include: bpm_min, bpm_max, lufs_target, lufs_tolerance, preferred_scales, auto_reject_rules"""
+
+
+class PlanUpdate(BaseModel):
+    plan: str  # "free" | "indie" | "pro"
 
 
 class LabelStats(BaseModel):
@@ -196,6 +282,7 @@ async def register_label(
         owner_email=body.owner_email,
         password_hash=password_hash,
         sonic_signature=sonic_signature,
+        role=body.role,
     )
     _apply_plan_limits(label)
     session.add(label)
@@ -220,6 +307,7 @@ async def register_label(
         slug=label.slug,
         owner_email=label.owner_email,
         plan=label.plan or "free",
+        role=label.role,
         created_at=label.created_at.isoformat(),
     )
 
@@ -337,12 +425,15 @@ async def label_login_by_identifier(
         path="/",
     )
 
+    _provision_default_templates(session, label)
+
     return LoginResponse(
         id=label.id,
         name=label.name,
         slug=label.slug,
         owner_email=label.owner_email,
         plan=label.plan or "free",
+        role=label.role,
         token=token,
     )
 
@@ -379,12 +470,15 @@ async def label_login(
         path="/",
     )
 
+    _provision_default_templates(session, label)
+
     return LoginResponse(
         id=label.id,
         name=label.name,
         slug=label.slug,
         owner_email=label.owner_email,
         plan=label.plan or "free",
+        role=label.role,
         token=token,
     )
 
@@ -554,6 +648,48 @@ async def update_submission_text(
     session.commit()
 
     return SubmissionTextResponse(
+        submission_title=label.submission_title,
+        submission_description=label.submission_description,
+    )
+
+
+@router.patch("/labels/{slug}/plan", response_model=LabelConfig)
+async def update_label_plan(
+    slug: str,
+    body: PlanUpdate,
+    auth: dict = Depends(_get_label_from_token),
+    session: Session = Depends(get_session),
+):
+    """Update label plan. FOR ADMIN/TESTING PURPOSES.
+    In production, this would be handled by Stripe/PayPal webhooks.
+    """
+    label = session.exec(select(Label).where(Label.slug == slug)).first()
+    if not label:
+        raise HTTPException(status_code=404, detail="Sello no encontrado.")
+
+    if label.id != auth["label_id"]:
+        raise HTTPException(status_code=403, detail="Access denied.")
+
+    label.plan = body.plan.lower()
+    _apply_plan_limits(label)  # Sync max_tracks, etc.
+    label.updated_at = datetime.now(timezone.utc)
+
+    session.add(label)
+    session.commit()
+    session.refresh(label)
+
+    return LabelConfig(
+        id=label.id,
+        name=label.name,
+        slug=label.slug,
+        owner_email=label.owner_email,
+        plan=label.plan or "free",
+        max_tracks_month=label.max_tracks_month,
+        max_emails_month=label.max_emails_month,
+        hq_retention_days=label.hq_retention_days,
+        sonic_signature=label.sonic_signature,
+        created_at=label.created_at.isoformat(),
+        logo_path=label.logo_path,
         submission_title=label.submission_title,
         submission_description=label.submission_description,
     )

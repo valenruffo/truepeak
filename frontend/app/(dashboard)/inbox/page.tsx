@@ -13,6 +13,8 @@ import {
   Draggable,
   type DropResult,
 } from "@hello-pangea/dnd";
+import { Clock, Mail, AlertTriangle, Trash2, RotateCcw, X } from "lucide-react";
+import { useToast } from "@/components/ui/toast";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -34,6 +36,8 @@ interface SubmissionSummary {
   mp3_path: string | null;
   original_path: string | null;
   human_email_sent?: boolean;
+  rejection_reason?: string | null;
+  notes?: string | null;
   created_at: string;
   deleted_at?: string | null;
 }
@@ -63,6 +67,17 @@ interface EmailModalState {
   sending: boolean;
   sent: boolean;
   error: string | null;
+}
+
+interface DetailModalState {
+  open: boolean;
+  submission: SubmissionSummary | null;
+}
+
+interface ConfirmModalState {
+  open: boolean;
+  submission: SubmissionSummary | null;
+  loading: boolean;
 }
 
 const PAGE_SIZE = 20;
@@ -105,6 +120,13 @@ function formatCrest(crest: number | null): string {
   return crest != null ? crest.toFixed(1) : "—";
 }
 
+function formatDuration(seconds: number | null): string {
+  if (seconds == null) return "—";
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
+}
+
 function replaceVariables(
   template: string,
   sub: SubmissionSummary
@@ -113,7 +135,8 @@ function replaceVariables(
     .replace(/\{producer_name\}/g, sub.producer_name || "Productor")
     .replace(/\{track_name\}/g, sub.track_name || "Track")
     .replace(/\{producer\}/g, sub.producer_name || "Productor")
-    .replace(/\{track\}/g, sub.track_name || "Track");
+    .replace(/\{track\}/g, sub.track_name || "Track")
+    .replace(/\{bpm\}/g, sub.bpm ? String(Math.round(sub.bpm)) : "—");
 }
 
 function statusBadgeColor(status: string): { bg: string; color: string } {
@@ -148,6 +171,28 @@ function statusLabel(status: string, t: (key: "inbox.status.pending" | "inbox.st
   }
 }
 
+function ExpirationCountdown({ createdAt, retentionDays }: { createdAt: string, retentionDays: number }) {
+  if (retentionDays === 0) return null; // Free plan tracks don't expire
+  const created = new Date(createdAt).getTime();
+  const expiresAt = created + retentionDays * 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  const timeLeft = expiresAt - now;
+
+  if (timeLeft <= 0) {
+    return <span className="text-red-500 font-medium">Expirado (Papelera)</span>;
+  }
+
+  const days = Math.floor(timeLeft / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((timeLeft % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+
+  const isWarning = days < 1;
+  return (
+    <span className={cn("flex items-center gap-1", isWarning ? "text-amber-500 font-medium" : "text-muted")}>
+      <Clock className="w-3.5 h-3.5" /> Expira en {days}d {hours}h
+    </span>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function InboxPage() {
@@ -161,11 +206,15 @@ export default function InboxPage() {
 function InboxContent() {
   const { t } = useLanguage();
   const { playTrack, togglePlay, isPlaying, currentTrack } = usePlayer();
+  const { addToast } = useToast();
   const searchParams = useSearchParams();
   const highlightParam = searchParams.get("highlight");
 
   const [activeTab, setActiveTab] = useState<TabKey>("kanban");
   const [fetchError, setFetchError] = useState<string | null>(null);
+
+  // Role for dynamic i18n keys
+  const [role, setRole] = useState<"label" | "dj">("label");
 
   // Kanban board state
   const [board, setBoard] = useState<BoardState>({
@@ -202,6 +251,75 @@ function InboxContent() {
     sent: false,
     error: null,
   });
+
+  // Detail modal
+  const [detailModal, setDetailModal] = useState<DetailModalState>({
+    open: false,
+    submission: null,
+  });
+
+  // Confirmation modal
+  const [confirmModal, setConfirmModal] = useState<ConfirmModalState>({
+    open: false,
+    submission: null,
+    loading: false,
+  });
+
+  // Badge & interaction state
+  const [interactedIds, setInteractedIds] = useState<Set<string>>(new Set());
+  const [hasSeenSystem, setHasSeenSystem] = useState(false);
+
+  const markAsInteracted = useCallback((id: string) => {
+    setInteractedIds((prev) => {
+      if (prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+  }, []);
+
+useEffect(() => {
+    if (typeof window !== "undefined") {
+      const override = localStorage.getItem("admin_plan_override");
+      const plan = override || localStorage.getItem("plan") || "free";
+      setRetentionDays(plan === "pro" ? 14 : plan === "indie" ? 7 : 0);
+      const storedRole = localStorage.getItem("role");
+      if (storedRole === "dj" || storedRole === "label") {
+        setRole(storedRole);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === "system") setHasSeenSystem(true);
+  }, [activeTab]);
+
+  // HQ Retention Days for countdowns
+  const [retentionDays, setRetentionDays] = useState<number>(0);
+  const [sonicSignature, setSonicSignature] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchSignature = async () => {
+      const slug = localStorage.getItem("slug");
+      if (!slug) return;
+      try {
+        const res = await fetch(`/api/labels/${slug}`);
+        if (res.ok) {
+          const data = await res.json();
+          setSonicSignature(data.sonic_signature);
+        }
+      } catch (e) { /* silent */ }
+    };
+    fetchSignature();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const override = localStorage.getItem("admin_plan_override");
+      const plan = override || localStorage.getItem("plan") || "free";
+      setRetentionDays(plan === "pro" ? 14 : plan === "indie" ? 7 : 0);
+    }
+  }, []);
 
   // Action loading per card
   const [actionLoading, setActionLoading] = useState<Record<string, string>>({});
@@ -431,6 +549,7 @@ function InboxContent() {
     }
 
     // Shortlist: update status then open email modal
+    markAsInteracted(subId);
     await updateStatus(sub, "shortlist");
   };
 
@@ -476,7 +595,11 @@ function InboxContent() {
         openEmailModal(sub, status);
       }
     } catch (e) {
-      alert(e instanceof Error ? e.message : t("inbox.error_unknown"));
+      addToast({
+        title: "Error",
+        description: e instanceof Error ? e.message : t("inbox.error_unknown"),
+        variant: "destructive",
+      });
     } finally {
       setActionLoading((p) => {
         const next = { ...p };
@@ -580,22 +703,36 @@ function InboxContent() {
 
   const handleDelete = async (sub: SubmissionSummary) => {
     setActionLoading((p) => ({ ...p, [sub.id]: "delete" }));
+    const isHardDelete = !!sub.deleted_at;
     try {
-      const res = await fetch(`/api/submissions/${sub.id}`, {
+      const res = await fetch(`/api/submissions/${sub.id}${isHardDelete ? "?force=true" : ""}`, {
         method: "DELETE",
         credentials: "include",
       });
       if (!res.ok) throw new Error(`Error ${res.status}`);
-      // Remove from board
-      setBoard((prev) => {
-        const next = { ...prev };
-        for (const col of ["inbox", "shortlist", "rejected"] as const) {
-          next[col] = next[col].filter((s) => s.id !== sub.id);
-        }
-        return next;
-      });
+      
+      if (isHardDelete) {
+        // Remove permanently from trash
+        setTrashItems((prev) => prev.filter((s) => s.id !== sub.id));
+      } else {
+        // Soft delete: remove from board/system and move to trash locally
+        setBoard((prev) => {
+          const next = { ...prev };
+          for (const col of ["inbox", "shortlist", "rejected"] as const) {
+            next[col] = next[col].filter((s) => s.id !== sub.id);
+          }
+          return next;
+        });
+        setSystemItems((prev) => prev.filter((s) => s.id !== sub.id));
+        setTrashItems((prev) => [{ ...sub, deleted_at: new Date().toISOString() }, ...prev]);
+        addToast({ title: "Enviado a papelera", variant: "default" });
+      }
     } catch (e) {
-      alert(e instanceof Error ? e.message : t("inbox.error_unknown"));
+      addToast({
+        title: "Error",
+        description: e instanceof Error ? e.message : t("inbox.error_unknown"),
+        variant: "destructive",
+      });
     } finally {
       setActionLoading((p) => {
         const next = { ...p };
@@ -623,12 +760,20 @@ function InboxContent() {
       }
       // Remove from trash
       setTrashItems((prev) => prev.filter((s) => s.id !== sub.id));
-      // Refresh inbox column
-      setBoardOffsets((prev) => ({ ...prev, inbox: 0 }));
-      setBoardHasMore((prev) => ({ ...prev, inbox: true }));
-      fetchColumn("inbox");
+      
+      // Move back to its original status column
+      const targetCol = (["inbox", "shortlist", "rejected"].includes(sub.status) ? sub.status : "inbox") as "inbox" | "shortlist" | "rejected";
+      setBoard((prev) => ({
+        ...prev,
+        [targetCol]: [{ ...sub, deleted_at: null }, ...prev[targetCol]].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
+      }));
+      addToast({ title: "Demo restaurado correctamente", variant: "success" });
     } catch (e) {
-      alert(e instanceof Error ? e.message : t("inbox.error_unknown"));
+      addToast({
+        title: "Error al restaurar",
+        description: e instanceof Error ? e.message : t("inbox.error_unknown"),
+        variant: "destructive",
+      });
     } finally {
       setActionLoading((p) => {
         const next = { ...p };
@@ -638,10 +783,43 @@ function InboxContent() {
     }
   };
 
+  const handlePermanentDelete = async (sub: SubmissionSummary) => {
+    setConfirmModal({ open: true, submission: sub, loading: false });
+  };
+
+  const confirmPermanentDelete = async () => {
+    const sub = confirmModal.submission;
+    if (!sub) return;
+
+    setConfirmModal(p => ({ ...p, loading: true }));
+    try {
+      const res = await fetch(`/api/submissions/${sub.id}?force=true`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || "Error al eliminar");
+      }
+      
+      setTrashItems((prev) => prev.filter((item) => item.id !== sub.id));
+      addToast({ title: "Eliminado permanentemente", variant: "success" });
+      setConfirmModal({ open: false, submission: null, loading: false });
+    } catch (e) {
+      addToast({
+        title: "Error al eliminar",
+        description: e instanceof Error ? e.message : "Error al eliminar permanentemente",
+        variant: "destructive",
+      });
+      setConfirmModal(p => ({ ...p, loading: false }));
+    }
+  };
+
   // ─── Listen ───────────────────────────────────────────────────────────────
 
   const handleListen = (sub: SubmissionSummary) => {
     if (!sub.mp3_path) return;
+    markAsInteracted(sub.id);
     if (currentTrack?.id === sub.id) {
       togglePlay();
     } else {
@@ -659,7 +837,10 @@ function InboxContent() {
   const handleRejectSubmit = () => {
     if (!pendingReject) return;
     if (!pendingReject.reason.trim()) {
-      alert(t("inbox.kanban.rejection_reason_required"));
+      addToast({
+        title: t("inbox.kanban.rejection_reason_required"),
+        variant: "destructive",
+      });
       return;
     }
     updateStatus(
@@ -693,61 +874,71 @@ function InboxContent() {
               ...provided.draggableProps.style,
             }}
           >
-            {/* Drag handle — thin visual indicator */}
-            <div className="h-1" style={{ background: "rgba(255,255,255,0.03)", borderTop: "1px solid rgba(255,255,255,0.04)" }} />
+            {/* Clickable zone for details */}
+            <div 
+              className="cursor-pointer hover:bg-white/[0.02] transition-colors"
+              onClick={() => {
+                markAsInteracted(sub.id);
+                setDetailModal({ open: true, submission: sub });
+              }}
+            >
+              {/* Drag handle — thin visual indicator */}
+              <div className="h-1" style={{ background: "rgba(255,255,255,0.03)", borderTop: "1px solid rgba(255,255,255,0.04)" }} />
 
-            {/* Top row — full-width drag zone */}
-            <div className="flex items-start gap-2 px-3 pt-2.5 cursor-grab active:cursor-grabbing" {...provided.dragHandleProps}>
-              {/* Grip icon — subtle visual cue */}
-              <div className="mt-0.5 flex-shrink-0" style={{ color: "var(--text-muted)" }}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                  <circle cx="9" cy="6" r="1.5" />
-                  <circle cx="15" cy="6" r="1.5" />
-                  <circle cx="9" cy="12" r="1.5" />
-                  <circle cx="15" cy="12" r="1.5" />
-                  <circle cx="9" cy="18" r="1.5" />
-                  <circle cx="15" cy="18" r="1.5" />
-                </svg>
+              {/* Top row — full-width drag zone */}
+              <div className="flex items-start gap-2 px-3 pt-2.5 cursor-grab active:cursor-grabbing" {...provided.dragHandleProps} onClick={(e) => e.stopPropagation()}>
+                {/* Grip icon — subtle visual cue */}
+                <div className="mt-0.5 flex-shrink-0" style={{ color: "var(--text-muted)" }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                    <circle cx="9" cy="6" r="1.5" />
+                    <circle cx="15" cy="6" r="1.5" />
+                    <circle cx="9" cy="12" r="1.5" />
+                    <circle cx="15" cy="12" r="1.5" />
+                    <circle cx="9" cy="18" r="1.5" />
+                    <circle cx="15" cy="18" r="1.5" />
+                  </svg>
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium text-sm truncate group-hover/card:text-emerald-500 transition-colors">
+                    {sub.track_name || t("inbox.modal.no_name")}
+                  </div>
+                  <div className="text-[11px] text-muted mt-0.5">
+                    {sub.producer_name || t("inbox.modal.anonymous")}
+                  </div>
+                </div>
               </div>
 
-              <div className="min-w-0 flex-1">
-                <div className="font-medium text-sm truncate">
-                  {sub.track_name || t("inbox.modal.no_name")}
-                </div>
-                <div className="text-[11px] text-muted mt-0.5">
-                  {sub.producer_name || t("inbox.modal.anonymous")}
-                </div>
+              {/* Metrics row */}
+              <div className="flex items-center gap-3 px-3 py-1.5 text-[11px] font-mono flex-wrap">
+                <span>{formatBpm(sub.bpm)} BPM</span>
+                <span>{formatLufs(sub.lufs)} LUFS</span>
+                <span>{formatKey(sub.musical_key)}</span>
               </div>
-            </div>
 
-            {/* Metrics row */}
-            <div className="flex items-center gap-3 px-3 py-1.5 text-[11px] font-mono flex-wrap">
-              <span>{formatBpm(sub.bpm)} BPM</span>
-              <span>{formatLufs(sub.lufs)} LUFS</span>
-              <span>{formatKey(sub.musical_key)}</span>
-              <span className="text-muted">{t("inbox.header.peak")} {formatPeak(sub.true_peak)}</span>
-              <span className="text-muted">{t("inbox.header.crest")} {formatCrest(sub.crest_factor)}</span>
-            </div>
-
-            {/* Badges row */}
-            <div className="flex items-center gap-1.5 px-3 pb-1.5">
-              <span
-                className="font-mono text-[10px] px-1.5 py-0.5 rounded"
-                style={{ background: badge.bg, color: badge.color }}
-              >
-                {statusLabel(sub.status, t)}
-              </span>
-              {sub.human_email_sent && (
+              {/* Badges row */}
+              <div className="flex items-center gap-1.5 px-3 pb-1.5 flex-wrap">
                 <span
                   className="font-mono text-[10px] px-1.5 py-0.5 rounded"
-                  style={{
-                    background: "rgba(16,185,129,0.10)",
-                    color: "#10b981",
-                  }}
+                  style={{ background: badge.bg, color: badge.color }}
                 >
-                  {t("inbox.kanban.email_sent")}
+                  {statusLabel(sub.status, t)}
                 </span>
-              )}
+                {sub.human_email_sent && (
+                  <span
+                    className="font-mono text-[10px] px-1.5 py-0.5 rounded"
+                    style={{
+                      background: "rgba(16,185,129,0.10)",
+                      color: "#10b981",
+                    }}
+                  >
+                    {t("inbox.kanban.email_sent")}
+                  </span>
+                )}
+                <div className="text-[10px]">
+                  <ExpirationCountdown createdAt={sub.created_at} retentionDays={retentionDays} />
+                </div>
+              </div>
             </div>
 
             {/* Action buttons */}
@@ -777,11 +968,15 @@ function InboxContent() {
               {sub.producer_email && (
                 <Link
                   href={`/crm?highlight=${sub.id}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    markAsInteracted(sub.id);
+                  }}
                   className="w-6 h-6 rounded flex items-center justify-center transition-colors hover:bg-white/10"
                   style={{ color: "#10b981" }}
                   title="Ver en CRM"
                 >
-                  📧
+                  <Mail className="w-4 h-4" />
                 </Link>
               )}
               <div className="flex-1" />
@@ -938,12 +1133,13 @@ function InboxContent() {
           return (
             <div
               key={d.id}
-              className="grid grid-cols-12 gap-2 px-4 py-3 text-xs items-center border-b"
+              className="grid grid-cols-12 gap-2 px-4 py-3 text-xs items-center border-b cursor-pointer hover:bg-white/[0.02] transition-colors"
               style={{ borderColor: "var(--border-light)" }}
+              onClick={() => setDetailModal({ open: true, submission: d })}
             >
               <div className="col-span-3 flex items-center gap-2">
                 <div className="min-w-0 flex-1">
-                  <div className="font-medium truncate">
+                  <div className="font-medium truncate hover:text-emerald-500 transition-colors">
                     {d.track_name || t("inbox.modal.no_name")}
                   </div>
                   <div className="text-[10px] text-muted">
@@ -975,7 +1171,10 @@ function InboxContent() {
                   Auto-rechazado
                 </span>
               </div>
-              <div className="col-span-2 text-right flex items-center justify-end gap-1.5">
+              <div 
+                className="col-span-2 text-right flex items-center justify-end gap-1.5"
+                onClick={(e) => e.stopPropagation()}
+              >
                 <TwoClickDelete
                   onDelete={() => handleDelete(d)}
                   size={22}
@@ -1035,12 +1234,13 @@ function InboxContent() {
           return (
             <div
               key={d.id}
-              className="grid grid-cols-12 gap-2 px-4 py-3 text-xs items-center border-b"
+              className="grid grid-cols-12 gap-2 px-4 py-3 text-xs items-center border-b cursor-pointer hover:bg-white/[0.02] transition-colors"
               style={{ borderColor: "var(--border-light)", opacity: 0.6 }}
+              onClick={() => setDetailModal({ open: true, submission: d })}
             >
               <div className="col-span-4 flex items-center gap-2">
                 <div className="min-w-0 flex-1">
-                  <div className="font-medium truncate">
+                  <div className="font-medium truncate hover:text-emerald-500 transition-colors">
                     {d.track_name || t("inbox.modal.no_name")}
                   </div>
                   <div className="text-[10px] text-muted">
@@ -1066,7 +1266,10 @@ function InboxContent() {
                     : `Hace ${hoursAgo}h`
                   : "—"}
               </div>
-              <div className="col-span-3 text-right flex items-center justify-end gap-1.5">
+              <div 
+                className="col-span-3 text-right flex items-center justify-end gap-1.5"
+                onClick={(e) => e.stopPropagation()}
+              >
                 {canRestore && (
                   <button
                     onClick={() => handleRestore(d)}
@@ -1079,6 +1282,16 @@ function InboxContent() {
                       : t("inbox.kanban.restore")}
                   </button>
                 )}
+                <button
+                  onClick={() => handlePermanentDelete(d)}
+                  disabled={!!isLoading}
+                  className="px-3 py-1 rounded text-[10px] font-medium disabled:opacity-50 transition-colors hover:bg-white/10"
+                  style={{ background: "#ef4444", color: "#fff" }}
+                >
+                  {isLoading === "delete"
+                    ? "..."
+                    : "ELIMINAR"}
+                </button>
                 {!canRestore && (
                   <span
                     className="text-[10px] text-muted"
@@ -1132,7 +1345,7 @@ function InboxContent() {
             color: "#ef4444",
           }}
         >
-          ⚠ Error cargando datos: {fetchError}
+          <AlertTriangle className="w-4 h-4 inline-block mr-1 -mt-0.5" /> Error cargando datos: {fetchError}
         </div>
       )}
 
@@ -1158,7 +1371,30 @@ function InboxContent() {
                   : "1px solid transparent",
             }}
           >
-            {tab.label}
+            <span className="flex items-center gap-2">
+              {tab.label}
+              {tab.key === "kanban" && (
+                (() => {
+                  const unreadCount = board.inbox.filter(s => !interactedIds.has(s.id)).length;
+                  if (unreadCount === 0) return null;
+                  return (
+                    <span className="w-4 h-4 flex items-center justify-center rounded-full text-[9px] bg-emerald-500/80 text-black font-bold">
+                      {unreadCount}
+                    </span>
+                  );
+                })()
+              )}
+              {tab.key === "system" && systemItems.length > 0 && !hasSeenSystem && (
+                <span className="w-4 h-4 flex items-center justify-center rounded-full text-[9px] bg-red-500/80 text-white font-bold animate-pulse">
+                  {systemItems.length}
+                </span>
+              )}
+              {tab.key === "trash" && trashItems.length > 0 && (
+                <span className="w-4 h-4 flex items-center justify-center rounded-full text-[9px] bg-zinc-700/80 text-zinc-300 font-bold">
+                  {trashItems.length}
+                </span>
+              )}
+            </span>
           </button>
         ))}
       </div>
@@ -1167,15 +1403,15 @@ function InboxContent() {
       {activeTab === "kanban" && (
         <DragDropContext onDragEnd={handleDragEnd}>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {renderColumn("inbox", t("inbox.kanban.inbox_col"), "#06b6d4")}
+            {renderColumn("inbox", t(role === "dj" ? "inbox.kanban_dj.inbox_col" : "inbox.kanban.inbox_col"), "#06b6d4")}
             {renderColumn(
               "shortlist",
-              t("inbox.kanban.shortlist_col"),
+              t(role === "dj" ? "inbox.kanban_dj.shortlist_col" : "inbox.kanban.shortlist_col"),
               "#10b981"
             )}
             {renderColumn(
               "rejected",
-              t("inbox.kanban.rejected_col"),
+              t(role === "dj" ? "inbox.kanban_dj.rejected_col" : "inbox.kanban.rejected_col"),
               "#ef4444"
             )}
           </div>
@@ -1184,6 +1420,247 @@ function InboxContent() {
 
       {activeTab === "system" && renderSystemTab()}
       {activeTab === "trash" && renderTrashTab()}
+
+      {/* ─── Detail Modal ─────────────────────────────────────────────────── */}
+      {detailModal.open && detailModal.submission && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.8)", backdropFilter: "blur(4px)" }}
+          onClick={() => setDetailModal({ open: false, submission: null })}
+        >
+          <div
+            className="rounded-lg border max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl"
+            style={{
+              borderColor: "var(--border)",
+              background: "var(--bg-secondary)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div
+              className="flex items-center justify-between px-6 py-4 border-b"
+              style={{ borderColor: "var(--border)" }}
+            >
+              <div>
+                <h2 className="font-display font-bold text-lg leading-tight">
+                  {detailModal.submission.track_name || t("inbox.modal.no_name")}
+                </h2>
+                <div className="flex items-center gap-3 mt-1">
+                  <p className="text-sm text-muted">
+                    {detailModal.submission.producer_name || t("inbox.modal.anonymous")}
+                  </p>
+                  <ExpirationCountdown createdAt={detailModal.submission.created_at} retentionDays={retentionDays} />
+                </div>
+              </div>
+              <button
+                onClick={() => setDetailModal({ open: false, submission: null })}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-muted hover:text-white hover:bg-white/10 transition-all"
+              >
+                ✕
+              </button>
+            </div>
+
+            {(() => {
+              const sub = detailModal.submission;
+              if (!sub) return null;
+              
+              const rules = sonicSignature?.auto_reject_rules || {};
+              
+              // Calculate failures on the fly (for old tracks or if backend reason is generic)
+              const bpmMin = sonicSignature?.bpm_min ?? 70;
+              const bpmMax = sonicSignature?.bpm_max ?? 180;
+              const lufsLimit = (sonicSignature?.lufs_target ?? -14) + (sonicSignature?.lufs_tolerance ?? 2);
+              const phaseMin = sonicSignature?.phase_correlation_min ?? 0;
+              
+              // Normalize rule keys — DB may store short keys (tempo/phase/lufs) or long ones
+              const isBpmFailed = (rules.reject_out_of_tempo || rules.tempo) && sub.bpm !== null && (sub.bpm < bpmMin || sub.bpm > bpmMax);
+              const isLufsFailed = (rules.reject_excessive_loudness || rules.lufs) && sub.lufs !== null && (sub.lufs > lufsLimit);
+              const isPhaseFailed = (rules.reject_inverted_phase || rules.phase) && sub.phase_correlation !== null && (sub.phase_correlation <= phaseMin);
+              const isCrestFailed = (rules.reject_low_dynamic_range) && sub.crest_factor !== null && (sub.crest_factor < (sonicSignature?.crest_factor_min ?? 5.0));
+              const isKeyFailed = (rules.reject_wrong_key) && sub.musical_key && sonicSignature?.target_camelot_keys?.length > 0 && !sonicSignature.target_camelot_keys.includes(sub.musical_key);
+
+              // Determine the "primary" failure if the backend reason is missing
+              let displayReason = sub.rejection_reason;
+              if (!displayReason && sub.status === "auto_rejected") {
+                if (isBpmFailed) displayReason = "out_of_tempo";
+                else if (isLufsFailed) displayReason = "excessive_loudness";
+                else if (isPhaseFailed) displayReason = "inverted_phase";
+                else if (isCrestFailed) displayReason = "low_dynamic_range";
+                else if (isKeyFailed) displayReason = "wrong_musical_key";
+              }
+
+              return (
+                <div className="flex-1 overflow-y-auto p-6 space-y-8">
+                  {/* Main metrics grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <div 
+                      className={cn(
+                        "p-3 rounded border transition-all",
+                        isBpmFailed ? "bg-red-500/10 border-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.1)]" : "bg-white/[0.02] border-zinc-800"
+                      )}
+                      title={isBpmFailed ? `Límite: ${bpmMin}-${bpmMax} BPM` : (sonicSignature ? `Config: ${bpmMin}-${bpmMax} BPM` : "")}
+                    >
+                      <p className={cn("text-[10px] uppercase tracking-wider mb-1 font-mono", isBpmFailed ? "text-red-400 font-bold" : "text-muted")}>{t("inbox.header.bpm")}</p>
+                      <p className={cn("text-xl font-display font-semibold", isBpmFailed ? "text-red-500" : "")}>{formatBpm(sub.bpm)}</p>
+                    </div>
+                    <div 
+                      className={cn(
+                        "p-3 rounded border transition-all",
+                        isLufsFailed ? "bg-red-500/10 border-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.1)]" : "bg-white/[0.02] border-zinc-800"
+                      )}
+                      title={isLufsFailed ? `Máximo permitido: ${lufsLimit} LUFS` : (sonicSignature ? `Config: ${lufsLimit} LUFS` : "")}
+                    >
+                      <p className={cn("text-[10px] uppercase tracking-wider mb-1 font-mono", isLufsFailed ? "text-red-400 font-bold" : "text-muted")}>{t("inbox.header.lufs")}</p>
+                      <p className={cn("text-xl font-display font-semibold", isLufsFailed ? "text-red-500" : "")}>{formatLufs(sub.lufs)}</p>
+                    </div>
+                    <div className={cn(
+                      "p-3 rounded border transition-all",
+                      isKeyFailed ? "bg-red-500/10 border-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.1)]" : "bg-white/[0.02] border-zinc-800"
+                    )}>
+                      <p className={cn("text-[10px] uppercase tracking-wider mb-1 font-mono", isKeyFailed ? "text-red-400 font-bold" : "text-muted")}>Tonalidad</p>
+                      <p className={cn("text-xl font-display font-semibold", isKeyFailed ? "text-red-500" : "")}>{formatKey(sub.musical_key)}</p>
+                    </div>
+                    <div className="p-3 rounded border bg-white/[0.02] border-zinc-800">
+                      <p className="text-[10px] uppercase tracking-wider text-muted mb-1 font-mono">Duración</p>
+                      <p className="text-xl font-display font-semibold">{formatDuration(sub.duration)}</p>
+                    </div>
+                  </div>
+
+                  {/* Technical breakdown */}
+                  <div className="space-y-3">
+                    <h3 className="text-xs font-mono uppercase tracking-widest text-muted border-b pb-1.5" style={{ borderColor: "var(--border)" }}>
+                      Análisis Técnico
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3">
+                      <div className="flex justify-between items-center text-sm py-1 border-b border-white/[0.03]">
+                        <span className="text-muted">{t("inbox.header.peak")}</span>
+                        <span className="font-mono">{formatPeak(sub.true_peak)} dB</span>
+                      </div>
+                      <div className={cn("flex justify-between items-center text-sm py-1 border-b border-white/[0.03] px-1 rounded", isCrestFailed ? "bg-red-500/10" : "")}>
+                        <span className={isCrestFailed ? "text-red-400" : "text-muted"}>{t("inbox.header.crest")}</span>
+                        <span className={cn("font-mono", isCrestFailed ? "text-red-500" : "")}>{formatCrest(sub.crest_factor)} dB</span>
+                      </div>
+                      <div 
+                        className={cn("flex justify-between items-center text-sm py-1 border-b border-white/[0.03] transition-colors px-1 rounded", isPhaseFailed ? "bg-red-500/10" : "")}
+                        title={isPhaseFailed ? `Mínimo permitido: ${phaseMin}` : ""}
+                      >
+                        <span className={isPhaseFailed ? "text-red-400 font-bold" : "text-muted"}>Correlación de Fase</span>
+                        <span className={cn("font-mono", isPhaseFailed ? "text-red-500" : "")}>{sub.phase_correlation?.toFixed(2) ?? "—"}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm py-1 border-b border-white/[0.03]">
+                        <span className="text-muted">Estado Actual</span>
+                        <span className="font-mono" style={{ color: statusBadgeColor(sub.status).color }}>
+                          {statusLabel(sub.status, t).toUpperCase()}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Information & Notes */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+                    <div className="space-y-3">
+                      <h3 className="text-xs font-mono uppercase tracking-widest text-muted border-b pb-1.5" style={{ borderColor: "var(--border)" }}>
+                        Contacto
+                      </h3>
+                      <div className="space-y-2">
+                        <p className="text-sm">
+                          <span className="text-muted block text-[10px] uppercase mb-0.5">Email del productor</span>
+                          {sub.producer_email || t("crm.no_email")}
+                        </p>
+                        <p className="text-sm">
+                          <span className="text-muted block text-[10px] uppercase mb-0.5">Recibido</span>
+                          {new Date(sub.created_at).toLocaleString("es-AR")}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <h3 className="text-xs font-mono uppercase tracking-widest text-muted border-b pb-1.5" style={{ borderColor: "var(--border)" }}>
+                        Notas del Productor
+                      </h3>
+                      <p className="text-sm text-secondary italic leading-relaxed">
+                        {sub.notes || "No se adjuntaron notas."}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Rejection reason (if any) */}
+                  {(displayReason || sub.status === "auto_rejected") && (
+                    <div className="p-4 rounded-lg bg-red-500/5 border border-red-500/20 shadow-[inset_0_0_20px_rgba(239,68,68,0.05)]">
+                      <div className="flex items-center gap-2 mb-2">
+                        <AlertTriangle className="w-4 h-4 text-red-500" />
+                        <h3 className="text-[10px] font-mono uppercase tracking-widest text-red-400">
+                          Motivo de Rechazo Técnico
+                        </h3>
+                      </div>
+                      <p className="text-sm text-red-200/90 leading-relaxed font-medium">
+                        {(() => {
+                          if (displayReason === "out_of_tempo") return `BPM fuera de rango. El track tiene ${sub.bpm} BPM y tu firma requiere entre ${bpmMin} y ${bpmMax} BPM.`;
+                          if (displayReason === "excessive_loudness") return `Volumen excesivo. El track mide ${sub.lufs} LUFS y tu límite máximo es ${lufsLimit} LUFS.`;
+                          if (displayReason === "inverted_phase") return `Falla de fase. La correlación es de ${sub.phase_correlation?.toFixed(2)}, por debajo del mínimo de ${phaseMin}.`;
+                          if (displayReason === "wrong_musical_key") return `Tonalidad incorrecta. El track está en ${formatKey(sub.musical_key)} y no coincide con tus escalas preferidas.`;
+                          if (displayReason === "digital_clipping") return `Clipping digital. El True Peak alcanzó ${sub.true_peak} dB (máximo permitido: < 0 dB).`;
+                          if (displayReason === "low_dynamic_range") return `Rango dinámico insuficiente. El Crest Factor es de ${sub.crest_factor} dB (mínimo: ${sonicSignature?.crest_factor_min ?? 5.0} dB).`;
+                          return displayReason || "Este track fue auto-rechazado automáticamente por no cumplir con los requisitos técnicos configurados en tu Firma Sónica.";
+                        })()}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* Footer Actions */}
+            <div className="px-6 py-4 border-t bg-white/[0.01] flex items-center justify-between" style={{ borderColor: "var(--border)" }}>
+              <div className="flex items-center gap-2">
+                {detailModal.submission.mp3_path && (
+                  <button
+                    onClick={() => handleListen(detailModal.submission!)}
+                    className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all hover:scale-105 active:scale-95"
+                    style={{ 
+                      background: currentTrack?.id === detailModal.submission.id && isPlaying ? "#ef4444" : "#10b981", 
+                      color: "#09090b" 
+                    }}
+                  >
+                    {currentTrack?.id === detailModal.submission.id && isPlaying ? (
+                      <><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg> PAUSAR</>
+                    ) : (
+                      <><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg> ESCUCHAR</>
+                    )}
+                  </button>
+                )}
+                {detailModal.submission.producer_email && (
+                  <Link
+                    href={`/crm?highlight=${detailModal.submission.id}`}
+                    className="px-4 py-2 rounded-full text-sm font-medium border border-white/10 hover:bg-white/5 transition-colors"
+                  >
+                    CONTACTAR
+                  </Link>
+                )}
+              </div>
+
+              <div className="flex items-center gap-3">
+                {detailModal.submission.status === "inbox" && (
+                  <>
+                    <button
+                      onClick={() => { updateStatus(detailModal.submission!, "rejected"); setDetailModal({ open: false, submission: null }); }}
+                      className="text-[10px] font-bold text-red-500 hover:underline uppercase tracking-widest"
+                    >
+                      Rechazar
+                    </button>
+                    <button
+                      onClick={() => { updateStatus(detailModal.submission!, "shortlist"); setDetailModal({ open: false, submission: null }); }}
+                      className="text-[10px] font-bold text-emerald-500 hover:underline uppercase tracking-widest"
+                    >
+                      Aprobar
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ─── Email Modal ─────────────────────────────────────────────────── */}
       {emailModal.open && emailModal.submission && (
@@ -1246,7 +1723,7 @@ function InboxContent() {
                       }}
                     >
                       <option value="">
-                        {t("inbox.kanban.no_templates")}
+                        {emailModal.sending ? "Cargando..." : emailModal.templates.length === 0 ? "Sin plantillas (Crear en CRM)" : "Seleccionar plantilla"}
                       </option>
                       {emailModal.templates.map((tmpl) => (
                         <option key={tmpl.id} value={tmpl.id}>
@@ -1254,6 +1731,11 @@ function InboxContent() {
                         </option>
                       ))}
                     </select>
+                    {emailModal.templates.length === 0 && !emailModal.sending && (
+                      <Link href="/crm" className="text-[10px] text-emerald-500 hover:underline mt-1 inline-block">
+                        Ir a CRM para crear plantillas
+                      </Link>
+                    )}
                   </div>
 
                   {/* Subject */}
@@ -1424,6 +1906,53 @@ function InboxContent() {
                   {t("inbox.kanban.reject")}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Permanent Delete Confirmation Modal ───────────────────────────────── */}
+      {confirmModal.open && confirmModal.submission && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => !confirmModal.loading && setConfirmModal({ open: false, submission: null, loading: false })} />
+          <div className="relative w-full max-w-md rounded-xl border p-6 shadow-2xl animate-in zoom-in-95 duration-200" style={{ background: "var(--bg-card)", borderColor: "var(--border)" }}>
+            <div className="flex items-center gap-3 mb-4 text-red-500">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: "rgba(239,68,68,0.1)" }}>
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <h2 className="text-lg font-semibold">¿Eliminar permanentemente?</h2>
+            </div>
+            
+            <p className="text-sm text-muted mb-6 leading-relaxed">
+              Estás por eliminar <span className="text-primary font-medium">"{confirmModal.submission.track_name}"</span> de forma definitiva. 
+              Esta acción borrará los archivos originales, los previews de audio y todo el registro del sistema. 
+              <span className="block mt-2 font-medium text-red-400">Esta acción no se puede deshacer.</span>
+            </p>
+
+            <div className="flex items-center gap-3 justify-end">
+              <button
+                onClick={() => setConfirmModal({ open: false, submission: null, loading: false })}
+                disabled={confirmModal.loading}
+                className="px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-white/5"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmPermanentDelete}
+                disabled={confirmModal.loading}
+                className="px-5 py-2 rounded-lg text-sm font-medium transition-all hover:opacity-90 disabled:opacity-50 flex items-center gap-2"
+                style={{ background: "#ef4444", color: "#fff" }}
+              >
+                {confirmModal.loading ? (
+                  <>
+                    <div className="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                    Eliminando...
+                  </>
+                ) : (
+                  "Sí, eliminar todo"
+                )}
+              </button>
             </div>
           </div>
         </div>
