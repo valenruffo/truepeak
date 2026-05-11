@@ -186,6 +186,101 @@ function CRMContent() {
   const [dbTemplates, setDbTemplates] = useState<any[]>([]);
   const [templateForm, setTemplateForm] = useState({ name: "", type: "rejection", subject: "", body: "" });
   const [savingTemplate, setSavingTemplate] = useState(false);
+  const [bodyCursor, setBodyCursor] = useState(0);
+  const [subjectCursor, setSubjectCursor] = useState(0);
+  const [bodyRef, setBodyRef] = useState<HTMLTextAreaElement | null>(null);
+  const [subjectRef, setSubjectRef] = useState<HTMLInputElement | null>(null);
+  const [emailBodyRef, setEmailBodyRef] = useState<HTMLTextAreaElement | null>(null);
+  const [emailSubjectRef, setEmailSubjectRef] = useState<HTMLInputElement | null>(null);
+  const [emailBodyCursor, setEmailBodyCursor] = useState(0);
+  const [emailSubjectCursor, setEmailSubjectCursor] = useState(0);
+
+  const variables = [
+    { key: "{producer}", label: "Productor", desc: "Nombre del productor" },
+    { key: "{track}", label: "Track", desc: "Nombre del track" },
+    { key: "{bpm}", label: "BPM", desc: "Tempo del track" },
+    { key: "{label}", label: "Sello", desc: "Nombre del sello" },
+  ];
+
+  const insertVariable = (variable: string, field: "body" | "subject") => {
+    if (field === "body" && bodyRef) {
+      const pos = bodyCursor;
+      const before = templateForm.body.slice(0, pos);
+      const after = templateForm.body.slice(pos);
+      setTemplateForm({ ...templateForm, body: before + variable + after });
+      const newPos = pos + variable.length;
+      setTimeout(() => { bodyRef.focus(); bodyRef.setSelectionRange(newPos, newPos); }, 0);
+    } else if (field === "subject" && subjectRef) {
+      const pos = subjectCursor;
+      const before = templateForm.subject.slice(0, pos);
+      const after = templateForm.subject.slice(pos);
+      setTemplateForm({ ...templateForm, subject: before + variable + after });
+      const newPos = pos + variable.length;
+      setTimeout(() => { subjectRef.focus(); subjectRef.setSelectionRange(newPos, newPos); }, 0);
+    }
+  };
+
+  const handleDragStart = (e: React.DragEvent, variable: string) => {
+    e.dataTransfer.setData("text/plain", variable);
+    e.dataTransfer.effectAllowed = "copy";
+  };
+
+  const handleDrop = (e: React.DragEvent, field: "body" | "subject") => {
+    e.preventDefault();
+    const variable = e.dataTransfer.getData("text/plain");
+    if (variable && variables.some(v => v.key === variable)) {
+      insertVariable(variable, field);
+    }
+  };
+
+  const insertEmailVariable = (variable: string, field: "body" | "subject") => {
+    if (field === "body" && emailBodyRef) {
+      const pos = emailBodyCursor;
+      const before = emailBody.slice(0, pos);
+      const after = emailBody.slice(pos);
+      setEmailBody(before + variable + after);
+      const newPos = pos + variable.length;
+      setTimeout(() => { emailBodyRef.focus(); emailBodyRef.setSelectionRange(newPos, newPos); }, 0);
+    } else if (field === "subject" && emailSubjectRef) {
+      const pos = emailSubjectCursor;
+      const before = emailSubject.slice(0, pos);
+      const after = emailSubject.slice(pos);
+      setEmailSubject(before + variable + after);
+      const newPos = pos + variable.length;
+      setTimeout(() => { emailSubjectRef.focus(); emailSubjectRef.setSelectionRange(newPos, newPos); }, 0);
+    }
+  };
+
+  const handleEmailDrop = (e: React.DragEvent, field: "body" | "subject") => {
+    e.preventDefault();
+    const variable = e.dataTransfer.getData("text/plain");
+    if (variable && variables.some(v => v.key === variable)) {
+      insertEmailVariable(variable, field);
+    }
+  };
+
+  const handleBodySelect = () => { if (bodyRef) setBodyCursor(bodyRef.selectionStart); };
+  const handleSubjectSelect = () => { if (subjectRef) setSubjectCursor(subjectRef.selectionStart); };
+  const handleEmailBodySelect = () => { if (emailBodyRef) setEmailBodyCursor(emailBodyRef.selectionStart); };
+  const handleEmailSubjectSelect = () => { if (emailSubjectRef) setEmailSubjectCursor(emailSubjectRef.selectionStart); };
+
+  const VariableChips = ({ target }: { target: "email" | "template" }) => (
+    <div className="flex gap-1.5 flex-wrap mb-2">
+      {variables.map((v) => (
+        <span
+          key={v.key}
+          draggable
+          onDragStart={(e) => handleDragStart(e, v.key)}
+          className="text-[10px] px-2 py-0.5 rounded border cursor-grab active:cursor-grabbing transition-colors hover:border-emerald-500 select-none"
+          style={{ borderColor: "var(--border)", color: "var(--text-muted)", background: "transparent" }}
+          title={v.desc}
+        >
+          +{v.label}
+        </span>
+      ))}
+      <span className="text-[9px] text-muted self-center ml-1">{t("crm.drag_hint")}</span>
+    </div>
+  );
 
   const fetchTemplates = async () => {
     try {
@@ -389,12 +484,14 @@ function CRMContent() {
 
                 <div className="mb-3">
                   <label className="text-[10px] font-mono uppercase tracking-wider text-muted mb-1 block">{t("crm.subject_label")}</label>
-                  <input type="text" value={emailSubject} onChange={(e) => setEmailSubject(e.target.value)} className="w-full px-3 py-2 rounded border text-sm bg-transparent" style={{ borderColor: "var(--border)" }} />
+                  <VariableChips target="email" />
+                  <input ref={setEmailSubjectRef} type="text" value={emailSubject} onChange={(e) => setEmailSubject(e.target.value)} onDragOver={(e) => e.preventDefault()} onDrop={(e) => handleEmailDrop(e, "subject")} onSelect={handleEmailSubjectSelect} onClick={handleEmailSubjectSelect} className="w-full px-3 py-2 rounded border text-sm bg-transparent" style={{ borderColor: "var(--border)" }} />
                 </div>
 
                 <div className="mb-4">
                   <label className="text-[10px] font-mono uppercase tracking-wider text-muted mb-1 block">{t("crm.body_label")}</label>
-                  <textarea value={emailBody} onChange={(e) => setEmailBody(e.target.value)} className="w-full px-3 py-2 rounded border text-sm leading-relaxed bg-transparent resize-none" style={{ borderColor: "var(--border)", minHeight: "200px" }} rows={8} />
+                  <VariableChips target="email" />
+                  <textarea ref={setEmailBodyRef} value={emailBody} onChange={(e) => setEmailBody(e.target.value)} onDragOver={(e) => e.preventDefault()} onDrop={(e) => handleEmailDrop(e, "body")} onSelect={handleEmailBodySelect} onClick={handleEmailBodySelect} className="w-full px-3 py-2 rounded border text-sm leading-relaxed bg-transparent resize-none" style={{ borderColor: "var(--border)", minHeight: "200px" }} rows={8} />
                 </div>
 
                 <div className="flex items-center justify-between gap-3 mt-4">
@@ -444,10 +541,16 @@ function CRMContent() {
               </div>
               <div>
                 <label className="text-[10px] text-muted uppercase tracking-wider block mb-1">Asunto</label>
+                <VariableChips target="template" />
                 <input 
+                  ref={setSubjectRef}
                   type="text" 
                   value={templateForm.subject}
                   onChange={(e) => setTemplateForm({...templateForm, subject: e.target.value})}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => handleDrop(e, "subject")}
+                  onSelect={handleSubjectSelect}
+                  onClick={handleSubjectSelect}
                   className="w-full px-3 py-2 rounded border text-sm bg-transparent" 
                   placeholder="Asunto del email..."
                   style={{ borderColor: "var(--border)" }} 
@@ -455,15 +558,20 @@ function CRMContent() {
               </div>
               <div>
                 <label className="text-[10px] text-muted uppercase tracking-wider block mb-1">Cuerpo</label>
+                <VariableChips target="template" />
                 <textarea 
+                  ref={setBodyRef}
                   value={templateForm.body}
                   onChange={(e) => setTemplateForm({...templateForm, body: e.target.value})}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => handleDrop(e, "body")}
+                  onSelect={handleBodySelect}
+                  onClick={handleBodySelect}
                   className="w-full px-3 py-2 rounded border text-sm bg-transparent resize-none" 
                   rows={6}
                   placeholder="Hola {producer}, recibimos {track}..."
                   style={{ borderColor: "var(--border)" }} 
                 />
-                <p className="text-[10px] text-muted mt-2">Variables disponibles: <code className="text-emerald-500">{"{producer}"}</code>, <code className="text-emerald-500">{"{track}"}</code>, <code className="text-emerald-500">{"{bpm}"}</code></p>
               </div>
               <button 
                 onClick={handleSaveTemplate}

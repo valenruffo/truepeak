@@ -355,6 +355,7 @@ const translations = {
     "crm.template.reject_tempo": "Rechazo — Fuera de tempo",
     "crm.template.approve": "Aprobacion — Interes en el track",
     "crm.template.followup": "Seguimiento — Segunda version",
+    "crm.drag_hint": "Arrastrá a los campos",
 
     // Config
     "config.section_label": "Configuración",
@@ -836,6 +837,7 @@ const translations = {
     "crm.template.reject_tempo": "Rejection — Off tempo",
     "crm.template.approve": "Approval — Track interest",
     "crm.template.followup": "Follow-up — Second version",
+    "crm.drag_hint": "Drag to fields",
 
     // Config
     "config.section_label": "Configuration",
