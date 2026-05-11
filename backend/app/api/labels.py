@@ -729,3 +729,31 @@ async def admin_update_label_plan(
         submission_title=label.submission_title,
         submission_description=label.submission_description,
     )
+
+
+class RoleUpdate(BaseModel):
+    role: str  # "label" | "dj"
+
+
+@router.post("/admin/labels/{slug}/role")
+async def admin_update_label_role(
+    slug: str,
+    body: RoleUpdate,
+    session: Session = Depends(get_session),
+):
+    """Admin endpoint to update label role without auth. FOR TESTING ONLY — remove in production."""
+    label = session.exec(select(Label).where(Label.slug == slug)).first()
+    if not label:
+        raise HTTPException(status_code=404, detail="Sello no encontrado.")
+
+    if body.role.lower() not in ("label", "dj"):
+        raise HTTPException(status_code=400, detail="Role must be 'label' or 'dj'.")
+
+    label.role = body.role.lower()
+    label.updated_at = datetime.now(timezone.utc)
+
+    session.add(label)
+    session.commit()
+    session.refresh(label)
+
+    return {"id": label.id, "slug": label.slug, "role": label.role}

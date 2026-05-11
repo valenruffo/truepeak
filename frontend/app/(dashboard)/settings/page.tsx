@@ -14,7 +14,10 @@ export default function SettingsPage() {
   const { lang, setLang, t } = useLanguage();
   const { theme, toggleTheme } = useTheme();
   const [plan, setPlan] = useState<string>("free");
+  const [role, setRole] = useState<string>("label");
   const [labelName, setLabelName] = useState<string>("");
+  const [showTestPanel, setShowTestPanel] = useState(false);
+  const [switching, setSwitching] = useState<string | null>(null);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
@@ -23,6 +26,8 @@ export default function SettingsPage() {
   useEffect(() => {
     const storedPlan = localStorage.getItem("plan") || "free";
     setPlan(storedPlan);
+    const storedRole = localStorage.getItem("role") || "label";
+    setRole(storedRole);
 
     const slug = localStorage.getItem("slug");
     if (slug) {
@@ -96,6 +101,43 @@ export default function SettingsPage() {
     return () => { document.body.removeChild(script); };
   }, [plan]);
 
+  // Testing: instant plan/role switcher
+  const switchPlan = async (newPlan: string) => {
+    const slug = localStorage.getItem("slug");
+    if (!slug) return;
+    setSwitching(`plan-${newPlan}`);
+    try {
+      const res = await fetch(`/api/admin/labels/${slug}/plan`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan: newPlan }),
+      });
+      if (res.ok) {
+        localStorage.setItem("plan", newPlan);
+        setPlan(newPlan);
+      }
+    } catch (e) { console.error("Plan switch failed", e); }
+    finally { setSwitching(null); }
+  };
+
+  const switchRole = async (newRole: string) => {
+    const slug = localStorage.getItem("slug");
+    if (!slug) return;
+    setSwitching(`role-${newRole}`);
+    try {
+      const res = await fetch(`/api/admin/labels/${slug}/role`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: newRole }),
+      });
+      if (res.ok) {
+        localStorage.setItem("role", newRole);
+        setRole(newRole);
+      }
+    } catch (e) { console.error("Role switch failed", e); }
+    finally { setSwitching(null); }
+  };
+
   const handleCancelSubscription = async () => {
     setCancelling(true);
     setCancelError(null);
@@ -127,6 +169,94 @@ export default function SettingsPage() {
     <div className="max-w-3xl mx-auto px-6 py-12">
       <div className="text-xs font-mono uppercase tracking-wider text-muted mb-1">{t("settings.section_label")}</div>
       <h1 className="font-display font-semibold text-2xl mb-8">{t("settings.title")}</h1>
+
+      {/* Testing Panel */}
+      <div className="rounded border p-6 mb-6" style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}>
+        <button
+          onClick={() => setShowTestPanel(!showTestPanel)}
+          className="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-muted hover:text-primary transition-colors"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+          </svg>
+          {showTestPanel ? "Ocultar panel testing" : "Panel Testing"}
+        </button>
+
+        {showTestPanel && (
+          <div className="mt-4 space-y-6">
+            {/* Plan Switcher */}
+            <div>
+              <div className="text-[10px] font-mono uppercase tracking-wider text-muted mb-2">Plan actual: <span style={{ color: "#10b981" }}>{plan}</span></div>
+              <div className="flex gap-2">
+                {(["free", "indie", "pro"] as const).map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => switchPlan(p)}
+                    disabled={switching?.startsWith("plan")}
+                    className="px-4 py-2 rounded text-sm font-medium border transition-all disabled:opacity-50"
+                    style={{
+                      borderColor: plan === p ? "#10b981" : "var(--border)",
+                      color: plan === p ? "#10b981" : "var(--text-secondary)",
+                      background: plan === p ? "rgba(16,185,129,0.08)" : "transparent",
+                    }}
+                  >
+                    {switching === `plan-${p}` ? "..." : p === "free" ? "Free" : p === "indie" ? "Indie" : "Pro"}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-muted mt-1">Cambia el plan en backend + localStorage. Efecto inmediato.</p>
+            </div>
+
+            {/* Role Switcher */}
+            <div>
+              <div className="text-[10px] font-mono uppercase tracking-wider text-muted mb-2">Rol actual: <span style={{ color: "#10b981" }}>{role === "dj" ? "DJ" : "Sello"}</span></div>
+              <div className="flex gap-2">
+                {(["label", "dj"] as const).map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => switchRole(r)}
+                    disabled={switching?.startsWith("role")}
+                    className="px-4 py-2 rounded text-sm font-medium border transition-all disabled:opacity-50"
+                    style={{
+                      borderColor: role === r ? "#10b981" : "var(--border)",
+                      color: role === r ? "#10b981" : "var(--text-secondary)",
+                      background: role === r ? "rgba(16,185,129,0.08)" : "transparent",
+                    }}
+                  >
+                    {switching === `role-${r}` ? "..." : r === "label" ? "Sello" : "DJ"}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-muted mt-1">Cambia el rol en backend + localStorage. Hacé logout + login para ver la interfaz correcta.</p>
+            </div>
+
+            {/* Limits display */}
+            <div className="rounded border p-3 text-xs" style={{ borderColor: "var(--border-light)" }}>
+              <div className="font-mono text-[10px] uppercase tracking-wider text-muted mb-2">Límites activos</div>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <div className="text-muted">Tracks/mes</div>
+                  <div className="font-semibold" style={{ color: "#10b981" }}>
+                    {plan === "free" ? "10" : plan === "indie" ? "100" : "1000"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-muted">Emails/mes</div>
+                  <div className="font-semibold" style={{ color: "#10b981" }}>
+                    {plan === "free" ? "0" : plan === "indie" ? "100" : "500"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-muted">HQ Retention</div>
+                  <div className="font-semibold" style={{ color: "#10b981" }}>
+                    {plan === "free" ? "0 días" : plan === "indie" ? "7 días" : "14 días"}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Plan Section */}
       <div className="rounded border p-6 mb-6" style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}>
