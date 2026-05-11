@@ -51,13 +51,45 @@ export default function SettingsPage() {
       paypal.Buttons({
         style: { shape: "rect", color: "blue", layout: "vertical", label: "subscribe" },
         createSubscription: (_data: any, actions: any) => actions.subscription.create({ plan_id: PAYPAL_PLAN_INDIE }),
-        onApprove: (data: any) => { alert(`Suscripción creada: ${data.subscriptionID}`); },
+        onApprove: async (data: any) => {
+          const slug = localStorage.getItem("slug");
+          if (slug) {
+            try {
+              const res = await fetch(`/api/labels/${slug}/plan`, {
+                method: "PATCH",
+                credentials: "include",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ plan: "indie" }),
+              });
+              if (res.ok) {
+                localStorage.setItem("plan", "indie");
+                setPlan("indie");
+              }
+            } catch (e) { console.error("Plan update failed", e); }
+          }
+        },
       }).render("#paypal-button-indie");
 
       paypal.Buttons({
         style: { shape: "rect", color: "gold", layout: "vertical", label: "subscribe" },
         createSubscription: (_data: any, actions: any) => actions.subscription.create({ plan_id: PAYPAL_PLAN_PRO }),
-        onApprove: (data: any) => { alert(`Suscripción creada: ${data.subscriptionID}`); },
+        onApprove: async (data: any) => {
+          const slug = localStorage.getItem("slug");
+          if (slug) {
+            try {
+              const res = await fetch(`/api/labels/${slug}/plan`, {
+                method: "PATCH",
+                credentials: "include",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ plan: "pro" }),
+              });
+              if (res.ok) {
+                localStorage.setItem("plan", "pro");
+                setPlan("pro");
+              }
+            } catch (e) { console.error("Plan update failed", e); }
+          }
+        },
       }).render("#paypal-button-pro");
     };
     document.body.appendChild(script);

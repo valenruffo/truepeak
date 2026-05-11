@@ -693,3 +693,39 @@ async def update_label_plan(
         submission_title=label.submission_title,
         submission_description=label.submission_description,
     )
+
+
+@router.post("/admin/labels/{slug}/plan", response_model=LabelConfig)
+async def admin_update_label_plan(
+    slug: str,
+    body: PlanUpdate,
+    session: Session = Depends(get_session),
+):
+    """Admin endpoint to update label plan without auth. FOR TESTING ONLY — remove in production."""
+    label = session.exec(select(Label).where(Label.slug == slug)).first()
+    if not label:
+        raise HTTPException(status_code=404, detail="Sello no encontrado.")
+
+    label.plan = body.plan.lower()
+    _apply_plan_limits(label)
+    label.updated_at = datetime.now(timezone.utc)
+
+    session.add(label)
+    session.commit()
+    session.refresh(label)
+
+    return LabelConfig(
+        id=label.id,
+        name=label.name,
+        slug=label.slug,
+        owner_email=label.owner_email,
+        plan=label.plan or "free",
+        max_tracks_month=label.max_tracks_month,
+        max_emails_month=label.max_emails_month,
+        hq_retention_days=label.hq_retention_days,
+        sonic_signature=label.sonic_signature,
+        created_at=label.created_at.isoformat(),
+        logo_path=label.logo_path,
+        submission_title=label.submission_title,
+        submission_description=label.submission_description,
+    )
