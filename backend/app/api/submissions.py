@@ -43,6 +43,7 @@ class SubmissionSummary(BaseModel):
     producer_email: str | None
     track_name: str
     status: str
+    rejection_reason: str | None = None
     mp3_path: str | None
     original_path: str | None
     bpm: float | None
@@ -50,8 +51,11 @@ class SubmissionSummary(BaseModel):
     duration: float | None
     phase_correlation: float | None
     musical_key: str | None
+    true_peak: float | None = None
+    crest_factor: float | None = None
     notes: str | None
     created_at: str
+    deleted_at: str | None = None
 
 
 class UpdateStatusRequest(BaseModel):
@@ -144,6 +148,7 @@ async def list_submissions(
             producer_email=s.producer_email,
             track_name=s.track_name,
             status=s.status,
+            rejection_reason=s.rejection_reason,
             mp3_path=s.mp3_path,
             original_path=s.original_path,
             bpm=s.bpm,
@@ -151,8 +156,11 @@ async def list_submissions(
             duration=s.duration,
             phase_correlation=s.phase_correlation,
             musical_key=s.musical_key,
+            true_peak=s.true_peak,
+            crest_factor=s.crest_factor,
             notes=s.notes,
             created_at=s.created_at.isoformat(),
+            deleted_at=s.deleted_at.isoformat() if s.deleted_at else None,
         )
         for s in submissions
     ]
@@ -244,10 +252,11 @@ async def update_submission_status(
 @router.delete("/submissions/{submission_id}", response_model=DeleteResponse)
 async def delete_submission(
     submission_id: str,
+    force: bool = False,
     auth: dict = Depends(_get_label_from_token),
     session: Session = Depends(get_session),
 ):
-    """Soft-delete submission (sets deleted_at). Requires label owner auth."""
+    """Soft-delete submission (sets deleted_at). If force=True, hard delete from DB and filesystem. Requires label owner auth."""
 
     submission = session.get(Submission, submission_id)
     if not submission:
@@ -255,10 +264,23 @@ async def delete_submission(
 
     _verify_label_ownership(session, auth["label_id"], submission)
 
-    # Soft delete: set deleted_at timestamp
-    submission.deleted_at = datetime.now(timezone.utc)
-    session.add(submission)
-    session.commit()
+    if force:
+        # Hard delete: remove files from disk
+        for path_attr in ("mp3_path", "original_path"):
+            path = getattr(submission, path_attr)
+            if path and os.path.exists(path):
+                try:
+                    os.remove(path)
+                except OSError:
+                    pass  # Best effort
+        
+        session.delete(submission)
+        session.commit()
+    else:
+        # Soft delete: set deleted_at timestamp
+        submission.deleted_at = datetime.now(timezone.utc)
+        session.add(submission)
+        session.commit()
 
     return DeleteResponse(id=submission_id, deleted=True)
 
@@ -375,6 +397,7 @@ async def get_label_hq_count(
 @router.get("/submissions/{submission_id}/download")
 async def download_original(
     submission_id: str,
+    type: str | None = None,
     auth: dict = Depends(_get_label_from_token),
     session: Session = Depends(get_session),
 ):
@@ -385,7 +408,11 @@ async def download_original(
 
     _verify_label_ownership(session, auth["label_id"], submission)
 
-    file_path = submission.original_path or submission.mp3_path
+    if type == "mp3":
+        file_path = submission.mp3_path
+    else:
+        file_path = submission.original_path or submission.mp3_path
+
     if not file_path or not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="File not available.")
 

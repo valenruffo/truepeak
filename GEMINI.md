@@ -414,6 +414,7 @@ curl -f http://localhost:8000/ || exit 1
 - **IP:** `164.152.194.196`
 - **Port:** 8000 (FastAPI)
 - **OS:** Ubuntu (implied by deploy.sh path `/home/ubuntu/`)
+- **SSH Key:** "C:\Users\valen\Desktop\temps\ssh-key-2026-02-05.key"
 
 ---
 

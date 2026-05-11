@@ -51,39 +51,21 @@ export function PlayerProvider({ children, initialTracks = [] }: { children: Rea
     }
   }, []);
 
-  // Update source when track changes — fetch with auth, create blob
+  // Update source when track changes
   useEffect(() => {
     if (!audioRef.current || tracks.length === 0) return;
     const track = tracks[currentIndex];
     if (!track?.id) return;
 
-    let cancelled = false;
-
-    const loadAudio = async () => {
-      try {
-        const res = await fetch(`/api/submissions/${track.id}/download`, {
-          credentials: "include",
-        });
-        if (!res.ok || cancelled) return;
-        const blob = await res.blob();
-        if (cancelled) return;
-        const url = URL.createObjectURL(blob);
-        if (audioRef.current) {
-          audioRef.current.src = url;
-          audioRef.current.load();
-          setProgress(0);
-          // Auto-play when track loads (user clicked Play on a card)
-          audioRef.current.play().then(() => {
-            setIsPlaying(true);
-          }).catch(() => setIsPlaying(false));
-        }
-      } catch {
-        // silently fail
-      }
-    };
-
-    loadAudio();
-    return () => { cancelled = true; };
+    audioRef.current.src = `/api/submissions/${track.id}/download?type=mp3`;
+    audioRef.current.load();
+    setProgress(0);
+    
+    // Auto-play when track loads (user clicked Play on a card)
+    if (isPlaying) {
+      audioRef.current.play().catch(() => setIsPlaying(false));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentIndex, tracks]);
 
   // Play/pause

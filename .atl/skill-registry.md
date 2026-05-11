@@ -8,14 +8,21 @@ See `_shared/skill-resolver.md` for the full resolution protocol.
 
 | Trigger | Skill | Path |
 |---------|-------|------|
+| Implementing a change, preparing commits, splitting PRs, chained/stacked PRs | work-unit-commits | `~/.config/opencode/skills/work-unit-commits/SKILL.md` |
+| Drafting feedback, review comments, maintainer replies, Slack messages, GitHub comments | comment-writer | `~/.config/opencode/skills/comment-writer/SKILL.md` |
+| Writing guides, READMEs, RFCs, onboarding docs, architecture docs, review-facing documentation | cognitive-doc-design | `~/.config/opencode/skills/cognitive-doc-design/SKILL.md` |
 | Creating a GitHub issue, reporting a bug, or requesting a feature | issue-creation | `~/.config/opencode/skills/issue-creation/SKILL.md` |
 | Creating a pull request, opening a PR, or preparing changes for review | branch-pr | `~/.config/opencode/skills/branch-pr/SKILL.md` |
 | "judgment day", "judgment-day", "review adversarial", "dual review", "doble review", "juzgar", "que lo juzguen" | judgment-day | `~/.config/opencode/skills/judgment-day/SKILL.md` |
 | Create a new skill, add agent instructions, or document patterns for AI | skill-creator | `~/.config/opencode/skills/skill-creator/SKILL.md` |
 | Writing Go tests, using teatest, or adding test coverage | go-testing | `~/.config/opencode/skills/go-testing/SKILL.md` |
+| Update gentle-ai, update engram, upgrade tools, version mismatch | gentle-ai-updater | `~/.agents/skills/gentle-ai-updater/SKILL.md` |
 | Browser automation, web interaction, scraping, form filling, button clicking | agent-browser | `~/.agents/skills/agent-browser/SKILL.md` |
 | Image generation, AI art, text to image, flux, midjourney alternative | ai-image-generation | `~/.agents/skills/ai-image-generation/SKILL.md` |
 | Video generation, AI video, text to video, veo, animate image | ai-video-generation | `~/.agents/skills/ai-video-generation/SKILL.md` |
+| AI SEO, AEO, GEO, LLMO, optimize for AI search engines, get cited by LLMs | ai-seo | `~/.agents/skills/ai-seo/SKILL.md` |
+| Programmatic SEO, template pages, pages at scale, location pages, pSEO | programmatic-seo | `~/.agents/skills/programmatic-seo/SKILL.md` |
+| SEO audit, technical SEO, why am I not ranking, SEO issues, core web vitals | seo-audit | `~/.agents/skills/seo-audit/SKILL.md` |
 | Brand colors, style guidelines, visual formatting, Anthropic brand | brand-guidelines | `~/.agents/skills/brand-guidelines/SKILL.md` |
 | Premium brand-kit images, logo systems, identity decks, visual presentations | brandkit | `~/.agents/skills/brandkit/SKILL.md` |
 | Senior UI/UX engineering, metric-based design, CSS hardware acceleration | design-taste-frontend | `~/.agents/skills/design-taste-frontend/SKILL.md` |
@@ -43,6 +50,28 @@ See `_shared/skill-resolver.md` for the full resolution protocol.
 | Review UI, check accessibility, audit design, review UX | web-design-guidelines | `~/.agents/skills/web-design-guidelines/SKILL.md` |
 
 ## Compact Rules
+
+### work-unit-commits
+- Structure commits as deliverable work units, NOT file-type batches
+- Tests and docs live beside the code they verify, not in separate commits
+- Each commit should be independently reviewable and meaningful
+- Use when implementing changes, preparing commits, splitting or chaining PRs
+- One logical change = one commit with its tests and docs together
+
+### comment-writer
+- Write warm, direct, human comments — not robotic or overly formal
+- Use for PRs, issues, reviews, Slack messages, GitHub comments
+- Be constructive and specific, not generic praise
+- Match the tone of the conversation and team culture
+- Focus on the "why" behind feedback, not just the "what"
+
+### cognitive-doc-design
+- Use progressive disclosure: start simple, add detail progressively
+- Chunk information into digestible sections with clear headings
+- Use signposting: tell readers where they are and what comes next
+- Prefer tables, checklists, and recognition over recall
+- Design for scanning, not reading — readers skim first
+- Apply to guides, READMEs, RFCs, architecture docs, onboarding docs
 
 ### issue-creation
 - Blank issues disabled — MUST use template (bug report or feature request)
@@ -80,6 +109,13 @@ See `_shared/skill-resolver.md` for the full resolution protocol.
 - Golden file testing for visual output comparison with -update flag
 - Use t.TempDir() for file operation tests
 
+### gentle-ai-updater
+- `gentle-ai upgrade` skips self-update — must run `go install` or download binary directly
+- Engram version mismatch caused by PATH ordering — check `where engram` on Windows
+- Update order: gentle-ai binary first, then engram, then restart terminal
+- Windows: PATH may have stale entries — verify with `Get-Command engram`
+- After update, verify versions with `gentle-ai --version` and `engram --version`
+
 ### agent-browser
 - Fast native Rust CLI for browser automation via CDP
 - Use `agent-browser skills get core` for workflows and patterns
@@ -100,6 +136,27 @@ See `_shared/skill-resolver.md` for the full resolution protocol.
 - Capabilities: text-to-video, image-to-video, lipsync, avatar animation, foley
 - Login required: `belt login` before generating
 - Browse apps: `belt app list --category video`
+
+### ai-seo
+- Optimize content for AI search engines (Google AI Overviews, ChatGPT, Perplexity, Claude)
+- Structure content for extractability: clear answers, lists, tables, definitions
+- Use entity-rich content with explicit relationships
+- Create FAQ sections with direct, citable answers
+- For traditional SEO audits, see seo-audit; for structured data, see schema-markup
+
+### programmatic-seo
+- Build SEO pages at scale using templates and data
+- Avoid thin content — each page needs unique, valuable content
+- Use data-driven templates: location pages, comparison pages, integration pages
+- Ensure proper internal linking between generated pages
+- For auditing SEO issues, see seo-audit; for planning, see content-strategy
+
+### seo-audit
+- Audit technical SEO: meta tags, core web vitals, crawl errors, indexing
+- Check page speed, mobile-friendliness, structured data
+- Diagnose ranking drops: Google updates, algorithm changes, technical issues
+- Use even when user says vague things like "my SEO is bad" — start with audit
+- For building pages at scale, see programmatic-seo; for AI search, see ai-seo
 
 ### brand-guidelines
 - Anthropic brand colors: Dark `#141413`, Light `#faf9f5`, Orange `#d97757`, Blue `#6a9bcc`, Green `#788c5d`
@@ -272,6 +329,6 @@ See `_shared/skill-resolver.md` for the full resolution protocol.
 
 | File | Path | Notes |
 |------|------|-------|
-| AGENTS.md | `C:\Users\valen\Desktop\truepeak-new\AGENTS.md` | Index — references SDD workflow |
+| GEMINI.md | `C:\Users\valen\Desktop\truepeak-new\GEMINI.md` | Full project context — architecture, models, API endpoints, deployment, gotchas |
 
 Read the convention files listed above for project-specific patterns and rules. All referenced paths have been extracted — no need to read index files to discover more.

@@ -31,6 +31,8 @@ export const metadata: Metadata = {
   },
 };
 
+import { ToastProvider } from "@/components/ui/toast";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -43,7 +45,9 @@ export default function RootLayout({
       >
         <ThemeProvider>
           <LanguageProvider>
-            {children}
+            <ToastProvider>
+              {children}
+            </ToastProvider>
           </LanguageProvider>
         </ThemeProvider>
       </body>

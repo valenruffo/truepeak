@@ -48,7 +48,7 @@ def cleanup():
         conn.commit()
         print(f"[CLEANUP] Hard deleted {deleted_rows} tracks, removed {deleted_files} files")
 
-    # ── Rule 2: Clean HQ files past retention period ──
+    # ── Rule 2: Move tracks past retention period to trash ──
     labels = conn.execute(
         "SELECT id, hq_retention_days FROM label WHERE hq_retention_days > 0"
     ).fetchall()
@@ -58,30 +58,23 @@ def cleanup():
         cutoff_date = (now - timedelta(days=retention)).isoformat()
 
         old_submissions = conn.execute(
-            """SELECT id, original_path, mp3_path FROM submission
-               WHERE label_id = ? AND deleted_at IS NULL AND created_at < ?
-               AND original_path IS NOT NULL""",
+            """SELECT id FROM submission
+               WHERE label_id = ? AND deleted_at IS NULL AND created_at < ?""",
             (label["id"], cutoff_date),
         ).fetchall()
 
         for row in old_submissions:
-            # Only delete original HQ file, keep MP3
-            if row["original_path"] and os.path.exists(row["original_path"]):
-                try:
-                    os.remove(row["original_path"])
-                    hq_cleaned += 1
-                except OSError:
-                    pass
-
-            # Clear original_path in DB (MP3 stays)
+            # Soft delete the submission (moves it to the trash tab)
+            # The files will be permanently deleted 24h later by Rule 1
             conn.execute(
-                "UPDATE submission SET original_path = NULL WHERE id = ?",
-                (row["id"],),
+                "UPDATE submission SET deleted_at = ? WHERE id = ?",
+                (now.isoformat(), row["id"]),
             )
+            hq_cleaned += 1
 
     if hq_cleaned > 0:
         conn.commit()
-        print(f"[HQ] Cleaned {hq_cleaned} HQ files for labels with retention {retention}d")
+        print(f"[HQ] Sent {hq_cleaned} expired tracks to trash")
 
     conn.close()
     print("[DONE] Cleanup complete")

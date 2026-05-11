@@ -28,6 +28,7 @@ def convert_to_mp3(wav_path: str, mp3_path: str, bitrate: str = "320k") -> str:
         "ffmpeg",
         "-y",  # Overwrite output without asking
         "-i", wav_path,
+        "-vn", # Strip album art/video streams
         "-codec:a", "libmp3lame",
         "-b:a", bitrate,
         "-map_metadata", "-1",  # Strip metadata for smaller file

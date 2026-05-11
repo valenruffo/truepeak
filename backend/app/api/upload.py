@@ -110,6 +110,7 @@ async def upload_audio(
 
             sonic_signature = label.sonic_signature
             label_id = label.id
+            hq_retention_days = label.hq_retention_days
 
             # Free plan limit: max tracks THIS MONTH
             current_plan = label.plan or "free"
@@ -129,20 +130,6 @@ async def upload_audio(
                         status_code=400,
                         detail=f"Plan gratuito: máximo {label.max_tracks_month} tracks por mes. Esperá al mes próximo o hacé upgrade.",
                     )
-
-            # HQ storage limit check: max 10 approved submissions with MP3
-            hq_count = session.exec(
-                select(Submission).where(
-                    Submission.label_id == label_id,
-                    Submission.mp3_path.isnot(None),
-                )
-            ).all()
-            if len(hq_count) >= 10:
-                _safe_remove(audio_path)
-                raise HTTPException(
-                    status_code=400,
-                    detail="Llegaste al límite de 10 demos de alta calidad almacenados. Eliminá uno desde el dashboard para seguir guardando.",
-                )
         finally:
             session.close()
 
@@ -165,15 +152,16 @@ async def upload_audio(
 
         # --- Save original file for HQ download ---
         original_path: str | None = None
-        try:
-            ORIGINALS_DIR.mkdir(parents=True, exist_ok=True)
-            orig_filename = f"{submission_id}{ext}"
-            orig_fullpath = str(ORIGINALS_DIR / orig_filename)
-            with open(orig_fullpath, "wb") as f:
-                f.write(content)
-            original_path = orig_fullpath
-        except OSError:
-            pass  # Best-effort: if we can't save original, continue with MP3 only
+        if hq_retention_days > 0:
+            try:
+                ORIGINALS_DIR.mkdir(parents=True, exist_ok=True)
+                orig_filename = f"{submission_id}{ext}"
+                orig_fullpath = str(ORIGINALS_DIR / orig_filename)
+                with open(orig_fullpath, "wb") as f:
+                    f.write(content)
+                original_path = orig_fullpath
+            except OSError:
+                pass  # Best-effort: if we can't save original, continue with MP3 only
 
         # --- Create submission record in DB ---
         session = next(get_session())

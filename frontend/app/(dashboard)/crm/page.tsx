@@ -182,6 +182,49 @@ function CRMContent() {
   const plan = typeof window !== "undefined" ? localStorage.getItem("plan") : "free";
   const isFree = plan === "free" || !plan;
 
+  const [activeTab, setActiveTab] = useState<"bandeja" | "templates">("bandeja");
+  const [dbTemplates, setDbTemplates] = useState<any[]>([]);
+  const [templateForm, setTemplateForm] = useState({ name: "", type: "rejection", subject: "", body: "" });
+  const [savingTemplate, setSavingTemplate] = useState(false);
+
+  const fetchTemplates = async () => {
+    try {
+      const res = await fetch("/api/email/templates", { credentials: "include" });
+      if (res.ok) {
+        const data = await res.json();
+        setDbTemplates(data);
+      }
+    } catch (e) { console.error("Error fetching templates", e); }
+  };
+
+  useEffect(() => {
+    if (activeTab === "templates") fetchTemplates();
+  }, [activeTab]);
+
+  const handleSaveTemplate = async () => {
+    setSavingTemplate(true);
+    const labelId = localStorage.getItem("label_id");
+    try {
+      const res = await fetch("/api/email/templates", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          label_id: labelId,
+          name: templateForm.name,
+          template_type: templateForm.type,
+          subject_template: templateForm.subject,
+          body_template: templateForm.body,
+        }),
+      });
+      if (res.ok) {
+        setTemplateForm({ name: "", type: "rejection", subject: "", body: "" });
+        fetchTemplates();
+      }
+    } catch (e) { console.error("Error saving template", e); }
+    finally { setSavingTemplate(false); }
+  };
+
   if (loading) {
     return (
       <div className="max-w-6xl mx-auto px-6 py-8">
@@ -253,100 +296,219 @@ function CRMContent() {
           100% { box-shadow: inset 0 0 0 rgba(16,185,129,0); }
         }
       `}</style>
-      <h1 className="font-display font-semibold text-xl mb-6">{t("crm.title")}</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="font-display font-semibold text-xl">{t("crm.title")}</h1>
+        <div className="flex gap-1 p-1 rounded-lg border" style={{ background: "var(--bg-secondary)", borderColor: "var(--border)" }}>
+          <button 
+            onClick={() => setActiveTab("bandeja")}
+            className={cn("px-4 py-1.5 rounded-md text-xs font-medium transition-all", activeTab === "bandeja" ? "shadow-sm" : "text-muted hover:text-primary")}
+            style={activeTab === "bandeja" ? { background: "#10b981", color: "#09090b" } : {}}
+          >
+            Bandeja
+          </button>
+          <button 
+            onClick={() => setActiveTab("templates")}
+            className={cn("px-4 py-1.5 rounded-md text-xs font-medium transition-all", activeTab === "templates" ? "shadow-sm" : "text-muted hover:text-primary")}
+            style={activeTab === "templates" ? { background: "#10b981", color: "#09090b" } : {}}
+          >
+            Crear plantilla
+          </button>
+        </div>
+      </div>
 
-      <div className="rounded border overflow-hidden" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
-        <div className="grid grid-cols-5" style={{ minHeight: "500px" }}>
-          {/* Left Sidebar - Contacts */}
-          <div className="col-span-2 border-r" style={{ borderColor: "var(--border)" }}>
-            <div className="px-4 py-3 border-b" style={{ borderColor: "var(--border)" }}>
-              <div className="text-[10px] font-mono uppercase tracking-wider text-muted mb-2">{t("crm.contacts_label")}</div>
-              <div className="flex gap-2">
-                <span className="text-[10px] px-2 py-0.5 rounded" style={{ background: "rgba(239,68,68,0.15)", color: "#ef4444" }}>{rejectionCount} {t("crm.rejections")}</span>
-                <span className="text-[10px] px-2 py-0.5 rounded" style={{ background: "rgba(16,185,129,0.15)", color: "#10b981" }}>{approvalCount} {t("crm.approvals")}</span>
+      {activeTab === "bandeja" ? (
+        <div className="rounded border overflow-hidden" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
+          <div className="grid grid-cols-5" style={{ minHeight: "500px" }}>
+            {/* Left Sidebar - Contacts */}
+            <div className="col-span-2 border-r" style={{ borderColor: "var(--border)" }}>
+              <div className="px-4 py-3 border-b" style={{ borderColor: "var(--border)" }}>
+                <div className="text-[10px] font-mono uppercase tracking-wider text-muted mb-2">{t("crm.contacts_label")}</div>
+                <div className="flex gap-2">
+                  <span className="text-[10px] px-2 py-0.5 rounded" style={{ background: "rgba(239,68,68,0.15)", color: "#ef4444" }}>{rejectionCount} {t("crm.rejections")}</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded" style={{ background: "rgba(16,185,129,0.15)", color: "#10b981" }}>{approvalCount} {t("crm.approvals")}</span>
+                </div>
               </div>
-            </div>
-            <div className="overflow-y-auto" style={{ maxHeight: "450px" }}>
-              {contacts.length > 0 ? contacts.map((c, i) => {
-                const isHighlighted = highlightParam === c.id;
+              <div className="overflow-y-auto" style={{ maxHeight: "450px" }}>
+                {contacts.length > 0 ? contacts.map((c, i) => {
+                  const isHighlighted = highlightParam === c.id;
 
-                return (
-                  <button key={i} id={`crm-contact-${c.id}`} onClick={() => handleContactChange(i)} className="w-full text-left px-4 py-3 border-b transition-all duration-500" style={{ borderColor: "var(--border-light)", background: isHighlighted ? "rgba(16,185,129,0.08)" : selectedContact === i ? "rgba(16,185,129,0.04)" : "transparent", animation: isHighlighted ? "breathe 1.2s ease-in-out 1 forwards" : "none", transition: "background 1.5s ease-out" }}>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm font-medium truncate">{c.name}</span>
-                      <span className="font-mono text-[10px] px-1.5 py-0.5 rounded flex-shrink-0 ml-2" style={{ background: c.status === "rejected" ? "rgba(239,68,68,0.15)" : "rgba(16,185,129,0.15)", color: c.status === "rejected" ? "#ef4444" : "#10b981" }}>
-                        {c.status === "rejected" ? t("crm.rejected") : t("crm.approved")}
-                      </span>
+                  return (
+                    <div key={i} id={`crm-contact-${c.id}`} onClick={() => handleContactChange(i)} className="w-full text-left px-4 py-3 border-b transition-all duration-500 cursor-pointer" style={{ borderColor: "var(--border-light)", background: isHighlighted ? "rgba(16,185,129,0.08)" : selectedContact === i ? "rgba(16,185,129,0.04)" : "transparent", animation: isHighlighted ? "breathe 1.2s ease-in-out 1 forwards" : "none", transition: "background 1.5s ease-out" }}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm font-medium truncate">{c.name}</span>
+                        <span className="font-mono text-[10px] px-1.5 py-0.5 rounded flex-shrink-0 ml-2" style={{ background: c.status === "rejected" ? "rgba(239,68,68,0.15)" : "rgba(16,185,129,0.15)", color: c.status === "rejected" ? "#ef4444" : "#10b981" }}>
+                          {c.status === "rejected" ? t("crm.rejected") : t("crm.approved")}
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-muted truncate">{c.email || t("crm.no_email_contact")}</div>
+                      <div className="flex items-center gap-2 mt-1">
+                        {c.mp3_path && (
+                          <button onClick={(e) => { e.stopPropagation(); if (currentTrack?.id === c.id) { togglePlay(); } else { playTrack({ id: c.id, track_name: c.track, producer_name: c.name, mp3_path: c.mp3_path }); } }} className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 hover:bg-white/10 transition-colors" title={currentTrack?.id === c.id && isPlaying ? "Pausar" : "Reproducir"} style={{ color: currentTrack?.id === c.id ? "#10b981" : "var(--text-secondary)" }}>
+                            {currentTrack?.id === c.id && isPlaying ? (
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>
+                            ) : (
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+                            )}
+                          </button>
+                        )}
+                        <span className="text-[10px] text-muted">"{c.track}"</span>
+                        <Link href={`/inbox?highlight=${c.id}`} className="text-[10px] hover:underline" style={{ color: "#10b981" }} onClick={(e) => e.stopPropagation()} title="Ver demo">{t("crm.view_demo")}</Link>
+                        {c.sent && <span className="text-[10px]" style={{ color: "#10b981" }}>{t("crm.sent_label")}</span>}
+                        {!c.sent && <span className="text-[10px] text-muted">{t("crm.pending_email")}</span>}
+                      </div>
                     </div>
-                    <div className="text-[10px] text-muted truncate">{c.email || t("crm.no_email_contact")}</div>
-                    <div className="flex items-center gap-2 mt-1">
-                      {c.mp3_path && (
-                        <button onClick={(e) => { e.stopPropagation(); if (currentTrack?.id === c.id) { togglePlay(); } else { playTrack({ id: c.id, track_name: c.track, producer_name: c.name, mp3_path: c.mp3_path }); } }} className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 hover:bg-white/10 transition-colors" title={currentTrack?.id === c.id && isPlaying ? "Pausar" : "Reproducir"} style={{ color: currentTrack?.id === c.id ? "#10b981" : "var(--text-secondary)" }}>
-                          {currentTrack?.id === c.id && isPlaying ? (
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>
-                          ) : (
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
-                          )}
-                        </button>
-                      )}
-                      <span className="text-[10px] text-muted">"{c.track}"</span>
-                      <Link href={`/inbox?highlight=${c.id}`} className="text-[10px] hover:underline" style={{ color: "#10b981" }} onClick={(e) => e.stopPropagation()} title="Ver demo">{t("crm.view_demo")}</Link>
-                      {c.sent && <span className="text-[10px]" style={{ color: "#10b981" }}>{t("crm.sent_label")}</span>}
-                      {!c.sent && <span className="text-[10px] text-muted">{t("crm.pending_email")}</span>}
-                    </div>
-                  </button>
-                );
-              }) : (
-                <div className="py-12 text-center text-muted text-sm">{t("crm.no_contacts")}</div>
-              )}
-            </div>
-          </div>
-
-          {/* Right Panel - Email Composer */}
-          <div className="col-span-3 flex flex-col">
-            <div className="px-4 py-3 border-b" style={{ borderColor: "var(--border)" }}>
-              <div className="text-[10px] font-mono uppercase tracking-wider text-muted mb-2">{t("crm.template_label")}</div>
-              <div className="flex gap-1.5 flex-wrap">
-                {templates.map((tpl) => (
-                  <button key={tpl.id} onClick={() => handleTemplateChange(tpl.id)} className="text-[10px] px-2.5 py-1 rounded border transition-colors" style={{ borderColor: selectedTemplate === tpl.id ? "#10b981" : "var(--border)", color: selectedTemplate === tpl.id ? "#10b981" : "var(--text-muted)", background: selectedTemplate === tpl.id ? "rgba(16,185,129,0.08)" : "transparent" }}>
-                    {tpl.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex-1 p-4 flex flex-col">
-              <div className="mb-3">
-                <label className="text-[10px] font-mono uppercase tracking-wider text-muted mb-1 block">{t("crm.to_label")}</label>
-                {contact ? (
-                  <div className="text-sm font-medium">{contact.name} {contact.email ? <span className="text-muted">&lt;{contact.email}&gt;</span> : <span className="text-muted">({t("crm.no_email")})</span>}</div>
-                ) : (
-                  <div className="text-sm text-muted">{t("crm.no_contact")}</div>
+                  );
+                }) : (
+                  <div className="py-12 text-center text-muted text-sm">{t("crm.no_contacts")}</div>
                 )}
               </div>
+            </div>
 
-              <div className="mb-3">
-                <label className="text-[10px] font-mono uppercase tracking-wider text-muted mb-1 block">{t("crm.subject_label")}</label>
-                <input type="text" value={emailSubject} onChange={(e) => setEmailSubject(e.target.value)} className="w-full px-3 py-2 rounded border text-sm bg-transparent" style={{ borderColor: "var(--border)" }} />
-              </div>
-
-              <div className="mb-4">
-                <label className="text-[10px] font-mono uppercase tracking-wider text-muted mb-1 block">{t("crm.body_label")}</label>
-                <textarea value={emailBody} onChange={(e) => setEmailBody(e.target.value)} className="w-full px-3 py-2 rounded border text-sm leading-relaxed bg-transparent resize-none" style={{ borderColor: "var(--border)", minHeight: "200px" }} rows={8} />
-              </div>
-
-              <div className="flex items-center justify-between gap-3 mt-4">
-                <div className="text-xs text-muted">
-                  {sent ? <span style={{ color: "#10b981" }}>{t("crm.sent_msg")} {contact?.name}</span> : sendError ? <span style={{ color: "#ef4444" }}>{sendError}</span> : <span>{t("crm.variables")}</span>}
+            {/* Right Panel - Email Composer */}
+            <div className="col-span-3 flex flex-col">
+              <div className="px-4 py-3 border-b" style={{ borderColor: "var(--border)" }}>
+                <div className="text-[10px] font-mono uppercase tracking-wider text-muted mb-2">{t("crm.template_label")}</div>
+                <div className="flex gap-1.5 flex-wrap">
+                  {templates.map((tpl) => (
+                    <button key={tpl.id} onClick={() => handleTemplateChange(tpl.id)} className="text-[10px] px-2.5 py-1 rounded border transition-colors" style={{ borderColor: selectedTemplate === tpl.id ? "#10b981" : "var(--border)", color: selectedTemplate === tpl.id ? "#10b981" : "var(--text-muted)", background: selectedTemplate === tpl.id ? "rgba(16,185,129,0.08)" : "transparent" }}>
+                      {tpl.label}
+                    </button>
+                  ))}
                 </div>
-                <button onClick={handleSendEmail} disabled={sending} className="px-5 py-2 rounded text-sm font-medium transition-all hover:opacity-90 disabled:opacity-50" style={{ background: sent ? "var(--border)" : "#10b981", color: sent ? "var(--text-muted)" : "#09090b" }}>
-                  {sending ? t("crm.sending") : sent ? t("crm.sent") : t("crm.send")}
-                </button>
+              </div>
+
+              <div className="flex-1 p-4 flex flex-col">
+                <div className="mb-3">
+                  <label className="text-[10px] font-mono uppercase tracking-wider text-muted mb-1 block">{t("crm.to_label")}</label>
+                  {contact ? (
+                    <div className="text-sm font-medium">{contact.name} {contact.email ? <span className="text-muted">&lt;{contact.email}&gt;</span> : <span className="text-muted">({t("crm.no_email")})</span>}</div>
+                  ) : (
+                    <div className="text-sm text-muted">{t("crm.no_contact")}</div>
+                  )}
+                </div>
+
+                <div className="mb-3">
+                  <label className="text-[10px] font-mono uppercase tracking-wider text-muted mb-1 block">{t("crm.subject_label")}</label>
+                  <input type="text" value={emailSubject} onChange={(e) => setEmailSubject(e.target.value)} className="w-full px-3 py-2 rounded border text-sm bg-transparent" style={{ borderColor: "var(--border)" }} />
+                </div>
+
+                <div className="mb-4">
+                  <label className="text-[10px] font-mono uppercase tracking-wider text-muted mb-1 block">{t("crm.body_label")}</label>
+                  <textarea value={emailBody} onChange={(e) => setEmailBody(e.target.value)} className="w-full px-3 py-2 rounded border text-sm leading-relaxed bg-transparent resize-none" style={{ borderColor: "var(--border)", minHeight: "200px" }} rows={8} />
+                </div>
+
+                <div className="flex items-center justify-between gap-3 mt-4">
+                  <div className="text-xs text-muted">
+                    {sent ? <span style={{ color: "#10b981" }}>{t("crm.sent_msg")} {contact?.name}</span> : sendError ? <span style={{ color: "#ef4444" }}>{sendError}</span> : <span>{t("crm.variables")}</span>}
+                  </div>
+                  <button onClick={handleSendEmail} disabled={sending} className="px-5 py-2 rounded text-sm font-medium transition-all hover:opacity-90 disabled:opacity-50" style={{ background: sent ? "var(--border)" : "#10b981", color: sent ? "var(--text-muted)" : "#09090b" }}>
+                    {sending ? t("crm.sending") : sent ? t("crm.sent") : t("crm.send")}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Form Create */}
+          <div className="rounded border p-6" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
+            <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg>
+              Nueva Plantilla
+            </h2>
+            <div className="space-y-4">
+              <div>
+                <label className="text-[10px] text-muted uppercase tracking-wider block mb-1">Nombre</label>
+                <input 
+                  type="text" 
+                  value={templateForm.name} 
+                  onChange={(e) => setTemplateForm({...templateForm, name: e.target.value})}
+                  className="w-full px-3 py-2 rounded border text-sm bg-transparent" 
+                  placeholder="Ej: Rechazo por Tempo"
+                  style={{ borderColor: "var(--border)" }} 
+                />
+              </div>
+              <div>
+                <label className="text-[10px] text-muted uppercase tracking-wider block mb-1">Tipo</label>
+                <select 
+                  value={templateForm.type}
+                  onChange={(e) => setTemplateForm({...templateForm, type: e.target.value})}
+                  className="w-full px-3 py-2 rounded border text-sm bg-transparent" 
+                  style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
+                >
+                  <option value="rejection">Rechazo</option>
+                  <option value="approval">Aprobación</option>
+                  <option value="followup">Seguimiento</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] text-muted uppercase tracking-wider block mb-1">Asunto</label>
+                <input 
+                  type="text" 
+                  value={templateForm.subject}
+                  onChange={(e) => setTemplateForm({...templateForm, subject: e.target.value})}
+                  className="w-full px-3 py-2 rounded border text-sm bg-transparent" 
+                  placeholder="Asunto del email..."
+                  style={{ borderColor: "var(--border)" }} 
+                />
+              </div>
+              <div>
+                <label className="text-[10px] text-muted uppercase tracking-wider block mb-1">Cuerpo</label>
+                <textarea 
+                  value={templateForm.body}
+                  onChange={(e) => setTemplateForm({...templateForm, body: e.target.value})}
+                  className="w-full px-3 py-2 rounded border text-sm bg-transparent resize-none" 
+                  rows={6}
+                  placeholder="Hola {producer}, recibimos {track}..."
+                  style={{ borderColor: "var(--border)" }} 
+                />
+                <p className="text-[10px] text-muted mt-2">Variables disponibles: <code className="text-emerald-500">{"{producer}"}</code>, <code className="text-emerald-500">{"{track}"}</code>, <code className="text-emerald-500">{"{bpm}"}</code></p>
+              </div>
+              <button 
+                onClick={handleSaveTemplate}
+                disabled={savingTemplate || !templateForm.name}
+                className="w-full py-2 rounded text-sm font-medium transition-all hover:opacity-90 disabled:opacity-50"
+                style={{ background: "#10b981", color: "#09090b" }}
+              >
+                {savingTemplate ? "Guardando..." : "Guardar Plantilla"}
+              </button>
+            </div>
+          </div>
+
+          {/* List templates */}
+          <div className="rounded border p-6 flex flex-col" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
+            <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16v16H4zM4 9h16M9 4v16"/></svg>
+              Tus Plantillas
+            </h2>
+            <div className="space-y-3 flex-1 overflow-y-auto max-h-[500px] pr-2">
+              {dbTemplates.length > 0 ? dbTemplates.map((tpl: any) => (
+                <div key={tpl.id} className="p-3 rounded border text-sm group" style={{ borderColor: "var(--border-light)" }}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-medium">{tpl.name}</span>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded uppercase font-mono" style={{ background: "rgba(161,161,170,0.1)", color: "var(--text-muted)" }}>
+                      {tpl.template_type}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-muted truncate mb-2">{tpl.subject_template}</div>
+                  <button 
+                    onClick={() => setTemplateForm({ name: tpl.name, type: tpl.template_type, subject: tpl.subject_template, body: tpl.body_template })}
+                    className="text-[10px] text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1"
+                  >
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    Editar
+                  </button>
+                </div>
+              )) : (
+                <div className="text-center py-12 text-muted text-xs">
+                  No tenés plantillas personalizadas todavía.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       </div>
     </div>
   );
