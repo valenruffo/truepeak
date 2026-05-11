@@ -172,10 +172,11 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
     fetchTracks();
   }, []);
 
+  const role = currentRole;
   const navItems = [
     { href: "/config", label: t("dashboard.nav.config") },
     { href: "/link", label: t("dashboard.nav.link") },
-    { href: "/inbox", label: t("dashboard.nav.inbox") },
+    { href: "/inbox", label: role === "dj" ? "Promos" : "Demos" },
     { href: "/crm", label: t("dashboard.nav.crm") },
     { href: "/guide", label: t("dashboard.nav.guide") },
   ];
@@ -266,11 +267,11 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
               </div>
             ) : maxTracksMonth - monthlyUsed <= 3 ? (
               <div className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono" style={{ background: "rgba(250,204,21,0.06)", color: "#facc15" }}>
-                <AlertTriangle className="w-3.5 h-3.5" /> Te quedan {maxTracksMonth - monthlyUsed} tracks
+                <AlertTriangle className="w-3.5 h-3.5" /> Te quedan {maxTracksMonth - monthlyUsed} {role === "dj" ? "promos" : "demos"}
               </div>
             ) : null}
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono" style={{ background: "rgba(16,185,129,0.06)", color: "var(--text-muted)" }}>
-              <Music className="w-3.5 h-3.5" /> {monthlyUsed}/{maxTracksMonth} tracks este mes
+              <Music className="w-3.5 h-3.5" /> {monthlyUsed}/{maxTracksMonth} {role === "dj" ? "promos" : "demos"} este mes
             </div>
           </div>
         )}
@@ -296,71 +297,76 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
           window.location.hostname === "164.152.194.196"
         ) && (
           <div className="px-3 mb-3 mt-4 pt-4 border-t" style={{ borderColor: "var(--border)" }}>
-            <div className="text-[10px] font-mono uppercase tracking-widest text-emerald-500 mb-2 px-3">🔧 Testing</div>
-            
-            {/* Plan Switcher */}
-            <div className="text-[9px] font-mono text-muted mb-1 px-3">Plan: {plan}</div>
-            <div className="flex flex-col gap-1 px-1 mb-3">
-              {["free", "indie", "pro"].map((p) => (
-                <button
-                  key={p}
-                  onClick={async () => {
-                    localStorage.setItem("admin_plan_override", p);
-                    localStorage.setItem("plan", p);
-                    const slug = localStorage.getItem("slug");
-                    try {
-                      await fetch(`/api/labels/${slug}/plan`, {
-                        method: "PATCH",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ plan: p }),
-                        credentials: "include"
-                      });
-                    } catch (err) { console.error("Plan sync failed:", err); }
-                    setPlan(p);
-                    setPlanInfo(p.charAt(0).toUpperCase() + p.slice(1) + " (Override)");
-                    window.location.reload();
-                  }}
-                  className={cn(
-                    "text-[10px] px-3 py-1.5 rounded font-mono uppercase transition-all",
-                    plan === p 
-                      ? "bg-emerald-500 text-black font-bold shadow-[0_0_10px_rgba(16,185,129,0.3)]" 
-                      : "text-muted hover:bg-white/5"
-                  )}
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
+            <div className="text-[9px] font-mono uppercase tracking-widest text-emerald-500 mb-2 px-3">🔧 Testing</div>
+            <div className="flex gap-2 px-1">
+              {/* Plans */}
+              <div className="flex-1">
+                <div className="text-[9px] font-mono text-muted mb-1">Plan: {plan}</div>
+                <div className="flex flex-col gap-1">
+                  {["free", "indie", "pro"].map((p) => (
+                    <button
+                      key={p}
+                      onClick={async () => {
+                        localStorage.setItem("admin_plan_override", p);
+                        localStorage.setItem("plan", p);
+                        const slug = localStorage.getItem("slug");
+                        try {
+                          await fetch(`/api/labels/${slug}/plan`, {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ plan: p }),
+                            credentials: "include"
+                          });
+                        } catch (err) { console.error("Plan sync failed:", err); }
+                        setPlan(p);
+                        setPlanInfo(p.charAt(0).toUpperCase() + p.slice(1) + " (Override)");
+                        window.location.reload();
+                      }}
+                      className={cn(
+                        "text-[9px] px-2 py-1 rounded font-mono uppercase transition-all text-center",
+                        plan === p 
+                          ? "bg-emerald-500 text-black font-bold shadow-[0_0_8px_rgba(16,185,129,0.3)]" 
+                          : "text-muted hover:bg-white/5 border border-transparent"
+                      )}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-            {/* Role Switcher */}
-            <div className="text-[9px] font-mono text-muted mb-1 px-3">Rol: {currentRole === "dj" ? "DJ" : "Sello"}</div>
-            <div className="flex flex-col gap-1 px-1 mb-3">
-              {(["label", "dj"] as const).map((r) => (
-                <button
-                  key={r}
-                  onClick={async () => {
-                    const slug = localStorage.getItem("slug");
-                    try {
-                      await fetch(`/api/admin/labels/${slug}/role`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ role: r }),
-                      });
-                    } catch (err) { console.error("Role sync failed:", err); }
-                    localStorage.setItem("role", r);
-                    setCurrentRole(r);
-                    window.location.reload();
-                  }}
-                  className={cn(
-                    "text-[10px] px-3 py-1.5 rounded font-mono uppercase transition-all",
-                    currentRole === r 
-                      ? "bg-cyan-500 text-black font-bold shadow-[0_0_10px_rgba(6,182,212,0.3)]" 
-                      : "text-muted hover:bg-white/5"
-                  )}
-                >
-                  {r === "label" ? "Sello" : "DJ"}
-                </button>
-              ))}
+              {/* Role */}
+              <div className="flex-1">
+                <div className="text-[9px] font-mono text-muted mb-1">Rol: {currentRole === "dj" ? "DJ" : "Sello"}</div>
+                <div className="flex flex-col gap-1">
+                  {(["label", "dj"] as const).map((r) => (
+                    <button
+                      key={r}
+                      onClick={async () => {
+                        const slug = localStorage.getItem("slug");
+                        try {
+                          await fetch(`/api/admin/labels/${slug}/role`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ role: r }),
+                          });
+                        } catch (err) { console.error("Role sync failed:", err); }
+                        localStorage.setItem("role", r);
+                        setCurrentRole(r);
+                        window.location.reload();
+                      }}
+                      className={cn(
+                        "text-[9px] px-2 py-1 rounded font-mono uppercase transition-all text-center",
+                        currentRole === r 
+                          ? "bg-cyan-500 text-black font-bold shadow-[0_0_8px_rgba(6,182,212,0.3)]" 
+                          : "text-muted hover:bg-white/5 border border-transparent"
+                      )}
+                    >
+                      {r === "label" ? "Sello" : "DJ"}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
             <button
@@ -369,7 +375,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
                 localStorage.removeItem("role");
                 window.location.reload();
               }}
-              className="text-[10px] px-3 py-1.5 rounded font-mono uppercase transition-all text-red-500 hover:bg-red-500/10 w-full"
+              className="text-[9px] px-3 py-1 rounded font-mono uppercase transition-all text-red-400 hover:bg-red-500/10 w-full mt-2"
             >
               Reset
             </button>
