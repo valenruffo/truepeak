@@ -25,6 +25,7 @@ export default function LinkPage() {
   const [stats, setStats] = useState<LabelStats | null>(null);
   const [plan, setPlan] = useState<string>("free");
   const [maxTracks, setMaxTracks] = useState<number>(10);
+  const [role, setRole] = useState<string>("label");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -56,6 +57,8 @@ export default function LinkPage() {
       return;
     }
     setSlug(storedSlug);
+    const storedRole = localStorage.getItem("role");
+    if (storedRole === "dj" || storedRole === "label") setRole(storedRole);
 
     const fetchLabel = async () => {
       try {
@@ -200,7 +203,7 @@ export default function LinkPage() {
             </svg>
             <div>
               <p className="text-sm font-medium mb-1" style={{ color: "#ef4444" }}>
-                {t("link.limit.title")} — {displayStats.total}/{maxTracks} tracks
+                {t("link.limit.title")} — {displayStats.total}/{maxTracks} {role === "dj" ? "promos" : "demos"}
               </p>
               <p className="text-sm text-muted mb-4">{t("link.limit.desc")}</p>
               <Link href="/settings" className="inline-block px-5 py-2.5 rounded text-sm font-medium transition-all hover:opacity-90" style={{ background: "#10b981", color: "#09090b" }}>

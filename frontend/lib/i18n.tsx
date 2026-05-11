@@ -183,6 +183,8 @@ const translations = {
 
     // Inbox
     "inbox.title": "Bandeja de tracks",
+    "inbox.title_demos": "Bandeja de demos",
+    "inbox.title_promos": "Bandeja de promos",
     "inbox.new": "nuevos",
     "inbox.processed": "procesados",
     "inbox.filter.all": "Todos",
@@ -662,6 +664,8 @@ const translations = {
 
     // Inbox
     "inbox.title": "Track inbox",
+    "inbox.title_demos": "Demo inbox",
+    "inbox.title_promos": "Promo inbox",
     "inbox.new": "new",
     "inbox.processed": "processed",
     "inbox.filter.all": "All",

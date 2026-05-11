@@ -1322,7 +1322,7 @@ useEffect(() => {
 
   const tabs: { key: TabKey; label: string }[] = [
     { key: "kanban", label: t("inbox.kanban_tab") },
-    { key: "system", label: "Auto-Rechazados" },
+    { key: "system", label: role === "dj" ? "Auto-Filtradas" : "Auto-Rechazados" },
     { key: "trash", label: t("inbox.kanban.trash_tab") },
   ];
 
@@ -1331,7 +1331,7 @@ useEffect(() => {
       {/* Header */}
       <div className="flex items-center gap-3 mb-5">
         <h1 className="font-display font-semibold text-xl">
-          {t("inbox.title")}
+          {role === "dj" ? "Bandeja de promos" : "Bandeja de demos"}
         </h1>
       </div>
 
