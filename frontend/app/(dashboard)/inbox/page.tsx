@@ -1168,7 +1168,7 @@ useEffect(() => {
                   className="font-mono text-[10px] px-2 py-0.5 rounded"
                   style={{ background: badge.bg, color: badge.color }}
                 >
-                  Auto-rechazado
+                  {t("inbox.auto_rejected_badge")}
                 </span>
               </div>
               <div 
@@ -1601,7 +1601,7 @@ useEffect(() => {
                           if (displayReason === "wrong_musical_key") return `Tonalidad incorrecta. El track está en ${formatKey(sub.musical_key)} y no coincide con tus escalas preferidas.`;
                           if (displayReason === "digital_clipping") return `Clipping digital. El True Peak alcanzó ${sub.true_peak} dB (máximo permitido: < 0 dB).`;
                           if (displayReason === "low_dynamic_range") return `Rango dinámico insuficiente. El Crest Factor es de ${sub.crest_factor} dB (mínimo: ${sonicSignature?.crest_factor_min ?? 5.0} dB).`;
-                          return displayReason || "Este track fue auto-rechazado automáticamente por no cumplir con los requisitos técnicos configurados en tu Firma Sónica.";
+                          return displayReason || t("inbox.auto_rejected_reason");
                         })()}
                       </p>
                     </div>

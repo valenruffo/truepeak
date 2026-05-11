@@ -419,7 +419,7 @@ export default function SettingsPage() {
               </svg>
               <h2 className="text-lg font-semibold">{t("settings.cancel_modal.title")}</h2>
             </div>
-            <p className="text-sm text-muted mb-6">{t("settings.cancel_modal.desc")}</p>
+            <p className="text-sm text-muted mb-6">{t("settings.cancel_modal.feature_loss")}</p>
             {cancelError && (
               <div className="mb-4 px-4 py-3 rounded text-sm" style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.3)" }}>
                 {cancelError}

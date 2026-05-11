@@ -12,12 +12,18 @@ const translations = {
     "nav.pricing": "Precios",
     "nav.login": "Iniciar sesión",
     "nav.register": "Registrarse",
+    "nav.lang_toggle": "EN",
 
     // Hero
     "hero.badge": "El estandar DSP para la industria electronica",
     "hero.cta_primary": "Soy un Sello Discografico",
     "hero.cta_secondary": "Soy un DJ de Gira",
     "hero.description": "True Peak AI es el primer asistente A&R automatizado. Analizamos el audio a nivel de ingenieria (Fase, Dinamica, True Peak) y rechazamos la basura automaticamente para que solo escuches la musica que esta lista para el club.",
+    "hero.title_line1": "Tu bandeja de entrada musical,",
+    "hero.title_line2": "filtrada por matematica pura.",
+    "hero.demo.phase_inverted": "Fase invertida en L/R",
+    "hero.demo.lufs_excess": "LUFS excesivo",
+    "hero.demo.off_tempo": "Fuera de tempo ({actual} vs {expected})",
 
     // Landing - Sellos section
     "sellos.section_label": "Para Sellos Discograficos",
@@ -447,6 +453,36 @@ const translations = {
     // WhatsApp
     "whatsapp.label": "Consultas",
     "whatsapp.tooltip": "Consultas, feedback, bugs",
+
+    // Step visuals (hardcoded in landing)
+    "step.visual.drag_hint": "Arrastrá tu audio acá",
+    "step.visual.drag_sub": "o hacé clic para seleccionar · WAV, FLAC, AIFF",
+    "step.visual.analyzing": "ANALIZANDO",
+    "step.visual.inbox_title": "Bandeja de tracks",
+    "step.visual.inbox_new": "nuevos",
+    "step.visual.filter_all": "Todos",
+    "step.visual.filter_pending": "Pendientes",
+    "step.visual.filter_approved": "Aprobados",
+    "step.visual.filter_rejected": "Rechazados",
+    "step.visual.status_pending": "Pendiente",
+    "step.visual.status_approved": "Aprobado",
+    "step.visual.status_rejected": "Rechazado",
+    "step.visual.email_to": "Para:",
+    "step.visual.email_send": "Enviar email",
+    "step.visual.email_send_btn": "Enviar email",
+    "step.visual.email_sample_greeting": "Hola DJ Krill,",
+    "step.visual.email_sample_body": "Gracias por enviarnos",
+    "step.visual.email_sample_issue": "Nos gustó mucho el track pero la fase está invertida en el canal derecho.",
+    "step.visual.email_sample_ask": "¿Podrías revisarlo y mandarnos una versión corregida?",
+    "step.visual.email_sample_signoff": "Saludos,",
+    "step.visual.email_sample_signature": "Tu Sello",
+
+    // Inbox auto-rejected
+    "inbox.auto_rejected_badge": "Auto-rechazado",
+    "inbox.auto_rejected_reason": "Este track fue auto-rechazado automáticamente por no cumplir con los requisitos técnicos configurados en tu Firma Sónica.",
+
+    // Settings cancel modal
+    "settings.cancel_modal.feature_loss": "Si cancelas, pierdes acceso a tracks ilimitados, almacenamiento HQ extendido y soporte por WhatsApp. Vuelves al plan gratuito.",
   },
   en: {
     // Nav
@@ -455,12 +491,18 @@ const translations = {
     "nav.pricing": "Pricing",
     "nav.login": "Sign in",
     "nav.register": "Sign up",
+    "nav.lang_toggle": "ES",
 
     // Hero
     "hero.badge": "The DSP standard for the electronic industry",
     "hero.cta_primary": "I am a Record Label",
     "hero.cta_secondary": "I am a Touring DJ",
     "hero.description": "True Peak AI is the first automated A&R assistant. We analyze audio at the engineering level (Phase, Dynamics, True Peak) and automatically reject the garbage so you only hear music that is club-ready.",
+    "hero.title_line1": "Your music inbox,",
+    "hero.title_line2": "filtered by pure math.",
+    "hero.demo.phase_inverted": "Inverted phase in L/R",
+    "hero.demo.lufs_excess": "Excessive LUFS",
+    "hero.demo.off_tempo": "Off tempo ({actual} vs {expected})",
 
     // Landing - Sellos section
     "sellos.section_label": "For Record Labels",
@@ -890,6 +932,36 @@ const translations = {
     // WhatsApp
     "whatsapp.label": "Questions",
     "whatsapp.tooltip": "Questions, feedback, bugs",
+
+    // Step visuals (hardcoded in landing)
+    "step.visual.drag_hint": "Drag your audio here",
+    "step.visual.drag_sub": "or click to select · WAV, FLAC, AIFF",
+    "step.visual.analyzing": "ANALYZING",
+    "step.visual.inbox_title": "Track inbox",
+    "step.visual.inbox_new": "new",
+    "step.visual.filter_all": "All",
+    "step.visual.filter_pending": "Pending",
+    "step.visual.filter_approved": "Approved",
+    "step.visual.filter_rejected": "Rejected",
+    "step.visual.status_pending": "Pending",
+    "step.visual.status_approved": "Approved",
+    "step.visual.status_rejected": "Rejected",
+    "step.visual.email_to": "To:",
+    "step.visual.email_send": "Send email",
+    "step.visual.email_send_btn": "Send email",
+    "step.visual.email_sample_greeting": "Hi DJ Krill,",
+    "step.visual.email_sample_body": "Thanks for sending us",
+    "step.visual.email_sample_issue": "We really liked the track but the phase is inverted on the right channel.",
+    "step.visual.email_sample_ask": "Could you review it and send us a corrected version?",
+    "step.visual.email_sample_signoff": "Regards,",
+    "step.visual.email_sample_signature": "Your Label",
+
+    // Inbox auto-rejected
+    "inbox.auto_rejected_badge": "Auto-rejected",
+    "inbox.auto_rejected_reason": "This track was auto-rejected for not meeting the technical requirements configured in your Sonic Signature.",
+
+    // Settings cancel modal
+    "settings.cancel_modal.feature_loss": "If you cancel, you lose access to unlimited tracks, extended HQ storage and WhatsApp support. You'll go back to the free plan.",
   },
 };
 

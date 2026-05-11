@@ -113,11 +113,11 @@ function DemoSimulation() {
   const [activeNotes, setActiveNotes] = useState<Set<number>>(new Set());
   const [progress, setProgress] = useState(0);
   const tracks = [
-    { name: "DJ_Krill_Midnight.wav", issue: "Fase invertida en L/R", bpm: "128", lufs: "-6.2", phase: "INVERTIDA", state: "error" as const },
-    { name: "ProducerX_Sunrise.wav", issue: "LUFS excesivo", bpm: "140", lufs: "-4.1", phase: "OK", state: "error" as const },
-    { name: "Anon_Groove_03.wav", issue: "Fuera de tempo (118 vs 124)", bpm: "118", lufs: "-14.3", phase: "OK", state: "error" as const },
-    { name: "Mara_Deep_Cut.wav", issue: null, bpm: "122", lufs: "-14.0", phase: "OK", state: "approved" as const },
-    { name: "Subsonic_Pulse.wav", issue: null, bpm: "126", lufs: "-12.8", phase: "OK", state: "approved" as const },
+    { name: "DJ_Krill_Midnight.wav", issueKey: "hero.demo.phase_inverted" as const, bpm: "128", lufs: "-6.2", phase: "INVERTIDA", state: "error" as const },
+    { name: "ProducerX_Sunrise.wav", issueKey: "hero.demo.lufs_excess" as const, bpm: "140", lufs: "-4.1", phase: "OK", state: "error" as const },
+    { name: "Anon_Groove_03.wav", issueKey: "hero.demo.off_tempo" as const, issueVars: { actual: "118", expected: "124" }, bpm: "118", lufs: "-14.3", phase: "OK", state: "error" as const },
+    { name: "Mara_Deep_Cut.wav", issueKey: null, bpm: "122", lufs: "-14.0", phase: "OK", state: "approved" as const },
+    { name: "Subsonic_Pulse.wav", issueKey: null, bpm: "126", lufs: "-12.8", phase: "OK", state: "approved" as const },
   ];
   const [trackIdx, setTrackIdx] = useState(0);
 
@@ -126,7 +126,7 @@ function DemoSimulation() {
       const track = tracks[trackIdx];
       setTrackName(track.name); setTrackState("analyzing"); setProgress(0); setDetectedIssue(""); setMetrics({ bpm: "---", lufs: "---", phase: "---" });
       setTimeout(() => { setMetrics({ bpm: track.bpm, lufs: track.lufs, phase: track.phase }); setProgress(60); }, 800);
-      setTimeout(() => { setProgress(100); if (track.state === "error") { setTrackState("error"); setDetectedIssue(track.issue || ""); } else { setTrackState("approved"); } }, 2200);
+      setTimeout(() => { setProgress(100); if (track.state === "error") { setTrackState("error"); const issueText = track.issueKey ? (track.issueVars ? t(track.issueKey).replace("{actual}", track.issueVars.actual).replace("{expected}", track.issueVars.expected) : t(track.issueKey)) : ""; setDetectedIssue(issueText); } else { setTrackState("approved"); } }, 2200);
       setTimeout(() => { setTrackIdx((prev) => (prev + 1) % tracks.length); }, 4500);
     };
     cycle();
@@ -206,7 +206,7 @@ function DemoSimulation() {
 // ─── Nav ──────────────────────────────────────────────────────────────────────
 
 function Nav() {
-  const { t } = useLanguage();
+  const { t, lang, setLang } = useLanguage();
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -242,6 +242,15 @@ function Nav() {
         </div>
 
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setLang(lang === "es" ? "en" : "es")}
+            className="px-2 py-1 text-xs font-mono rounded transition-colors cursor-pointer"
+            style={{ color: "var(--text-muted)", border: "1px solid var(--border)" }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text-primary)"; e.currentTarget.style.borderColor = "#52525b"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-muted)"; e.currentTarget.style.borderColor = "var(--border)"; }}
+          >
+            {t("nav.lang_toggle")}
+          </button>
           <Link
             href="/login"
             className="px-4 py-1.5 text-sm transition-colors rounded cursor-pointer"
@@ -289,8 +298,8 @@ function Hero() {
             </div>
 
             <h1 className="font-bold text-4xl md:text-5xl lg:text-6xl leading-[1.08] tracking-tight mb-6" style={{ color: "var(--text-primary)" }}>
-              Tu bandeja de entrada musical,<br />
-              <span style={{ color: "#10b981" }}>filtrada por matematica pura.</span>
+              {t("hero.title_line1")}<br />
+              <span style={{ color: "#10b981" }}>{t("hero.title_line2")}</span>
             </h1>
 
             <p className="text-lg md:text-xl leading-relaxed mb-8 max-w-xl" style={{ color: "var(--text-muted)" }}>
@@ -459,7 +468,7 @@ const stepsData = [
   },
 ];
 
-function StepVisual({ step }: { step: number }) {
+function StepVisual({ step, t }: { step: number; t: (key: any) => string }) {
   const visuals: Record<number, React.ReactNode> = {
     0: (
       <div className="rounded border overflow-hidden" style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}>
@@ -477,8 +486,8 @@ function StepVisual({ step }: { step: number }) {
             <div className="h-8 rounded" style={{ background: "var(--bg-secondary)" }} />
           </div>
           <div className="border-2 border-dashed rounded p-6 text-center" style={{ borderColor: "#10b981", background: "rgba(16,185,129,0.03)" }}>
-            <div className="text-xs" style={{ color: "#10b981" }}>Arrastrá tu audio acá</div>
-            <div className="text-[10px]" style={{ color: "var(--text-muted)" }}>o hacé clic para seleccionar · WAV, FLAC, AIFF</div>
+            <div className="text-xs" style={{ color: "#10b981" }}>{t("step.visual.drag_hint")}</div>
+            <div className="text-[10px]" style={{ color: "var(--text-muted)" }}>{t("step.visual.drag_sub")}</div>
           </div>
           <div className="h-9 rounded w-full" style={{ background: "#10b981" }} />
         </div>
@@ -489,7 +498,7 @@ function StepVisual({ step }: { step: number }) {
         <div className="px-4 py-2 border-b flex items-center justify-between" style={{ borderColor: "var(--border)" }}>
           <div className="flex items-center gap-2">
             <div className="w-1.5 h-1.5 rounded-full" style={{ background: "#06b6d4" }} />
-            <span className="font-mono text-[10px]" style={{ color: "#06b6d4" }}>ANALIZANDO</span>
+            <span className="font-mono text-[10px]" style={{ color: "#06b6d4" }}>{t("step.visual.analyzing")}</span>
           </div>
           <span className="font-mono text-[10px]" style={{ color: "var(--text-muted)" }}>DJ_Krill_Midni...</span>
         </div>
@@ -518,29 +527,34 @@ function StepVisual({ step }: { step: number }) {
     2: (
       <div className="rounded border overflow-hidden" style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}>
         <div className="px-4 py-2 border-b flex items-center justify-between" style={{ borderColor: "var(--border)" }}>
-          <span className="font-mono text-[10px] font-semibold" style={{ color: "var(--text-primary)" }}>Bandeja de tracks</span>
-          <span className="font-mono text-[10px]" style={{ color: "#10b981" }}>3 nuevos</span>
+          <span className="font-mono text-[10px] font-semibold" style={{ color: "var(--text-primary)" }}>{t("step.visual.inbox_title")}</span>
+          <span className="font-mono text-[10px]" style={{ color: "#10b981" }}>3 {t("step.visual.inbox_new")}</span>
         </div>
         <div className="divide-y" style={{ borderColor: "var(--border)" }}>
           {[
-            { name: "Midnight Protocol", bpm: "128", lufs: "-14.0", status: "Pendiente", color: "#06b6d4", bg: "rgba(6,182,212,0.08)" },
-            { name: "Deep Cut", bpm: "122", lufs: "-12.8", status: "Aprobado", color: "#10b981", bg: "rgba(16,185,129,0.08)" },
-            { name: "Groove 03", bpm: "140", lufs: "-4.1", status: "Rechazado", color: "#ef4444", bg: "rgba(239,68,68,0.08)" },
-          ].map((t, i) => (
+            { name: "Midnight Protocol", bpm: "128", lufs: "-14.0", statusKey: "step.visual.status_pending" as const, color: "#06b6d4", bg: "rgba(6,182,212,0.08)" },
+            { name: "Deep Cut", bpm: "122", lufs: "-12.8", statusKey: "step.visual.status_approved" as const, color: "#10b981", bg: "rgba(16,185,129,0.08)" },
+            { name: "Groove 03", bpm: "140", lufs: "-4.1", statusKey: "step.visual.status_rejected" as const, color: "#ef4444", bg: "rgba(239,68,68,0.08)" },
+          ].map((item, i) => (
             <div key={i} className="px-3 py-2.5 grid grid-cols-12 items-center gap-2 text-[10px]">
-              <span className="col-span-4 truncate font-medium" style={{ color: "var(--text-primary)" }}>{t.name}</span>
-              <span className="col-span-2 font-mono text-right" style={{ color: "var(--text-muted)" }}>{t.bpm}</span>
-              <span className="col-span-2 font-mono text-right" style={{ color: "var(--text-muted)" }}>{t.lufs}</span>
+              <span className="col-span-4 truncate font-medium" style={{ color: "var(--text-primary)" }}>{item.name}</span>
+              <span className="col-span-2 font-mono text-right" style={{ color: "var(--text-muted)" }}>{item.bpm}</span>
+              <span className="col-span-2 font-mono text-right" style={{ color: "var(--text-muted)" }}>{item.lufs}</span>
               <span className="col-span-2 font-mono text-right" style={{ color: "var(--text-muted)" }}>3:42</span>
               <span className="col-span-2 text-right">
-                <span className="font-mono px-1.5 py-0.5 rounded text-[9px]" style={{ background: t.bg, color: t.color }}>{t.status}</span>
+                <span className="font-mono px-1.5 py-0.5 rounded text-[9px]" style={{ background: item.bg, color: item.color }}>{t(item.statusKey)}</span>
               </span>
             </div>
           ))}
         </div>
         <div className="px-3 py-2 border-t flex items-center gap-3" style={{ borderColor: "var(--border)" }}>
-          {["Todos", "Pendientes", "Aprobados", "Rechazados"].map((f) => (
-            <span key={f} className="text-[10px] font-mono" style={{ color: f === "Pendientes" ? "#fafafa" : "var(--text-muted)" }}>{f}</span>
+          {[
+            { key: "step.visual.filter_all" as const },
+            { key: "step.visual.filter_pending" as const },
+            { key: "step.visual.filter_approved" as const },
+            { key: "step.visual.filter_rejected" as const },
+          ].map((f, i) => (
+            <span key={i} className="text-[10px] font-mono" style={{ color: i === 1 ? "#fafafa" : "var(--text-muted)" }}>{t(f.key)}</span>
           ))}
         </div>
       </div>
@@ -548,25 +562,25 @@ function StepVisual({ step }: { step: number }) {
     3: (
       <div className="rounded border overflow-hidden" style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}>
         <div className="px-4 py-2 border-b" style={{ borderColor: "var(--border)" }}>
-          <span className="font-mono text-[10px] font-semibold" style={{ color: "var(--text-primary)" }}>Enviar email</span>
+          <span className="font-mono text-[10px] font-semibold" style={{ color: "var(--text-primary)" }}>{t("step.visual.email_send")}</span>
         </div>
         <div className="p-3 space-y-2">
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-mono" style={{ color: "var(--text-muted)" }}>Para:</span>
+            <span className="text-[10px] font-mono" style={{ color: "var(--text-muted)" }}>{t("step.visual.email_to")}</span>
             <span className="text-[10px] font-mono" style={{ color: "var(--text-primary)" }}>dj_krill@email.com</span>
           </div>
           <div className="h-7 rounded" style={{ background: "var(--bg-secondary)" }} />
           <div className="h-24 rounded" style={{ background: "var(--bg-secondary)" }}>
             <div className="p-2 text-[10px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
-              Hola DJ Krill,<br /><br />
-              Gracias por enviarnos <span style={{ color: "#10b981" }}>Midnight Protocol</span>. Nos gustó mucho el track pero la fase está invertida en el canal derecho.<br /><br />
-              ¿Podrías revisarlo y mandarnos una versión corregida?<br /><br />
-              Saludos,<br />
-              <span style={{ color: "var(--text-primary)" }}>Tu Sello</span>
+              {t("step.visual.email_sample_greeting")}<br /><br />
+              {t("step.visual.email_sample_body")} <span style={{ color: "#10b981" }}>Midnight Protocol</span>. {t("step.visual.email_sample_issue")}<br /><br />
+              {t("step.visual.email_sample_ask")}<br /><br />
+              {t("step.visual.email_sample_signoff")}<br />
+              <span style={{ color: "var(--text-primary)" }}>{t("step.visual.email_sample_signature")}</span>
             </div>
           </div>
           <div className="h-8 rounded w-full" style={{ background: "#10b981", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <span className="text-[10px] font-medium" style={{ color: "#09090b" }}>Enviar email</span>
+            <span className="text-[10px] font-medium" style={{ color: "#09090b" }}>{t("step.visual.email_send_btn")}</span>
           </div>
         </div>
       </div>
@@ -631,7 +645,7 @@ function HowItWorks() {
           {/* Right: Visual */}
           <div className="hidden md:block">
             <div className="sticky top-24">
-              <StepVisual step={activeStep} />
+              <StepVisual step={activeStep} t={t} />
             </div>
           </div>
         </div>
