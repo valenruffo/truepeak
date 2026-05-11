@@ -89,12 +89,15 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
   const [monthlyUsed, setMonthlyUsed] = useState<number>(0);
   const [maxTracksMonth, setMaxTracksMonth] = useState<number>(10);
   const [mounted, setMounted] = useState(false);
+  const [currentRole, setCurrentRole] = useState<string>("label");
   const { queueTracks } = usePlayer();
 
   useEffect(() => {
     setMounted(true);
     const slug = localStorage.getItem("slug");
     const token = localStorage.getItem("token");
+    const storedRole = localStorage.getItem("role") || "label";
+    setCurrentRole(storedRole);
 
     const fetchLabel = async () => {
       if (!slug) { setLabelName(""); setPlanInfo(""); return; }
@@ -286,23 +289,24 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
           </div>
         )}
 
-        {/* Admin Plan Switcher (Localhost or VPS IP) */}
+        {/* Admin Testing Panel (Localhost or VPS IP) */}
         {mounted && (
           window.location.hostname === "localhost" || 
           window.location.hostname === "127.0.0.1" || 
           window.location.hostname === "164.152.194.196"
         ) && (
           <div className="px-3 mb-3 mt-4 pt-4 border-t" style={{ borderColor: "var(--border)" }}>
-            <div className="text-[10px] font-mono uppercase tracking-widest text-emerald-500 mb-2 px-3">Admin Plan Switcher</div>
-            <div className="flex flex-col gap-1 px-1">
+            <div className="text-[10px] font-mono uppercase tracking-widest text-emerald-500 mb-2 px-3">🔧 Testing</div>
+            
+            {/* Plan Switcher */}
+            <div className="text-[9px] font-mono text-muted mb-1 px-3">Plan: {plan}</div>
+            <div className="flex flex-col gap-1 px-1 mb-3">
               {["free", "indie", "pro"].map((p) => (
                 <button
                   key={p}
                   onClick={async () => {
                     localStorage.setItem("admin_plan_override", p);
                     localStorage.setItem("plan", p);
-                    
-                    // Also update in DB so backend limits sync up
                     const slug = localStorage.getItem("slug");
                     try {
                       await fetch(`/api/labels/${slug}/plan`, {
@@ -311,13 +315,9 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
                         body: JSON.stringify({ plan: p }),
                         credentials: "include"
                       });
-                    } catch (err) {
-                      console.error("Failed to sync plan to DB:", err);
-                    }
-
+                    } catch (err) { console.error("Plan sync failed:", err); }
                     setPlan(p);
                     setPlanInfo(p.charAt(0).toUpperCase() + p.slice(1) + " (Override)");
-                    // Force reload to update all contexts and sub-pages
                     window.location.reload();
                   }}
                   className={cn(
@@ -330,16 +330,49 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
                   {p}
                 </button>
               ))}
-              <button
-                onClick={() => {
-                  localStorage.removeItem("admin_plan_override");
-                  window.location.reload();
-                }}
-                className="text-[10px] px-3 py-1.5 rounded font-mono uppercase transition-all text-red-500 hover:bg-red-500/10 mt-1"
-              >
-                Reset to DB
-              </button>
             </div>
+
+            {/* Role Switcher */}
+            <div className="text-[9px] font-mono text-muted mb-1 px-3">Rol: {currentRole === "dj" ? "DJ" : "Sello"}</div>
+            <div className="flex flex-col gap-1 px-1 mb-3">
+              {(["label", "dj"] as const).map((r) => (
+                <button
+                  key={r}
+                  onClick={async () => {
+                    const slug = localStorage.getItem("slug");
+                    try {
+                      await fetch(`/api/admin/labels/${slug}/role`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ role: r }),
+                      });
+                    } catch (err) { console.error("Role sync failed:", err); }
+                    localStorage.setItem("role", r);
+                    setCurrentRole(r);
+                    window.location.reload();
+                  }}
+                  className={cn(
+                    "text-[10px] px-3 py-1.5 rounded font-mono uppercase transition-all",
+                    currentRole === r 
+                      ? "bg-cyan-500 text-black font-bold shadow-[0_0_10px_rgba(6,182,212,0.3)]" 
+                      : "text-muted hover:bg-white/5"
+                  )}
+                >
+                  {r === "label" ? "Sello" : "DJ"}
+                </button>
+              ))}
+            </div>
+
+            <button
+              onClick={() => {
+                localStorage.removeItem("admin_plan_override");
+                localStorage.removeItem("role");
+                window.location.reload();
+              }}
+              className="text-[10px] px-3 py-1.5 rounded font-mono uppercase transition-all text-red-500 hover:bg-red-500/10 w-full"
+            >
+              Reset
+            </button>
           </div>
         )}
 
