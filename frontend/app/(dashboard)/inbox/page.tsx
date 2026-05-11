@@ -414,7 +414,7 @@ useEffect(() => {
         setSystemOffset(append ? offset + data.length : data.length);
         setSystemHasMore(data.length === PAGE_SIZE);
       } catch (e) {
-        setFetchError(e instanceof Error ? e.message : "Error cargando auto-rechazados");
+        setFetchError(e instanceof Error ? e.message : t("inbox.error_load_system"));
       } finally {
         setSystemLoading(false);
       }
@@ -442,7 +442,7 @@ useEffect(() => {
         setTrashOffset(append ? offset + deleted.length : deleted.length);
         setTrashHasMore(deleted.length === PAGE_SIZE);
       } catch (e) {
-        setFetchError(e instanceof Error ? e.message : "Error cargando papelera");
+        setFetchError(e instanceof Error ? e.message : t("inbox.error_load_trash"));
       } finally {
         setTrashLoading(false);
       }
@@ -725,7 +725,7 @@ useEffect(() => {
         });
         setSystemItems((prev) => prev.filter((s) => s.id !== sub.id));
         setTrashItems((prev) => [{ ...sub, deleted_at: new Date().toISOString() }, ...prev]);
-        addToast({ title: "Enviado a papelera", variant: "default" });
+        addToast({ title: t("inbox.kanban.sent_to_trash"), variant: "default" });
       }
     } catch (e) {
       addToast({
@@ -1322,7 +1322,7 @@ useEffect(() => {
 
   const tabs: { key: TabKey; label: string }[] = [
     { key: "kanban", label: t("inbox.kanban_tab") },
-    { key: "system", label: role === "dj" ? "Auto-Filtradas" : "Auto-Rechazados" },
+    { key: "system", label: role === "dj" ? t("inbox.kanban_dj.auto_rejected_col") : t("inbox.kanban.auto_rejected_col") },
     { key: "trash", label: t("inbox.kanban.trash_tab") },
   ];
 
@@ -1331,7 +1331,7 @@ useEffect(() => {
       {/* Header */}
       <div className="flex items-center gap-3 mb-5">
         <h1 className="font-display font-semibold text-xl">
-          {role === "dj" ? "Bandeja de promos" : "Bandeja de demos"}
+          {role === "dj" ? t("inbox.title_promos") : t("inbox.title_demos")}
         </h1>
       </div>
 
@@ -1590,7 +1590,7 @@ useEffect(() => {
                       <div className="flex items-center gap-2 mb-2">
                         <AlertTriangle className="w-4 h-4 text-red-500" />
                         <h3 className="text-[10px] font-mono uppercase tracking-widest text-red-400">
-                          Motivo de Rechazo Técnico
+                          {t("inbox.auto_rejected_title")}
                         </h3>
                       </div>
                       <p className="text-sm text-red-200/90 leading-relaxed font-medium">
@@ -1646,13 +1646,13 @@ useEffect(() => {
                       onClick={() => { updateStatus(detailModal.submission!, "rejected"); setDetailModal({ open: false, submission: null }); }}
                       className="text-[10px] font-bold text-red-500 hover:underline uppercase tracking-widest"
                     >
-                      Rechazar
+                      {t("inbox.kanban.reject")}
                     </button>
                     <button
                       onClick={() => { updateStatus(detailModal.submission!, "shortlist"); setDetailModal({ open: false, submission: null }); }}
                       className="text-[10px] font-bold text-emerald-500 hover:underline uppercase tracking-widest"
                     >
-                      Aprobar
+                      {t("inbox.kanban.approve")}
                     </button>
                   </>
                 )}
@@ -1723,7 +1723,7 @@ useEffect(() => {
                       }}
                     >
                       <option value="">
-                        {emailModal.sending ? "Cargando..." : emailModal.templates.length === 0 ? "Sin plantillas (Crear en CRM)" : "Seleccionar plantilla"}
+                        {emailModal.sending ? t("inbox.kanban.email_sending") : emailModal.templates.length === 0 ? t("inbox.kanban.no_templates_crm") : t("inbox.kanban.select_template")}
                       </option>
                       {emailModal.templates.map((tmpl) => (
                         <option key={tmpl.id} value={tmpl.id}>
@@ -1920,13 +1920,12 @@ useEffect(() => {
               <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: "rgba(239,68,68,0.1)" }}>
                 <Trash2 className="w-5 h-5" />
               </div>
-              <h2 className="text-lg font-semibold">¿Eliminar permanentemente?</h2>
+              <h2 className="text-lg font-semibold">{t("inbox.kanban.delete_confirm_title")}</h2>
             </div>
             
             <p className="text-sm text-muted mb-6 leading-relaxed">
-              Estás por eliminar <span className="text-primary font-medium">"{confirmModal.submission.track_name}"</span> de forma definitiva. 
-              Esta acción borrará los archivos originales, los previews de audio y todo el registro del sistema. 
-              <span className="block mt-2 font-medium text-red-400">Esta acción no se puede deshacer.</span>
+              {t("inbox.kanban.delete_confirm_desc")} <span className="text-primary font-medium">"{confirmModal.submission.track_name}"</span>.
+              <span className="block mt-2 font-medium text-red-400">{t("inbox.kanban.delete_confirm_warning")}</span>
             </p>
 
             <div className="flex items-center gap-3 justify-end">

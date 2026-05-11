@@ -563,13 +563,13 @@ function CRMContent() {
                 <div className="mb-3">
                   <label className="text-[10px] font-mono uppercase tracking-wider text-muted mb-1 block">{t("crm.subject_label")}</label>
                   <VariableChips target="email" />
-                  <input ref={setEmailSubjectRef} type="text" value={emailSubject} onChange={(e) => setEmailSubject(e.target.value)} onDragOver={(e) => handleDragOverField(e, "email-subject")} onDragLeave={handleDragLeave} onDrop={(e) => handleEmailDrop(e, "subject")} onSelect={handleEmailSubjectSelect} onClick={handleEmailSubjectSelect} className="w-full px-3 py-2 rounded border text-sm bg-transparent" style={{ borderColor: "var(--border)" }} />
+                  <input ref={setEmailSubjectRef} type="text" value={emailSubject} onChange={(e) => setEmailSubject(e.target.value)} onDragOver={(e) => handleDragOverField(e, "email-subject")} onDragLeave={handleDragLeave} onDrop={(e) => handleEmailDrop(e, "subject")} onSelect={handleEmailSubjectSelect} onClick={handleEmailSubjectSelect} className="w-full px-3 py-2 rounded border text-sm bg-transparent" style={{ borderColor: "var(--border)", caretColor: dragOverField === "email-subject" ? "#10b981" : undefined }} />
                 </div>
 
                 <div className="mb-4">
                   <label className="text-[10px] font-mono uppercase tracking-wider text-muted mb-1 block">{t("crm.body_label")}</label>
                   <VariableChips target="email" />
-                  <textarea ref={setEmailBodyRef} value={emailBody} onChange={(e) => setEmailBody(e.target.value)} onDragOver={(e) => handleDragOverField(e, "email-body")} onDragLeave={handleDragLeave} onDrop={(e) => handleEmailDrop(e, "body")} onSelect={handleEmailBodySelect} onClick={handleEmailBodySelect} className="w-full px-3 py-2 rounded border text-sm leading-relaxed bg-transparent resize-none" style={{ borderColor: "var(--border)", minHeight: "200px" }} rows={8} />
+                  <textarea ref={setEmailBodyRef} value={emailBody} onChange={(e) => setEmailBody(e.target.value)} onDragOver={(e) => handleDragOverField(e, "email-body")} onDragLeave={handleDragLeave} onDrop={(e) => handleEmailDrop(e, "body")} onSelect={handleEmailBodySelect} onClick={handleEmailBodySelect} className="w-full px-3 py-2 rounded border text-sm leading-relaxed bg-transparent resize-none" style={{ borderColor: "var(--border)", minHeight: "200px", caretColor: dragOverField === "email-body" ? "#10b981" : undefined }} rows={8} />
                 </div>
 
                 <div className="flex items-center justify-between gap-3 mt-4">
@@ -632,7 +632,7 @@ function CRMContent() {
                   onClick={handleSubjectSelect}
                   className="w-full px-3 py-2 rounded border text-sm bg-transparent" 
                   placeholder="Asunto del email..."
-                  style={{ borderColor: "var(--border)" }} 
+                  style={{ borderColor: "var(--border)", caretColor: dragOverField === "template-subject" ? "#10b981" : undefined }} 
                 />
               </div>
               <div>
@@ -650,7 +650,7 @@ function CRMContent() {
                   className="w-full px-3 py-2 rounded border text-sm bg-transparent resize-none" 
                   rows={6}
                   placeholder="Hola {producer}, recibimos {track}..."
-                  style={{ borderColor: "var(--border)" }} 
+                  style={{ borderColor: "var(--border)", caretColor: dragOverField === "template-body" ? "#10b981" : undefined }} 
                 />
               </div>
               <button 
