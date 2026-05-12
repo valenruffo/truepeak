@@ -705,10 +705,53 @@ async def admin_update_label_plan_by_email(
     body: PlanUpdateByEmail,
     session: Session = Depends(get_session),
 ):
-    """Admin endpoint to update label plan by owner email. Used by Polar webhook proxy."""
+    """Admin endpoint to update label plan by owner email. Used by Polar webhook proxy.
+    Creates the label automatically if it doesn't exist (payment-before-register flow).
+    """
     label = session.exec(select(Label).where(Label.owner_email == body.email)).first()
+
     if not label:
-        raise HTTPException(status_code=404, detail="Label not found for email.")
+        # Auto-create label for payment-before-register flow
+        import secrets
+        from app.services.auth import get_password_hash
+
+        plan_name = body.plan.lower()
+        slug_base = body.email.split("@")[0].lower()
+        slug = slug_base
+        counter = 1
+        while session.exec(select(Label).where(Label.slug == slug)).first():
+            slug = f"{slug_base}{counter}"
+            counter += 1
+
+        random_password = secrets.token_urlsafe(32)
+        sonic_signature = {
+            "bpm_min": 70,
+            "bpm_max": 180,
+            "lufs_target": -14.0,
+            "lufs_tolerance": 1.0,
+            "target_camelot_keys": [],
+            "auto_reject_rules": {
+                "phase": True,
+                "lufs": True,
+                "tempo": True,
+                "reject_clipping": True,
+                "reject_low_dynamic_range": True,
+            },
+        }
+
+        label = Label(
+            name=body.email.split("@")[0],
+            slug=slug,
+            owner_email=body.email,
+            password_hash=get_password_hash(random_password),
+            sonic_signature=sonic_signature,
+            plan=plan_name,
+        )
+        _apply_plan_limits(label, plan=plan_name)
+        session.add(label)
+        session.commit()
+        session.refresh(label)
+        return {"id": label.id, "slug": label.slug, "plan": label.plan, "auto_created": True}
 
     label.plan = body.plan.lower()
     _apply_plan_limits(label)
