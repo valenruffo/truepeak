@@ -128,11 +128,22 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Cancellation events
+  // Cancellation events — only downgrade if subscription was actually paid
   if (["subscription.canceled", "subscription.revoked", "subscription.unpaid"].includes(eventType)) {
+    const subData = data.data || {};
+    const amount = subData.amount ?? 0;
+    const discount = subData.discount;
+    const isFullDiscount = discount?.basis_points === 10000;
+
+    // Skip downgrade for zero-amount subscriptions (100% discount test coupons)
+    if (amount === 0 || isFullDiscount) {
+      console.log(`[Polar Webhook] Skipping downgrade: amount=${amount}, fullDiscount=${isFullDiscount}`);
+      return NextResponse.json({ received: true, skipped: true, reason: "zero-amount subscription, not downgrading" });
+    }
+
     try {
       await updatePlan(email, "free");
-      console.log(`[Polar Webhook] ${email} → free`);
+      console.log(`[Polar Webhook] ${email} → free (paid subscription revoked)`);
       return NextResponse.json({ received: true, action: "downgraded", plan: "free" });
     } catch (err) {
       console.error(`[Polar Webhook] Backend error:`, err);
