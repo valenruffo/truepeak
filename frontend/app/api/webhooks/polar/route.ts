@@ -16,18 +16,48 @@ const PRODUCT_TO_PLAN: Record<string, string> = {
 };
 
 function verifySignature(rawBody: string, signature: string, secret: string): boolean {
-  if (!secret) return true;
+  if (!secret) {
+    console.log("[Polar Webhook] No secret configured, skipping verification");
+    return true;
+  }
+
+  // Polar may send: "sha256=<hex>" or just "<hex>" or "t=...,s=<hex>"
+  let cleanSig = signature;
+  if (signature.includes("sha256=")) {
+    cleanSig = signature.split("sha256=")[1];
+  } else if (signature.includes("s=")) {
+    cleanSig = signature.split("s=")[1];
+  }
+  cleanSig = cleanSig.trim();
+
   const expected = createHmac("sha256", secret).update(rawBody).digest();
-  const actual = Buffer.from(signature, "hex");
-  if (expected.length !== actual.length) return false;
-  return timingSafeEqual(expected, actual);
+  let actual: Buffer;
+  try {
+    actual = Buffer.from(cleanSig, "hex");
+  } catch {
+    console.error(`[Polar Webhook] Invalid hex in signature: ${cleanSig.slice(0, 20)}...`);
+    return false;
+  }
+
+  if (expected.length !== actual.length) {
+    console.error(`[Polar Webhook] Signature length mismatch: expected ${expected.length}, got ${actual.length}`);
+    return false;
+  }
+
+  const result = timingSafeEqual(expected, actual);
+  if (!result) {
+    console.log(`[Polar Webhook] Signature mismatch. First 8 chars - expected: ${expected.toString("hex").slice(0, 8)}, got: ${cleanSig.slice(0, 8)}`);
+  }
+  return result;
 }
 
 async function updatePlan(email: string, plan: string) {
+  console.log(`[Polar Webhook] Calling backend: ${BACKEND_URL}/api/admin/labels/by-email/plan`);
   const res = await fetch(`${BACKEND_URL}/api/admin/labels/by-email/plan`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, plan }),
+    signal: AbortSignal.timeout(10000),
   });
   if (!res.ok) {
     const err = await res.text();
@@ -45,18 +75,24 @@ function extractCustomerAndProduct(data: any): { email: string; productId: strin
   if (data.customer_email) {
     return { email: data.customer_email, productId: data.product_id || "" };
   }
-  // Checkout session structure
-  if (data.customer?.email) {
-    return { email: data.customer.email, productId: data.product?.id || "" };
-  }
   return { email: "", productId: "" };
 }
 
 export async function POST(request: NextRequest) {
+  console.log(`[Polar Webhook] === INCOMING REQUEST ===`);
+  console.log(`[Polar Webhook] URL: ${request.url}`);
+  console.log(`[Polar Webhook] Headers: x-polar-signature present: ${!!request.headers.get("x-polar-signature")}`);
+  console.log(`[Polar Webhook] Secret configured: ${!!WEBHOOK_SECRET} (prefix: ${WEBHOOK_SECRET ? WEBHOOK_SECRET.slice(0, 12) : "none"})`);
+  console.log(`[Polar Webhook] Backend URL: ${BACKEND_URL}`);
+
   const rawBody = await request.text();
   const signature = request.headers.get("x-polar-signature") || "";
 
+  console.log(`[Polar Webhook] Body length: ${rawBody.length}`);
+  console.log(`[Polar Webhook] Signature header: ${signature.slice(0, 20)}...`);
+
   if (!verifySignature(rawBody, signature, WEBHOOK_SECRET)) {
+    console.error(`[Polar Webhook] SIGNATURE VERIFICATION FAILED`);
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
@@ -86,15 +122,15 @@ export async function POST(request: NextRequest) {
     }
     try {
       const result = await updatePlan(email, plan);
-      console.log(`[Polar Webhook] ${email} → ${plan} (slug: ${result.slug})`);
+      console.log(`[Polar Webhook] SUCCESS: ${email} → ${plan} (slug: ${result.slug})`);
       return NextResponse.json({ received: true, action: "upgraded", plan, label: result.slug });
-    } catch (err) {
-      console.error(`[Polar Webhook] Backend error:`, err);
-      return NextResponse.json({ error: "Backend update failed" }, { status: 502 });
+    } catch (err: any) {
+      console.error(`[Polar Webhook] Backend error:`, err.message);
+      return NextResponse.json({ error: "Backend update failed", detail: err.message }, { status: 502 });
     }
   }
 
-  // Order paid events (happens with 100% discount coupons)
+  // Order paid events
   if (["order.paid", "order.created"].includes(eventType)) {
     const plan = PRODUCT_TO_PLAN[productId];
     if (!plan) {
@@ -103,11 +139,11 @@ export async function POST(request: NextRequest) {
     }
     try {
       const result = await updatePlan(email, plan);
-      console.log(`[Polar Webhook] Order ${email} → ${plan} (slug: ${result.slug})`);
+      console.log(`[Polar Webhook] Order SUCCESS: ${email} → ${plan}`);
       return NextResponse.json({ received: true, action: "upgraded", plan, label: result.slug });
-    } catch (err) {
-      console.error(`[Polar Webhook] Backend error:`, err);
-      return NextResponse.json({ error: "Backend update failed" }, { status: 502 });
+    } catch (err: any) {
+      console.error(`[Polar Webhook] Backend error:`, err.message);
+      return NextResponse.json({ error: "Backend update failed", detail: err.message }, { status: 502 });
     }
   }
 
@@ -120,11 +156,11 @@ export async function POST(request: NextRequest) {
     }
     try {
       const result = await updatePlan(email, plan);
-      console.log(`[Polar Webhook] Checkout ${email} → ${plan} (slug: ${result.slug})`);
+      console.log(`[Polar Webhook] Checkout SUCCESS: ${email} → ${plan}`);
       return NextResponse.json({ received: true, action: "upgraded", plan, label: result.slug });
-    } catch (err) {
-      console.error(`[Polar Webhook] Backend error:`, err);
-      return NextResponse.json({ error: "Backend update failed" }, { status: 502 });
+    } catch (err: any) {
+      console.error(`[Polar Webhook] Backend error:`, err.message);
+      return NextResponse.json({ error: "Backend update failed", detail: err.message }, { status: 502 });
     }
   }
 
@@ -135,7 +171,6 @@ export async function POST(request: NextRequest) {
     const discount = subData.discount;
     const isFullDiscount = discount?.basis_points === 10000;
 
-    // Skip downgrade for zero-amount subscriptions (100% discount test coupons)
     if (amount === 0 || isFullDiscount) {
       console.log(`[Polar Webhook] Skipping downgrade: amount=${amount}, fullDiscount=${isFullDiscount}`);
       return NextResponse.json({ received: true, skipped: true, reason: "zero-amount subscription, not downgrading" });
@@ -143,11 +178,11 @@ export async function POST(request: NextRequest) {
 
     try {
       await updatePlan(email, "free");
-      console.log(`[Polar Webhook] ${email} → free (paid subscription revoked)`);
+      console.log(`[Polar Webhook] Downgrade SUCCESS: ${email} → free`);
       return NextResponse.json({ received: true, action: "downgraded", plan: "free" });
-    } catch (err) {
-      console.error(`[Polar Webhook] Backend error:`, err);
-      return NextResponse.json({ error: "Backend update failed" }, { status: 502 });
+    } catch (err: any) {
+      console.error(`[Polar Webhook] Backend error:`, err.message);
+      return NextResponse.json({ error: "Backend update failed", detail: err.message }, { status: 502 });
     }
   }
 
