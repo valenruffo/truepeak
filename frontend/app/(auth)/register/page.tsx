@@ -40,6 +40,7 @@ export default function RegisterPage() {
       localStorage.setItem("label_id", data.id);
       localStorage.setItem("plan", data.plan || "free");
       localStorage.setItem("role", data.role || "label");
+      if (data.token) localStorage.setItem("token", data.token);
       router.push("/inbox");
     } catch (err) {
       setError(err instanceof Error ? err.message : t("register.error_create"));
