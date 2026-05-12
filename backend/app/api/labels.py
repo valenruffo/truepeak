@@ -166,6 +166,7 @@ class RegisterResponse(BaseModel):
     plan: str
     role: str
     created_at: str
+    token: str | None = None  # Included for localStorage auth
 
 
 class LoginRequest(BaseModel):
@@ -309,6 +310,7 @@ async def register_label(
         plan=label.plan or "free",
         role=label.role,
         created_at=label.created_at.isoformat(),
+        token=token,
     )
 
 
