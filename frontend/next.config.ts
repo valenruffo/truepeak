@@ -9,6 +9,178 @@ const nextConfig: NextConfig = {
   serverExternalPackages: [],
   async rewrites() {
     return [
+      // Webhook routes handled by Next.js — do NOT proxy to backend
+      {
+        source: "/api/webhooks/:path*",
+        destination: "/api/webhooks/:path*",
+      },
+      // All other API requests proxied to backend
+      {
+        source: "/api/:path*",
+        destination: "http://164.152.194.196:8000/api/:path*",
+      },
+    ];
+  },
+      // All other API requests proxied to backend
+      {
+        source: "/api/:path*",
+        destination: "http://164.152.194.196:8000/api/:path*",
+      },
+    ];
+  },
+      // All other API requests proxied to backend
+      {
+        source: "/api/:path*",
+        destination: "http://164.152.194.196:8000/api/:path*",
+      },
+    ];
+  },
+      // All other API requests proxied to backend
+      {
+        source: "/api/:path*",
+        destination: "http://164.152.194.196:8000/api/:path*",
+      },
+    ];
+  },
+      // All other API requests proxied to backend
+      {
+        source: "/api/:path*",
+        destination: "http://164.152.194.196:8000/api/:path*",
+      },
+    ];
+  },
+      // All other API requests proxied to backend
+      {
+        source: "/api/:path*",
+        destination: "http://164.152.194.196:8000/api/:path*",
+      },
+    ];
+  },
+      // All other API requests proxied to backend
+      {
+        source: "/api/:path*",
+        destination: "http://164.152.194.196:8000/api/:path*",
+      },
+    ];
+  },
+      // All other API requests proxied to backend
+      {
+        source: "/api/:path*",
+        destination: "http://164.152.194.196:8000/api/:path*",
+      },
+    ];
+  },
+      // All other API requests proxied to backend
+      {
+        source: "/api/:path*",
+        destination: "http://164.152.194.196:8000/api/:path*",
+      },
+    ];
+  },
+      // All other API requests proxied to backend
+      {
+        source: "/api/:path*",
+        destination: "http://164.152.194.196:8000/api/:path*",
+      },
+    ];
+  },
+      // All other API requests proxied to backend
+      {
+        source: "/api/:path*",
+        destination: "http://164.152.194.196:8000/api/:path*",
+      },
+    ];
+  },
+      // All other API requests proxied to backend
+      {
+        source: "/api/:path*",
+        destination: "http://164.152.194.196:8000/api/:path*",
+      },
+    ];
+  },
+      // All other API requests proxied to backend
+      {
+        source: "/api/:path*",
+        destination: "http://164.152.194.196:8000/api/:path*",
+      },
+    ];
+  },
+      // All other API requests proxied to backend
+      {
+        source: "/api/:path*",
+        destination: "http://164.152.194.196:8000/api/:path*",
+      },
+    ];
+  },
+      // All other API requests proxied to backend
+      {
+        source: "/api/:path*",
+        destination: "http://164.152.194.196:8000/api/:path*",
+      },
+    ];
+  },
+      // All other API requests proxied to backend
+      {
+        source: "/api/:path*",
+        destination: "http://164.152.194.196:8000/api/:path*",
+      },
+    ];
+  },
+      // All other API requests proxied to backend
+      {
+        source: "/api/:path*",
+        destination: "http://164.152.194.196:8000/api/:path*",
+      },
+    ];
+  },
+      // All other API requests proxied to backend
+      {
+        source: "/api/:path*",
+        destination: "http://164.152.194.196:8000/api/:path*",
+      },
+    ];
+  },
+      // All other API requests proxied to backend
+      {
+        source: "/api/:path*",
+        destination: "http://164.152.194.196:8000/api/:path*",
+      },
+    ];
+  },
+      // All other API requests proxied to backend
+      {
+        source: "/api/:path*",
+        destination: "http://164.152.194.196:8000/api/:path*",
+      },
+    ];
+  },
+      // All other API requests proxied to backend
+      {
+        source: "/api/:path*",
+        destination: "http://164.152.194.196:8000/api/:path*",
+      },
+    ];
+  },
+      // All other API requests proxied to backend
+      {
+        source: "/api/:path*",
+        destination: "http://164.152.194.196:8000/api/:path*",
+      },
+    ];
+  },
+      // All other API requests proxied to backend
+      {
+        source: "/api/:path*",
+        destination: "http://164.152.194.196:8000/api/:path*",
+      },
+    ];
+  },
+      // Exclude debug endpoint
+      {
+        source: "/api/webhooks/polar/debug",
+        destination: "/api/webhooks/polar/debug",
+      },
+      // Proxy all other API requests to backend
       {
         source: "/api/:path*",
         destination: "http://164.152.194.196:8000/api/:path*",
