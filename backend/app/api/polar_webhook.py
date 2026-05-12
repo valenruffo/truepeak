@@ -111,10 +111,20 @@ async def polar_webhook(request: Request):
     # }
     subscription = data.get("data", {})
     customer = subscription.get("customer", {})
+    user = subscription.get("user", {})
+    
+    # Extract email safely from multiple possible fields
+    customer_email = (
+        subscription.get("customer_email") or 
+        subscription.get("user_email") or 
+        customer.get("email") or 
+        user.get("email") or 
+        ""
+    )
+    
+    # Extract product ID
     product = subscription.get("product", {})
-    status = subscription.get("status", "")
-    customer_email = customer.get("email", "")
-    product_id = product.get("id", "")
+    product_id = subscription.get("product_id") or product.get("id") or ""
 
     if not customer_email:
         logger.warning("Polar webhook: no customer email in payload")
@@ -128,7 +138,7 @@ async def polar_webhook(request: Request):
             return {"received": True, "skipped": True, "reason": "label not found"}
 
         # Handle subscription lifecycle events
-        if event_type in ("subscription.created", "subscription.active"):
+        if event_type in ("subscription.created", "subscription.active", "order.created", "order.paid", "checkout.completed", "checkout_session.completed"):
             plan = _map_polar_product_to_plan(product_id)
             if not plan:
                 logger.warning("Polar webhook: unknown product_id %s", product_id)

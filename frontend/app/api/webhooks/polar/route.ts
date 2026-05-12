@@ -67,15 +67,22 @@ async function updatePlan(email: string, plan: string) {
 }
 
 function extractCustomerAndProduct(data: any): { email: string; productId: string } {
-  // Standard subscription structure
-  if (data.customer?.email) {
-    return { email: data.customer.email, productId: data.product?.id || "" };
-  }
-  // Order structure
-  if (data.customer_email) {
-    return { email: data.customer_email, productId: data.product_id || "" };
-  }
-  return { email: "", productId: "" };
+  // Extract email from any possible Polar field
+  const email = 
+    data.customer_email || 
+    data.user_email || 
+    data.customer?.email || 
+    data.user?.email || 
+    data.email || 
+    "";
+
+  // Extract product ID from any possible Polar field
+  const productId = 
+    data.product_id || 
+    data.product?.id || 
+    "";
+
+  return { email: email.toLowerCase().trim(), productId };
 }
 
 export async function POST(request: NextRequest) {
@@ -148,7 +155,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Checkout session completed
-  if (eventType === "checkout_session.completed") {
+  if (["checkout.completed", "checkout_session.completed"].includes(eventType)) {
     const plan = PRODUCT_TO_PLAN[productId];
     if (!plan) {
       console.log(`[Polar Webhook] Unknown product in checkout: ${productId}`);
