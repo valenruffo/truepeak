@@ -1,12 +1,8 @@
 /**
  * Polar webhook handler — runs on Vercel (HTTPS) and updates plans via backend API.
  *
- * Flow:
- *   1. Polar sends POST to https://truepeak.space/api/webhooks/polar
- *   2. This route verifies the signature, extracts email + product ID
- *   3. Calls the backend's /admin/labels/by-email/plan to update the DB
- *
- * Product → Plan mapping must match backend/app/api/polar_webhook.py
+ * Handles ALL Polar events: subscription lifecycle + order/checkout events.
+ * Logs everything for debugging.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "crypto";
@@ -20,11 +16,40 @@ const PRODUCT_TO_PLAN: Record<string, string> = {
 };
 
 function verifySignature(rawBody: string, signature: string, secret: string): boolean {
-  if (!secret) return true; // Skip in dev
+  if (!secret) return true;
   const expected = createHmac("sha256", secret).update(rawBody).digest();
   const actual = Buffer.from(signature, "hex");
   if (expected.length !== actual.length) return false;
   return timingSafeEqual(expected, actual);
+}
+
+async function updatePlan(email: string, plan: string) {
+  const res = await fetch(`${BACKEND_URL}/api/admin/labels/by-email/plan`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, plan }),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Backend ${res.status}: ${err}`);
+  }
+  return res.json();
+}
+
+function extractCustomerAndProduct(data: any): { email: string; productId: string } {
+  // Standard subscription structure
+  if (data.customer?.email) {
+    return { email: data.customer.email, productId: data.product?.id || "" };
+  }
+  // Order structure
+  if (data.customer_email) {
+    return { email: data.customer_email, productId: data.product_id || "" };
+  }
+  // Checkout session structure
+  if (data.customer?.email) {
+    return { email: data.customer.email, productId: data.product?.id || "" };
+  }
+  return { email: "", productId: "" };
 }
 
 export async function POST(request: NextRequest) {
@@ -43,75 +68,78 @@ export async function POST(request: NextRequest) {
   }
 
   const eventType = data.type || "";
-  const subscription = data.data || {};
-  const customer = subscription.customer || {};
-  const product = subscription.product || {};
-  const customerEmail = customer.email || "";
-  const productId = product.id || "";
+  const { email, productId } = extractCustomerAndProduct(data.data || data);
 
-  if (!customerEmail) {
+  console.log(`[Polar Webhook] Event: ${eventType} | Email: ${email} | Product: ${productId}`);
+
+  if (!email) {
+    console.log(`[Polar Webhook] No email found in payload`);
     return NextResponse.json({ received: true, skipped: true, reason: "no email" });
   }
 
-  // Handle subscription lifecycle events
-  if (["subscription.created", "subscription.active"].includes(eventType)) {
+  // Subscription events
+  if (["subscription.created", "subscription.active", "subscription.updated"].includes(eventType)) {
     const plan = PRODUCT_TO_PLAN[productId];
     if (!plan) {
-      console.error(`Polar webhook: unknown product ${productId}`);
+      console.log(`[Polar Webhook] Unknown product: ${productId}`);
       return NextResponse.json({ received: true, skipped: true, reason: `unknown product: ${productId}` });
     }
-
     try {
-      const res = await fetch(`${BACKEND_URL}/api/admin/labels/by-email/plan`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: customerEmail, plan }),
-      });
-
-      if (!res.ok) {
-        const err = await res.text();
-        console.error(`Backend plan update failed: ${res.status} ${err}`);
-        return NextResponse.json({ error: "Backend update failed", detail: err }, { status: 502 });
-      }
-
-      const result = await res.json();
-      console.log(`Polar webhook: ${customerEmail} → ${plan} (slug: ${result.slug})`);
+      const result = await updatePlan(email, plan);
+      console.log(`[Polar Webhook] ${email} → ${plan} (slug: ${result.slug})`);
       return NextResponse.json({ received: true, action: "upgraded", plan, label: result.slug });
     } catch (err) {
-      console.error("Backend unreachable:", err);
-      return NextResponse.json({ error: "Backend unreachable" }, { status: 502 });
+      console.error(`[Polar Webhook] Backend error:`, err);
+      return NextResponse.json({ error: "Backend update failed" }, { status: 502 });
     }
   }
 
-  if (eventType === "subscription.updated") {
+  // Order paid events (happens with 100% discount coupons)
+  if (["order.paid", "order.created"].includes(eventType)) {
     const plan = PRODUCT_TO_PLAN[productId];
     if (!plan) {
-      return NextResponse.json({ received: true, skipped: true, reason: "unknown product" });
+      console.log(`[Polar Webhook] Unknown product in order: ${productId}`);
+      return NextResponse.json({ received: true, skipped: true, reason: `unknown product: ${productId}` });
     }
     try {
-      await fetch(`${BACKEND_URL}/api/admin/labels/by-email/plan`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: customerEmail, plan }),
-      });
-      return NextResponse.json({ received: true, action: "updated", plan });
-    } catch {
-      return NextResponse.json({ error: "Backend unreachable" }, { status: 502 });
+      const result = await updatePlan(email, plan);
+      console.log(`[Polar Webhook] Order ${email} → ${plan} (slug: ${result.slug})`);
+      return NextResponse.json({ received: true, action: "upgraded", plan, label: result.slug });
+    } catch (err) {
+      console.error(`[Polar Webhook] Backend error:`, err);
+      return NextResponse.json({ error: "Backend update failed" }, { status: 502 });
     }
   }
 
-  if (["subscription.canceled", "subscription.revoked"].includes(eventType)) {
+  // Checkout session completed
+  if (eventType === "checkout_session.completed") {
+    const plan = PRODUCT_TO_PLAN[productId];
+    if (!plan) {
+      console.log(`[Polar Webhook] Unknown product in checkout: ${productId}`);
+      return NextResponse.json({ received: true, skipped: true, reason: `unknown product: ${productId}` });
+    }
     try {
-      await fetch(`${BACKEND_URL}/api/admin/labels/by-email/plan`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: customerEmail, plan: "free" }),
-      });
+      const result = await updatePlan(email, plan);
+      console.log(`[Polar Webhook] Checkout ${email} → ${plan} (slug: ${result.slug})`);
+      return NextResponse.json({ received: true, action: "upgraded", plan, label: result.slug });
+    } catch (err) {
+      console.error(`[Polar Webhook] Backend error:`, err);
+      return NextResponse.json({ error: "Backend update failed" }, { status: 502 });
+    }
+  }
+
+  // Cancellation events
+  if (["subscription.canceled", "subscription.revoked", "subscription.unpaid"].includes(eventType)) {
+    try {
+      await updatePlan(email, "free");
+      console.log(`[Polar Webhook] ${email} → free`);
       return NextResponse.json({ received: true, action: "downgraded", plan: "free" });
-    } catch {
-      return NextResponse.json({ error: "Backend unreachable" }, { status: 502 });
+    } catch (err) {
+      console.error(`[Polar Webhook] Backend error:`, err);
+      return NextResponse.json({ error: "Backend update failed" }, { status: 502 });
     }
   }
 
+  console.log(`[Polar Webhook] Unhandled event: ${eventType}`);
   return NextResponse.json({ received: true, skipped: true, reason: `unhandled event: ${eventType}` });
 }
