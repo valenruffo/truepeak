@@ -125,16 +125,24 @@ async def polar_webhook(request: Request):
     # Extract product ID
     product = subscription.get("product", {})
     product_id = subscription.get("product_id") or product.get("id") or ""
+    
+    # Extract custom metadata
+    metadata = subscription.get("metadata", {})
+    slug = metadata.get("slug")
 
-    if not customer_email:
-        logger.warning("Polar webhook: no customer email in payload")
-        return {"received": True, "skipped": True, "reason": "no customer email"}
+    if not customer_email and not slug:
+        logger.warning("Polar webhook: no customer email or slug in payload")
+        return {"received": True, "skipped": True, "reason": "no customer email or slug"}
 
     with Session(engine) as session:
-        label = session.exec(select(Label).where(Label.owner_email == customer_email)).first()
+        label = None
+        if slug:
+            label = session.exec(select(Label).where(Label.slug == slug)).first()
+        if not label and customer_email:
+            label = session.exec(select(Label).where(Label.owner_email == customer_email)).first()
 
         if not label:
-            logger.warning("Polar webhook: no label found for email %s", customer_email)
+            logger.warning("Polar webhook: no label found for slug %s or email %s", slug, customer_email)
             return {"received": True, "skipped": True, "reason": "label not found"}
 
         # Handle subscription lifecycle events

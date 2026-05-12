@@ -51,7 +51,23 @@ function verifySignature(rawBody: string, signature: string, secret: string): bo
   return result;
 }
 
-async function updatePlan(email: string, plan: string) {
+async function updatePlan(email: string, plan: string, slug?: string) {
+  if (slug) {
+    console.log(`[Polar Webhook] Calling backend: ${BACKEND_URL}/api/admin/labels/${slug}/plan`);
+    const res = await fetch(`${BACKEND_URL}/api/admin/labels/${slug}/plan`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ plan }),
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Backend ${res.status}: ${err}`);
+    }
+    return res.json();
+  }
+
+  // Fallback to by-email
   console.log(`[Polar Webhook] Calling backend: ${BACKEND_URL}/api/admin/labels/by-email/plan`);
   const res = await fetch(`${BACKEND_URL}/api/admin/labels/by-email/plan`, {
     method: "POST",
@@ -66,7 +82,7 @@ async function updatePlan(email: string, plan: string) {
   return res.json();
 }
 
-function extractCustomerAndProduct(data: any): { email: string; productId: string } {
+function extractCustomerAndProduct(data: any): { email: string; productId: string; slug: string } {
   // Extract email from any possible Polar field
   const email = 
     data.customer_email || 
@@ -82,7 +98,11 @@ function extractCustomerAndProduct(data: any): { email: string; productId: strin
     data.product?.id || 
     "";
 
-  return { email: email.toLowerCase().trim(), productId };
+  // Extract custom metadata added in frontend
+  const metadata = data.metadata || {};
+  const slug = metadata.slug || "";
+
+  return { email: email.toLowerCase().trim(), productId, slug };
 }
 
 export async function POST(request: NextRequest) {
@@ -111,13 +131,13 @@ export async function POST(request: NextRequest) {
   }
 
   const eventType = data.type || "";
-  const { email, productId } = extractCustomerAndProduct(data.data || data);
+  const { email, productId, slug } = extractCustomerAndProduct(data.data || data);
 
-  console.log(`[Polar Webhook] Event: ${eventType} | Email: ${email} | Product: ${productId}`);
+  console.log(`[Polar Webhook] Event: ${eventType} | Email: ${email} | Product: ${productId} | Slug: ${slug}`);
 
-  if (!email) {
-    console.log(`[Polar Webhook] No email found in payload`);
-    return NextResponse.json({ received: true, skipped: true, reason: "no email" });
+  if (!email && !slug) {
+    console.log(`[Polar Webhook] No email or slug found in payload`);
+    return NextResponse.json({ received: true, skipped: true, reason: "no email or slug" });
   }
 
   // Subscription events
@@ -128,8 +148,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ received: true, skipped: true, reason: `unknown product: ${productId}` });
     }
     try {
-      const result = await updatePlan(email, plan);
-      console.log(`[Polar Webhook] SUCCESS: ${email} → ${plan} (slug: ${result.slug})`);
+      const result = await updatePlan(email, plan, slug);
+      console.log(`[Polar Webhook] SUCCESS: ${email} (slug: ${slug}) → ${plan} (updated: ${result.slug})`);
       return NextResponse.json({ received: true, action: "upgraded", plan, label: result.slug });
     } catch (err: any) {
       console.error(`[Polar Webhook] Backend error:`, err.message);
@@ -145,8 +165,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ received: true, skipped: true, reason: `unknown product: ${productId}` });
     }
     try {
-      const result = await updatePlan(email, plan);
-      console.log(`[Polar Webhook] Order SUCCESS: ${email} → ${plan}`);
+      const result = await updatePlan(email, plan, slug);
+      console.log(`[Polar Webhook] Order SUCCESS: ${email} (slug: ${slug}) → ${plan}`);
       return NextResponse.json({ received: true, action: "upgraded", plan, label: result.slug });
     } catch (err: any) {
       console.error(`[Polar Webhook] Backend error:`, err.message);
@@ -162,8 +182,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ received: true, skipped: true, reason: `unknown product: ${productId}` });
     }
     try {
-      const result = await updatePlan(email, plan);
-      console.log(`[Polar Webhook] Checkout SUCCESS: ${email} → ${plan}`);
+      const result = await updatePlan(email, plan, slug);
+      console.log(`[Polar Webhook] Checkout SUCCESS: ${email} (slug: ${slug}) → ${plan}`);
       return NextResponse.json({ received: true, action: "upgraded", plan, label: result.slug });
     } catch (err: any) {
       console.error(`[Polar Webhook] Backend error:`, err.message);
@@ -184,8 +204,8 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      await updatePlan(email, "free");
-      console.log(`[Polar Webhook] Downgrade SUCCESS: ${email} → free`);
+      await updatePlan(email, "free", slug);
+      console.log(`[Polar Webhook] Downgrade SUCCESS: ${email} (slug: ${slug}) → free`);
       return NextResponse.json({ received: true, action: "downgraded", plan: "free" });
     } catch (err: any) {
       console.error(`[Polar Webhook] Backend error:`, err.message);

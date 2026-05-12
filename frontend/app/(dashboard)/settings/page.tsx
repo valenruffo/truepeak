@@ -20,6 +20,8 @@ export default function SettingsPage() {
   const [logoutLoading, setLogoutLoading] = useState(false);
   const [syncingPlan, setSyncingPlan] = useState(false);
   const [planSynced, setPlanSynced] = useState(false);
+  const [labelSlug, setLabelSlug] = useState<string>("");
+  const [labelEmail, setLabelEmail] = useState<string>("");
 
   useEffect(() => {
     const storedPlan = localStorage.getItem("plan") || "free";
@@ -27,10 +29,12 @@ export default function SettingsPage() {
 
     const slug = localStorage.getItem("slug");
     if (slug) {
+      setLabelSlug(slug);
       fetch(`/api/labels/${slug}`)
         .then((res) => res.ok ? res.json() : null)
         .then((data) => {
           if (data?.name) setLabelName(data.name);
+          if (data?.owner_email) setLabelEmail(data.owner_email);
           // Sync plan from server if different from localStorage
           if (data?.plan && data.plan !== storedPlan) {
             setPlan(data.plan);
@@ -85,6 +89,15 @@ export default function SettingsPage() {
       .finally(() => {
         router.push("/");
       });
+  };
+
+  const getCheckoutUrl = (baseUrl: string) => {
+    if (!labelSlug) return baseUrl;
+    const url = new URL(baseUrl);
+    if (labelEmail) url.searchParams.append("customer_email", labelEmail);
+    // Add metadata with slug so backend updates the correct account regardless of the email entered
+    url.searchParams.append("metadata", JSON.stringify({ slug: labelSlug }));
+    return url.toString();
   };
 
   return (
@@ -171,7 +184,7 @@ export default function SettingsPage() {
                   <td className="px-4 py-3 text-center text-muted">Gratis</td>
                   <td className="px-4 py-3 text-center">
                     <a
-                      href={POLAR_CHECKOUT_INDIE}
+                      href={getCheckoutUrl(POLAR_CHECKOUT_INDIE)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-block px-4 py-2 rounded text-xs font-medium transition-all hover:opacity-90"
@@ -182,7 +195,7 @@ export default function SettingsPage() {
                   </td>
                   <td className="px-4 py-3 text-center">
                     <a
-                      href={POLAR_CHECKOUT_PRO}
+                      href={getCheckoutUrl(POLAR_CHECKOUT_PRO)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-block px-4 py-2 rounded text-xs font-medium transition-all hover:opacity-90"
