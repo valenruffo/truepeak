@@ -90,7 +90,14 @@ export async function POST(request: NextRequest) {
       const webhook = new Webhook(base64Secret);
       data = webhook.verify(rawBody, headers as Record<string, string>);
       console.log(`[Polar Webhook] SIGNATURE VERIFICATION SUCCESS`);
-      console.log(`[Polar Webhook] FULL PAYLOAD: ${JSON.stringify(data)}`);
+      
+      // Log full payload to backend for inspection
+      fetch(`${BACKEND_URL}/api/admin/webhook-debug`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: eventType, data }),
+      }).catch(console.error);
+
     } catch (err: any) {
       console.error(`[Polar Webhook] SIGNATURE VERIFICATION FAILED: ${err.message}`);
       return NextResponse.json({ error: "Invalid signature", detail: err.message }, { status: 401 });
