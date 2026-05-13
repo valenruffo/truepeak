@@ -14,6 +14,10 @@ const nextConfig: NextConfig = {
         source: "/api/webhooks/:path*",
         destination: "/api/webhooks/:path*",
       },
+      {
+        source: "/api/debug-backend",
+        destination: "/api/debug-backend",
+      },
       // All other API requests proxied to backend
       {
         source: "/api/:path*",
