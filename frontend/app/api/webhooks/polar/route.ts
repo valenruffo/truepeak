@@ -90,6 +90,7 @@ export async function POST(request: NextRequest) {
       const webhook = new Webhook(base64Secret);
       data = webhook.verify(rawBody, headers as Record<string, string>);
       console.log(`[Polar Webhook] SIGNATURE VERIFICATION SUCCESS`);
+      console.log(`[Polar Webhook] FULL PAYLOAD: ${JSON.stringify(data)}`);
     } catch (err: any) {
       console.error(`[Polar Webhook] SIGNATURE VERIFICATION FAILED: ${err.message}`);
       return NextResponse.json({ error: "Invalid signature", detail: err.message }, { status: 401 });
@@ -123,6 +124,14 @@ export async function POST(request: NextRequest) {
     try {
       const result = await updatePlan(email, plan, slug);
       console.log(`[Polar Webhook] SUCCESS: ${email} (slug: ${slug}) → ${plan} (updated: ${result.slug})`);
+      
+      // Log to debug endpoint
+      fetch(`${BACKEND_URL}/api/admin/webhook-debug`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ event: eventType, email, plan, slug, result }),
+      }).catch(console.error);
+
       return NextResponse.json({ received: true, action: "upgraded", plan, label: result.slug });
     } catch (err: any) {
       console.error(`[Polar Webhook] Backend error:`, err.message);
