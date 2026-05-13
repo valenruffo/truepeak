@@ -85,13 +85,18 @@ export async function POST(request: NextRequest) {
     console.log(`[Polar Webhook] Headers: ${Object.keys(headers).join(", ")}`);
     
     try {
-      const base64Secret = Buffer.from(WEBHOOK_SECRET, "utf-8").toString("base64");
-      const webhook = new Webhook(base64Secret);
+      // standardwebhooks library expects the secret directly if it's already the correctly formatted string (like whsec_...)
+      // The previous version was double-encoding it or using a wrong format.
+      const webhook = new Webhook(WEBHOOK_SECRET);
       data = webhook.verify(rawBody, headers as Record<string, string>);
       console.log(`[Polar Webhook] SIGNATURE OK`);
     } catch (err: any) {
       console.error(`[Polar Webhook] SIGNATURE FAILED: ${err.message}`);
-      return NextResponse.json({ error: "Invalid signature", detail: err.message }, { status: 401 });
+      return NextResponse.json({ 
+        error: "Invalid signature", 
+        detail: err.message,
+        hint: "Check if POLAR_WEBHOOK_SECRET matches the one in Polar dashboard"
+      }, { status: 401 });
     }
   } else {
     console.log(`[Polar Webhook] No secret configured (dev mode)`);
@@ -103,7 +108,9 @@ export async function POST(request: NextRequest) {
   }
 
   const eventType = data.type || "";
-  const { email, productId, slug } = extractCustomerAndProduct(data.data || data);
+  // data.data is where the actual object lives in Polar webhooks
+  const payloadData = data.data || data;
+  const { email, productId, slug } = extractCustomerAndProduct(payloadData);
 
   console.log(`[Polar Webhook] Event: ${eventType} | Email: ${email} | Product: ${productId} | Slug: ${slug}`);
 
