@@ -5,7 +5,7 @@
  * Logs everything for debugging.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { createHmac, timingSafeEqual } from "crypto";
+import { validateEvent } from "@polar-sh/sdk/webhooks";
 
 const WEBHOOK_SECRET = process.env.POLAR_WEBHOOK_SECRET || "";
 const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://164.152.194.196:8000";
@@ -14,42 +14,6 @@ const PRODUCT_TO_PLAN: Record<string, string> = {
   "400b734f-4dfd-4376-99e5-2bab977cc1fe": "indie",
   "7272cf53-e552-4d24-acbb-d455999803a1": "pro",
 };
-
-function verifySignature(rawBody: string, signature: string, secret: string): boolean {
-  if (!secret) {
-    console.log("[Polar Webhook] No secret configured, skipping verification");
-    return true;
-  }
-
-  // Polar may send: "sha256=<hex>" or just "<hex>" or "t=...,s=<hex>"
-  let cleanSig = signature;
-  if (signature.includes("sha256=")) {
-    cleanSig = signature.split("sha256=")[1];
-  } else if (signature.includes("s=")) {
-    cleanSig = signature.split("s=")[1];
-  }
-  cleanSig = cleanSig.trim();
-
-  const expected = createHmac("sha256", secret).update(rawBody).digest();
-  let actual: Buffer;
-  try {
-    actual = Buffer.from(cleanSig, "hex");
-  } catch {
-    console.error(`[Polar Webhook] Invalid hex in signature: ${cleanSig.slice(0, 20)}...`);
-    return false;
-  }
-
-  if (expected.length !== actual.length) {
-    console.error(`[Polar Webhook] Signature length mismatch: expected ${expected.length}, got ${actual.length}`);
-    return false;
-  }
-
-  const result = timingSafeEqual(expected, actual);
-  if (!result) {
-    console.log(`[Polar Webhook] Signature mismatch. First 8 chars - expected: ${expected.toString("hex").slice(0, 8)}, got: ${cleanSig.slice(0, 8)}`);
-  }
-  return result;
-}
 
 async function updatePlan(email: string, plan: string, slug?: string) {
   if (slug) {
@@ -108,26 +72,33 @@ function extractCustomerAndProduct(data: any): { email: string; productId: strin
 export async function POST(request: NextRequest) {
   console.log(`[Polar Webhook] === INCOMING REQUEST ===`);
   console.log(`[Polar Webhook] URL: ${request.url}`);
-  console.log(`[Polar Webhook] Headers: x-polar-signature present: ${!!request.headers.get("x-polar-signature")}`);
   console.log(`[Polar Webhook] Secret configured: ${!!WEBHOOK_SECRET} (prefix: ${WEBHOOK_SECRET ? WEBHOOK_SECRET.slice(0, 12) : "none"})`);
   console.log(`[Polar Webhook] Backend URL: ${BACKEND_URL}`);
 
   const rawBody = await request.text();
-  const signature = request.headers.get("x-polar-signature") || "";
-
   console.log(`[Polar Webhook] Body length: ${rawBody.length}`);
-  console.log(`[Polar Webhook] Signature header: ${signature.slice(0, 20)}...`);
-
-  if (!verifySignature(rawBody, signature, WEBHOOK_SECRET)) {
-    console.error(`[Polar Webhook] SIGNATURE VERIFICATION FAILED`);
-    return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
-  }
 
   let data: any;
-  try {
-    data = JSON.parse(rawBody);
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+
+  if (WEBHOOK_SECRET) {
+    const headers = Object.fromEntries(request.headers.entries());
+    console.log(`[Polar Webhook] Headers keys: ${Object.keys(headers).join(", ")}`);
+    
+    try {
+      // Use official Polar SDK for webhook verification (Standard Webhooks)
+      data = validateEvent(rawBody, headers as Record<string, string>, WEBHOOK_SECRET);
+      console.log(`[Polar Webhook] SIGNATURE VERIFICATION SUCCESS`);
+    } catch (err: any) {
+      console.error(`[Polar Webhook] SIGNATURE VERIFICATION FAILED: ${err.message}`);
+      return NextResponse.json({ error: "Invalid signature", detail: err.message }, { status: 401 });
+    }
+  } else {
+    console.log(`[Polar Webhook] No secret configured, skipping verification (Development Mode)`);
+    try {
+      data = JSON.parse(rawBody);
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
   }
 
   const eventType = data.type || "";
