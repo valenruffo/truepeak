@@ -1,5 +1,7 @@
 """Label management API — register, config, login, stats."""
 
+import os
+import httpx
 from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
@@ -237,6 +239,18 @@ class LabelStats(BaseModel):
     auto_rejected: int
     max_tracks_month: int
     emails_sent_this_month: int
+
+
+class BillingDetails(BaseModel):
+    plan: str
+    status: str
+    next_billing_date: str | None
+    amount: int | None
+    currency: str | None
+
+
+class PortalResponse(BaseModel):
+    url: str
 
 
 # --- Endpoints ---
@@ -695,6 +709,148 @@ async def update_label_plan(
         submission_title=label.submission_title,
         submission_description=label.submission_description,
     )
+
+
+# --- Polar Billing & Portal ---
+
+POLAR_ACCESS_TOKEN = os.getenv("POLAR_ACCESS_TOKEN")
+POLAR_ORGANIZATION_ID = os.getenv("POLAR_ORGANIZATION_ID")
+
+PRODUCT_TO_PLAN = {
+    "400b734f-4dfd-4376-99e5-2bab977cc1fe": "indie",
+    "7272cf53-e552-4d24-acbb-d455999803a1": "pro",
+}
+
+
+@router.get("/labels/{slug}/billing", response_model=BillingDetails)
+async def get_label_billing(
+    slug: str,
+    auth: dict = Depends(_get_label_from_token),
+    session: Session = Depends(get_session),
+):
+    """Get billing details for a label from Polar."""
+    label = session.exec(select(Label).where(Label.slug == slug)).first()
+    if not label or label.id != auth["label_id"]:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    if not POLAR_ACCESS_TOKEN or not POLAR_ORGANIZATION_ID:
+        # Fallback for local development or missing config
+        return BillingDetails(
+            plan=label.plan or "free",
+            status="active",
+            next_billing_date=None,
+            amount=None,
+            currency=None
+        )
+
+    headers = {"Authorization": f"Bearer {POLAR_ACCESS_TOKEN}"}
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            # 1. List subscriptions for the organization
+            resp = await client.get(
+                "https://api.polar.sh/v1/subscriptions/",
+                params={"organization_id": POLAR_ORGANIZATION_ID, "limit": 100},
+                headers=headers
+            )
+            resp.raise_for_status()
+            subs = resp.json().get("items", [])
+            
+            # 2. Filter by customer email (case-insensitive)
+            # Polar might have customer_email or nested in customer object
+            user_sub = None
+            for s in subs:
+                email = s.get("customer", {}).get("email") or s.get("customer_email")
+                if email and email.lower() == label.owner_email.lower() and s.get("status") == "active":
+                    user_sub = s
+                    break
+            
+            if not user_sub:
+                return BillingDetails(
+                    plan=label.plan or "free",
+                    status="free",
+                    next_billing_date=None,
+                    amount=None,
+                    currency=None
+                )
+            
+            # 3. Extract details
+            plan_name = PRODUCT_TO_PLAN.get(user_sub.get("product_id"), "free")
+            next_date = user_sub.get("current_period_end")
+            price_obj = user_sub.get("price", {})
+            amount = price_obj.get("price_amount")
+            currency = price_obj.get("price_currency")
+
+            return BillingDetails(
+                plan=plan_name,
+                status=user_sub.get("status"),
+                next_billing_date=next_date,
+                amount=amount,
+                currency=currency
+            )
+    except Exception as e:
+        # Don't crash if Polar is down
+        return BillingDetails(
+            plan=label.plan or "free",
+            status="active",
+            next_billing_date=None,
+            amount=None,
+            currency=None
+        )
+
+
+@router.post("/labels/{slug}/portal", response_model=PortalResponse)
+async def create_portal_session(
+    slug: str,
+    auth: dict = Depends(_get_label_from_token),
+    session: Session = Depends(get_session),
+):
+    """Create a Polar Customer Portal session."""
+    label = session.exec(select(Label).where(Label.slug == slug)).first()
+    if not label or label.id != auth["label_id"]:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    if not POLAR_ACCESS_TOKEN:
+        raise HTTPException(status_code=500, detail="Polar configuration missing.")
+
+    headers = {"Authorization": f"Bearer {POLAR_ACCESS_TOKEN}"}
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            # 1. Find or create customer by email
+            # Search customers
+            c_resp = await client.get(
+                "https://api.polar.sh/v1/customers/",
+                params={"organization_id": POLAR_ORGANIZATION_ID, "email": label.owner_email},
+                headers=headers
+            )
+            c_resp.raise_for_status()
+            customers = c_resp.json().get("items", [])
+            
+            customer_id = None
+            if customers:
+                customer_id = customers[0].get("id")
+            else:
+                # Create customer if not exists
+                create_resp = await client.post(
+                    "https://api.polar.sh/v1/customers/",
+                    json={"organization_id": POLAR_ORGANIZATION_ID, "email": label.owner_email, "name": label.name},
+                    headers=headers
+                )
+                create_resp.raise_for_status()
+                customer_id = create_resp.json().get("id")
+
+            # 2. Create Portal Session
+            session_resp = await client.post(
+                "https://api.polar.sh/v1/customer-portal/sessions/",
+                json={"customer_id": customer_id},
+                headers=headers
+            )
+            session_resp.raise_for_status()
+            return PortalResponse(url=session_resp.json().get("customer_portal_url"))
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create portal session: {str(e)}")
 
 
 import logging

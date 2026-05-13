@@ -103,6 +103,18 @@ export interface LoginResponse {
   label_id: number;
 }
 
+export interface BillingDetails {
+  plan: string;
+  status: string;
+  next_billing_date: string | null;
+  amount: number | null;
+  currency: string | null;
+}
+
+export interface PortalResponse {
+  url: string;
+}
+
 // --- API Functions ---
 
 /**
@@ -181,6 +193,22 @@ export async function updateLabelConfig(
   return request<LabelConfig>(`/api/labels/${slug}/config`, {
     method: "PUT",
     body: JSON.stringify(config),
+  });
+}
+
+/**
+ * Get billing details for a label.
+ */
+export async function getBillingDetails(slug: string): Promise<BillingDetails> {
+  return request<BillingDetails>(`/api/labels/${slug}/billing`);
+}
+
+/**
+ * Create a Polar Customer Portal session.
+ */
+export async function createPortalSession(slug: string): Promise<PortalResponse> {
+  return request<PortalResponse>(`/api/labels/${slug}/portal`, {
+    method: "POST",
   });
 }
 

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/lib/i18n";
 import { useTheme } from "@/lib/theme";
+import { getBillingDetails, createPortalSession, BillingDetails } from "@/lib/api";
 
 const POLAR_CHECKOUT_INDIE = "https://buy.polar.sh/polar_cl_HmWbpa6oeLs6vcSucDQR5rlWXMPsne5p33MOi2RZPFg";
 const POLAR_CHECKOUT_PRO = "https://buy.polar.sh/polar_cl_4u3xFxj5G4klKE5jhYIDGMXmhyL7kjaTQe9Ux34e9Wb";
@@ -14,14 +15,11 @@ export default function SettingsPage() {
   const { theme, toggleTheme } = useTheme();
   const [plan, setPlan] = useState<string>("free");
   const [labelName, setLabelName] = useState<string>("");
-  const [showCancelModal, setShowCancelModal] = useState(false);
-  const [cancelling, setCancelling] = useState(false);
-  const [cancelError, setCancelError] = useState<string | null>(null);
   const [logoutLoading, setLogoutLoading] = useState(false);
-  const [syncingPlan, setSyncingPlan] = useState(false);
-  const [planSynced, setPlanSynced] = useState(false);
   const [labelSlug, setLabelSlug] = useState<string>("");
   const [labelEmail, setLabelEmail] = useState<string>("");
+  const [billing, setBilling] = useState<BillingDetails | null>(null);
+  const [loadingPortal, setLoadingPortal] = useState(false);
 
   useEffect(() => {
     const storedPlan = localStorage.getItem("plan") || "free";
@@ -30,51 +28,35 @@ export default function SettingsPage() {
     const slug = localStorage.getItem("slug");
     if (slug) {
       setLabelSlug(slug);
+      // Fetch label info
       fetch(`/api/labels/${slug}`)
         .then((res) => res.ok ? res.json() : null)
         .then((data) => {
           if (data?.name) setLabelName(data.name);
           if (data?.owner_email) setLabelEmail(data.owner_email);
-          // Sync plan from server if different from localStorage
           if (data?.plan && data.plan !== storedPlan) {
             setPlan(data.plan);
             localStorage.setItem("plan", data.plan);
           }
         })
         .catch(() => {});
+
+      // Fetch billing details
+      getBillingDetails(slug)
+        .then(setBilling)
+        .catch(() => {});
     }
   }, []);
 
-  const handleSyncPlan = async () => {
-    setSyncingPlan(true);
-    setPlanSynced(false);
-    const slug = localStorage.getItem("slug");
-    if (!slug) { setSyncingPlan(false); return; }
+  const handleManageSubscription = async () => {
+    if (!labelSlug) return;
+    setLoadingPortal(true);
     try {
-      const res = await fetch(`/api/labels/${slug}`);
-      if (res.ok) {
-        const data = await res.json();
-        const serverPlan = data.plan || "free";
-        setPlan(serverPlan);
-        localStorage.setItem("plan", serverPlan);
-        setPlanSynced(true);
-        setTimeout(() => setPlanSynced(false), 3000);
-      }
-    } catch { /* silent */ }
-    setSyncingPlan(false);
-  };
-
-  const handleCancelSubscription = async () => {
-    setCancelling(true);
-    setCancelError(null);
-    try {
-      setPlan("free");
-      localStorage.setItem("plan", "free");
-      setShowCancelModal(false);
-    } catch (e: any) {
-      setCancelError(e.message || t("settings.cancel_modal.error"));
-    } finally {
-      setCancelling(false);
+      const { url } = await createPortalSession(labelSlug);
+      window.location.href = url;
+    } catch (err) {
+      alert("Error al abrir el portal de Polar. Intentá más tarde.");
+      setLoadingPortal(false);
     }
   };
 
@@ -119,34 +101,17 @@ export default function SettingsPage() {
           >
             {plan === "pro" ? t("settings.plan_pro") : plan === "indie" ? "Plan Indie" : t("settings.plan_free")}
           </span>
-          {(plan === "pro" || plan === "indie") && (
-            <span className="text-xs text-muted">{t("settings.plan_renew")}</span>
+          {billing?.next_billing_date && (
+            <span className="text-xs text-muted">
+              {t("settings.plan_renew")} {new Date(billing.next_billing_date).toLocaleDateString()}
+              {billing.amount && ` por $${(billing.amount / 100).toFixed(0)}`}
+            </span>
           )}
-          <button
-            onClick={handleSyncPlan}
-            disabled={syncingPlan}
-            className="px-2.5 py-1 rounded text-[10px] font-mono uppercase transition-all disabled:opacity-50"
-            style={{
-              background: planSynced ? "rgba(16,185,129,0.1)" : "rgba(161,161,170,0.08)",
-              color: planSynced ? "#10b981" : "var(--text-muted)",
-              border: "1px solid var(--border)",
-            }}
-          >
-            {syncingPlan ? "Syncing..." : planSynced ? "✓ Synced" : "Sync plan"}
-          </button>
         </div>
 
         {plan === "free" && (
           <div className="mb-4">
             <p className="text-sm text-muted mb-3">{t("settings.upgrade_desc")}</p>
-          </div>
-        )}
-
-        {(plan === "pro" || plan === "indie") && (
-          <div className="mb-4">
-            <button onClick={() => setShowCancelModal(true)} className="px-5 py-2.5 rounded text-sm font-medium border transition-all hover:opacity-80" style={{ borderColor: "var(--border)", color: "var(--text-secondary)", background: "transparent" }}>
-              {t("settings.cancel")}
-            </button>
           </div>
         )}
 
@@ -177,12 +142,14 @@ export default function SettingsPage() {
                 </tr>
               ))}
             </tbody>
-            {plan === "free" && (
-              <tfoot>
-                <tr style={{ borderTop: "1px solid var(--border)" }}>
-                  <td className="px-4 py-3" />
-                  <td className="px-4 py-3 text-center text-muted">Gratis</td>
-                  <td className="px-4 py-3 text-center">
+            <tfoot>
+              <tr style={{ borderTop: "1px solid var(--border)" }}>
+                <td className="px-4 py-3" />
+                <td className="px-4 py-3 text-center text-xs text-muted uppercase font-mono">
+                  {plan === "free" ? "Actual" : "Gratis"}
+                </td>
+                <td className="px-4 py-3 text-center">
+                  {plan === "free" ? (
                     <a
                       href={getCheckoutUrl(POLAR_CHECKOUT_INDIE)}
                       target="_blank"
@@ -192,21 +159,53 @@ export default function SettingsPage() {
                     >
                       Suscribirse — $12/mes
                     </a>
-                  </td>
-                  <td className="px-4 py-3 text-center">
+                  ) : plan === "indie" ? (
+                    <button
+                      onClick={handleManageSubscription}
+                      disabled={loadingPortal}
+                      className="inline-block px-4 py-2 rounded text-xs font-medium transition-all border border-red-500/30 text-red-500 hover:bg-red-500/5 disabled:opacity-50"
+                    >
+                      {loadingPortal ? "..." : "Cancelar suscripción"}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleManageSubscription}
+                      disabled={loadingPortal}
+                      className="inline-block px-4 py-2 rounded text-xs font-medium transition-all border border-[#10b981]/30 text-[#10b981] hover:bg-[#10b981]/5 disabled:opacity-50"
+                    >
+                      {loadingPortal ? "..." : "Bajar plan"}
+                    </button>
+                  )}
+                </td>
+                <td className="px-4 py-3 text-center">
+                  {plan === "pro" ? (
+                    <button
+                      onClick={handleManageSubscription}
+                      disabled={loadingPortal}
+                      className="inline-block px-4 py-2 rounded text-xs font-medium transition-all border border-red-500/30 text-red-500 hover:bg-red-500/5 disabled:opacity-50"
+                    >
+                      {loadingPortal ? "..." : "Cancelar suscripción"}
+                    </button>
+                  ) : (
                     <a
-                      href={getCheckoutUrl(POLAR_CHECKOUT_PRO)}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      href={plan === "indie" ? "#" : getCheckoutUrl(POLAR_CHECKOUT_PRO)}
+                      onClick={(e) => {
+                        if (plan === "indie") {
+                          e.preventDefault();
+                          handleManageSubscription();
+                        }
+                      }}
+                      target={plan === "indie" ? undefined : "_blank"}
+                      rel={plan === "indie" ? undefined : "noopener noreferrer"}
                       className="inline-block px-4 py-2 rounded text-xs font-medium transition-all hover:opacity-90"
                       style={{ background: "#10b981", color: "#09090b" }}
                     >
-                      Suscribirse — $29/mes
+                      {plan === "indie" ? "Subir plan" : "Suscribirse — $29/mes"}
                     </a>
-                  </td>
-                </tr>
-              </tfoot>
-            )}
+                  )}
+                </td>
+              </tr>
+            </tfoot>
           </table>
         </div>
       </div>
@@ -282,35 +281,6 @@ export default function SettingsPage() {
           {logoutLoading ? t("settings.logoutting") : t("settings.logout")}
         </button>
       </div>
-
-      {/* Cancel confirmation modal */}
-      {showCancelModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-6" style={{ background: "rgba(0,0,0,0.7)" }}>
-          <div className="w-full max-w-md rounded border p-6" style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}>
-            <div className="flex items-center gap-3 mb-4">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#facc15" strokeWidth="2">
-                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
-              </svg>
-              <h2 className="text-lg font-semibold">{t("settings.cancel_modal.title")}</h2>
-            </div>
-            <p className="text-sm text-muted mb-6">{t("settings.cancel_modal.feature_loss")}</p>
-            {cancelError && (
-              <div className="mb-4 px-4 py-3 rounded text-sm" style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.3)" }}>
-                {cancelError}
-              </div>
-            )}
-            <div className="flex gap-3 justify-end">
-              <button onClick={() => { setShowCancelModal(false); setCancelError(null); }} className="px-5 py-2.5 rounded text-sm font-medium border transition-all hover:opacity-80" style={{ borderColor: "var(--border)", color: "var(--text-secondary)", background: "transparent" }}>
-                {t("settings.cancel_modal.keep")}
-              </button>
-              <button onClick={handleCancelSubscription} disabled={cancelling} className="px-5 py-2.5 rounded text-sm font-medium transition-all hover:opacity-90 disabled:opacity-50" style={{ background: "#ef4444", color: "var(--text-primary)" }}>
-                {cancelling ? t("settings.cancel_modal.cancelling") : t("settings.cancel_modal.confirm")}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

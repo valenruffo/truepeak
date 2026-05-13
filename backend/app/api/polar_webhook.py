@@ -32,14 +32,33 @@ logger = logging.getLogger(__name__)
 POLAR_WEBHOOK_SECRET = os.getenv("POLAR_WEBHOOK_SECRET", "")
 
 
-def _verify_polar_signature(raw_body: bytes, signature: str, secret: str) -> bool:
-    """Verify the Polar webhook signature (HMAC SHA-256)."""
+def _verify_polar_signature(raw_body: bytes, headers: dict, secret: str) -> bool:
+    """Verify the Polar webhook signature.
+    Supports both legacy HMAC (x-polar-signature) and new Standard Webhooks (webhook-signature).
+    """
     if not secret:
-        # If no secret configured, skip verification (dev mode)
         logger.warning("POLAR_WEBHOOK_SECRET not set — skipping signature verification")
         return True
-    expected = hmac.new(secret.encode(), raw_body, hashlib.sha256).hexdigest()
-    return hmac.compare_digest(expected, signature)
+
+    # 1. Try Standard Webhooks (New)
+    if "webhook-signature" in headers:
+        try:
+            from standardwebhooks import Webhook
+            # Standard Webhooks library handles the secret format
+            wh = Webhook(secret)
+            wh.verify(raw_body.decode("utf-8"), headers)
+            return True
+        except Exception as e:
+            logger.error("Standard Webhook verification failed: %s", e)
+            return False
+
+    # 2. Try Legacy HMAC (Old)
+    signature = headers.get("x-polar-signature", "")
+    if signature:
+        expected = hmac.new(secret.encode(), raw_body, hashlib.sha256).hexdigest()
+        return hmac.compare_digest(expected, signature)
+
+    return False
 
 
 def _map_polar_product_to_plan(product_id: str) -> str | None:
@@ -83,52 +102,51 @@ async def polar_webhook(request: Request):
     We handle the most common subscription events.
     """
     raw_body = await request.body()
-    signature = request.headers.get("x-polar-signature", "")
+    headers = dict(request.headers)
 
-    if not _verify_polar_signature(raw_body, signature, POLAR_WEBHOOK_SECRET):
+    if not _verify_polar_signature(raw_body, headers, POLAR_WEBHOOK_SECRET):
         raise HTTPException(status_code=401, detail="Invalid webhook signature")
 
     try:
         import json
-        data = json.loads(raw_body)
-    except json.JSONDecodeError:
+        raw_body_str = raw_body.decode("utf-8")
+        data = json.loads(raw_body_str)
+    except Exception as e:
+        logger.error("Failed to parse Polar webhook body: %s", e)
         raise HTTPException(status_code=400, detail="Invalid JSON")
 
     event_type = data.get("type", "")
     logger.info("Polar webhook received: %s", event_type)
 
-    # Extract subscription data from the event
-    # Polar v1 webhook structure:
-    # {
-    #   "type": "subscription.created",
-    #   "data": {
-    #     "id": "sub_xxx",
-    #     "status": "active",
-    #     "customer": { "email": "user@example.com" },
-    #     "product": { "id": "prod_xxx" },
-    #     "price": { "id": "price_xxx" }
-    #   }
-    # }
-    subscription = data.get("data", {})
-    customer = subscription.get("customer", {})
-    user = subscription.get("user", {})
+    # Polar payloads wrap the object in a 'data' field
+    # For subscription.* events, it's a Subscription object
+    # For order.paid events, it's an Order object
+    # For checkout.completed events, it's a Checkout object
+    payload_data = data.get("data", {})
     
-    # Extract email safely from multiple possible fields
+    # 1. Extract Customer Email
     customer_email = (
-        subscription.get("customer_email") or 
-        subscription.get("user_email") or 
-        customer.get("email") or 
-        user.get("email") or 
+        payload_data.get("customer_email") or 
+        payload_data.get("user_email") or 
+        payload_data.get("email") or
+        payload_data.get("customer", {}).get("email") or 
+        payload_data.get("user", {}).get("email") or 
         ""
     )
     
-    # Extract product ID
-    product = subscription.get("product", {})
-    product_id = subscription.get("product_id") or product.get("id") or ""
+    # 2. Extract Product ID
+    # In some events it's product_id, in others it's nested in product object
+    product_id = (
+        payload_data.get("product_id") or 
+        payload_data.get("product", {}).get("id") or 
+        ""
+    )
     
-    # Extract custom metadata
-    metadata = subscription.get("metadata", {})
+    # 3. Extract Metadata (slug)
+    metadata = payload_data.get("metadata", {})
     slug = metadata.get("slug")
+
+    logger.info(f"Webhook parsed: type={event_type}, email={customer_email}, slug={slug}, product={product_id}")
 
     if not customer_email and not slug:
         logger.warning("Polar webhook: no customer email or slug in payload")
