@@ -1,8 +1,16 @@
 {
   "rewrites": [
     {
-      "source": "/api/((?!webhooks/polar|debug-backend).*)",
-      "destination": "http://164.152.194.196:8000/api/:1"
+      "source": "/api/webhooks/polar",
+      "destination": "/api/webhooks/polar"
+    },
+    {
+      "source": "/api/debug-backend",
+      "destination": "/api/debug-backend"
+    },
+    {
+      "source": "/api/:path*",
+      "destination": "http://164.152.194.196:8000/api/:path*"
     }
   ]
 }
