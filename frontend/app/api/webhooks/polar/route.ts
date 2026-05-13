@@ -5,7 +5,7 @@
  * Logs everything for debugging.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { validateEvent } from "@polar-sh/sdk/webhooks";
+import { Webhook } from "standardwebhooks";
 
 const WEBHOOK_SECRET = process.env.POLAR_WEBHOOK_SECRET || "";
 const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://164.152.194.196:8000";
@@ -85,8 +85,10 @@ export async function POST(request: NextRequest) {
     console.log(`[Polar Webhook] Headers keys: ${Object.keys(headers).join(", ")}`);
     
     try {
-      // Use official Polar SDK for webhook verification (Standard Webhooks)
-      data = validateEvent(rawBody, headers as Record<string, string>, WEBHOOK_SECRET);
+      // Use standardwebhooks to verify signature without strict Polar Zod schemas
+      const base64Secret = Buffer.from(WEBHOOK_SECRET, "utf-8").toString("base64");
+      const webhook = new Webhook(base64Secret);
+      data = webhook.verify(rawBody, headers as Record<string, string>);
       console.log(`[Polar Webhook] SIGNATURE VERIFICATION SUCCESS`);
     } catch (err: any) {
       console.error(`[Polar Webhook] SIGNATURE VERIFICATION FAILED: ${err.message}`);
