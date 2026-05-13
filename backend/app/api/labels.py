@@ -697,9 +697,13 @@ async def update_label_plan(
     )
 
 
+import logging
+logger = logging.getLogger(__name__)
+
 class PlanUpdateByEmail(BaseModel):
     email: str
     plan: str
+    slug: str | None = None
 
 
 @router.post("/admin/labels/by-email/plan")
@@ -710,6 +714,7 @@ async def admin_update_label_plan_by_email(
     """Admin endpoint to update label plan by owner email. Used by Polar webhook proxy.
     Creates the label automatically if it doesn't exist (payment-before-register flow).
     """
+    logger.info(f"UPDATING PLAN: {body}")
     label = session.exec(select(Label).where(Label.owner_email == body.email)).first()
 
     if not label:
@@ -800,6 +805,17 @@ async def admin_update_label_plan(
         submission_title=label.submission_title,
         submission_description=label.submission_description,
     )
+
+
+class RoleUpdate(BaseModel):
+    role: str  # "label" | "dj"
+
+
+@router.post("/webhook-debug")
+async def debug_webhook_payload(body: dict):
+    with open("/app/data/webhook.log", "a") as f:
+        f.write(str(body) + "\n")
+    return {"received": True}
 
 
 class RoleUpdate(BaseModel):
