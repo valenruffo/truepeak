@@ -53,6 +53,17 @@ export default function SettingsPage() {
       // Fetch billing details
       fetchBilling(slug);
     }
+
+    // Check for success message from Polar
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get("success") === "true") {
+      addToast({
+        title: "¡Felicitaciones!",
+        description: "Tu suscripción se ha procesado correctamente. ¡Disfrutá de True Peak!",
+      });
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
   }, []);
 
   const handleCancel = async (actionId: string) => {
@@ -118,9 +129,15 @@ export default function SettingsPage() {
     if (!labelSlug) return baseUrl;
     const url = new URL(baseUrl);
     if (labelEmail) url.searchParams.append("customer_email", labelEmail);
-    // Add metadata with slug so backend updates the correct account regardless of the email entered
-    // Using deepObject style as per some Polar.sh integrations
+    
+    // Add metadata with slug so backend updates the correct account
     url.searchParams.append("metadata[slug]", labelSlug);
+    
+    // Add return URL for feedback
+    const returnUrl = new URL(window.location.href);
+    returnUrl.searchParams.set("success", "true");
+    url.searchParams.append("return_url", returnUrl.toString());
+    
     return url.toString();
   };
 
