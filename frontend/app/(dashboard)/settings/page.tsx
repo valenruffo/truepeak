@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useLanguage } from "@/lib/i18n";
 import { useTheme } from "@/lib/theme";
 import { getBillingDetails, createPortalSession, BillingDetails } from "@/lib/api";
+import { useToast } from "@/components/ui/toast";
+import { Loader2 } from "lucide-react";
 
 const POLAR_CHECKOUT_INDIE = "https://buy.polar.sh/polar_cl_HmWbpa6oeLs6vcSucDQR5rlWXMPsne5p33MOi2RZPFg";
 const POLAR_CHECKOUT_PRO = "https://buy.polar.sh/polar_cl_4u3xFxj5G4klKE5jhYIDGMXmhyL7kjaTQe9Ux34e9Wb";
@@ -19,7 +21,8 @@ export default function SettingsPage() {
   const [labelSlug, setLabelSlug] = useState<string>("");
   const [labelEmail, setLabelEmail] = useState<string>("");
   const [billing, setBilling] = useState<BillingDetails | null>(null);
-  const [loadingPortal, setLoadingPortal] = useState(false);
+  const [loadingAction, setLoadingAction] = useState<string | null>(null);
+  const { addToast } = useToast();
 
   useEffect(() => {
     const storedPlan = localStorage.getItem("plan") || "free";
@@ -48,15 +51,19 @@ export default function SettingsPage() {
     }
   }, []);
 
-  const handleManageSubscription = async () => {
+  const handleManageSubscription = async (actionId: string) => {
     if (!labelSlug) return;
-    setLoadingPortal(true);
+    setLoadingAction(actionId);
     try {
       const { url } = await createPortalSession(labelSlug);
       window.location.href = url;
     } catch (err) {
-      alert("Error al abrir el portal de Polar. Intentá más tarde.");
-      setLoadingPortal(false);
+      addToast({
+        title: "Error",
+        description: "Error al abrir el portal de Polar. Intentá más tarde.",
+        variant: "destructive"
+      });
+      setLoadingAction(null);
     }
   };
 
@@ -161,47 +168,50 @@ export default function SettingsPage() {
                     </a>
                   ) : plan === "indie" ? (
                     <button
-                      onClick={handleManageSubscription}
-                      disabled={loadingPortal}
-                      className="inline-block px-4 py-2 rounded text-xs font-medium transition-all border border-red-500/30 text-red-500 hover:bg-red-500/5 disabled:opacity-50"
+                      onClick={() => handleManageSubscription("cancel_indie")}
+                      disabled={!!loadingAction}
+                      className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded text-xs font-medium transition-all border border-red-500/30 text-red-500 hover:bg-red-500/5 disabled:opacity-50 min-w-[140px]"
                     >
-                      {loadingPortal ? "..." : "Cancelar suscripción"}
+                      {loadingAction === "cancel_indie" ? <Loader2 className="w-3 h-3 animate-spin" /> : "Cancelar suscripción"}
                     </button>
                   ) : (
                     <button
-                      onClick={handleManageSubscription}
-                      disabled={loadingPortal}
-                      className="inline-block px-4 py-2 rounded text-xs font-medium transition-all border border-[#10b981]/30 text-[#10b981] hover:bg-[#10b981]/5 disabled:opacity-50"
+                      onClick={() => handleManageSubscription("downgrade_indie")}
+                      disabled={!!loadingAction}
+                      className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded text-xs font-medium transition-all border border-[#10b981]/30 text-[#10b981] hover:bg-[#10b981]/5 disabled:opacity-50 min-w-[140px]"
                     >
-                      {loadingPortal ? "..." : "Bajar plan"}
+                      {loadingAction === "downgrade_indie" ? <Loader2 className="w-3 h-3 animate-spin" /> : "Bajar plan"}
                     </button>
                   )}
                 </td>
                 <td className="px-4 py-3 text-center">
                   {plan === "pro" ? (
                     <button
-                      onClick={handleManageSubscription}
-                      disabled={loadingPortal}
-                      className="inline-block px-4 py-2 rounded text-xs font-medium transition-all border border-red-500/30 text-red-500 hover:bg-red-500/5 disabled:opacity-50"
+                      onClick={() => handleManageSubscription("cancel_pro")}
+                      disabled={!!loadingAction}
+                      className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded text-xs font-medium transition-all border border-red-500/30 text-red-500 hover:bg-red-500/5 disabled:opacity-50 min-w-[140px]"
                     >
-                      {loadingPortal ? "..." : "Cancelar suscripción"}
+                      {loadingAction === "cancel_pro" ? <Loader2 className="w-3 h-3 animate-spin" /> : "Cancelar suscripción"}
                     </button>
                   ) : (
-                    <a
-                      href={plan === "indie" ? "#" : getCheckoutUrl(POLAR_CHECKOUT_PRO)}
+                    <button
                       onClick={(e) => {
                         if (plan === "indie") {
-                          e.preventDefault();
-                          handleManageSubscription();
+                          handleManageSubscription("upgrade_pro");
+                        } else {
+                          window.open(getCheckoutUrl(POLAR_CHECKOUT_PRO), "_blank");
                         }
                       }}
-                      target={plan === "indie" ? undefined : "_blank"}
-                      rel={plan === "indie" ? undefined : "noopener noreferrer"}
-                      className="inline-block px-4 py-2 rounded text-xs font-medium transition-all hover:opacity-90"
+                      disabled={!!loadingAction}
+                      className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded text-xs font-medium transition-all hover:opacity-90 disabled:opacity-50 min-w-[140px]"
                       style={{ background: "#10b981", color: "#09090b" }}
                     >
-                      {plan === "indie" ? "Subir plan" : "Suscribirse — $29/mes"}
-                    </a>
+                      {loadingAction === "upgrade_pro" ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        plan === "indie" ? "Subir plan" : "Suscribirse — $29/mes"
+                      )}
+                    </button>
                   )}
                 </td>
               </tr>

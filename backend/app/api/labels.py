@@ -818,39 +818,63 @@ async def create_portal_session(
     try:
         async with httpx.AsyncClient() as client:
             # 1. Find or create customer by email
-            # Search customers
+            print(f"DEBUG: Searching customer for {label.owner_email} in org {POLAR_ORGANIZATION_ID}")
             c_resp = await client.get(
                 "https://api.polar.sh/v1/customers/",
                 params={"organization_id": POLAR_ORGANIZATION_ID, "email": label.owner_email},
                 headers=headers
             )
-            c_resp.raise_for_status()
-            customers = c_resp.json().get("items", [])
             
+            if c_resp.status_code != 200:
+                print(f"DEBUG: Polar search failed: {c_resp.status_code} - {c_resp.text}")
+                c_resp.raise_for_status()
+
+            customers = c_resp.json().get("items", [])
             customer_id = None
+            
             if customers:
                 customer_id = customers[0].get("id")
+                print(f"DEBUG: Found existing customer: {customer_id}")
             else:
-                # Create customer if not exists
+                print(f"DEBUG: Customer not found, creating one...")
                 create_resp = await client.post(
                     "https://api.polar.sh/v1/customers/",
-                    json={"organization_id": POLAR_ORGANIZATION_ID, "email": label.owner_email, "name": label.name},
+                    json={
+                        "organization_id": POLAR_ORGANIZATION_ID, 
+                        "email": label.owner_email, 
+                        "name": label.name
+                    },
                     headers=headers
                 )
-                create_resp.raise_for_status()
+                if create_resp.status_code != 201:
+                    print(f"DEBUG: Polar create failed: {create_resp.status_code} - {create_resp.text}")
+                    create_resp.raise_for_status()
+                
                 customer_id = create_resp.json().get("id")
+                print(f"DEBUG: Created new customer: {customer_id}")
 
             # 2. Create Portal Session
+            print(f"DEBUG: Creating portal session for customer {customer_id}")
             session_resp = await client.post(
                 "https://api.polar.sh/v1/customer-portal/sessions/",
                 json={"customer_id": customer_id},
                 headers=headers
             )
-            session_resp.raise_for_status()
-            return PortalResponse(url=session_resp.json().get("customer_portal_url"))
             
+            if session_resp.status_code != 201:
+                print(f"DEBUG: Polar session creation failed: {session_resp.status_code} - {session_resp.text}")
+                session_resp.raise_for_status()
+                
+            portal_url = session_resp.json().get("customer_portal_url")
+            print(f"DEBUG: Successfully generated portal URL: {portal_url}")
+            return PortalResponse(url=portal_url)
+            
+    except httpx.HTTPStatusError as e:
+        print(f"ERROR: Polar API returned error {e.response.status_code}: {e.response.text}")
+        raise HTTPException(status_code=502, detail=f"Polar API Error: {e.response.text}")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to create portal session: {str(e)}")
+        print(f"ERROR: Unexpected error creating portal session: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 import logging
