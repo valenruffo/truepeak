@@ -144,7 +144,19 @@ async def polar_webhook(request: Request):
     
     # 3. Extract Metadata (slug)
     metadata = payload_data.get("metadata", {})
+    if isinstance(metadata, str):
+        try:
+            metadata = json.loads(metadata)
+        except:
+            metadata = {}
     slug = metadata.get("slug")
+
+    # Logging to file for persistent debug
+    try:
+        with open("/app/data/webhook.log", "a") as f:
+            f.write(f"[{datetime.now().isoformat()}] Event: {event_type} | Email: {customer_email} | Slug: {slug} | Product: {product_id}\n")
+    except:
+        pass
 
     logger.info(f"Webhook parsed: type={event_type}, email={customer_email}, slug={slug}, product={product_id}")
 
@@ -157,7 +169,11 @@ async def polar_webhook(request: Request):
         if slug:
             label = session.exec(select(Label).where(Label.slug == slug)).first()
         if not label and customer_email:
+            # Try exact match first
             label = session.exec(select(Label).where(Label.owner_email == customer_email)).first()
+            if not label:
+                # Try case-insensitive if not found
+                label = session.exec(select(Label).where(Label.owner_email.ilike(customer_email))).first()
 
         if not label:
             logger.warning("Polar webhook: no label found for slug %s or email %s", slug, customer_email)
@@ -171,7 +187,17 @@ async def polar_webhook(request: Request):
                 return {"received": True, "skipped": True, "reason": f"unknown product: {product_id}"}
 
             label.plan = plan
-            _apply_plan_limits(label, plan)
+            # Use local copy of limits application to avoid circular imports if any
+            PLAN_LIMITS = {
+                "free":  {"max_tracks_month": 10,  "max_emails_month": 0,   "hq_retention_days": 0},
+                "indie": {"max_tracks_month": 100, "max_emails_month": 100, "hq_retention_days": 7},
+                "pro":   {"max_tracks_month": 1000, "max_emails_month": 500, "hq_retention_days": 14},
+            }
+            limits = PLAN_LIMITS.get(plan, PLAN_LIMITS["free"])
+            label.max_tracks_month = limits["max_tracks_month"]
+            label.max_emails_month = limits["max_emails_month"]
+            label.hq_retention_days = limits["hq_retention_days"]
+            
             label.updated_at = datetime.now(timezone.utc)
             session.add(label)
             session.commit()
@@ -182,7 +208,17 @@ async def polar_webhook(request: Request):
             plan = _map_polar_product_to_plan(product_id)
             if plan:
                 label.plan = plan
-                _apply_plan_limits(label, plan)
+                # Apply limits same as above
+                PLAN_LIMITS = {
+                    "free":  {"max_tracks_month": 10,  "max_emails_month": 0,   "hq_retention_days": 0},
+                    "indie": {"max_tracks_month": 100, "max_emails_month": 100, "hq_retention_days": 7},
+                    "pro":   {"max_tracks_month": 1000, "max_emails_month": 500, "hq_retention_days": 14},
+                }
+                limits = PLAN_LIMITS.get(plan, PLAN_LIMITS["free"])
+                label.max_tracks_month = limits["max_tracks_month"]
+                label.max_emails_month = limits["max_emails_month"]
+                label.hq_retention_days = limits["hq_retention_days"]
+
                 label.updated_at = datetime.now(timezone.utc)
                 session.add(label)
                 session.commit()
@@ -192,7 +228,11 @@ async def polar_webhook(request: Request):
 
         elif event_type in ("subscription.canceled", "subscription.revoked"):
             label.plan = "free"
-            _apply_plan_limits(label, "free")
+            # Apply free limits
+            label.max_tracks_month = 10
+            label.max_emails_month = 0
+            label.hq_retention_days = 0
+            
             label.updated_at = datetime.now(timezone.utc)
             session.add(label)
             session.commit()

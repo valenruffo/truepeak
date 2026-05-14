@@ -249,16 +249,6 @@ class BillingDetails(BaseModel):
     currency: str | None = None
     subscription_id: str | None = None
 
-class UpdateSubscriptionRequest(BaseModel):
-    new_plan: str
-
-PRODUCT_TO_PLAN = {
-    "156c3995-12ca-49ba-994c-81be68b371f6": "indie",
-    "0933c061-689e-4c74-a63e-f633d6b05421": "pro"
-}
-
-PLAN_TO_PRODUCT = {v: k for k, v in PRODUCT_TO_PLAN.items()}
-
 class PortalResponse(BaseModel):
     url: str
 
@@ -737,6 +727,11 @@ PRODUCT_TO_PLAN = {
     "400b734f-4dfd-4376-99e5-2bab977cc1fe": "indie",
     "7272cf53-e552-4d24-acbb-d455999803a1": "pro",
 }
+
+PLAN_TO_PRODUCT = {v: k for k, v in PRODUCT_TO_PLAN.items()}
+
+class UpdateSubscriptionRequest(BaseModel):
+    new_plan: str
 
 
 @router.get("/{slug}/billing", response_model=BillingDetails)
