@@ -243,15 +243,24 @@ class LabelStats(BaseModel):
 
 class BillingDetails(BaseModel):
     plan: str
-    status: str
-    next_billing_date: str | None
-    amount: int | None
-    currency: str | None
+    status: str | None = None
+    next_billing_date: str | None = None
+    amount: int | None = None
+    currency: str | None = None
+    subscription_id: str | None = None
 
+class UpdateSubscriptionRequest(BaseModel):
+    new_plan: str
+
+PRODUCT_TO_PLAN = {
+    "156c3995-12ca-49ba-994c-81be68b371f6": "indie",
+    "0933c061-689e-4c74-a63e-f633d6b05421": "pro"
+}
+
+PLAN_TO_PRODUCT = {v: k for k, v in PRODUCT_TO_PLAN.items()}
 
 class PortalResponse(BaseModel):
     url: str
-
 
 class HQCountResponse(BaseModel):
     count: int
@@ -794,7 +803,8 @@ async def get_label_billing(
                 status=user_sub.get("status"),
                 next_billing_date=next_date,
                 amount=amount,
-                currency=currency
+                currency=currency,
+                subscription_id=user_sub.get("id")
             )
     except Exception as e:
         # Don't crash if Polar is down
@@ -941,6 +951,133 @@ async def create_portal_session(
     except Exception as e:
         print(f"ERROR: Unexpected error creating portal session: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{slug}/cancel-subscription")
+async def cancel_subscription(
+    slug: str,
+    auth: dict = Depends(_get_label_from_token),
+    session: Session = Depends(get_session),
+):
+    """Cancel subscription immediately (revoke) via Polar API."""
+    label = session.exec(select(Label).where(Label.slug == slug)).first()
+    if not label or label.id != auth["label_id"]:
+        raise HTTPException(status_code=403, detail="Access denied.")
+
+    # Need to find the active subscription ID
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        headers = {"Authorization": f"Bearer {POLAR_ACCESS_TOKEN}"}
+        
+        # 1. Get Customer ID from Polar
+        c_resp = await client.get(
+            f"https://api.polar.sh/v1/customers/?organization_id={POLAR_ORGANIZATION_ID}&email={label.owner_email}",
+            headers=headers
+        )
+        c_resp.raise_for_status()
+        customers = c_resp.json().get("items", [])
+        if not customers:
+            raise HTTPException(status_code=404, detail="No Polar customer found.")
+        
+        customer_id = customers[0]["id"]
+
+        # 2. Get Active Subscription
+        s_resp = await client.get(
+            f"https://api.polar.sh/v1/subscriptions/?organization_id={POLAR_ORGANIZATION_ID}&customer_id={customer_id}&active=true",
+            headers=headers
+        )
+        s_resp.raise_for_status()
+        subs = s_resp.json().get("items", [])
+        if not subs:
+            raise HTTPException(status_code=404, detail="No active subscription found.")
+        
+        sub_id = subs[0]["id"]
+
+        # 3. Revoke/Cancel Subscription
+        print(f"DEBUG: Cancelling Polar subscription {sub_id}")
+        del_resp = await client.delete(
+            f"https://api.polar.sh/v1/subscriptions/{sub_id}",
+            headers=headers
+        )
+        
+        if del_resp.status_code not in [200, 204]:
+            print(f"DEBUG: Polar cancellation failed: {del_resp.status_code} - {del_resp.text}")
+            del_resp.raise_for_status()
+
+        # Update local label plan to free
+        label.plan = "free"
+        _apply_plan_limits(label)
+        session.add(label)
+        session.commit()
+
+        return {"status": "success", "message": "Subscription cancelled successfully."}
+
+
+@router.post("/{slug}/update-subscription")
+async def update_subscription(
+    slug: str,
+    req: UpdateSubscriptionRequest,
+    auth: dict = Depends(_get_label_from_token),
+    session: Session = Depends(get_session),
+):
+    """Upgrade or downgrade subscription with proration."""
+    label = session.exec(select(Label).where(Label.slug == slug)).first()
+    if not label or label.id != auth["label_id"]:
+        raise HTTPException(status_code=403, detail="Access denied.")
+
+    new_product_id = PLAN_TO_PRODUCT.get(req.new_plan.lower())
+    if not new_product_id:
+        raise HTTPException(status_code=400, detail=f"Invalid plan: {req.new_plan}")
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        headers = {"Authorization": f"Bearer {POLAR_ACCESS_TOKEN}"}
+        
+        # 1. Get Customer ID
+        c_resp = await client.get(
+            f"https://api.polar.sh/v1/customers/?organization_id={POLAR_ORGANIZATION_ID}&email={label.owner_email}",
+            headers=headers
+        )
+        c_resp.raise_for_status()
+        customers = c_resp.json().get("items", [])
+        if not customers:
+            raise HTTPException(status_code=404, detail="No Polar customer found.")
+        
+        customer_id = customers[0]["id"]
+
+        # 2. Get Active Subscription
+        s_resp = await client.get(
+            f"https://api.polar.sh/v1/subscriptions/?organization_id={POLAR_ORGANIZATION_ID}&customer_id={customer_id}&active=true",
+            headers=headers
+        )
+        s_resp.raise_for_status()
+        subs = s_resp.json().get("items", [])
+        
+        if not subs:
+            raise HTTPException(status_code=404, detail="No active subscription found to update.")
+        
+        sub_id = subs[0]["id"]
+
+        # 3. Update Subscription
+        print(f"DEBUG: Updating Polar subscription {sub_id} to {req.new_plan} ({new_product_id})")
+        up_resp = await client.patch(
+            f"https://api.polar.sh/v1/subscriptions/{sub_id}",
+            json={
+                "product_id": new_product_id,
+                "proration_behavior": "prorate"
+            },
+            headers=headers
+        )
+        
+        if up_resp.status_code not in [200, 204]:
+            print(f"DEBUG: Polar update failed: {up_resp.status_code} - {up_resp.text}")
+            up_resp.raise_for_status()
+
+        # Update local label plan
+        label.plan = req.new_plan.lower()
+        _apply_plan_limits(label)
+        session.add(label)
+        session.commit()
+
+        return {"status": "success", "message": f"Subscription updated to {req.new_plan} successfully."}
 
 
 import logging

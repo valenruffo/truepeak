@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/lib/i18n";
 import { useTheme } from "@/lib/theme";
-import { getBillingDetails, createPortalSession, BillingDetails } from "@/lib/api";
+import { getBillingDetails, cancelSubscription, updateSubscription, BillingDetails } from "@/lib/api";
 import { useToast } from "@/components/ui/toast";
 import { Loader2 } from "lucide-react";
 
@@ -24,6 +24,12 @@ export default function SettingsPage() {
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const { addToast } = useToast();
 
+  const fetchBilling = (slug: string) => {
+    getBillingDetails(slug)
+      .then(setBilling)
+      .catch(() => {});
+  };
+
   useEffect(() => {
     const storedPlan = localStorage.getItem("plan") || "free";
     setPlan(storedPlan);
@@ -37,7 +43,7 @@ export default function SettingsPage() {
         .then((data) => {
           if (data?.name) setLabelName(data.name);
           if (data?.owner_email) setLabelEmail(data.owner_email);
-          if (data?.plan && data.plan !== storedPlan) {
+          if (data?.plan) {
             setPlan(data.plan);
             localStorage.setItem("plan", data.plan);
           }
@@ -45,24 +51,52 @@ export default function SettingsPage() {
         .catch(() => {});
 
       // Fetch billing details
-      getBillingDetails(slug)
-        .then(setBilling)
-        .catch(() => {});
+      fetchBilling(slug);
     }
   }, []);
 
-  const handleManageSubscription = async (actionId: string) => {
+  const handleCancel = async (actionId: string) => {
     if (!labelSlug) return;
     setLoadingAction(actionId);
     try {
-      const { url } = await createPortalSession(labelSlug);
-      window.location.href = url;
+      await cancelSubscription(labelSlug);
+      setPlan("free");
+      localStorage.setItem("plan", "free");
+      addToast({
+        title: "Éxito",
+        description: "Suscripción cancelada correctamente.",
+      });
+      fetchBilling(labelSlug);
     } catch (err) {
       addToast({
         title: "Error",
-        description: "Error al abrir el portal de Polar. Intentá más tarde.",
+        description: "No se pudo cancelar la suscripción. Intentá más tarde.",
         variant: "destructive"
       });
+    } finally {
+      setLoadingAction(null);
+    }
+  };
+
+  const handleUpdatePlan = async (actionId: string, newPlan: string) => {
+    if (!labelSlug) return;
+    setLoadingAction(actionId);
+    try {
+      await updateSubscription(labelSlug, newPlan);
+      setPlan(newPlan);
+      localStorage.setItem("plan", newPlan);
+      addToast({
+        title: "Éxito",
+        description: `Plan actualizado a ${newPlan.toUpperCase()} correctamente.`,
+      });
+      fetchBilling(labelSlug);
+    } catch (err) {
+      addToast({
+        title: "Error",
+        description: "No se pudo actualizar el plan. Intentá más tarde.",
+        variant: "destructive"
+      });
+    } finally {
       setLoadingAction(null);
     }
   };
@@ -168,7 +202,7 @@ export default function SettingsPage() {
                     </a>
                   ) : plan === "indie" ? (
                     <button
-                      onClick={() => handleManageSubscription("cancel_indie")}
+                      onClick={() => handleCancel("cancel_indie")}
                       disabled={!!loadingAction}
                       className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded text-xs font-medium transition-all border border-red-500/30 text-red-500 hover:bg-red-500/5 disabled:opacity-50 min-w-[140px]"
                     >
@@ -176,7 +210,7 @@ export default function SettingsPage() {
                     </button>
                   ) : (
                     <button
-                      onClick={() => handleManageSubscription("downgrade_indie")}
+                      onClick={() => handleUpdatePlan("downgrade_indie", "indie")}
                       disabled={!!loadingAction}
                       className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded text-xs font-medium transition-all border border-[#10b981]/30 text-[#10b981] hover:bg-[#10b981]/5 disabled:opacity-50 min-w-[140px]"
                     >
@@ -187,7 +221,7 @@ export default function SettingsPage() {
                 <td className="px-4 py-3 text-center">
                   {plan === "pro" ? (
                     <button
-                      onClick={() => handleManageSubscription("cancel_pro")}
+                      onClick={() => handleCancel("cancel_pro")}
                       disabled={!!loadingAction}
                       className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded text-xs font-medium transition-all border border-red-500/30 text-red-500 hover:bg-red-500/5 disabled:opacity-50 min-w-[140px]"
                     >
@@ -197,7 +231,7 @@ export default function SettingsPage() {
                     <button
                       onClick={(e) => {
                         if (plan === "indie") {
-                          handleManageSubscription("upgrade_pro");
+                          handleUpdatePlan("upgrade_pro", "pro");
                         } else {
                           window.open(getCheckoutUrl(POLAR_CHECKOUT_PRO), "_blank");
                         }

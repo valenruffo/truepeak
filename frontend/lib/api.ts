@@ -211,6 +211,19 @@ export async function createPortalSession(slug: string): Promise<PortalResponse>
   });
 }
 
+export async function cancelSubscription(slug: string): Promise<{ status: string; message: string }> {
+  return request<{ status: string; message: string }>(`/api/labels/${slug}/cancel-subscription`, {
+    method: "POST",
+  });
+}
+
+export async function updateSubscription(slug: string, newPlan: string): Promise<{ status: string; message: string }> {
+  return request<{ status: string; message: string }>(`/api/labels/${slug}/update-subscription`, {
+    method: "POST",
+    body: JSON.stringify({ new_plan: newPlan }),
+  });
+}
+
 /**
  * Send an email via Resend.
  */
