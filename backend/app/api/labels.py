@@ -257,6 +257,8 @@ class HQCountResponse(BaseModel):
     count: int
     limit: int
     processed_count: int = 0
+    retention_days: int = 0
+    max_approved: int = 10
 
 
 # --- Endpoints ---
@@ -840,7 +842,13 @@ async def get_label_hq_count(
         )
     ).one()
 
-    return HQCountResponse(count=count, limit=10, processed_count=processed)
+    return HQCountResponse(
+        count=count, 
+        limit=label.max_tracks_month, 
+        processed_count=processed,
+        retention_days=label.hq_retention_days,
+        max_approved=label.max_tracks_month  # Using max_tracks_month as proxy for capacity
+    )
 
 
 @router.api_route("/{slug}/portal", methods=["GET", "POST"], response_model=PortalResponse)

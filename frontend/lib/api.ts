@@ -207,7 +207,7 @@ export async function getBillingDetails(slug: string): Promise<BillingDetails> {
  */
 export async function createPortalSession(slug: string): Promise<PortalResponse> {
   return request<PortalResponse>(`/api/labels/${slug}/portal`, {
-    method: "POST",
+    method: "GET",
   });
 }
 
