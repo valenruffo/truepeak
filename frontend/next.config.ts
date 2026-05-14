@@ -21,7 +21,7 @@ const nextConfig: NextConfig = {
       // All other API requests proxied to backend
       {
         source: "/api/:path*",
-        destination: "http://164.152.194.196:8000/api/:path*",
+        destination: "https://cruel-cougars-scream.loca.lt/api/:path*",
       },
     ];
   },
