@@ -899,19 +899,32 @@ async def create_portal_session(
                 print(f"DEBUG: Created new customer: {customer_id}")
 
             # 2. Create Portal Session
-            print(f"DEBUG: Creating portal session for customer {customer_id}")
-            session_resp = await client.post(
-                "https://api.polar.sh/v1/customer-portal/sessions/",
+            print(f"DEBUG: Creating portal session for customer: {customer_id}")
+            p_resp = await client.post(
+                "https://api.polar.sh/v1/customer-sessions/",
                 json={"customer_id": customer_id},
                 headers=headers
             )
             
-            if session_resp.status_code != 201:
-                print(f"DEBUG: Polar session creation failed: {session_resp.status_code} - {session_resp.text}")
-                session_resp.raise_for_status()
-                
-            portal_url = session_resp.json().get("customer_portal_url")
-            print(f"DEBUG: Successfully generated portal URL: {portal_url}")
+            if p_resp.status_code != 201 and p_resp.status_code != 200:
+                print(f"DEBUG: Polar session creation failed: {p_resp.status_code} - {p_resp.text}")
+                p_resp.raise_for_status()
+            
+            portal_data = p_resp.json()
+            print(f"DEBUG: Polar portal response: {portal_data}")
+            
+            # The portal URL might be in 'customer_portal_url' or we might need to use the token
+            portal_url = portal_data.get("customer_portal_url")
+            if not portal_url:
+                # Fallback to token-based URL if URL not directly provided
+                token = portal_data.get("token") or portal_data.get("session_token")
+                if token:
+                    # Note: You might need the organization slug here. 
+                    # If not available, we hope customer_portal_url is present.
+                    portal_url = f"https://polar.sh/customer-portal/?token={token}"
+                else:
+                    raise HTTPException(status_code=500, detail="Could not retrieve portal URL from Polar")
+
             return PortalResponse(url=portal_url)
             
     except httpx.HTTPStatusError as e:
