@@ -843,7 +843,7 @@ async def get_label_hq_count(
     return HQCountResponse(count=count, limit=10, processed_count=processed)
 
 
-@router.post("/{slug}/portal", response_model=PortalResponse)
+@router.api_route("/{slug}/portal", methods=["GET", "POST"], response_model=PortalResponse)
 async def create_portal_session(
     slug: str,
     auth: dict = Depends(_get_label_from_token),
@@ -858,6 +858,7 @@ async def create_portal_session(
         raise HTTPException(status_code=500, detail=f"Polar configuration missing. Token: {'set' if POLAR_ACCESS_TOKEN else 'missing'}, Org: {'set' if POLAR_ORGANIZATION_ID else 'missing'}")
 
     headers = {"Authorization": f"Bearer {POLAR_ACCESS_TOKEN}"}
+    print(f"DEBUG: Starting portal session creation for slug: {slug}, email: {label.owner_email}")
     
     try:
         async with httpx.AsyncClient() as client:
