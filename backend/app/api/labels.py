@@ -722,7 +722,7 @@ PRODUCT_TO_PLAN = {
 }
 
 
-@router.get("/labels/{slug}/billing", response_model=BillingDetails)
+@router.get("/{slug}/billing", response_model=BillingDetails)
 async def get_label_billing(
     slug: str,
     auth: dict = Depends(_get_label_from_token),
@@ -799,7 +799,7 @@ async def get_label_billing(
         )
 
 
-@router.post("/labels/{slug}/portal", response_model=PortalResponse)
+@router.post("/{slug}/portal", response_model=PortalResponse)
 async def create_portal_session(
     slug: str,
     auth: dict = Depends(_get_label_from_token),
