@@ -18,7 +18,7 @@ from app.database import get_session
 from app.models import Label, Submission, EmailTemplate
 from app.services.auth import create_token, get_password_hash, verify_password, verify_token
 
-router = APIRouter(prefix="/api", tags=["labels"])
+router = APIRouter(prefix="/api/labels", tags=["labels"])
 
 limiter = Limiter(key_func=get_remote_address)
 

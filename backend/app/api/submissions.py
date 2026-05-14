@@ -13,7 +13,7 @@ from app.database import get_session
 from app.models import Label, Submission
 from app.services.auth import verify_token
 
-router = APIRouter(prefix="/api", tags=["submissions"])
+router = APIRouter(prefix="/api/submissions", tags=["submissions"])
 
 
 # --- Request / Response schemas ---
