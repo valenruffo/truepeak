@@ -119,7 +119,8 @@ export default function SettingsPage() {
     const url = new URL(baseUrl);
     if (labelEmail) url.searchParams.append("customer_email", labelEmail);
     // Add metadata with slug so backend updates the correct account regardless of the email entered
-    url.searchParams.append("metadata", JSON.stringify({ slug: labelSlug }));
+    // Using deepObject style as per some Polar.sh integrations
+    url.searchParams.append("metadata[slug]", labelSlug);
     return url.toString();
   };
 

@@ -64,7 +64,16 @@ function extractCustomerAndProduct(data: any): { email: string; productId: strin
 
   // Extract custom metadata added in frontend
   const metadata = data.metadata || {};
-  const slug = metadata.slug || "";
+  // Handle both stringified and object metadata, and check multiple possible keys
+  let slug = "";
+  if (typeof metadata === 'string') {
+    try {
+      const parsed = JSON.parse(metadata);
+      slug = parsed.slug || parsed["metadata[slug]"] || "";
+    } catch {}
+  } else {
+    slug = metadata.slug || metadata["metadata[slug]"] || "";
+  }
 
   return { email: email.toLowerCase().trim(), productId, slug };
 }

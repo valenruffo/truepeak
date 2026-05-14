@@ -1190,10 +1190,81 @@ class RoleUpdate(BaseModel):
 
 
 @router.post("/webhook-debug")
-async def debug_webhook_payload(body: dict):
+async def debug_webhook_payload(body: dict, session: Session = Depends(get_session)):
+    """Functional webhook handler used for debugging and production sync.
+    Handles both raw Polar payloads AND simplified payloads from our Next.js proxy.
+    """
+    event_type = body.get("type", "")
+    
+    # Handle simplified payload from Next.js proxy
+    if "productId" in body:
+        customer_email = body.get("email", "")
+        product_id = body.get("productId", "")
+        slug = body.get("slug", "")
+        metadata = {}
+    else:
+        # Handle raw Polar payload
+        data = body.get("data", {})
+        customer_email = (data.get("customer", {}) or {}).get("email") or data.get("customer_email") or data.get("email") or ""
+        product_id = (data.get("product", {}) or {}).get("id") or data.get("product_id") or ""
+        metadata = data.get("metadata", {})
+        if isinstance(metadata, str):
+            try:
+                import json
+                metadata = json.loads(metadata)
+            except:
+                metadata = {}
+        slug = metadata.get("slug") or ""
+    
+    # Logging for debug
     with open("/app/data/webhook.log", "a") as f:
-        f.write(str(body) + "\n")
-    return {"received": True}
+        f.write(f"[{datetime.now().isoformat()}] WEBHOOK DEBUG | Type: {event_type} | Email: {customer_email} | Slug: {slug} | Product: {product_id}\n")
+
+    # 3. Find Label
+    label = None
+    if slug:
+        label = session.exec(select(Label).where(Label.slug == slug)).first()
+    
+    if not label and customer_email:
+        # Case-insensitive email match
+        label = session.exec(select(Label).where(Label.owner_email.ilike(customer_email))).first()
+
+    if not label:
+        return {"received": True, "skipped": True, "reason": "label not found"}
+
+    # 4. Process Plan Changes
+    # Handle subscription/order success events
+    success_events = ("subscription.created", "subscription.active", "order.created", "order.paid", "checkout.completed")
+    
+    if event_type in success_events:
+        plan = PRODUCT_TO_PLAN.get(product_id)
+        if plan:
+            label.plan = plan
+            _apply_plan_limits(label)
+            label.updated_at = datetime.now(timezone.utc)
+            session.add(label)
+            session.commit()
+            return {"received": True, "action": "upgraded", "plan": plan, "label": label.slug}
+    
+    elif event_type == "subscription.updated":
+        plan = PRODUCT_TO_PLAN.get(product_id)
+        if plan:
+            label.plan = plan
+            _apply_plan_limits(label)
+            label.updated_at = datetime.now(timezone.utc)
+            session.add(label)
+            session.commit()
+            return {"received": True, "action": "updated", "plan": plan, "label": label.slug}
+            
+    elif event_type in ("subscription.canceled", "subscription.revoked"):
+        label.plan = "free"
+        _apply_plan_limits(label)
+        label.updated_at = datetime.now(timezone.utc)
+        session.add(label)
+        session.commit()
+        return {"received": True, "action": "downgraded", "plan": "free", "label": label.slug}
+
+    return {"received": True, "skipped": True, "reason": "unhandled event type or missing plan mapping"}
 
 
 class RoleUpdate(BaseModel):
