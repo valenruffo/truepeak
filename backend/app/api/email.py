@@ -11,7 +11,7 @@ from app.services.auth import verify_token
 from app.services.email_service import EmailSendError, send_email
 from app.services.llm_email import LLMEmailError, generate_email_draft, get_fallback_template
 
-router = APIRouter(prefix="/api", tags=["email"])
+router = APIRouter(prefix="/api/email", tags=["email"])
 
 
 # --- Request / Response schemas ---
@@ -84,7 +84,7 @@ def _get_label_from_token(request: Request) -> dict[str, str]:
 
 # --- Endpoints ---
 
-@router.post("/email/send", response_model=SendEmailResponse)
+@router.post("/send", response_model=SendEmailResponse)
 async def send_email_endpoint(
     body: SendEmailRequest,
     auth: dict = Depends(_get_label_from_token),
@@ -174,7 +174,7 @@ async def send_email_endpoint(
         raise HTTPException(status_code=e.status_code, detail=e.message)
 
 
-@router.post("/email/generate", response_model=GenerateEmailResponse)
+@router.post("/generate", response_model=GenerateEmailResponse)
 async def generate_email(
     body: GenerateEmailRequest,
     auth: dict = Depends(_get_label_from_token),
@@ -225,7 +225,7 @@ async def generate_email(
     return GenerateEmailResponse(subject=draft["subject"], body=draft["body"])
 
 
-@router.get("/email/templates", response_model=list[EmailTemplateResponse])
+@router.get("/templates", response_model=list[EmailTemplateResponse])
 async def list_email_templates(
     label_id: str | None = None,
     auth: dict = Depends(_get_label_from_token),
@@ -254,7 +254,7 @@ async def list_email_templates(
     ]
 
 
-@router.post("/email/templates", response_model=EmailTemplateResponse)
+@router.post("/templates", response_model=EmailTemplateResponse)
 async def create_email_template(
     body: EmailTemplateCreate,
     auth: dict = Depends(_get_label_from_token),

@@ -113,7 +113,7 @@ def _verify_label_ownership(session: Session, label_id: str, submission: Submiss
 
 # --- Endpoints ---
 
-@router.get("/submissions", response_model=list[SubmissionSummary])
+@router.get("", response_model=list[SubmissionSummary])
 async def list_submissions(
     label_id: str | None = None,
     status: str | None = None,
@@ -166,7 +166,7 @@ async def list_submissions(
     ]
 
 
-@router.get("/submissions/{submission_id}", response_model=SubmissionDetail)
+@router.get("/{submission_id}", response_model=SubmissionDetail)
 async def get_submission(
     submission_id: str,
     auth: dict = Depends(_get_label_from_token),
@@ -199,7 +199,7 @@ async def get_submission(
     )
 
 
-@router.patch("/submissions/{submission_id}/status", response_model=UpdateStatusResponse)
+@router.patch("/{submission_id}/status", response_model=UpdateStatusResponse)
 async def update_submission_status(
     submission_id: str,
     body: UpdateStatusRequest,
@@ -249,7 +249,7 @@ async def update_submission_status(
     )
 
 
-@router.delete("/submissions/{submission_id}", response_model=DeleteResponse)
+@router.delete("/{submission_id}", response_model=DeleteResponse)
 async def delete_submission(
     submission_id: str,
     force: bool = False,
@@ -285,7 +285,7 @@ async def delete_submission(
     return DeleteResponse(id=submission_id, deleted=True)
 
 
-@router.patch("/submissions/{submission_id}/restore", response_model=RestoreResponse)
+@router.patch("/{submission_id}/restore", response_model=RestoreResponse)
 async def restore_submission(
     submission_id: str,
     auth: dict = Depends(_get_label_from_token),
@@ -327,7 +327,7 @@ class HQCountResponse(BaseModel):
     processed_count: int = 0
 
 
-@router.delete("/submissions/{submission_id}/file", response_model=DeleteFileResponse)
+@router.delete("/{submission_id}/file", response_model=DeleteFileResponse)
 async def delete_submission_file(
     submission_id: str,
     auth: dict = Depends(_get_label_from_token),
@@ -394,7 +394,7 @@ async def get_label_hq_count(
     return HQCountResponse(count=count, limit=10, processed_count=processed)
 
 
-@router.get("/submissions/{submission_id}/download")
+@router.get("/{submission_id}/download")
 async def download_original(
     submission_id: str,
     type: str | None = None,

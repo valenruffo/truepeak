@@ -255,7 +255,7 @@ class PortalResponse(BaseModel):
 
 # --- Endpoints ---
 
-@router.post("/labels/register", response_model=RegisterResponse, status_code=201)
+@router.post("/register", response_model=RegisterResponse, status_code=201)
 @limiter.limit("3/minute")
 async def register_label(
     request: Request,
@@ -328,7 +328,7 @@ async def register_label(
     )
 
 
-@router.get("/labels/{slug}", response_model=LabelConfig)
+@router.get("/{slug}", response_model=LabelConfig)
 async def get_label_config(
     slug: str,
     session: Session = Depends(get_session),
@@ -355,7 +355,7 @@ async def get_label_config(
     )
 
 
-@router.put("/labels/{slug}/config", response_model=LabelConfig)
+@router.put("/{slug}/config", response_model=LabelConfig)
 async def update_label_config(
     slug: str,
     body: SonicSignatureUpdate,
@@ -403,7 +403,7 @@ async def update_label_config(
     )
 
 
-@router.post("/labels/login", response_model=LoginResponse)
+@router.post("/login", response_model=LoginResponse)
 @limiter.limit("5/minute")
 async def label_login_by_identifier(
     request: Request,
@@ -454,7 +454,7 @@ async def label_login_by_identifier(
     )
 
 
-@router.post("/labels/{slug}/login", response_model=LoginResponse)
+@router.post("/{slug}/login", response_model=LoginResponse)
 @limiter.limit("5/minute")
 async def label_login(
     slug: str,
@@ -499,14 +499,14 @@ async def label_login(
     )
 
 
-@router.post("/labels/logout")
+@router.post("/logout")
 async def label_logout(response: Response):
     """Clear the authentication cookie."""
     response.delete_cookie(key="token", httponly=True, samesite="lax")
     return {"message": "Logged out"}
 
 
-@router.get("/labels/{slug}/stats", response_model=LabelStats)
+@router.get("/{slug}/stats", response_model=LabelStats)
 async def get_label_stats(
     slug: str,
     auth: dict = Depends(_get_label_from_token),
@@ -556,7 +556,7 @@ class LogoUploadResponse(BaseModel):
     logo_url: str
 
 
-@router.post("/labels/{slug}/logo", response_model=LogoUploadResponse)
+@router.post("/{slug}/logo", response_model=LogoUploadResponse)
 async def upload_label_logo(
     slug: str,
     file: UploadFile = File(...),
@@ -639,7 +639,7 @@ class SubmissionTextResponse(BaseModel):
     submission_description: str | None
 
 
-@router.put("/labels/{slug}/submission-text", response_model=SubmissionTextResponse)
+@router.put("/{slug}/submission-text", response_model=SubmissionTextResponse)
 async def update_submission_text(
     slug: str,
     body: SubmissionTextUpdate,
@@ -669,7 +669,7 @@ async def update_submission_text(
     )
 
 
-@router.patch("/labels/{slug}/plan", response_model=LabelConfig)
+@router.patch("/{slug}/plan", response_model=LabelConfig)
 async def update_label_plan(
     slug: str,
     body: PlanUpdate,
@@ -886,7 +886,7 @@ class PlanUpdateByEmail(BaseModel):
     slug: str | None = None
 
 
-@router.post("/admin/labels/by-email/plan")
+@router.post("/admin/by-email/plan")
 async def admin_update_label_plan_by_email(
     body: PlanUpdateByEmail,
     session: Session = Depends(get_session),
@@ -951,7 +951,7 @@ async def admin_update_label_plan_by_email(
     return {"id": label.id, "slug": label.slug, "plan": label.plan}
 
 
-@router.post("/admin/labels/{slug}/plan", response_model=LabelConfig)
+@router.post("/admin/{slug}/plan", response_model=LabelConfig)
 async def admin_update_label_plan(
     slug: str,
     body: PlanUpdate,
@@ -1002,7 +1002,7 @@ class RoleUpdate(BaseModel):
     role: str  # "label" | "dj"
 
 
-@router.post("/admin/labels/{slug}/role")
+@router.post("/admin/{slug}/role")
 async def admin_update_label_role(
     slug: str,
     body: RoleUpdate,
