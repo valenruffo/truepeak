@@ -10,6 +10,9 @@ services:
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
       - OPENROUTER_MODEL=${OPENROUTER_MODEL:-meta-llama/llama-3.1-8b-instruct:free}
       - RESEND_API_KEY=${RESEND_API_KEY:-}
+      - POLAR_ACCESS_TOKEN=${POLAR_ACCESS_TOKEN:-}
+      - POLAR_ORGANIZATION_ID=${POLAR_ORGANIZATION_ID:-}
+      - POLAR_WEBHOOK_SECRET=${POLAR_WEBHOOK_SECRET:-}
       - DATA_DIR=/app/data
     volumes:
       - ./data:/app/data

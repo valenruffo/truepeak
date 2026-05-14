@@ -357,43 +357,6 @@ async def delete_submission_file(
     return DeleteFileResponse(deleted=True)
 
 
-@router.get("/labels/{slug}/hq-count", response_model=HQCountResponse)
-async def get_label_hq_count(
-    slug: str,
-    auth: dict = Depends(_get_label_from_token),
-    session: Session = Depends(get_session),
-):
-    """Get the count of HQ (original WAV/FLAC) stored submissions for a label. Requires label owner auth."""
-    label = session.exec(select(Label).where(Label.slug == slug)).first()
-    if not label:
-        raise HTTPException(status_code=404, detail=f"Label '{slug}' not found.")
-
-    if label.id != auth["label_id"]:
-        raise HTTPException(status_code=403, detail="Access denied to this label.")
-
-    import sqlalchemy as sa
-    
-    count = session.exec(
-        select(func.count()).where(
-            Submission.label_id == label.id,
-            Submission.deleted_at.is_(None),
-            sa.or_(
-                Submission.original_path.isnot(None),
-                Submission.mp3_path.isnot(None),
-            ),
-        )
-    ).one()
-
-    processed = session.exec(
-        select(func.count()).where(
-            Submission.label_id == label.id,
-            Submission.deleted_at.is_(None),
-        )
-    ).one()
-
-    return HQCountResponse(count=count, limit=10, processed_count=processed)
-
-
 @router.get("/{submission_id}/download")
 async def download_original(
     submission_id: str,

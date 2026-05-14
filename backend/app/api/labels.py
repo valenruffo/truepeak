@@ -12,7 +12,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel, EmailStr, field_validator
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from sqlmodel import Session, select
+from sqlmodel import Session, select, func
 
 from app.database import get_session
 from app.models import Label, Submission, EmailTemplate
@@ -251,6 +251,12 @@ class BillingDetails(BaseModel):
 
 class PortalResponse(BaseModel):
     url: str
+
+
+class HQCountResponse(BaseModel):
+    count: int
+    limit: int
+    processed_count: int = 0
 
 
 # --- Endpoints ---
@@ -799,6 +805,44 @@ async def get_label_billing(
         )
 
 
+@router.get("/{slug}/hq-count", response_model=HQCountResponse)
+async def get_label_hq_count(
+    slug: str,
+    auth: dict = Depends(_get_label_from_token),
+    session: Session = Depends(get_session),
+):
+    """Get the count of HQ (original WAV/FLAC) stored submissions for a label. Requires label owner auth."""
+    label = session.exec(select(Label).where(Label.slug == slug)).first()
+    if not label:
+        raise HTTPException(status_code=404, detail=f"Label '{slug}' not found.")
+
+    if label.id != auth["label_id"]:
+        raise HTTPException(status_code=403, detail="Access denied to this label.")
+
+    import sqlalchemy as sa
+    from app.models import Submission
+    
+    count = session.exec(
+        select(func.count()).where(
+            Submission.label_id == label.id,
+            Submission.deleted_at.is_(None),
+            sa.or_(
+                Submission.original_path.isnot(None),
+                Submission.mp3_path.isnot(None),
+            ),
+        )
+    ).one()
+
+    processed = session.exec(
+        select(func.count()).where(
+            Submission.label_id == label.id,
+            Submission.deleted_at.is_(None),
+        )
+    ).one()
+
+    return HQCountResponse(count=count, limit=10, processed_count=processed)
+
+
 @router.post("/{slug}/portal", response_model=PortalResponse)
 async def create_portal_session(
     slug: str,
@@ -810,8 +854,8 @@ async def create_portal_session(
     if not label or label.id != auth["label_id"]:
         raise HTTPException(status_code=403, detail="Forbidden")
 
-    if not POLAR_ACCESS_TOKEN:
-        raise HTTPException(status_code=500, detail="Polar configuration missing.")
+    if not POLAR_ACCESS_TOKEN or not POLAR_ORGANIZATION_ID:
+        raise HTTPException(status_code=500, detail=f"Polar configuration missing. Token: {'set' if POLAR_ACCESS_TOKEN else 'missing'}, Org: {'set' if POLAR_ORGANIZATION_ID else 'missing'}")
 
     headers = {"Authorization": f"Bearer {POLAR_ACCESS_TOKEN}"}
     
