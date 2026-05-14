@@ -8,7 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Webhook } from "standardwebhooks";
 
 const WEBHOOK_SECRET = process.env.POLAR_WEBHOOK_SECRET || "";
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "https://cruel-cougars-scream.loca.lt";
+const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://164.152.194.196:8000";
 
 const PRODUCT_TO_PLAN: Record<string, string> = {
   "400b734f-4dfd-4376-99e5-2bab977cc1fe": "indie",
