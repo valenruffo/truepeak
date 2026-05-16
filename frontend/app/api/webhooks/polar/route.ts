@@ -17,8 +17,8 @@ const PRODUCT_TO_PLAN: Record<string, string> = {
 
 async function updatePlan(email: string, plan: string, slug?: string) {
   if (slug) {
-    console.log(`[Polar Webhook] Calling backend: ${BACKEND_URL}/api/admin/labels/${slug}/plan`);
-    const res = await fetch(`${BACKEND_URL}/api/admin/labels/${slug}/plan`, {
+    console.log(`[Polar Webhook] Calling backend: ${BACKEND_URL}/api/labels/admin/${slug}/plan`);
+    const res = await fetch(`${BACKEND_URL}/api/labels/admin/${slug}/plan`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ plan }),
@@ -32,18 +32,18 @@ async function updatePlan(email: string, plan: string, slug?: string) {
   }
 
   // Fallback to by-email
-  console.log(`[Polar Webhook] Calling backend: ${BACKEND_URL}/api/admin/labels/by-email/plan`);
-  const res = await fetch(`${BACKEND_URL}/api/admin/labels/by-email/plan`, {
+  console.log(`[Polar Webhook] Calling backend: ${BACKEND_URL}/api/labels/admin/by-email/plan`);
+  const res = await fetch(`${BACKEND_URL}/api/labels/admin/by-email/plan`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, plan }),
     signal: AbortSignal.timeout(10000),
   });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Backend ${res.status}: ${err}`);
-  }
-  return res.json();
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Backend ${res.status}: ${err}`);
+    }
+    return res.json();
 }
 
 function extractCustomerAndProduct(data: any): { email: string; productId: string; slug: string } {
@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
   console.log(`[Polar Webhook] Event: ${eventType} | Email: ${email} | Product: ${productId} | Slug: ${slug}`);
 
   // Log to backend for debugging
-  fetch(`${BACKEND_URL}/api/webhook-debug`, {
+  fetch(`${BACKEND_URL}/api/labels/webhook-debug`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ type: eventType, email, productId, slug, dataKeys: Object.keys(data.data || data) }),

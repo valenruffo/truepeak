@@ -73,6 +73,7 @@ export default function SettingsPage() {
       await cancelSubscription(labelSlug);
       setPlan("free");
       localStorage.setItem("plan", "free");
+      window.dispatchEvent(new Event("plan_updated"));
       addToast({
         title: "Éxito",
         description: "Suscripción cancelada correctamente.",
@@ -96,6 +97,7 @@ export default function SettingsPage() {
       await updateSubscription(labelSlug, newPlan);
       setPlan(newPlan);
       localStorage.setItem("plan", newPlan);
+      window.dispatchEvent(new Event("plan_updated"));
       addToast({
         title: "Éxito",
         description: `Plan actualizado a ${newPlan.toUpperCase()} correctamente.`,
@@ -133,10 +135,10 @@ export default function SettingsPage() {
     // Add metadata with slug so backend updates the correct account
     url.searchParams.append("metadata[slug]", labelSlug);
     
-    // Add return URL for feedback
+    // Add success URL for feedback (Polar uses success_url)
     const returnUrl = new URL(window.location.href);
     returnUrl.searchParams.set("success", "true");
-    url.searchParams.append("return_url", returnUrl.toString());
+    url.searchParams.append("success_url", returnUrl.toString());
     
     return url.toString();
   };

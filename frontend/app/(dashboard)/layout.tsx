@@ -161,6 +161,17 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
       checkUpdate(4000); // Initial check after 4s
     }
 
+    const handlePlanUpdate = () => {
+      const newPlan = localStorage.getItem("plan");
+      const overridePlan = localStorage.getItem("admin_plan_override");
+      if (overridePlan) return;
+      if (newPlan && newPlan !== plan) {
+        setPlan(newPlan);
+        setPlanInfo(newPlan.charAt(0).toUpperCase() + newPlan.slice(1));
+      }
+    };
+    window.addEventListener("plan_updated", handlePlanUpdate);
+
     const fetchStats = async () => {
       if (!slug) return;
       try {
@@ -205,6 +216,10 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
       } catch { /* silent */ }
     };
     fetchTracks();
+
+    return () => {
+      window.removeEventListener("plan_updated", handlePlanUpdate);
+    };
   }, []);
 
   const role = currentRole;
@@ -328,8 +343,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
         {/* Admin Testing Panel (Localhost or VPS IP) */}
         {mounted && (
           window.location.hostname === "localhost" || 
-          window.location.hostname === "127.0.0.1" || 
-          window.location.hostname === "164.152.194.196"
+          window.location.hostname === "127.0.0.1"
         ) && (
           <div className="px-3 mb-3 mt-4 pt-4 border-t" style={{ borderColor: "var(--border)" }}>
             <div className="text-[9px] font-mono uppercase tracking-widest text-emerald-500 mb-2 px-3">🔧 Testing</div>
