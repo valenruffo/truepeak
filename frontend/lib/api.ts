@@ -16,9 +16,18 @@ async function request<T>(
     ...options.headers,
   };
 
+  // Inject JWT token from localStorage if available
+  if (typeof window !== "undefined") {
+    const token = localStorage.getItem("token");
+    if (token && !headers["Authorization"]) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+  }
+
   const response = await fetch(url, {
     ...options,
     headers,
+    credentials: "include", // always send cookies
   });
 
   if (!response.ok) {
