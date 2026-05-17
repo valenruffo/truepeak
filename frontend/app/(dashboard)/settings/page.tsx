@@ -168,10 +168,12 @@ export default function SettingsPage() {
     // Add metadata with slug so backend updates the correct account
     url.searchParams.append("metadata[slug]", labelSlug);
     
-    // Add success URL for feedback (Polar uses success_url)
-    const returnUrl = new URL(window.location.href);
-    returnUrl.searchParams.set("success", "true");
-    url.searchParams.append("success_url", returnUrl.toString());
+    // Redirect to dedicated success page after checkout
+    const origin = window.location.origin;
+    url.searchParams.append("success_url", `${origin}/success`);
+    
+    // Signal to dashboard/success page that a payment is in progress
+    localStorage.setItem("payment_completed", "true");
     
     return url.toString();
   };

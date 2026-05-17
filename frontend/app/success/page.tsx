@@ -8,13 +8,51 @@ function SuccessContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const checkoutId = searchParams.get("checkout_id");
-  const [countdown, setCountdown] = useState(5);
+  const [countdown, setCountdown] = useState(8);
+  const [planUpdated, setPlanUpdated] = useState(false);
+  const [detectedPlan, setDetectedPlan] = useState<string | null>(null);
 
   useEffect(() => {
     // Signal to dashboard that payment completed — trigger plan re-fetch
     localStorage.setItem("payment_completed", "true");
-    localStorage.setItem("payment_checkout_id", checkoutId || "");
+    if (checkoutId) {
+      localStorage.setItem("payment_checkout_id", checkoutId);
+    }
 
+    // Poll backend for plan update (webhook may take a few seconds)
+    const slug = localStorage.getItem("slug");
+    const currentPlan = localStorage.getItem("plan") || "free";
+
+    if (slug) {
+      let attempts = 0;
+      const maxAttempts = 10; // 10 * 2s = 20s max
+      const pollInterval = setInterval(async () => {
+        attempts++;
+        try {
+          const res = await fetch(`/api/labels/${slug}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data?.plan && data.plan !== currentPlan && data.plan !== "free") {
+              // Plan updated!
+              clearInterval(pollInterval);
+              setPlanUpdated(true);
+              setDetectedPlan(data.plan);
+              localStorage.setItem("plan", data.plan);
+              window.dispatchEvent(new Event("plan_updated"));
+            }
+          }
+        } catch {}
+
+        if (attempts >= maxAttempts) {
+          clearInterval(pollInterval);
+        }
+      }, 2000);
+
+      return () => clearInterval(pollInterval);
+    }
+  }, [checkoutId]);
+
+  useEffect(() => {
     const timer = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
@@ -26,7 +64,11 @@ function SuccessContent() {
       });
     }, 1000);
     return () => clearInterval(timer);
-  }, [router, checkoutId]);
+  }, [router]);
+
+  const planLabel = detectedPlan
+    ? detectedPlan.charAt(0).toUpperCase() + detectedPlan.slice(1)
+    : null;
 
   return (
     <div className="min-h-screen flex items-center justify-center px-6" style={{ background: "#09090b" }}>
@@ -44,9 +86,22 @@ function SuccessContent() {
         <h1 className="font-display font-bold text-2xl tracking-tight mb-2" style={{ color: "#fafafa" }}>
           ¡Pago exitoso!
         </h1>
-        <p className="text-sm mb-2" style={{ color: "#a1a1aa" }}>
-          Tu cuenta ha sido actualizada. Bienvenido a True Peak AI.
-        </p>
+
+        {planUpdated && planLabel ? (
+          <p className="text-sm mb-2" style={{ color: "#10b981" }}>
+            Tu plan se actualizó a <strong>{planLabel}</strong>. ¡Bienvenido a True Peak AI!
+          </p>
+        ) : (
+          <div className="mb-2">
+            <p className="text-sm" style={{ color: "#a1a1aa" }}>
+              Tu cuenta está siendo actualizada...
+            </p>
+            <div className="flex items-center justify-center gap-2 mt-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-xs" style={{ color: "#52525b" }}>Esperando confirmación del webhook</span>
+            </div>
+          </div>
+        )}
 
         {checkoutId && (
           <div

@@ -44,8 +44,12 @@ def _verify_polar_signature(raw_body: bytes, headers: dict, secret: str) -> bool
     if "webhook-signature" in headers:
         try:
             from standardwebhooks import Webhook
-            # Standard Webhooks library handles the secret format
-            wh = Webhook(secret)
+            # Polar uses "polar_whs_" prefix, but standardwebhooks expects "whsec_" prefix.
+            # Both carry the same base64 key — we just swap the prefix.
+            normalized_secret = secret
+            if secret.startswith("polar_whs_"):
+                normalized_secret = "whsec_" + secret[len("polar_whs_"):]
+            wh = Webhook(normalized_secret)
             wh.verify(raw_body.decode("utf-8"), headers)
             return True
         except Exception as e:

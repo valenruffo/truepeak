@@ -1217,54 +1217,71 @@ async def debug_webhook_payload(body: dict, session: Session = Depends(get_sessi
         slug = metadata.get("slug") or ""
     
     # Logging for debug
+    log_line = f"[{datetime.now().isoformat()}] WEBHOOK DEBUG | Type: {event_type} | Email: {customer_email} | Slug: {slug} | Product: {product_id}"
     with open("/app/data/webhook.log", "a") as f:
-        f.write(f"[{datetime.now().isoformat()}] WEBHOOK DEBUG | Type: {event_type} | Email: {customer_email} | Slug: {slug} | Product: {product_id}\n")
+        f.write(log_line + "\n")
+    logger.info(f"WEBHOOK-DEBUG: {log_line}")
 
     # 3. Find Label
     label = None
     if slug:
         label = session.exec(select(Label).where(Label.slug == slug)).first()
+        logger.info(f"WEBHOOK-DEBUG: Lookup by slug='{slug}' -> {'FOUND' if label else 'NOT FOUND'}")
     
     if not label and customer_email:
-        # Case-insensitive email match
-        label = session.exec(select(Label).where(Label.owner_email.ilike(customer_email))).first()
+        # Case-insensitive email match using func.lower for SQLite compatibility
+        from sqlalchemy import func as sa_func
+        label = session.exec(
+            select(Label).where(sa_func.lower(Label.owner_email) == customer_email.lower().strip())
+        ).first()
+        logger.info(f"WEBHOOK-DEBUG: Lookup by email='{customer_email}' -> {'FOUND ' + label.slug if label else 'NOT FOUND'}")
 
     if not label:
+        logger.warning(f"WEBHOOK-DEBUG: Label not found for email={customer_email} slug={slug}")
+        with open("/app/data/webhook.log", "a") as f:
+            f.write(f"  -> SKIPPED: label not found\n")
         return {"received": True, "skipped": True, "reason": "label not found"}
 
     # 4. Process Plan Changes
-    # Handle subscription/order success events
-    success_events = ("subscription.created", "subscription.active", "order.created", "order.paid", "checkout.completed")
-    
+    success_events = ("subscription.created", "subscription.active", "subscription.updated", "order.created", "order.paid", "checkout.completed")
+    cancel_events = ("subscription.canceled", "subscription.revoked")
+
     if event_type in success_events:
         plan = PRODUCT_TO_PLAN.get(product_id)
+        logger.info(f"WEBHOOK-DEBUG: Success event. product_id={product_id} -> plan={plan}")
         if plan:
+            old_plan = label.plan
             label.plan = plan
             _apply_plan_limits(label)
             label.updated_at = datetime.now(timezone.utc)
             session.add(label)
             session.commit()
+            session.refresh(label)
+            logger.info(f"WEBHOOK-DEBUG: UPGRADED {label.slug} from {old_plan} to {label.plan}")
+            with open("/app/data/webhook.log", "a") as f:
+                f.write(f"  -> UPGRADED: {label.slug} {old_plan} -> {label.plan}\n")
             return {"received": True, "action": "upgraded", "plan": plan, "label": label.slug}
-    
-    elif event_type == "subscription.updated":
-        plan = PRODUCT_TO_PLAN.get(product_id)
-        if plan:
-            label.plan = plan
-            _apply_plan_limits(label)
-            label.updated_at = datetime.now(timezone.utc)
-            session.add(label)
-            session.commit()
-            return {"received": True, "action": "updated", "plan": plan, "label": label.slug}
-            
-    elif event_type in ("subscription.canceled", "subscription.revoked"):
+        else:
+            logger.warning(f"WEBHOOK-DEBUG: Unknown product_id={product_id}, known products: {list(PRODUCT_TO_PLAN.keys())}")
+            with open("/app/data/webhook.log", "a") as f:
+                f.write(f"  -> SKIPPED: unknown product_id {product_id}\n")
+
+    elif event_type in cancel_events:
+        old_plan = label.plan
         label.plan = "free"
         _apply_plan_limits(label)
         label.updated_at = datetime.now(timezone.utc)
         session.add(label)
         session.commit()
+        session.refresh(label)
+        logger.info(f"WEBHOOK-DEBUG: DOWNGRADED {label.slug} from {old_plan} to free")
+        with open("/app/data/webhook.log", "a") as f:
+            f.write(f"  -> DOWNGRADED: {label.slug} {old_plan} -> free\n")
         return {"received": True, "action": "downgraded", "plan": "free", "label": label.slug}
 
-    return {"received": True, "skipped": True, "reason": "unhandled event type or missing plan mapping"}
+    with open("/app/data/webhook.log", "a") as f:
+        f.write(f"  -> SKIPPED: unhandled event {event_type}\n")
+    return {"received": True, "skipped": True, "reason": f"unhandled event: {event_type}"}
 
 
 class RoleUpdate(BaseModel):
