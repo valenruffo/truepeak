@@ -1,9 +1,6 @@
 {
   "rewrites": [
-    {
-      "source": "/api/webhooks/polar",
-      "destination": "/api/webhooks/polar"
-    },
+
     {
       "source": "/api/debug-backend",
       "destination": "/api/debug-backend"

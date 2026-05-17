@@ -9,11 +9,7 @@ const nextConfig: NextConfig = {
   serverExternalPackages: [],
   async rewrites() {
     return [
-      // Webhook routes handled by Next.js — do NOT proxy to backend
-      {
-        source: "/api/webhooks/:path*",
-        destination: "/api/webhooks/:path*",
-      },
+      // All other API requests proxied to backend
       {
         source: "/api/debug-backend",
         destination: "/api/debug-backend",
