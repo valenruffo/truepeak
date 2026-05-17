@@ -42,7 +42,7 @@ def _verify_polar_signature(raw_body: bytes, headers: dict, secret: str) -> bool
     logger.warning("webhook-timestamp: %s", headers.get("webhook-timestamp"))
     logger.warning("webhook-signature: %s", headers.get("webhook-signature"))
     logger.warning("Body length: %d", len(raw_body))
-    logger.warning("Body snippet: %s", raw_body[:200].decode("utf-8", errors="ignore"))
+    logger.warning("Body full: %s", raw_body.decode("utf-8", errors="ignore"))
     logger.warning("Secret starts with polar_whs_: %s", secret.startswith("polar_whs_"))
 
     if not secret:
