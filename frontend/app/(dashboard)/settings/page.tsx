@@ -56,7 +56,7 @@ export default function SettingsPage() {
 
     // Check for success message from Polar — poll backend until plan updates
     const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get("success") === "true") {
+    if (urlParams.get("success") === "true" && slug) {
       // Clean up URL immediately
       window.history.replaceState({}, document.title, window.location.pathname);
 
