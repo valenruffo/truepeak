@@ -36,14 +36,14 @@ def _verify_polar_signature(raw_body: bytes, headers: dict, secret: str) -> bool
     """Verify the Polar webhook signature.
     Supports both legacy HMAC (x-polar-signature) and new Standard Webhooks (webhook-signature).
     """
-    logger.info("--- WEBHOOK SIGNATURE VERIFICATION ---")
-    logger.info("Headers keys: %s", list(headers.keys()))
-    logger.info("webhook-id: %s", headers.get("webhook-id"))
-    logger.info("webhook-timestamp: %s", headers.get("webhook-timestamp"))
-    logger.info("webhook-signature: %s", headers.get("webhook-signature"))
-    logger.info("Body length: %d", len(raw_body))
-    logger.info("Body snippet: %s", raw_body[:200].decode("utf-8", errors="ignore"))
-    logger.info("Secret starts with polar_whs_: %s", secret.startswith("polar_whs_"))
+    logger.warning("--- WEBHOOK SIGNATURE VERIFICATION ---")
+    logger.warning("Headers keys: %s", list(headers.keys()))
+    logger.warning("webhook-id: %s", headers.get("webhook-id"))
+    logger.warning("webhook-timestamp: %s", headers.get("webhook-timestamp"))
+    logger.warning("webhook-signature: %s", headers.get("webhook-signature"))
+    logger.warning("Body length: %d", len(raw_body))
+    logger.warning("Body snippet: %s", raw_body[:200].decode("utf-8", errors="ignore"))
+    logger.warning("Secret starts with polar_whs_: %s", secret.startswith("polar_whs_"))
 
     if not secret:
         logger.warning("POLAR_WEBHOOK_SECRET not set — skipping signature verification")
@@ -60,7 +60,7 @@ def _verify_polar_signature(raw_body: bytes, headers: dict, secret: str) -> bool
                 normalized_secret = "whsec_" + secret[len("polar_whs_"):]
             wh = Webhook(normalized_secret)
             wh.verify(raw_body.decode("utf-8"), headers)
-            logger.info("Standard Webhook verification SUCCEEDED")
+            logger.warning("Standard Webhook verification SUCCEEDED")
             return True
         except Exception as e:
             logger.error("Standard Webhook verification failed: %s", e)
@@ -71,7 +71,7 @@ def _verify_polar_signature(raw_body: bytes, headers: dict, secret: str) -> bool
     if signature:
         expected = hmac.new(secret.encode(), raw_body, hashlib.sha256).hexdigest()
         result = hmac.compare_digest(expected, signature)
-        logger.info("Legacy HMAC verification result: %s", result)
+        logger.warning("Legacy HMAC verification result: %s", result)
         return result
 
     logger.warning("No webhook signature headers found in request")
