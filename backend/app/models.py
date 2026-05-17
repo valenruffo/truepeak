@@ -48,6 +48,8 @@ class Label(SQLModel, table=True):
     submission_title: str | None = None
     submission_description: str | None = None
     role: str = Field(default="label")  # "label" | "dj"
+    polar_customer_id: str | None = None
+    polar_subscription_id: str | None = None
 
     submissions: list["Submission"] = Relationship(back_populates="label")
     email_templates: list["EmailTemplate"] = Relationship(back_populates="label")

@@ -40,6 +40,9 @@ def _apply_migrations(session: Session) -> None:
         "ALTER TABLE submission ADD COLUMN crest_factor FLOAT",
         # Role onboarding
         "ALTER TABLE label ADD COLUMN role TEXT DEFAULT 'label'",
+        # Polar ID tracking
+        "ALTER TABLE label ADD COLUMN polar_customer_id TEXT",
+        "ALTER TABLE label ADD COLUMN polar_subscription_id TEXT",
     ]
     for sql in migrations:
         try:

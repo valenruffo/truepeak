@@ -733,55 +733,6 @@ PLAN_TO_PRODUCT = {v: k for k, v in PRODUCT_TO_PLAN.items()}
 class UpdateSubscriptionRequest(BaseModel):
     new_plan: str
 
-class AdminPlanUpdateRequest(BaseModel):
-    email: str
-    slug: str
-    plan: str
-    polar_customer_id: str | None = None
-    polar_subscription_id: str | None = None
-
-@router.post("/admin/by-email/plan")
-async def update_plan_admin(
-    req: AdminPlanUpdateRequest,
-    session: Session = Depends(get_session)
-):
-    """Internal endpoint for Vercel proxy to sync DB after Polar updates."""
-    label = session.exec(select(Label).where(Label.owner_email == req.email)).first()
-    if not label:
-        raise HTTPException(status_code=404, detail="Label not found")
-        
-    label.plan = req.plan
-    _apply_plan_limits(label, req.plan)
-    
-    if req.polar_customer_id:
-        label.polar_customer_id = req.polar_customer_id
-    if req.polar_subscription_id:
-        label.polar_subscription_id = req.polar_subscription_id
-    
-    label.updated_at = datetime.now(timezone.utc)
-    session.add(label)
-    session.commit()
-    return {"status": "ok"}
-
-@router.get("/me/secure")
-async def get_me_secure(
-    auth: dict = Depends(_get_label_from_token),
-    session: Session = Depends(get_session),
-):
-    """Get secure label details using JWT. Used by Vercel API proxy."""
-    label = session.exec(select(Label).where(Label.id == auth["label_id"])).first()
-    if not label:
-        raise HTTPException(status_code=404, detail="Label not found")
-    
-    return {
-        "email": label.owner_email,
-        "plan": label.plan or "free",
-        "slug": label.slug,
-        "name": label.name,
-        "polar_customer_id": label.polar_customer_id,
-        "polar_subscription_id": label.polar_subscription_id
-    }
-
 
 @router.get("/{slug}/billing", response_model=BillingDetails)
 async def get_label_billing(
@@ -1008,52 +959,49 @@ async def cancel_subscription(
     if not label or label.id != auth["label_id"]:
         raise HTTPException(status_code=403, detail="Access denied.")
 
-    # Need to find the active subscription ID
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        headers = {"Authorization": f"Bearer {POLAR_ACCESS_TOKEN}"}
-        
-        # 1. Get Customer ID from Polar
-        c_resp = await client.get(
-            f"https://api.polar.sh/v1/customers/?organization_id={POLAR_ORGANIZATION_ID}&email={label.owner_email}",
-            headers=headers
-        )
-        c_resp.raise_for_status()
-        customers = c_resp.json().get("items", [])
-        if not customers:
-            raise HTTPException(status_code=404, detail="No Polar customer found.")
-        
-        customer_id = customers[0]["id"]
+    if POLAR_ACCESS_TOKEN and POLAR_ORGANIZATION_ID:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            headers = {"Authorization": f"Bearer {POLAR_ACCESS_TOKEN}"}
+            
+            c_url = f"https://api.polar.sh/v1/customers/?organization_id={POLAR_ORGANIZATION_ID}&email={label.owner_email}"
+            c_resp = await client.get(c_url, headers=headers)
+            c_resp.raise_for_status()
+            customers = c_resp.json().get("items", [])
+            
+            if not customers:
+                raise HTTPException(status_code=404, detail="No Polar customer found.")
+            
+            customer_id = customers[0]["id"]
 
-        # 2. Get Active Subscription
-        s_resp = await client.get(
-            f"https://api.polar.sh/v1/subscriptions/?organization_id={POLAR_ORGANIZATION_ID}&customer_id={customer_id}&active=true",
-            headers=headers
-        )
-        s_resp.raise_for_status()
-        subs = s_resp.json().get("items", [])
-        if not subs:
-            raise HTTPException(status_code=404, detail="No active subscription found.")
-        
-        sub_id = subs[0]["id"]
+            s_url = f"https://api.polar.sh/v1/subscriptions/?organization_id={POLAR_ORGANIZATION_ID}&customer_id={customer_id}&active=true"
+            s_resp = await client.get(s_url, headers=headers)
+            s_resp.raise_for_status()
+            subs = s_resp.json().get("items", [])
+            
+            if not subs:
+                raise HTTPException(status_code=404, detail="No active subscription found.")
+            
+            sub_id = subs[0]["id"]
 
-        # 3. Revoke/Cancel Subscription
-        print(f"DEBUG: Cancelling Polar subscription {sub_id}")
-        del_resp = await client.delete(
-            f"https://api.polar.sh/v1/subscriptions/{sub_id}",
-            headers=headers
-        )
-        
-        if del_resp.status_code not in [200, 204]:
-            print(f"DEBUG: Polar cancellation failed: {del_resp.status_code} - {del_resp.text}")
-            del_resp.raise_for_status()
+            print(f"DEBUG: Cancelling Polar subscription {sub_id}")
+            del_resp = await client.delete(
+                f"https://api.polar.sh/v1/subscriptions/{sub_id}",
+                headers=headers
+            )
+            if del_resp.status_code not in [200, 204]:
+                print(f"DEBUG: Polar cancellation failed: {del_resp.status_code} - {del_resp.text}")
+                raise HTTPException(status_code=502, detail=f"Polar API Error: {del_resp.text}")
 
-        # Update local label plan to free
-        label.plan = "free"
-        _apply_plan_limits(label)
-        session.add(label)
-        session.commit()
+    # Update local DB to free
+    label.plan = "free"
+    _apply_plan_limits(label)
+    label.updated_at = datetime.now(timezone.utc)
+    
+    session.add(label)
+    session.commit()
+    session.refresh(label)
 
-        return {"status": "success", "message": "Subscription cancelled successfully."}
+    return {"status": "success", "message": "Subscription cancelled successfully."}
 
 
 @router.post("/{slug}/update-subscription")
@@ -1063,7 +1011,7 @@ async def update_subscription(
     auth: dict = Depends(_get_label_from_token),
     session: Session = Depends(get_session),
 ):
-    """Upgrade or downgrade subscription with proration."""
+    """Upgrade or downgrade subscription."""
     label = session.exec(select(Label).where(Label.slug == slug)).first()
     if not label or label.id != auth["label_id"]:
         raise HTTPException(status_code=403, detail="Access denied.")
@@ -1072,56 +1020,52 @@ async def update_subscription(
     if not new_product_id:
         raise HTTPException(status_code=400, detail=f"Invalid plan: {req.new_plan}")
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        headers = {"Authorization": f"Bearer {POLAR_ACCESS_TOKEN}"}
-        
-        # 1. Get Customer ID
-        c_resp = await client.get(
-            f"https://api.polar.sh/v1/customers/?organization_id={POLAR_ORGANIZATION_ID}&email={label.owner_email}",
-            headers=headers
-        )
-        c_resp.raise_for_status()
-        customers = c_resp.json().get("items", [])
-        if not customers:
-            raise HTTPException(status_code=404, detail="No Polar customer found.")
-        
-        customer_id = customers[0]["id"]
+    if POLAR_ACCESS_TOKEN and POLAR_ORGANIZATION_ID:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            headers = {"Authorization": f"Bearer {POLAR_ACCESS_TOKEN}"}
+            
+            c_url = f"https://api.polar.sh/v1/customers/?organization_id={POLAR_ORGANIZATION_ID}&email={label.owner_email}"
+            c_resp = await client.get(c_url, headers=headers)
+            c_resp.raise_for_status()
+            customers = c_resp.json().get("items", [])
+            
+            if not customers:
+                raise HTTPException(status_code=404, detail="No Polar customer found.")
+            
+            customer_id = customers[0]["id"]
 
-        # 2. Get Active Subscription
-        s_resp = await client.get(
-            f"https://api.polar.sh/v1/subscriptions/?organization_id={POLAR_ORGANIZATION_ID}&customer_id={customer_id}&active=true",
-            headers=headers
-        )
-        s_resp.raise_for_status()
-        subs = s_resp.json().get("items", [])
-        
-        if not subs:
-            raise HTTPException(status_code=404, detail="No active subscription found to update.")
-        
-        sub_id = subs[0]["id"]
+            s_url = f"https://api.polar.sh/v1/subscriptions/?organization_id={POLAR_ORGANIZATION_ID}&customer_id={customer_id}&active=true"
+            s_resp = await client.get(s_url, headers=headers)
+            s_resp.raise_for_status()
+            subs = s_resp.json().get("items", [])
+            
+            if not subs:
+                raise HTTPException(status_code=404, detail="No active subscription found to update.")
+            
+            sub_id = subs[0]["id"]
 
-        # 3. Update Subscription
-        print(f"DEBUG: Updating Polar subscription {sub_id} to {req.new_plan} ({new_product_id})")
-        up_resp = await client.patch(
-            f"https://api.polar.sh/v1/subscriptions/{sub_id}",
-            json={
-                "product_id": new_product_id,
-                "proration_behavior": "prorate"
-            },
-            headers=headers
-        )
-        
-        if up_resp.status_code not in [200, 204]:
-            print(f"DEBUG: Polar update failed: {up_resp.status_code} - {up_resp.text}")
-            up_resp.raise_for_status()
+            print(f"DEBUG: Updating Polar subscription {sub_id} to {req.new_plan} ({new_product_id})")
+            up_resp = await client.patch(
+                f"https://api.polar.sh/v1/subscriptions/{sub_id}",
+                json={
+                    "product_id": new_product_id
+                },
+                headers=headers
+            )
+            if up_resp.status_code not in [200, 204]:
+                print(f"DEBUG: Polar update failed: {up_resp.status_code} - {up_resp.text}")
+                raise HTTPException(status_code=502, detail=f"Polar API Error: {up_resp.text}")
 
-        # Update local label plan
-        label.plan = req.new_plan.lower()
-        _apply_plan_limits(label)
-        session.add(label)
-        session.commit()
+    # Update local DB
+    label.plan = req.new_plan.lower()
+    _apply_plan_limits(label)
+    label.updated_at = datetime.now(timezone.utc)
+    
+    session.add(label)
+    session.commit()
+    session.refresh(label)
 
-        return {"status": "success", "message": f"Subscription updated to {req.new_plan} successfully."}
+    return {"status": "success", "message": f"Subscription updated to {req.new_plan} successfully."}
 
 
 import logging
@@ -1266,71 +1210,54 @@ async def debug_webhook_payload(body: dict, session: Session = Depends(get_sessi
         slug = metadata.get("slug") or ""
     
     # Logging for debug
-    log_line = f"[{datetime.now().isoformat()}] WEBHOOK DEBUG | Type: {event_type} | Email: {customer_email} | Slug: {slug} | Product: {product_id}"
     with open("/app/data/webhook.log", "a") as f:
-        f.write(log_line + "\n")
-    logger.info(f"WEBHOOK-DEBUG: {log_line}")
+        f.write(f"[{datetime.now().isoformat()}] WEBHOOK DEBUG | Type: {event_type} | Email: {customer_email} | Slug: {slug} | Product: {product_id}\n")
 
     # 3. Find Label
     label = None
     if slug:
         label = session.exec(select(Label).where(Label.slug == slug)).first()
-        logger.info(f"WEBHOOK-DEBUG: Lookup by slug='{slug}' -> {'FOUND' if label else 'NOT FOUND'}")
     
     if not label and customer_email:
-        # Case-insensitive email match using func.lower for SQLite compatibility
-        from sqlalchemy import func as sa_func
-        label = session.exec(
-            select(Label).where(sa_func.lower(Label.owner_email) == customer_email.lower().strip())
-        ).first()
-        logger.info(f"WEBHOOK-DEBUG: Lookup by email='{customer_email}' -> {'FOUND ' + label.slug if label else 'NOT FOUND'}")
+        # Case-insensitive email match
+        label = session.exec(select(Label).where(Label.owner_email.ilike(customer_email))).first()
 
     if not label:
-        logger.warning(f"WEBHOOK-DEBUG: Label not found for email={customer_email} slug={slug}")
-        with open("/app/data/webhook.log", "a") as f:
-            f.write(f"  -> SKIPPED: label not found\n")
         return {"received": True, "skipped": True, "reason": "label not found"}
 
     # 4. Process Plan Changes
-    success_events = ("subscription.created", "subscription.active", "subscription.updated", "order.created", "order.paid", "checkout.completed")
-    cancel_events = ("subscription.canceled", "subscription.revoked")
-
+    # Handle subscription/order success events
+    success_events = ("subscription.created", "subscription.active", "order.created", "order.paid", "checkout.completed")
+    
     if event_type in success_events:
         plan = PRODUCT_TO_PLAN.get(product_id)
-        logger.info(f"WEBHOOK-DEBUG: Success event. product_id={product_id} -> plan={plan}")
         if plan:
-            old_plan = label.plan
             label.plan = plan
             _apply_plan_limits(label)
             label.updated_at = datetime.now(timezone.utc)
             session.add(label)
             session.commit()
-            session.refresh(label)
-            logger.info(f"WEBHOOK-DEBUG: UPGRADED {label.slug} from {old_plan} to {label.plan}")
-            with open("/app/data/webhook.log", "a") as f:
-                f.write(f"  -> UPGRADED: {label.slug} {old_plan} -> {label.plan}\n")
             return {"received": True, "action": "upgraded", "plan": plan, "label": label.slug}
-        else:
-            logger.warning(f"WEBHOOK-DEBUG: Unknown product_id={product_id}, known products: {list(PRODUCT_TO_PLAN.keys())}")
-            with open("/app/data/webhook.log", "a") as f:
-                f.write(f"  -> SKIPPED: unknown product_id {product_id}\n")
-
-    elif event_type in cancel_events:
-        old_plan = label.plan
+    
+    elif event_type == "subscription.updated":
+        plan = PRODUCT_TO_PLAN.get(product_id)
+        if plan:
+            label.plan = plan
+            _apply_plan_limits(label)
+            label.updated_at = datetime.now(timezone.utc)
+            session.add(label)
+            session.commit()
+            return {"received": True, "action": "updated", "plan": plan, "label": label.slug}
+            
+    elif event_type in ("subscription.canceled", "subscription.revoked"):
         label.plan = "free"
         _apply_plan_limits(label)
         label.updated_at = datetime.now(timezone.utc)
         session.add(label)
         session.commit()
-        session.refresh(label)
-        logger.info(f"WEBHOOK-DEBUG: DOWNGRADED {label.slug} from {old_plan} to free")
-        with open("/app/data/webhook.log", "a") as f:
-            f.write(f"  -> DOWNGRADED: {label.slug} {old_plan} -> free\n")
         return {"received": True, "action": "downgraded", "plan": "free", "label": label.slug}
 
-    with open("/app/data/webhook.log", "a") as f:
-        f.write(f"  -> SKIPPED: unhandled event {event_type}\n")
-    return {"received": True, "skipped": True, "reason": f"unhandled event: {event_type}"}
+    return {"received": True, "skipped": True, "reason": "unhandled event type or missing plan mapping"}
 
 
 class RoleUpdate(BaseModel):

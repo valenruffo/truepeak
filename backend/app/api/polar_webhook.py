@@ -202,6 +202,11 @@ async def polar_webhook(request: Request):
             label.max_emails_month = limits["max_emails_month"]
             label.hq_retention_days = limits["hq_retention_days"]
             
+            if customer_id := payload_data.get("customer_id"):
+                label.polar_customer_id = customer_id
+            if subscription_id := payload_data.get("subscription_id"):
+                label.polar_subscription_id = subscription_id
+            
             label.updated_at = datetime.now(timezone.utc)
             session.add(label)
             session.commit()
@@ -222,6 +227,11 @@ async def polar_webhook(request: Request):
                 label.max_tracks_month = limits["max_tracks_month"]
                 label.max_emails_month = limits["max_emails_month"]
                 label.hq_retention_days = limits["hq_retention_days"]
+
+                if customer_id := payload_data.get("customer_id"):
+                    label.polar_customer_id = customer_id
+                if subscription_id := payload_data.get("subscription_id"):
+                    label.polar_subscription_id = subscription_id
 
                 label.updated_at = datetime.now(timezone.utc)
                 session.add(label)

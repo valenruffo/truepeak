@@ -36,27 +36,33 @@ async function updateLocalPlan(email: string, slug: string, plan: string) {
   if (!res.ok) console.error("Failed to update local plan:", await res.text());
 }
 
-// Helper: Find Polar Customer
-async function getPolarCustomer(email: string) {
-  const res = await fetch(
-    `https://api.polar.sh/v1/customers/?organization_id=${POLAR_ORGANIZATION_ID}&email=${encodeURIComponent(email)}`,
-    { headers: { Authorization: `Bearer ${POLAR_ACCESS_TOKEN}` } }
-  );
-  if (!res.ok) throw new Error(`Polar Customer Error: ${res.statusText}`);
-  const data = await res.json();
-  if (data.items && data.items.length > 0) return data.items[0];
-  return null;
-}
+// Helper: Find Active Subscription by Slug or ID
+async function getPolarSubscription(slug: string, subscriptionId?: string) {
+  if (subscriptionId) {
+    const res = await fetch(
+      `https://api.polar.sh/v1/subscriptions/${subscriptionId}`,
+      { headers: { Authorization: `Bearer ${POLAR_ACCESS_TOKEN}` } }
+    );
+    if (res.ok) {
+      const sub = await res.json();
+      if (sub.status === "active") return sub;
+    }
+  }
 
-// Helper: Find Active Subscription
-async function getPolarSubscription(customerId: string) {
+  // Fallback: search by metadata slug
   const res = await fetch(
-    `https://api.polar.sh/v1/subscriptions/?organization_id=${POLAR_ORGANIZATION_ID}&customer_id=${customerId}&active=true`,
+    `https://api.polar.sh/v1/subscriptions/?organization_id=${POLAR_ORGANIZATION_ID}&active=true&limit=100`,
     { headers: { Authorization: `Bearer ${POLAR_ACCESS_TOKEN}` } }
   );
   if (!res.ok) throw new Error(`Polar Sub Error: ${res.statusText}`);
   const data = await res.json();
-  if (data.items && data.items.length > 0) return data.items[0];
+  
+  if (data.items) {
+    const sub = data.items.find((item: any) => 
+      item.metadata && item.metadata.slug === slug
+    );
+    if (sub) return sub;
+  }
   return null;
 }
 
@@ -71,12 +77,7 @@ export async function GET(
     try {
       const user = await getSecureUser(req);
       
-      const customer = await getPolarCustomer(user.email);
-      if (!customer) {
-        return NextResponse.json({ plan: user.plan || "free", status: "free" });
-      }
-
-      const sub = await getPolarSubscription(customer.id);
+      const sub = await getPolarSubscription(user.slug, user.polar_subscription_id);
       if (!sub) {
         return NextResponse.json({ plan: user.plan || "free", status: "free" });
       }
@@ -112,23 +113,38 @@ export async function POST(
     const user = await getSecureUser(req);
 
     if (action === "portal") {
-      let customer = await getPolarCustomer(user.email);
-      if (!customer) {
-        // Create customer
-        const createRes = await fetch("https://api.polar.sh/v1/customers/", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${POLAR_ACCESS_TOKEN}`,
-          },
-          body: JSON.stringify({
-            organization_id: POLAR_ORGANIZATION_ID,
-            email: user.email,
-            name: user.name,
-          }),
-        });
-        if (!createRes.ok) throw new Error("Failed to create customer");
-        customer = await createRes.json();
+      // Create portal session using the customer ID from the active subscription
+      // If no subscription exists, we cannot create a portal session easily without a customer
+      const sub = await getPolarSubscription(user.slug, user.polar_subscription_id);
+      let customerId = user.polar_customer_id || sub?.customer_id;
+
+      if (!customerId) {
+        // Fallback: try to find customer by email
+        const custRes = await fetch(
+          `https://api.polar.sh/v1/customers/?organization_id=${POLAR_ORGANIZATION_ID}&email=${encodeURIComponent(user.email)}`,
+          { headers: { Authorization: `Bearer ${POLAR_ACCESS_TOKEN}` } }
+        );
+        const custData = await custRes.json();
+        if (custData.items && custData.items.length > 0) {
+          customerId = custData.items[0].id;
+        } else {
+          // Create customer if it doesn't exist at all
+          const createRes = await fetch("https://api.polar.sh/v1/customers/", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${POLAR_ACCESS_TOKEN}`,
+            },
+            body: JSON.stringify({
+              organization_id: POLAR_ORGANIZATION_ID,
+              email: user.email,
+              name: user.name,
+            }),
+          });
+          if (!createRes.ok) throw new Error("Failed to create customer");
+          const newCust = await createRes.json();
+          customerId = newCust.id;
+        }
       }
 
       // Create session
@@ -138,7 +154,7 @@ export async function POST(
           "Content-Type": "application/json",
           Authorization: `Bearer ${POLAR_ACCESS_TOKEN}`,
         },
-        body: JSON.stringify({ customer_id: customer.id }),
+        body: JSON.stringify({ customer_id: customerId }),
       });
       if (!sessRes.ok) throw new Error("Failed to create portal session");
       const sessionData = await sessRes.json();
@@ -154,10 +170,8 @@ export async function POST(
     }
 
     if (action === "cancel") {
-      const customer = await getPolarCustomer(user.email);
-      if (!customer) throw new Error("No customer found");
-      const sub = await getPolarSubscription(customer.id);
-      if (!sub) throw new Error("No active subscription found");
+      const sub = await getPolarSubscription(user.slug, user.polar_subscription_id);
+      if (!sub) throw new Error("No active subscription found to cancel");
 
       const delRes = await fetch(`https://api.polar.sh/v1/subscriptions/${sub.id}`, {
         method: "DELETE",
@@ -177,9 +191,7 @@ export async function POST(
       const newProductId = PLAN_TO_PRODUCT[newPlan?.toLowerCase()];
       if (!newProductId) throw new Error("Invalid plan");
 
-      const customer = await getPolarCustomer(user.email);
-      if (!customer) throw new Error("No customer found");
-      const sub = await getPolarSubscription(customer.id);
+      const sub = await getPolarSubscription(user.slug, user.polar_subscription_id);
       if (!sub) throw new Error("No active subscription found to update");
 
       const upRes = await fetch(`https://api.polar.sh/v1/subscriptions/${sub.id}`, {

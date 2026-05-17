@@ -26,9 +26,45 @@ function SuccessContent() {
     if (slug) {
       let attempts = 0;
       const maxAttempts = 10; // 10 * 2s = 20s max
+      
+      const syncCheckout = async () => {
+        if (checkoutId) {
+          try {
+            const res = await fetch("/vercel-api/sync", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ checkout_id: checkoutId })
+            });
+            if (res.ok) {
+              const data = await res.json();
+              if (data.plan && data.plan !== "free") {
+                setPlanUpdated(true);
+                setDetectedPlan(data.plan);
+                localStorage.setItem("plan", data.plan);
+                window.dispatchEvent(new Event("plan_updated"));
+                return true;
+              }
+            }
+          } catch (e) {
+            console.error("Sync failed:", e);
+          }
+        }
+        return false;
+      };
+
       const pollInterval = setInterval(async () => {
         attempts++;
         try {
+          // First try to sync checkout explicitly
+          if (attempts === 1 && checkoutId) {
+            const synced = await syncCheckout();
+            if (synced) {
+              clearInterval(pollInterval);
+              return;
+            }
+          }
+
+          // Then fallback to checking the backend
           const res = await fetch(`/api/labels/${slug}`);
           if (res.ok) {
             const data = await res.json();
