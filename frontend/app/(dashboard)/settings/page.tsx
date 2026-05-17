@@ -54,15 +54,48 @@ export default function SettingsPage() {
       fetchBilling(slug);
     }
 
-    // Check for success message from Polar
+    // Check for success message from Polar — poll backend until plan updates
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get("success") === "true") {
-      addToast({
-        title: "¡Felicitaciones!",
-        description: "Tu suscripción se ha procesado correctamente. ¡Disfrutá de True Peak!",
-      });
-      // Clean up URL
+      // Clean up URL immediately
       window.history.replaceState({}, document.title, window.location.pathname);
+
+      // Poll backend for plan update (webhook may take a few seconds)
+      const currentPlan = localStorage.getItem("plan") || "free";
+      let attempts = 0;
+      const maxAttempts = 8; // 8 * 2s = 16s max
+      const pollInterval = setInterval(async () => {
+        attempts++;
+        try {
+          const res = await fetch(`/api/labels/${slug}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data?.plan && data.plan !== currentPlan) {
+              // Plan updated!
+              clearInterval(pollInterval);
+              setPlan(data.plan);
+              localStorage.setItem("plan", data.plan);
+              window.dispatchEvent(new Event("plan_updated"));
+              fetchBilling(slug);
+              addToast({
+                title: "¡Felicitaciones!",
+                description: `Tu plan se actualizó a ${data.plan.toUpperCase()}. ¡Disfrutá de True Peak!`,
+              });
+              return;
+            }
+          }
+        } catch {}
+
+        if (attempts >= maxAttempts) {
+          clearInterval(pollInterval);
+          addToast({
+            title: "Pago procesado",
+            description: "Tu pago se procesó correctamente. El plan puede tardar unos segundos en actualizarse. Refrescá la página si no ves el cambio.",
+          });
+        }
+      }, 2000);
+
+      return () => clearInterval(pollInterval);
     }
   }, []);
 

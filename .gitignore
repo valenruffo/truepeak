@@ -54,3 +54,5 @@ htmlcov/
 
 .vercel
 .playwright-cli/
+# Local Pi runtime state
+.atl/

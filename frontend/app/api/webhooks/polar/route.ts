@@ -94,9 +94,12 @@ export async function POST(request: NextRequest) {
     console.log(`[Polar Webhook] Headers: ${Object.keys(headers).join(", ")}`);
     
     try {
-      // standardwebhooks library expects the secret directly if it's already the correctly formatted string (like whsec_...)
-      // The previous version was double-encoding it or using a wrong format.
-      const webhook = new Webhook(WEBHOOK_SECRET);
+      // Polar uses "polar_whs_" prefix, but standardwebhooks expects "whsec_" prefix.
+      // Both carry the same base64 key — we just swap the prefix.
+      const normalizedSecret = WEBHOOK_SECRET.startsWith("polar_whs_")
+        ? "whsec_" + WEBHOOK_SECRET.slice("polar_whs_".length)
+        : WEBHOOK_SECRET;
+      const webhook = new Webhook(normalizedSecret);
       data = webhook.verify(rawBody, headers as Record<string, string>);
       console.log(`[Polar Webhook] SIGNATURE OK`);
     } catch (err: any) {
