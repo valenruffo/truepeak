@@ -208,26 +208,26 @@ export async function updateLabelConfig(
  * Get billing details for a label.
  */
 export async function getBillingDetails(slug: string): Promise<BillingDetails> {
-  return request<BillingDetails>(`/api/labels/${slug}/billing`);
+  return request<BillingDetails>(`/vercel-api/billing`);
 }
 
 /**
  * Create a Polar Customer Portal session.
  */
 export async function createPortalSession(slug: string): Promise<PortalResponse> {
-  return request<PortalResponse>(`/api/labels/${slug}/portal`, {
-    method: "GET",
+  return request<PortalResponse>(`/vercel-api/portal`, {
+    method: "POST",
   });
 }
 
 export async function cancelSubscription(slug: string): Promise<{ status: string; message: string }> {
-  return request<{ status: string; message: string }>(`/api/labels/${slug}/cancel-subscription`, {
+  return request<{ status: string; message: string }>(`/vercel-api/cancel`, {
     method: "POST",
   });
 }
 
 export async function updateSubscription(slug: string, newPlan: string): Promise<{ status: string; message: string }> {
-  return request<{ status: string; message: string }>(`/api/labels/${slug}/update-subscription`, {
+  return request<{ status: string; message: string }>(`/vercel-api/update`, {
     method: "POST",
     body: JSON.stringify({ new_plan: newPlan }),
   });
