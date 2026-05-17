@@ -36,8 +36,23 @@ export async function POST(req: Request) {
     const checkoutData = await checkoutRes.json();
 
     const customerId = checkoutData.customer_id;
-    const subscriptionId = checkoutData.subscription_id || checkoutData.subscription?.id;
+    let subscriptionId = checkoutData.subscription_id || checkoutData.subscription?.id;
     const productId = checkoutData.product_id;
+
+    // If subscription_id is missing from checkout, query subscriptions for this customer
+    if (!subscriptionId && customerId) {
+      const subsRes = await fetch(`https://api.polar.sh/v1/subscriptions/?customer_id=${customerId}&active=true`, {
+        headers: { Authorization: `Bearer ${POLAR_ACCESS_TOKEN}` }
+      });
+      if (subsRes.ok) {
+        const subsData = await subsRes.json();
+        // Find the subscription that matches this checkout_id or just the first active one
+        const activeSub = subsData.items?.find((s: any) => s.checkout_id === checkout_id) || subsData.items?.[0];
+        if (activeSub) {
+          subscriptionId = activeSub.id;
+        }
+      }
+    }
     
     // We only update if this checkout actually generated a subscription
     if (!subscriptionId || !customerId) {
