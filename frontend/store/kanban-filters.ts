@@ -1,14 +1,12 @@
 import { create } from "zustand";
 
 export interface KanbanFiltersState {
-  estados: string[];
   bpmMin: number | null;
   bpmMax: number | null;
   tonalidades: string[];
   fechaInicio: Date | null;
   fechaFin: Date | null;
 
-  setEstados: (estados: string[]) => void;
   setBpmMin: (min: number | null) => void;
   setBpmMax: (max: number | null) => void;
   setTonalidades: (tonalidades: string[]) => void;
@@ -18,14 +16,12 @@ export interface KanbanFiltersState {
 }
 
 export const useKanbanFilters = create<KanbanFiltersState>((set) => ({
-  estados: [],
   bpmMin: null,
   bpmMax: null,
   tonalidades: [],
   fechaInicio: null,
   fechaFin: null,
 
-  setEstados: (estados) => set({ estados }),
   setBpmMin: (bpmMin) => set({ bpmMin }),
   setBpmMax: (bpmMax) => set({ bpmMax }),
   setTonalidades: (tonalidades) => set({ tonalidades }),
@@ -33,7 +29,6 @@ export const useKanbanFilters = create<KanbanFiltersState>((set) => ({
   setFechaFin: (fechaFin) => set({ fechaFin }),
   clearFilters: () =>
     set({
-      estados: [],
       bpmMin: null,
       bpmMax: null,
       tonalidades: [],
@@ -47,10 +42,6 @@ export const filterSubmissions = (
   filters: KanbanFiltersState
 ) => {
   return submissions.filter((sub) => {
-    if (filters.estados.length > 0 && !filters.estados.includes(sub.status)) {
-      return false;
-    }
-
     if (
       filters.bpmMin !== null &&
       (sub.bpm === null || sub.bpm < filters.bpmMin)
