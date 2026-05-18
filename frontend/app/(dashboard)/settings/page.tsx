@@ -253,7 +253,7 @@ export default function SettingsPage() {
                       className="inline-block px-4 py-2 rounded text-xs font-medium transition-all hover:opacity-90"
                       style={{ background: "#10b981", color: "#09090b" }}
                     >
-                      Suscribirse — $12/mes
+                      {lang === "es" ? "Suscribirse — $12/mes" : "Subscribe — $12/mo"}
                     </a>
                   ) : plan === "indie" ? (
                     <button
@@ -261,7 +261,11 @@ export default function SettingsPage() {
                       disabled={!!loadingAction}
                       className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded text-xs font-medium transition-all border border-red-500/30 text-red-500 hover:bg-red-500/5 disabled:opacity-50 min-w-[140px]"
                     >
-                      {loadingAction === "cancel_indie" ? <Loader2 className="w-3 h-3 animate-spin" /> : "Cancelar suscripción"}
+                      {loadingAction === "cancel_indie" ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        lang === "es" ? "Cancelar suscripción" : "Cancel subscription"
+                      )}
                     </button>
                   ) : (
                     <button
@@ -269,7 +273,11 @@ export default function SettingsPage() {
                       disabled={!!loadingAction}
                       className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded text-xs font-medium transition-all border border-[#10b981]/30 text-[#10b981] hover:bg-[#10b981]/5 disabled:opacity-50 min-w-[140px]"
                     >
-                      {loadingAction === "downgrade_indie" ? <Loader2 className="w-3 h-3 animate-spin" /> : "Bajar plan"}
+                      {loadingAction === "downgrade_indie" ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        lang === "es" ? "Bajar plan — $12/mes" : "Downgrade — $12/mo"
+                      )}
                     </button>
                   )}
                 </td>
@@ -280,7 +288,11 @@ export default function SettingsPage() {
                       disabled={!!loadingAction}
                       className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded text-xs font-medium transition-all border border-red-500/30 text-red-500 hover:bg-red-500/5 disabled:opacity-50 min-w-[140px]"
                     >
-                      {loadingAction === "cancel_pro" ? <Loader2 className="w-3 h-3 animate-spin" /> : "Cancelar suscripción"}
+                      {loadingAction === "cancel_pro" ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        lang === "es" ? "Cancelar suscripción" : "Cancel subscription"
+                      )}
                     </button>
                   ) : (
                     <button
@@ -297,8 +309,10 @@ export default function SettingsPage() {
                     >
                       {loadingAction === "upgrade_pro" ? (
                         <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : plan === "indie" ? (
+                        lang === "es" ? "Subir plan — $29/mes" : "Upgrade — $29/mo"
                       ) : (
-                        plan === "indie" ? "Subir plan" : "Suscribirse — $29/mes"
+                        lang === "es" ? "Suscribirse — $29/mes" : "Subscribe — $29/mo"
                       )}
                     </button>
                   )}
