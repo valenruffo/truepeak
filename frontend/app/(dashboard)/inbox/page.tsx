@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils";
 import { usePlayer } from "@/lib/PlayerContext";
 import TwoClickDelete from "@/components/TwoClickDelete";
 import { useLanguage } from "@/lib/i18n";
+import { KanbanFilterBar } from "@/components/dashboard/kanban-filter-bar";
+import { useKanbanFilters, filterSubmissions } from "@/store/kanban-filters";
 import {
   DragDropContext,
   Droppable,
@@ -205,6 +207,7 @@ export default function InboxPage() {
 
 function InboxContent() {
   const { t } = useLanguage();
+  const filters = useKanbanFilters();
   const { playTrack, togglePlay, isPlaying, currentTrack } = usePlayer();
   const { addToast } = useToast();
   const searchParams = useSearchParams();
@@ -1024,7 +1027,7 @@ useEffect(() => {
     title: string,
     accentColor: string
   ) => {
-    const items = board[colId];
+    const items = filterSubmissions(board[colId], filters);
     const loading = boardLoading[colId];
     const hasMore = boardHasMore[colId];
 
@@ -1093,6 +1096,16 @@ useEffect(() => {
                   {t("inbox.kanban.loading_more")}
                 </div>
               )}
+              {hasMore && !loading && (
+                <div className="py-4 flex justify-center">
+                  <button
+                    onClick={() => fetchColumn(colId, true)}
+                    className="px-4 py-1.5 text-xs border rounded hover:bg-white/5 transition-colors"
+                  >
+                    Cargar más
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </Droppable>
@@ -1102,7 +1115,10 @@ useEffect(() => {
 
   // ─── Render: System Filtered Tab ──────────────────────────────────────────
 
-  const renderSystemTab = () => (
+  const renderSystemTab = () => {
+    const filteredSystemItems = filterSubmissions(systemItems, filters);
+    
+    return (
     <div
       ref={systemScrollRef}
       className="rounded border overflow-hidden"
@@ -1127,8 +1143,8 @@ useEffect(() => {
         <div className="col-span-2 text-right">{t("inbox.header.action")}</div>
       </div>
 
-      {systemItems.length > 0 ? (
-        systemItems.map((d) => {
+      {filteredSystemItems.length > 0 ? (
+        filteredSystemItems.map((d) => {
           const badge = statusBadgeColor(d.status);
           return (
             <div
@@ -1189,17 +1205,32 @@ useEffect(() => {
         </div>
       )}
 
-      {systemLoading && systemItems.length > 0 && (
+      {systemLoading && filteredSystemItems.length > 0 && (
         <div className="py-3 text-center text-muted text-[10px]">
           {t("inbox.kanban.loading_more")}
         </div>
       )}
+
+      {systemHasMore && !systemLoading && (
+        <div className="py-4 flex justify-center">
+          <button
+            onClick={() => fetchSystem(true)}
+            className="px-4 py-1.5 text-xs border rounded hover:bg-white/5 transition-colors"
+          >
+            Cargar más
+          </button>
+        </div>
+      )}
     </div>
   );
+};
 
   // ─── Render: Trash Tab ────────────────────────────────────────────────────
 
-  const renderTrashTab = () => (
+  const renderTrashTab = () => {
+    const filteredTrashItems = filterSubmissions(trashItems, filters);
+
+    return (
     <div
       ref={trashScrollRef}
       className="rounded border overflow-hidden"
@@ -1220,8 +1251,8 @@ useEffect(() => {
         <div className="col-span-3 text-right">{t("inbox.header.action")}</div>
       </div>
 
-      {trashItems.length > 0 ? (
-        trashItems.map((d) => {
+      {filteredTrashItems.length > 0 ? (
+        filteredTrashItems.map((d) => {
           const deletedAt = d.deleted_at ? new Date(d.deleted_at) : null;
           const hoursAgo = deletedAt
             ? Math.floor(
@@ -1310,13 +1341,25 @@ useEffect(() => {
         </div>
       )}
 
-      {trashLoading && trashItems.length > 0 && (
+      {trashLoading && filteredTrashItems.length > 0 && (
         <div className="py-3 text-center text-muted text-[10px]">
           {t("inbox.kanban.loading_more")}
         </div>
       )}
+
+      {trashHasMore && !trashLoading && (
+        <div className="py-4 flex justify-center">
+          <button
+            onClick={() => fetchTrash(true)}
+            className="px-4 py-1.5 text-xs border rounded hover:bg-white/5 transition-colors"
+          >
+            Cargar más
+          </button>
+        </div>
+      )}
     </div>
   );
+};
 
   // ─── Main Render ──────────────────────────────────────────────────────────
 
@@ -1398,6 +1441,9 @@ useEffect(() => {
           </button>
         ))}
       </div>
+
+      {/* Filter Bar */}
+      <KanbanFilterBar />
 
       {/* Tab Content */}
       {activeTab === "kanban" && (
