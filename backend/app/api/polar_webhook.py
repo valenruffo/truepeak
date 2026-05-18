@@ -231,14 +231,31 @@ async def polar_webhook(request: Request):
         elif event_type == "subscription.updated":
             plan = _map_polar_product_to_plan(product_id)
             if plan:
+                PLAN_LEVELS = {"free": 0, "indie": 1, "pro": 2}
+                current_level = PLAN_LEVELS.get(label.plan, 0)
+                new_level = PLAN_LEVELS.get(plan, 0)
+
+                # 1. Downgrade logic: If downgrading, wait until current_period_end
+                if new_level < current_level:
+                    current_period_end_str = payload_data.get("current_period_end")
+                    if current_period_end_str:
+                        try:
+                            current_period_end = datetime.fromisoformat(current_period_end_str.replace("Z", "+00:00"))
+                            if current_period_end > datetime.now(timezone.utc):
+                                logger.info("Downgrade from %s to %s deferred until %s", label.plan, plan, current_period_end)
+                                return {"received": True, "action": "downgrade_deferred", "plan": label.plan, "until": current_period_end_str}
+                        except ValueError:
+                            pass
+                
+                # 2. Upgrade or completed downgrade logic: Apply immediately
                 label.plan = plan
                 # Apply limits same as above
-                PLAN_LIMITS = {
+                PLAN_LIMITS_MAP = {
                     "free":  {"max_tracks_month": 10,  "max_emails_month": 0,   "hq_retention_days": 0},
                     "indie": {"max_tracks_month": 100, "max_emails_month": 100, "hq_retention_days": 7},
                     "pro":   {"max_tracks_month": 1000, "max_emails_month": 500, "hq_retention_days": 14},
                 }
-                limits = PLAN_LIMITS.get(plan, PLAN_LIMITS["free"])
+                limits = PLAN_LIMITS_MAP.get(plan, PLAN_LIMITS_MAP["free"])
                 label.max_tracks_month = limits["max_tracks_month"]
                 label.max_emails_month = limits["max_emails_month"]
                 label.hq_retention_days = limits["hq_retention_days"]
@@ -256,6 +273,17 @@ async def polar_webhook(request: Request):
             return {"received": True, "skipped": True, "reason": "no plan mapping for product"}
 
         elif event_type in ("subscription.canceled", "subscription.revoked"):
+            # Check if period still active to prevent premature cancellation
+            current_period_end_str = payload_data.get("current_period_end")
+            if current_period_end_str:
+                try:
+                    current_period_end = datetime.fromisoformat(current_period_end_str.replace("Z", "+00:00"))
+                    if current_period_end > datetime.now(timezone.utc):
+                        logger.info("Cancellation deferred until %s", current_period_end)
+                        return {"received": True, "action": "cancellation_deferred", "until": current_period_end_str}
+                except ValueError:
+                    pass
+
             label.plan = "free"
             # Apply free limits
             label.max_tracks_month = 10
