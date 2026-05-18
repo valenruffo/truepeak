@@ -65,11 +65,18 @@ export function KanbanFilterBar() {
     (fechaFin !== null ? 1 : 0);
 
   return (
-    <div className="flex flex-wrap items-center gap-3 mb-6 p-4 rounded-md border bg-card text-card-foreground">
-      <div className="text-sm font-semibold mr-2 flex items-center gap-2">
+    <div 
+      className="flex flex-wrap items-center gap-3 mb-6 p-4 rounded-md border"
+      style={{ 
+        background: "rgba(16, 185, 129, 0.02)", 
+        borderColor: "rgba(16, 185, 129, 0.15)",
+        color: "var(--text-primary)"
+      }}
+    >
+      <div className="text-sm font-semibold mr-2 flex items-center gap-2" style={{ color: "#10b981" }}>
         Filtros
         {activeFilterCount > 0 && (
-          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
+          <span className="flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold" style={{ background: "#10b981", color: "#09090b" }}>
             {activeFilterCount}
           </span>
         )}
@@ -78,23 +85,33 @@ export function KanbanFilterBar() {
       {/* ESTADO */}
       <Popover>
         <PopoverTrigger asChild>
-          <Button variant="outline" size="sm" className="h-8 border-dashed">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="h-8 transition-colors"
+            style={{ 
+              borderColor: estados.length > 0 ? "#10b981" : "var(--border)",
+              background: estados.length > 0 ? "rgba(16, 185, 129, 0.1)" : "transparent",
+              color: estados.length > 0 ? "#10b981" : "var(--text-primary)"
+            }}
+          >
             Estado
             {estados.length > 0 && (
-              <span className="ml-2 text-muted-foreground">({estados.length})</span>
+              <span className="ml-2 opacity-80">({estados.length})</span>
             )}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-56 p-2" align="start">
-          <div className="space-y-2">
-            <h4 className="font-medium text-sm mb-2">Filtrar por Estado</h4>
+        <PopoverContent className="w-56 p-3" align="start">
+          <div className="space-y-3">
+            <h4 className="font-medium text-sm border-b pb-2" style={{ borderColor: "var(--border)" }}>Filtrar por Estado</h4>
             {estadosDisponibles.map((est) => (
-              <label key={est.value} className="flex items-center gap-2 text-sm cursor-pointer">
+              <label key={est.value} className="flex items-center gap-2 text-sm cursor-pointer hover:opacity-80 transition-opacity">
                 <input
                   type="checkbox"
                   checked={estados.includes(est.value)}
                   onChange={() => toggleEstado(est.value)}
-                  className="rounded border-gray-300"
+                  className="rounded"
+                  style={{ accentColor: "#10b981" }}
                 />
                 {est.label}
               </label>
@@ -106,10 +123,19 @@ export function KanbanFilterBar() {
       {/* BPM */}
       <Popover>
         <PopoverTrigger asChild>
-          <Button variant="outline" size="sm" className="h-8 border-dashed">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="h-8 transition-colors"
+            style={{ 
+              borderColor: (bpmMin !== null || bpmMax !== null) ? "#10b981" : "var(--border)",
+              background: (bpmMin !== null || bpmMax !== null) ? "rgba(16, 185, 129, 0.1)" : "transparent",
+              color: (bpmMin !== null || bpmMax !== null) ? "#10b981" : "var(--text-primary)"
+            }}
+          >
             BPM
             {(bpmMin !== null || bpmMax !== null) && (
-              <span className="ml-2 text-muted-foreground">
+              <span className="ml-2 opacity-80">
                 ({bpmMin || "Min"} - {bpmMax || "Max"})
               </span>
             )}
@@ -117,7 +143,7 @@ export function KanbanFilterBar() {
         </PopoverTrigger>
         <PopoverContent className="w-64 p-3" align="start">
           <div className="space-y-4">
-            <h4 className="font-medium text-sm">Rango de BPM</h4>
+            <h4 className="font-medium text-sm border-b pb-2" style={{ borderColor: "var(--border)" }}>Rango de BPM</h4>
             <div className="flex items-center gap-2">
               <Input
                 type="number"
@@ -125,14 +151,16 @@ export function KanbanFilterBar() {
                 className="h-8"
                 value={bpmMin || ""}
                 onChange={(e) => setBpmMin(e.target.value ? Number(e.target.value) : null)}
+                style={{ background: "var(--bg-secondary)", borderColor: "var(--border)", color: "var(--text-primary)" }}
               />
-              <span className="text-muted-foreground">-</span>
+              <span style={{ color: "var(--text-muted)" }}>-</span>
               <Input
                 type="number"
                 placeholder="Max"
                 className="h-8"
                 value={bpmMax || ""}
                 onChange={(e) => setBpmMax(e.target.value ? Number(e.target.value) : null)}
+                style={{ background: "var(--bg-secondary)", borderColor: "var(--border)", color: "var(--text-primary)" }}
               />
             </div>
           </div>
@@ -142,30 +170,42 @@ export function KanbanFilterBar() {
       {/* TONALIDAD CAMELOT */}
       <Popover>
         <PopoverTrigger asChild>
-          <Button variant="outline" size="sm" className="h-8 border-dashed">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="h-8 transition-colors"
+            style={{ 
+              borderColor: tonalidades.length > 0 ? "#10b981" : "var(--border)",
+              background: tonalidades.length > 0 ? "rgba(16, 185, 129, 0.1)" : "transparent",
+              color: tonalidades.length > 0 ? "#10b981" : "var(--text-primary)"
+            }}
+          >
             Tonalidad
             {tonalidades.length > 0 && (
-              <span className="ml-2 text-muted-foreground">({tonalidades.length})</span>
+              <span className="ml-2 opacity-80">({tonalidades.length})</span>
             )}
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-64 p-3" align="start">
-          <h4 className="font-medium text-sm mb-3">Tonalidad Camelot</h4>
+          <h4 className="font-medium text-sm mb-3 border-b pb-2" style={{ borderColor: "var(--border)" }}>Tonalidad Camelot</h4>
           <div className="grid grid-cols-4 gap-2">
-            {camelotKeys.map((key) => (
-              <div
-                key={key}
-                onClick={() => toggleTonalidad(key)}
-                className={cn(
-                  "text-xs text-center py-1 rounded cursor-pointer border transition-colors",
-                  tonalidades.includes(key)
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
-                )}
-              >
-                {key}
-              </div>
-            ))}
+            {camelotKeys.map((key) => {
+              const isSelected = tonalidades.includes(key);
+              return (
+                <div
+                  key={key}
+                  onClick={() => toggleTonalidad(key)}
+                  className="text-xs text-center py-1.5 rounded cursor-pointer border transition-colors font-medium"
+                  style={{
+                    background: isSelected ? "#10b981" : "var(--bg-secondary)",
+                    borderColor: isSelected ? "#10b981" : "var(--border)",
+                    color: isSelected ? "#09090b" : "var(--text-primary)",
+                  }}
+                >
+                  {key}
+                </div>
+              );
+            })}
           </div>
         </PopoverContent>
       </Popover>
@@ -173,21 +213,31 @@ export function KanbanFilterBar() {
       {/* FECHA */}
       <Popover>
         <PopoverTrigger asChild>
-          <Button variant="outline" size="sm" className="h-8 border-dashed">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="h-8 transition-colors"
+            style={{ 
+              borderColor: (fechaInicio || fechaFin) ? "#10b981" : "var(--border)",
+              background: (fechaInicio || fechaFin) ? "rgba(16, 185, 129, 0.1)" : "transparent",
+              color: (fechaInicio || fechaFin) ? "#10b981" : "var(--text-primary)"
+            }}
+          >
             <CalendarIcon className="mr-2 h-4 w-4" />
             Fecha
             {(fechaInicio || fechaFin) && (
-              <span className="ml-2 text-muted-foreground">Activo</span>
+              <span className="ml-2 opacity-80">Activo</span>
             )}
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start">
-          <div className="p-3 border-b flex flex-col gap-2">
+          <div className="p-3 border-b flex flex-col gap-2" style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}>
             <div className="flex gap-2 justify-between">
               <Button
                 variant="outline"
                 size="sm"
-                className="text-xs flex-1"
+                className="text-xs flex-1 transition-colors hover:bg-green-500/10 hover:text-green-500 hover:border-green-500/50"
+                style={{ borderColor: "var(--border)" }}
                 onClick={() => {
                   const today = new Date();
                   const past = new Date(today);
@@ -201,7 +251,8 @@ export function KanbanFilterBar() {
               <Button
                 variant="outline"
                 size="sm"
-                className="text-xs flex-1"
+                className="text-xs flex-1 transition-colors hover:bg-green-500/10 hover:text-green-500 hover:border-green-500/50"
+                style={{ borderColor: "var(--border)" }}
                 onClick={() => {
                   const today = new Date();
                   const past = new Date(today);
@@ -214,20 +265,22 @@ export function KanbanFilterBar() {
               </Button>
             </div>
           </div>
-          <Calendar
-            mode="range"
-            defaultMonth={fechaInicio || undefined}
-            selected={{
-              from: fechaInicio || undefined,
-              to: fechaFin || undefined,
-            }}
-            onSelect={(range) => {
-              setFechaInicio(range?.from || null);
-              setFechaFin(range?.to || null);
-            }}
-            numberOfMonths={1}
-            locale={es}
-          />
+          <div style={{ background: "var(--bg-card)" }}>
+            <Calendar
+              mode="range"
+              defaultMonth={fechaInicio || undefined}
+              selected={{
+                from: fechaInicio || undefined,
+                to: fechaFin || undefined,
+              }}
+              onSelect={(range) => {
+                setFechaInicio(range?.from || null);
+                setFechaFin(range?.to || null);
+              }}
+              numberOfMonths={1}
+              locale={es}
+            />
+          </div>
         </PopoverContent>
       </Popover>
 
@@ -237,10 +290,11 @@ export function KanbanFilterBar() {
           variant="ghost"
           size="sm"
           onClick={clearFilters}
-          className="h-8 px-2 lg:px-3 text-muted-foreground hover:text-foreground"
+          className="h-8 px-2 lg:px-3 hover:bg-transparent"
+          style={{ color: "var(--text-muted)" }}
         >
           <FilterX className="mr-2 h-4 w-4" />
-          Limpiar
+          <span className="hover:text-white transition-colors">Limpiar</span>
         </Button>
       )}
     </div>
