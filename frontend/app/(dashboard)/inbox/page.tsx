@@ -1427,25 +1427,13 @@ useEffect(() => {
                   );
                 })()
               )}
-              {tab.key === "system" && systemItems.length > 0 && !hasSeenSystem && (
-                <span className="w-4 h-4 flex items-center justify-center rounded-full text-[9px] bg-red-500/80 text-white font-bold animate-pulse">
-                  {systemItems.length}
-                </span>
-              )}
-              {tab.key === "trash" && trashItems.length > 0 && (
-                <span className="w-4 h-4 flex items-center justify-center rounded-full text-[9px] bg-zinc-700/80 text-zinc-300 font-bold">
-                  {trashItems.length}
-                </span>
-              )}
             </span>
           </button>
         ))}
       </div>
 
-      {/* Filter Bar */}
-      <KanbanFilterBar />
+      <KanbanFilterBar sonicSignature={sonicSignature} />
 
-      {/* Tab Content */}
       {activeTab === "kanban" && (
         <DragDropContext onDragEnd={handleDragEnd}>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

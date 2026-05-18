@@ -5,7 +5,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Button } from "@/components/ui/button";
 import { CalendarIcon, FilterX } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Input } from "@/components/ui/input";
+import { Slider } from "@/components/ui/slider";
+import { useEffect, useState } from "react";
 
 const camelotKeys = [
   "1A", "1B", "2A", "2B", "3A", "3B", "4A", "4B",
@@ -13,18 +14,20 @@ const camelotKeys = [
   "9A", "9B", "10A", "10B", "11A", "11B", "12A", "12B"
 ];
 
-export function KanbanFilterBar() {
+export function KanbanFilterBar({ sonicSignature }: { sonicSignature?: any }) {
   const {
     bpmMin,
     bpmMax,
     tonalidades,
     fechaInicio,
     fechaFin,
+    fechaLabel,
     setBpmMin,
     setBpmMax,
     setTonalidades,
     setFechaInicio,
     setFechaFin,
+    setFechaLabel,
     clearFilters,
   } = useKanbanFilters();
 
@@ -38,10 +41,23 @@ export function KanbanFilterBar() {
 
   const activeFilterCount =
     tonalidades.length +
-    (bpmMin !== null ? 1 : 0) +
-    (bpmMax !== null ? 1 : 0) +
-    (fechaInicio !== null ? 1 : 0) +
-    (fechaFin !== null ? 1 : 0);
+    (bpmMin !== null || bpmMax !== null ? 1 : 0) +
+    (fechaInicio !== null || fechaFin !== null ? 1 : 0);
+
+  // Default slider bounds based on sonic signature or standard defaults
+  const sliderMin = sonicSignature?.bpm_min ?? 70;
+  const sliderMax = sonicSignature?.bpm_max ?? 180;
+  
+  // Local state for smooth slider dragging
+  const [sliderValues, setSliderValues] = useState([
+    bpmMin ?? sliderMin, 
+    bpmMax ?? sliderMax
+  ]);
+
+  // Sync internal slider state with global state if it's cleared or bounded
+  useEffect(() => {
+    setSliderValues([bpmMin ?? sliderMin, bpmMax ?? sliderMax]);
+  }, [bpmMin, bpmMax, sliderMin, sliderMax]);
 
   return (
     <div 
@@ -77,32 +93,35 @@ export function KanbanFilterBar() {
             BPM
             {(bpmMin !== null || bpmMax !== null) && (
               <span className="ml-2 opacity-80">
-                ({bpmMin || "Min"} - {bpmMax || "Max"})
+                ({bpmMin || sliderMin} - {bpmMax || sliderMax})
               </span>
             )}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-64 p-3" align="start">
+        <PopoverContent className="w-64 p-4" align="start">
           <div className="space-y-4">
-            <h4 className="font-medium text-sm border-b pb-2" style={{ borderColor: "var(--border)" }}>Rango de BPM</h4>
-            <div className="flex items-center gap-2">
-              <Input
-                type="number"
-                placeholder="Min"
-                className="h-8"
-                value={bpmMin || ""}
-                onChange={(e) => setBpmMin(e.target.value ? Number(e.target.value) : null)}
-                style={{ background: "var(--bg-secondary)", borderColor: "var(--border)", color: "var(--text-primary)" }}
+            <div className="flex justify-between items-center border-b pb-2" style={{ borderColor: "var(--border)" }}>
+              <h4 className="font-medium text-sm">Rango de BPM</h4>
+              <span className="text-xs text-muted-foreground font-mono">
+                {sliderValues[0]} - {sliderValues[1]}
+              </span>
+            </div>
+            <div className="pt-2 pb-1">
+              <Slider
+                min={sliderMin}
+                max={sliderMax}
+                step={1}
+                value={sliderValues}
+                onValueChange={setSliderValues}
+                onValueCommit={(vals) => {
+                  setBpmMin(vals[0]);
+                  setBpmMax(vals[1]);
+                }}
               />
-              <span style={{ color: "var(--text-muted)" }}>-</span>
-              <Input
-                type="number"
-                placeholder="Max"
-                className="h-8"
-                value={bpmMax || ""}
-                onChange={(e) => setBpmMax(e.target.value ? Number(e.target.value) : null)}
-                style={{ background: "var(--bg-secondary)", borderColor: "var(--border)", color: "var(--text-primary)" }}
-              />
+            </div>
+            <div className="flex justify-between text-[10px] text-muted-foreground font-mono">
+              <span>{sliderMin}</span>
+              <span>{sliderMax}</span>
             </div>
           </div>
         </PopoverContent>
@@ -159,88 +178,58 @@ export function KanbanFilterBar() {
             size="sm" 
             className="h-8 transition-colors"
             style={{ 
-              borderColor: (fechaInicio || fechaFin) ? "#10b981" : "var(--border)",
-              background: (fechaInicio || fechaFin) ? "rgba(16, 185, 129, 0.1)" : "transparent",
-              color: (fechaInicio || fechaFin) ? "#10b981" : "var(--text-primary)"
+              borderColor: fechaLabel ? "#10b981" : "var(--border)",
+              background: fechaLabel ? "rgba(16, 185, 129, 0.1)" : "transparent",
+              color: fechaLabel ? "#10b981" : "var(--text-primary)"
             }}
           >
             <CalendarIcon className="mr-2 h-4 w-4" />
             Fecha
-            {(fechaInicio || fechaFin) && (
-              <span className="ml-2 opacity-80">Activo</span>
+            {fechaLabel && (
+              <span className="ml-2 opacity-80">({fechaLabel})</span>
             )}
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-48 p-2" align="start">
           <div className="flex flex-col gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="justify-start text-xs font-normal hover:bg-white/5 transition-colors"
-              onClick={() => {
-                const today = new Date();
-                const past = new Date(today);
-                past.setDate(today.getDate() - 7);
-                setFechaInicio(past);
-                setFechaFin(today);
-              }}
-            >
-              Últimos 7 días
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="justify-start text-xs font-normal hover:bg-white/5 transition-colors"
-              onClick={() => {
-                const today = new Date();
-                const past = new Date(today);
-                past.setDate(today.getDate() - 15);
-                setFechaInicio(past);
-                setFechaFin(today);
-              }}
-            >
-              Últimos 15 días
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="justify-start text-xs font-normal hover:bg-white/5 transition-colors"
-              onClick={() => {
-                const today = new Date();
-                const past = new Date(today);
-                past.setDate(today.getDate() - 30);
-                setFechaInicio(past);
-                setFechaFin(today);
-              }}
-            >
-              Últimos 30 días
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="justify-start text-xs font-normal hover:bg-white/5 transition-colors"
-              onClick={() => {
-                const today = new Date();
-                const past = new Date(today);
-                past.setMonth(today.getMonth() - 3);
-                setFechaInicio(past);
-                setFechaFin(today);
-              }}
-            >
-              Últimos 3 meses
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="justify-start text-xs font-normal hover:bg-white/5 transition-colors"
-              style={{ color: "var(--text-muted)" }}
-              onClick={() => {
-                setFechaInicio(null);
-                setFechaFin(null);
-              }}
-            >
-              Histórico (Todos)
-            </Button>
+            {[
+              { label: "Últimos 7 días", value: "7d", days: 7 },
+              { label: "Últimos 15 días", value: "15d", days: 15 },
+              { label: "Últimos 30 días", value: "30d", days: 30 },
+              { label: "Últimos 3 meses", value: "3m", months: 3 },
+              { label: "Histórico (Todos)", value: "all", clear: true },
+            ].map((option) => {
+              const isActive = fechaLabel === option.label;
+              return (
+                <Button
+                  key={option.value}
+                  variant="ghost"
+                  size="sm"
+                  className="justify-start text-xs font-normal transition-colors"
+                  style={{
+                    background: isActive ? "#10b981" : "transparent",
+                    color: isActive ? "#09090b" : "var(--text-primary)",
+                  }}
+                  onClick={() => {
+                    if (option.clear) {
+                      setFechaInicio(null);
+                      setFechaFin(null);
+                      setFechaLabel(null);
+                      return;
+                    }
+                    const today = new Date();
+                    const past = new Date(today);
+                    if (option.days) past.setDate(today.getDate() - option.days);
+                    if (option.months) past.setMonth(today.getMonth() - option.months);
+                    setFechaInicio(past);
+                    setFechaFin(today);
+                    setFechaLabel(option.label);
+                  }}
+                >
+                  {option.label}
+                </Button>
+              );
+            })}
           </div>
         </PopoverContent>
       </Popover>

@@ -6,12 +6,14 @@ export interface KanbanFiltersState {
   tonalidades: string[];
   fechaInicio: Date | null;
   fechaFin: Date | null;
+  fechaLabel: string | null;
 
   setBpmMin: (min: number | null) => void;
   setBpmMax: (max: number | null) => void;
   setTonalidades: (tonalidades: string[]) => void;
   setFechaInicio: (fecha: Date | null) => void;
   setFechaFin: (fecha: Date | null) => void;
+  setFechaLabel: (label: string | null) => void;
   clearFilters: () => void;
 }
 
@@ -21,12 +23,14 @@ export const useKanbanFilters = create<KanbanFiltersState>((set) => ({
   tonalidades: [],
   fechaInicio: null,
   fechaFin: null,
+  fechaLabel: null,
 
   setBpmMin: (bpmMin) => set({ bpmMin }),
   setBpmMax: (bpmMax) => set({ bpmMax }),
   setTonalidades: (tonalidades) => set({ tonalidades }),
   setFechaInicio: (fechaInicio) => set({ fechaInicio }),
   setFechaFin: (fechaFin) => set({ fechaFin }),
+  setFechaLabel: (fechaLabel) => set({ fechaLabel }),
   clearFilters: () =>
     set({
       bpmMin: null,
@@ -34,6 +38,7 @@ export const useKanbanFilters = create<KanbanFiltersState>((set) => ({
       tonalidades: [],
       fechaInicio: null,
       fechaFin: null,
+      fechaLabel: null,
     }),
 }));
 
