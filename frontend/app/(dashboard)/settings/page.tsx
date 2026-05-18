@@ -230,11 +230,11 @@ export default function SettingsPage() {
             </thead>
             <tbody>
               {[
-                { feature: t("settings.feature.tracks"), free: lang === "es" ? "10/mes" : "10/mo", indie: lang === "es" ? "100/mes" : "100/mo", pro: t("settings.unlimited") },
+                { feature: t("settings.feature.tracks"), free: lang === "es" ? "10/mes" : "10/mo", indie: lang === "es" ? "100/mes" : "100/mo", pro: lang === "es" ? "500/mes" : "500/mo" },
                 { feature: t("settings.feature.storage"), free: "0", indie: lang === "es" ? "7 días" : "7 days", pro: lang === "es" ? "14 días" : "14 days" },
                 { feature: t("settings.feature.emails"), free: "✕", indie: lang === "es" ? "100/mes" : "100/mo", pro: lang === "es" ? "500/mes" : "500/mo" },
                 { feature: t("settings.feature.link"), free: "✓", indie: "✓", pro: "✓" },
-                { feature: t("settings.feature.support"), free: "Email", indie: "Email", pro: "WhatsApp" },
+                { feature: t("settings.feature.support"), free: "Email", indie: "WhatsApp", pro: "WhatsApp" },
               ].map((row, i) => (
                 <tr key={row.feature} style={{ borderTop: "1px solid var(--border)" }}>
                   <td className="px-4 py-3">{row.feature}</td>
@@ -259,7 +259,7 @@ export default function SettingsPage() {
                       className="inline-block px-4 py-2 rounded text-xs font-medium transition-all hover:opacity-90"
                       style={{ background: "#10b981", color: "#09090b" }}
                     >
-                      {lang === "es" ? "Suscribirse — $12/mes" : "Subscribe — $12/mo"}
+                      {lang === "es" ? "Suscribirse — $25/mes" : "Subscribe — $25/mo"}
                     </a>
                   ) : plan === "indie" ? (
                     <button
@@ -282,7 +282,7 @@ export default function SettingsPage() {
                       {loadingAction === "downgrade_indie" ? (
                         <Loader2 className="w-3 h-3 animate-spin" />
                       ) : (
-                        lang === "es" ? "Bajar plan — $12/mes" : "Downgrade — $12/mo"
+                        lang === "es" ? "Bajar plan — $25/mes" : "Downgrade — $25/mo"
                       )}
                     </button>
                   )}
@@ -316,9 +316,9 @@ export default function SettingsPage() {
                       {loadingAction === "upgrade_pro" ? (
                         <Loader2 className="w-3 h-3 animate-spin" />
                       ) : plan === "indie" ? (
-                        lang === "es" ? "Subir plan — $29/mes" : "Upgrade — $29/mo"
+                        lang === "es" ? "Subir plan — $49/mes" : "Upgrade — $49/mo"
                       ) : (
-                        lang === "es" ? "Suscribirse — $29/mes" : "Subscribe — $29/mo"
+                        lang === "es" ? "Suscribirse — $49/mes" : "Subscribe — $49/mo"
                       )}
                     </button>
                   )}

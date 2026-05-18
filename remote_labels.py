@@ -26,7 +26,7 @@ limiter = Limiter(key_func=get_remote_address)
 PLAN_LIMITS = {
     "free":  {"max_tracks_month": 10,  "max_emails_month": 0,   "hq_retention_days": 0},
     "indie": {"max_tracks_month": 100, "max_emails_month": 100, "hq_retention_days": 7},
-    "pro":   {"max_tracks_month": 1000, "max_emails_month": 500, "hq_retention_days": 14},
+    "pro":   {"max_tracks_month": 500, "max_emails_month": 500, "hq_retention_days": 14},
 }
 
 

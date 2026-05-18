@@ -715,7 +715,7 @@ function Pricing() {
       border: "#10b981",
       bg: "var(--bg-secondary)",
       btnStyle: { background: "#10b981", color: "#09090b" } as React.CSSProperties,
-      features: [0, 1, 2, 3, 4],
+      features: [0, 1, 2, 3, 4, 5, 6],
       keyPrefix: "pricing.indie",
     },
     {
