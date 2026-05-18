@@ -78,8 +78,10 @@ export default function SettingsPage() {
               window.dispatchEvent(new Event("plan_updated"));
               fetchBilling(slug);
               addToast({
-                title: "¡Felicitaciones!",
-                description: `Tu plan se actualizó a ${data.plan.toUpperCase()}. ¡Disfrutá de True Peak!`,
+                title: lang === "es" ? "¡Felicitaciones!" : "Congratulations!",
+                description: lang === "es" 
+                  ? `Tu plan se actualizó a ${data.plan.toUpperCase()}. ¡Disfrutá de True Peak!` 
+                  : `Your plan was updated to ${data.plan.toUpperCase()}. Enjoy True Peak!`,
               });
               return;
             }
@@ -89,8 +91,10 @@ export default function SettingsPage() {
         if (attempts >= maxAttempts) {
           clearInterval(pollInterval);
           addToast({
-            title: "Pago procesado",
-            description: "Tu pago se procesó correctamente. El plan puede tardar unos segundos en actualizarse. Refrescá la página si no ves el cambio.",
+            title: lang === "es" ? "Pago procesado" : "Payment processed",
+            description: lang === "es"
+              ? "Tu pago se procesó correctamente. El plan puede tardar unos segundos en actualizarse. Refrescá la página si no ves el cambio."
+              : "Your payment was processed successfully. The plan may take a few seconds to update. Refresh the page if you don't see the change.",
           });
         }
       }, 2000);
@@ -108,14 +112,14 @@ export default function SettingsPage() {
       localStorage.setItem("plan", "free");
       window.dispatchEvent(new Event("plan_updated"));
       addToast({
-        title: "Éxito",
-        description: "Suscripción cancelada correctamente.",
+        title: lang === "es" ? "Éxito" : "Success",
+        description: lang === "es" ? "Suscripción cancelada correctamente." : "Subscription cancelled successfully.",
       });
       fetchBilling(labelSlug);
     } catch (err) {
       addToast({
         title: "Error",
-        description: "No se pudo cancelar la suscripción. Intentá más tarde.",
+        description: lang === "es" ? "No se pudo cancelar la suscripción. Intentá más tarde." : "Could not cancel subscription. Please try again later.",
         variant: "destructive"
       });
     } finally {
@@ -132,14 +136,16 @@ export default function SettingsPage() {
       localStorage.setItem("plan", newPlan);
       window.dispatchEvent(new Event("plan_updated"));
       addToast({
-        title: "Éxito",
-        description: `Plan actualizado a ${newPlan.toUpperCase()} correctamente.`,
+        title: lang === "es" ? "Éxito" : "Success",
+        description: lang === "es" 
+          ? `Plan actualizado a ${newPlan.toUpperCase()} correctamente.` 
+          : `Plan updated to ${newPlan.toUpperCase()} successfully.`,
       });
       fetchBilling(labelSlug);
     } catch (err) {
       addToast({
         title: "Error",
-        description: "No se pudo actualizar el plan. Intentá más tarde.",
+        description: lang === "es" ? "No se pudo actualizar el plan. Intentá más tarde." : "Could not update plan. Please try again later.",
         variant: "destructive"
       });
     } finally {
@@ -195,12 +201,12 @@ export default function SettingsPage() {
               color: plan === "pro" || plan === "indie" ? "#10b981" : "var(--text-secondary)",
             }}
           >
-            {plan === "pro" ? t("settings.plan_pro") : plan === "indie" ? "Plan Indie" : t("settings.plan_free")}
+            {plan === "pro" ? t("settings.plan_pro") : plan === "indie" ? (lang === "es" ? "Plan Indie" : "Indie Plan") : t("settings.plan_free")}
           </span>
           {billing?.next_billing_date && (
             <span className="text-xs text-muted">
               {t("settings.plan_renew")} {new Date(billing.next_billing_date).toLocaleDateString()}
-              {billing.amount && ` por $${(billing.amount / 100).toFixed(0)}`}
+              {billing.amount && (lang === "es" ? ` por $${(billing.amount / 100).toFixed(0)}` : ` for $${(billing.amount / 100).toFixed(0)}`)}
             </span>
           )}
         </div>
@@ -224,9 +230,9 @@ export default function SettingsPage() {
             </thead>
             <tbody>
               {[
-                { feature: t("settings.feature.tracks"), free: "10/mes", indie: "100/mes", pro: t("settings.unlimited") },
-                { feature: t("settings.feature.storage"), free: "0", indie: "7 días", pro: "14 días" },
-                { feature: t("settings.feature.emails"), free: "✕", indie: "100/mes", pro: "500/mes" },
+                { feature: t("settings.feature.tracks"), free: lang === "es" ? "10/mes" : "10/mo", indie: lang === "es" ? "100/mes" : "100/mo", pro: t("settings.unlimited") },
+                { feature: t("settings.feature.storage"), free: "0", indie: lang === "es" ? "7 días" : "7 days", pro: lang === "es" ? "14 días" : "14 days" },
+                { feature: t("settings.feature.emails"), free: "✕", indie: lang === "es" ? "100/mes" : "100/mo", pro: lang === "es" ? "500/mes" : "500/mo" },
                 { feature: t("settings.feature.link"), free: "✓", indie: "✓", pro: "✓" },
                 { feature: t("settings.feature.support"), free: "Email", indie: "Email", pro: "WhatsApp" },
               ].map((row, i) => (
@@ -242,7 +248,7 @@ export default function SettingsPage() {
               <tr style={{ borderTop: "1px solid var(--border)" }}>
                 <td className="px-4 py-3" />
                 <td className="px-4 py-3 text-center text-xs text-muted uppercase font-mono">
-                  {plan === "free" ? "Actual" : "Gratis"}
+                  {plan === "free" ? (lang === "es" ? "Actual" : "Current") : (lang === "es" ? "Gratis" : "Free")}
                 </td>
                 <td className="px-4 py-3 text-center">
                   {plan === "free" ? (

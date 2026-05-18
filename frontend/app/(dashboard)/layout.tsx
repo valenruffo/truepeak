@@ -78,7 +78,7 @@ function PlayerBar() {
 function DashboardInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { t } = useLanguage();
+  const { lang, t } = useLanguage();
   const { toggleTheme } = useTheme();
   const [labelName, setLabelName] = useState<string>("");
   const [planInfo, setPlanInfo] = useState<string>("");
@@ -317,25 +317,27 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
               </div>
             ) : maxTracksMonth - monthlyUsed <= 3 ? (
               <div className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono" style={{ background: "rgba(250,204,21,0.06)", color: "#facc15" }}>
-                <AlertTriangle className="w-3.5 h-3.5" /> Te quedan {maxTracksMonth - monthlyUsed} {role === "dj" ? "promos" : "demos"}
+                <AlertTriangle className="w-3.5 h-3.5" /> {lang === "es" 
+                  ? `Te quedan ${maxTracksMonth - monthlyUsed} ${role === "dj" ? "promos" : "demos"}` 
+                  : `You have ${maxTracksMonth - monthlyUsed} ${role === "dj" ? "promos" : "demos"} left`}
               </div>
             ) : null}
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono" style={{ background: "rgba(16,185,129,0.06)", color: "var(--text-muted)" }}>
-              <Music className="w-3.5 h-3.5" /> {monthlyUsed}/{maxTracksMonth} {role === "dj" ? "promos" : "demos"} este mes
+              <Music className="w-3.5 h-3.5" /> {monthlyUsed}/{maxTracksMonth} {role === "dj" ? "promos" : "demos"} {lang === "es" ? "este mes" : "this month"}
             </div>
           </div>
         )}
         {plan === "indie" && (
           <div className="px-3 mb-1">
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-mono text-emerald-500" style={{ background: "rgba(16,185,129,0.06)" }}>
-              <Clock className="w-3.5 h-3.5" /> HQ guardados por 7 días
+              <Clock className="w-3.5 h-3.5" /> {lang === "es" ? "HQ guardados por 7 días" : "HQ stored for 7 days"}
             </div>
           </div>
         )}
         {plan === "pro" && (
           <div className="px-3 mb-1">
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-mono text-emerald-500" style={{ background: "rgba(16,185,129,0.06)" }}>
-              <Clock className="w-3.5 h-3.5" /> HQ guardados por 14 días
+              <Clock className="w-3.5 h-3.5" /> {lang === "es" ? "HQ guardados por 14 días" : "HQ stored for 14 days"}
             </div>
           </div>
         )}
@@ -470,15 +472,21 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
               }}
             >
               <div className="text-sm">
-                <span className="font-semibold" style={{ color: "#10b981" }}>Upgrade your plan</span>
-                <span className="text-muted ml-1">— Get more tracks, CRM emails, and HQ retention.</span>
+                <span className="font-semibold" style={{ color: "#10b981" }}>
+                  {lang === "es" ? "Actualizá tu plan" : "Upgrade your plan"}
+                </span>
+                <span className="text-muted ml-1">
+                  {lang === "es" 
+                    ? " — Obtené más tracks, emails de CRM y retención de HQ." 
+                    : " — Get more tracks, CRM emails, and HQ retention."}
+                </span>
               </div>
               <Link
                 href="/settings"
                 className="px-4 py-1.5 rounded text-xs font-medium whitespace-nowrap transition-all hover:opacity-90"
                 style={{ background: "#10b981", color: "#09090b" }}
               >
-                View plans
+                {lang === "es" ? "Ver planes" : "View plans"}
               </Link>
             </div>
           )}
