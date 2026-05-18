@@ -13,7 +13,7 @@ interface SonicSignature {
   target_camelot_keys?: string[];
   duration_enabled?: boolean;
   duration_max?: number;
-  auto_reject_rules: { phase: boolean; lufs: boolean; tempo: boolean; clipping?: boolean; dynamics?: boolean; reject_clipping?: boolean; reject_low_dynamic_range?: boolean };
+  auto_reject_rules: { phase: boolean; tempo: boolean; clipping?: boolean; dynamics?: boolean; reject_clipping?: boolean; reject_low_dynamic_range?: boolean };
 }
 
 const GENRE_PRESETS: Record<string, { bpm: [number, number]; lufs: number; durMax?: number; color: string }> = {
@@ -33,7 +33,7 @@ export default function ConfigPage() {
   const [lufsTolerance, setLufsTolerance] = useState(2);
   const [selectedCamelotKeys, setSelectedCamelotKeys] = useState<string[]>([]);
   const [activePreset, setActivePreset] = useState<string | null>(null);
-  const [autoReject, setAutoReject] = useState({ phase: true, lufs: true, tempo: true, clipping: false, dynamics: false });
+  const [autoReject, setAutoReject] = useState({ phase: true, tempo: true, clipping: false, dynamics: false });
   const [durationEnabled, setDurationEnabled] = useState(false);
   const [durationMax, setDurationMax] = useState(600);
 
@@ -64,7 +64,6 @@ export default function ConfigPage() {
           setSelectedCamelotKeys(sig.target_camelot_keys ?? []);
           setAutoReject({ 
             phase: sig.auto_reject_rules?.phase ?? true, 
-            lufs: sig.auto_reject_rules?.lufs ?? true, 
             tempo: sig.auto_reject_rules?.tempo ?? true,
             clipping: sig.auto_reject_rules?.reject_clipping ?? true, 
             dynamics: sig.auto_reject_rules?.reject_low_dynamic_range ?? true
@@ -100,7 +99,7 @@ export default function ConfigPage() {
     try {
       const res = await fetch(`${API}/api/labels/${slug}/config`, {
         method: "PUT", headers: getAuthHeaders(), credentials: "include",
-        body: JSON.stringify({ sonic_signature: { bpm_min: bpmRange[0], bpm_max: bpmRange[1], lufs_target: lufsTarget, lufs_tolerance: lufsTolerance, target_camelot_keys: selectedCamelotKeys, preferred_scales: selectedCamelotKeys, duration_enabled: durationEnabled, duration_max: durationEnabled ? durationMax : null, auto_reject_rules: { phase: autoReject.phase, lufs: autoReject.lufs, tempo: autoReject.tempo, reject_clipping: autoReject.clipping, reject_low_dynamic_range: autoReject.dynamics } } }),
+        body: JSON.stringify({ sonic_signature: { bpm_min: bpmRange[0], bpm_max: bpmRange[1], lufs_target: lufsTarget, lufs_tolerance: lufsTolerance, target_camelot_keys: selectedCamelotKeys, preferred_scales: selectedCamelotKeys, duration_enabled: durationEnabled, duration_max: durationEnabled ? durationMax : null, auto_reject_rules: { phase: autoReject.phase, tempo: autoReject.tempo, reject_clipping: autoReject.clipping, reject_low_dynamic_range: autoReject.dynamics } } }),
       });
       if (!res.ok) throw new Error(`Error ${res.status}`);
       setSaved(true);
@@ -276,7 +275,6 @@ export default function ConfigPage() {
           <div className="flex gap-2 flex-wrap">
             {[
               { key: "phase" as const, label: t("config.auto_reject.phase") }, 
-              { key: "lufs" as const, label: t("config.auto_reject.lufs") }, 
               { key: "tempo" as const, label: t("config.auto_reject.tempo") },
               { key: "clipping" as const, label: t("config.auto_reject.clipping") },
               { key: "dynamics" as const, label: t("config.auto_reject.dynamics") }

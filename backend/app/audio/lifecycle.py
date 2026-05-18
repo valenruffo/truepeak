@@ -24,22 +24,21 @@ def _check_sonic_signature(
     """
     rules = sonic_signature.get("auto_reject_rules", {})
 
-    # Phase correlation check
-    if rules.get("reject_inverted_phase", False):
+    # Phase correlation check (strict rejection)
+    if rules.get("phase", False) or rules.get("reject_inverted_phase", False):
         phase_min = sonic_signature.get("phase_correlation_min", 0.0)
         if metrics["phase_correlation"] <= phase_min:
             return "rejected", "inverted_phase"
 
-    # LUFS loudness check
-    if rules.get("reject_excessive_loudness", False):
-        lufs_target = sonic_signature.get("lufs_target", -14.0)
-        lufs_tolerance = sonic_signature.get("lufs_tolerance", 2.0)
-        lufs_max = lufs_target + lufs_tolerance
-        if metrics["lufs"] > lufs_max:
-            return "rejected", "excessive_loudness"
+    # LUFS loudness check (Volume control exclusively from slider, unconditional)
+    lufs_target = sonic_signature.get("lufs_target", -14.0)
+    lufs_tolerance = sonic_signature.get("lufs_tolerance", 2.0)
+    lufs_max = lufs_target + lufs_tolerance
+    if metrics["lufs"] > lufs_max:
+        return "rejected", "excessive_loudness"
 
     # BPM range check
-    if rules.get("reject_out_of_tempo", False):
+    if rules.get("tempo", False) or rules.get("reject_out_of_tempo", False):
         bpm_min = sonic_signature.get("bpm_min", 70)
         bpm_max = sonic_signature.get("bpm_max", 180)
         if metrics["bpm"] < bpm_min or metrics["bpm"] > bpm_max:
