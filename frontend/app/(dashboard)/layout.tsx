@@ -15,10 +15,16 @@ import WaveSurfer from "wavesurfer.js";
 function PlayerBar() {
   const { currentTrack, isPlaying, progress, duration, volume, hasTracks, togglePlay, prevTrack, nextTrack, setVolume, seekTo, formatTime, audioRef } = usePlayer();
   const [ws, setWs] = useState<WaveSurfer | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [playerState, setPlayerState] = useState<"static" | "loading" | "ready">("static");
   const [hoverWidth, setHoverWidth] = useState<string>("0%");
   const [isHovering, setIsHovering] = useState(false);
   const lastTrackIdRef = useRef<string | null>(null);
+  const isReadyRef = useRef(false);
+  const isPlayingRef = useRef(isPlaying);
+
+  useEffect(() => {
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
 
   // Callback ref to initialize WaveSurfer immediately when container DOM mounts
   const initWaveform = useCallback((node: HTMLDivElement | null) => {
@@ -26,6 +32,8 @@ function PlayerBar() {
     if (!audioRef.current) return;
 
     const token = localStorage.getItem("token") || "";
+    isReadyRef.current = false;
+    setPlayerState(isPlayingRef.current ? "loading" : "static");
 
     const newWs = WaveSurfer.create({
       container: node,
@@ -45,12 +53,20 @@ function PlayerBar() {
       }
     });
 
-    newWs.on("ready", () => {
-      setIsLoading(false);
-    });
+    const setReady = () => {
+      isReadyRef.current = true;
+      setPlayerState("ready");
+    };
+
+    newWs.on("ready", setReady);
+    newWs.on("decode", setReady);
+    newWs.on("redrawcomplete", setReady);
+    newWs.on("timeupdate", setReady);
+    newWs.on("interaction", setReady);
 
     newWs.on("error", () => {
-      setIsLoading(false);
+      isReadyRef.current = true;
+      setPlayerState("ready");
     });
 
     setWs(newWs);
@@ -65,6 +81,12 @@ function PlayerBar() {
     };
   }, [ws]);
 
+  // Sync playerState with isPlaying when track is loading
+  useEffect(() => {
+    if (isReadyRef.current) return;
+    setPlayerState(isPlaying ? "loading" : "static");
+  }, [isPlaying]);
+
   // Load audio into WaveSurfer for waveform display when track changes
   useEffect(() => {
     if (!ws || !currentTrack?.id) return;
@@ -72,7 +94,8 @@ function PlayerBar() {
 
     lastTrackIdRef.current = currentTrack.id;
     const src = `/api/submissions/${currentTrack.id}/download?type=mp3`;
-    setIsLoading(true);
+    isReadyRef.current = false;
+    setPlayerState(isPlaying ? "loading" : "static");
 
     const load = async () => {
       try {
@@ -93,7 +116,7 @@ function PlayerBar() {
     };
 
     load();
-  }, [ws, currentTrack?.id, duration]);
+  }, [ws, currentTrack?.id, duration, isPlaying]);
 
   if (!hasTracks || !currentTrack) return null;
 
@@ -131,22 +154,34 @@ function PlayerBar() {
         className="flex-1 relative group"
         style={{ height: "48px", minWidth: 0 }}
         onPointerMove={(e) => {
+          if (playerState !== "ready") return;
           const rect = e.currentTarget.getBoundingClientRect();
           const x = e.clientX - rect.left;
           const pct = Math.max(0, Math.min(100, (x / rect.width) * 100));
           setHoverWidth(`${pct}%`);
         }}
-        onPointerEnter={() => setIsHovering(true)}
+        onPointerEnter={() => {
+          if (playerState === "ready") setIsHovering(true);
+        }}
         onPointerLeave={() => {
           setIsHovering(false);
           setHoverWidth("0%");
         }}
       >
         {/* Actual WaveSurfer div */}
-        <div ref={initWaveform} style={{ width: "100%", height: "100%", cursor: "pointer" }} />
+        <div
+          ref={initWaveform}
+          style={{
+            width: "100%",
+            height: "100%",
+            cursor: "pointer",
+            opacity: playerState === "ready" ? 1 : 0,
+            transition: "opacity 0.2s ease-in-out",
+          }}
+        />
 
         {/* SoundCloud-style Hover Progress Overlay */}
-        {isHovering && !isLoading && (
+        {isHovering && playerState === "ready" && (
           <div
             className="absolute top-0 bottom-0 left-0 pointer-events-none border-r border-[#10b981]/50"
             style={{
@@ -158,25 +193,45 @@ function PlayerBar() {
           />
         )}
 
-        {/* Loading Placeholder Waveform */}
-        {isLoading && (
-          <div className="absolute inset-0 flex items-center justify-between gap-[1px] pointer-events-none bg-transparent">
-            {Array.from({ length: 100 }).map((_, i) => {
-              const barHeight = Math.max(6, Math.round(16 + Math.sin(i * 0.15) * 10 + Math.sin(i * 0.05) * 5));
-              return (
-                <div
-                  key={i}
-                  className="flex-1 animate-pulse"
-                  style={{
-                    height: `${barHeight}px`,
-                    background: "#27272a",
-                    borderRadius: "2px",
-                    animationDelay: `${(i % 10) * 100}ms`,
-                    animationDuration: "1.5s",
-                  }}
-                />
-              );
-            })}
+        {/* Loading/Static Placeholder Waveform */}
+        {playerState !== "ready" && (
+          <div className="absolute inset-0 flex items-center gap-[1px] pointer-events-none bg-transparent overflow-hidden justify-start">
+            <style>{`
+              @keyframes tp-wave-loading-1 {
+                0%, 100% { height: 8px; }
+                50% { height: 28px; }
+              }
+              @keyframes tp-wave-loading-2 {
+                0%, 100% { height: 16px; }
+                50% { height: 36px; }
+              }
+              @keyframes tp-wave-loading-3 {
+                0%, 100% { height: 24px; }
+                50% { height: 10px; }
+              }
+              @keyframes tp-wave-loading-4 {
+                0%, 100% { height: 12px; }
+                50% { height: 32px; }
+              }
+              @keyframes tp-wave-loading-5 {
+                0%, 100% { height: 20px; }
+                50% { height: 8px; }
+              }
+            `}</style>
+            {Array.from({ length: 480 }).map((_, i) => (
+              <div
+                key={i}
+                style={{
+                  width: "3px",
+                  height: "16px",
+                  background: "#27272a",
+                  borderRadius: "2px",
+                  flexShrink: 0,
+                  animation: playerState === "loading" ? `tp-wave-loading-${(i % 5) + 1} 1.2s infinite ease-in-out` : undefined,
+                  animationDelay: playerState === "loading" ? `${(i % 12) * 60}ms` : undefined,
+                }}
+              />
+            ))}
           </div>
         )}
       </div>
