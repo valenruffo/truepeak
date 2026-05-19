@@ -15,6 +15,9 @@ import WaveSurfer from "wavesurfer.js";
 function PlayerBar() {
   const { currentTrack, isPlaying, progress, duration, volume, hasTracks, togglePlay, prevTrack, nextTrack, setVolume, seekTo, formatTime, audioRef } = usePlayer();
   const [ws, setWs] = useState<WaveSurfer | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [hoverWidth, setHoverWidth] = useState<string>("0%");
+  const [isHovering, setIsHovering] = useState(false);
   const lastTrackIdRef = useRef<string | null>(null);
 
   // Callback ref to initialize WaveSurfer immediately when container DOM mounts
@@ -42,6 +45,14 @@ function PlayerBar() {
       }
     });
 
+    newWs.on("ready", () => {
+      setIsLoading(false);
+    });
+
+    newWs.on("error", () => {
+      setIsLoading(false);
+    });
+
     setWs(newWs);
   }, [audioRef, ws]);
 
@@ -61,6 +72,7 @@ function PlayerBar() {
 
     lastTrackIdRef.current = currentTrack.id;
     const src = `/api/submissions/${currentTrack.id}/download?type=mp3`;
+    setIsLoading(true);
 
     const load = async () => {
       try {
@@ -115,8 +127,58 @@ function PlayerBar() {
       </button>
 
       {/* WaveSurfer waveform container */}
-      <div className="flex-1" style={{ height: "48px", minWidth: 0 }}>
+      <div
+        className="flex-1 relative group"
+        style={{ height: "48px", minWidth: 0 }}
+        onPointerMove={(e) => {
+          const rect = e.currentTarget.getBoundingClientRect();
+          const x = e.clientX - rect.left;
+          const pct = Math.max(0, Math.min(100, (x / rect.width) * 100));
+          setHoverWidth(`${pct}%`);
+        }}
+        onPointerEnter={() => setIsHovering(true)}
+        onPointerLeave={() => {
+          setIsHovering(false);
+          setHoverWidth("0%");
+        }}
+      >
+        {/* Actual WaveSurfer div */}
         <div ref={initWaveform} style={{ width: "100%", height: "100%", cursor: "pointer" }} />
+
+        {/* SoundCloud-style Hover Progress Overlay */}
+        {isHovering && !isLoading && (
+          <div
+            className="absolute top-0 bottom-0 left-0 pointer-events-none border-r border-[#10b981]/50"
+            style={{
+              width: hoverWidth,
+              background: "rgba(16, 185, 129, 0.25)",
+              mixBlendMode: "color-dodge",
+              zIndex: 10,
+            }}
+          />
+        )}
+
+        {/* Loading Placeholder Waveform */}
+        {isLoading && (
+          <div className="absolute inset-0 flex items-center justify-between gap-[1px] pointer-events-none bg-transparent">
+            {Array.from({ length: 100 }).map((_, i) => {
+              const barHeight = Math.max(6, Math.round(16 + Math.sin(i * 0.15) * 10 + Math.sin(i * 0.05) * 5));
+              return (
+                <div
+                  key={i}
+                  className="flex-1 animate-pulse"
+                  style={{
+                    height: `${barHeight}px`,
+                    background: "#27272a",
+                    borderRadius: "2px",
+                    animationDelay: `${(i % 10) * 100}ms`,
+                    animationDuration: "1.5s",
+                  }}
+                />
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <span className="text-[10px] font-mono" style={{ color: "var(--text-muted)", whiteSpace: "nowrap" }}>
