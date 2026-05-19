@@ -13,16 +13,13 @@ import { Music, Clock, AlertTriangle } from "lucide-react";
 import WaveSurfer from "wavesurfer.js";
 
 function PlayerBar() {
-  const { currentTrack, isPlaying, setPlaying, setDuration, duration: ctxDuration, volume, hasTracks, togglePlay, prevTrack, nextTrack, setVolume, formatTime } = usePlayer();
+  const { currentTrack, isPlaying, progress, duration, volume, hasTracks, togglePlay, prevTrack, nextTrack, setVolume, seekTo, formatTime, audioRef } = usePlayer();
   const waveformRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WaveSurfer | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [ready, setReady] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
   const lastTrackIdRef = useRef<string | null>(null);
-  const pendingPlayRef = useRef(false);
+  const shouldSeekRef = useRef<number | null>(null);
 
-  // Create WaveSurfer instance once
+  // Create WaveSurfer instance once for visualization
   useEffect(() => {
     if (!waveformRef.current || wsRef.current) return;
 
@@ -40,30 +37,6 @@ function PlayerBar() {
       backend: "WebAudio",
     });
 
-    ws.setVolume(volume);
-
-    ws.on("timeupdate", () => {
-      setCurrentTime(ws.getCurrentTime());
-    });
-
-    ws.on("ready", () => {
-      setDuration(ws.getDuration());
-      setLoading(false);
-      setReady(true);
-      // If a play was requested while loading, start now
-      if (pendingPlayRef.current) {
-        pendingPlayRef.current = false;
-        ws.play().catch(() => setPlaying(false));
-      }
-    });
-
-    ws.on("play", () => setPlaying(true));
-    ws.on("pause", () => setPlaying(false));
-    ws.on("finish", () => {
-      setPlaying(false);
-      lastTrackIdRef.current = null;
-    });
-
     wsRef.current = ws;
 
     return () => {
@@ -72,16 +45,13 @@ function PlayerBar() {
     };
   }, []);
 
-  // Load track when it changes
+  // Load audio into WaveSurfer for waveform display when track changes
   useEffect(() => {
     if (!wsRef.current || !currentTrack?.id) return;
     if (lastTrackIdRef.current === currentTrack.id) return;
 
-    const ws = wsRef.current;
     lastTrackIdRef.current = currentTrack.id;
-    setLoading(true);
-    setReady(false);
-    setCurrentTime(0);
+    const ws = wsRef.current;
 
     const src = `/api/submissions/${currentTrack.id}/download?type=mp3`;
 
@@ -106,34 +76,19 @@ function PlayerBar() {
     load();
   }, [currentTrack?.id]);
 
-  // Sync play/pause — only if ready
+  // Sync progress from HTML5 audio context to WaveSurfer cursor position
   useEffect(() => {
-    if (!wsRef.current || !ready) return;
-    if (isPlaying) {
-      wsRef.current.play().catch(() => setPlaying(false));
-    } else {
-      wsRef.current.pause();
-    }
-  }, [isPlaying, ready]);
-
-  // When play is requested but not ready, queue it
-  useEffect(() => {
-    if (!ready && isPlaying) {
-      pendingPlayRef.current = true;
-    }
-  }, [isPlaying, ready]);
-
-  // Sync volume
-  useEffect(() => {
-    if (wsRef.current) wsRef.current.setVolume(volume);
-  }, [volume]);
+    if (!wsRef.current || !duration || duration <= 0) return;
+    wsRef.current.seekTo(progress / 100);
+  }, [progress, duration]);
 
   const handleSeek = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (!wsRef.current) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const pct = (e.clientX - rect.left) / rect.width;
-    wsRef.current.seekTo(pct);
-  }, []);
+    seekTo(pct);
+  }, [seekTo]);
+
+  if (!hasTracks || !currentTrack) return null;
 
   if (!hasTracks || !currentTrack) return null;
 
@@ -169,12 +124,8 @@ function PlayerBar() {
       {/* WaveSurfer waveform container */}
       <div className="flex-1 h-full cursor-pointer" ref={waveformRef} onClick={handleSeek} />
 
-      {loading && (
-        <span className="text-[10px] font-mono" style={{ color: "var(--text-muted)" }}>Cargando...</span>
-      )}
-
       <span className="text-[10px] font-mono" style={{ color: "var(--text-muted)", whiteSpace: "nowrap" }}>
-        {formatTime(currentTime)} / {formatTime(ctxDuration)}
+        {formatTime(audioRef.current?.currentTime ?? 0)} / {formatTime(duration)}
       </span>
 
       <div className="min-w-0 max-w-[200px]">
