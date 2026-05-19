@@ -15,16 +15,16 @@ import WaveSurfer from "wavesurfer.js";
 function PlayerBar() {
   const { currentTrack, isPlaying, progress, duration, volume, hasTracks, togglePlay, prevTrack, nextTrack, setVolume, seekTo, formatTime, audioRef } = usePlayer();
   const waveformRef = useRef<HTMLDivElement>(null);
-  const wsRef = useRef<WaveSurfer | null>(null);
+  const [ws, setWs] = useState<WaveSurfer | null>(null);
   const lastTrackIdRef = useRef<string | null>(null);
 
   // Create WaveSurfer instance and bind it directly to the HTML5 audio element
   useEffect(() => {
-    if (!waveformRef.current || !audioRef.current || wsRef.current) return;
+    if (!waveformRef.current || !audioRef.current || ws) return;
 
     const token = localStorage.getItem("token") || "";
 
-    const ws = WaveSurfer.create({
+    const newWs = WaveSurfer.create({
       container: waveformRef.current,
       media: audioRef.current, // Automatically syncs progress, playback, and seeks!
       waveColor: "#27272a",
@@ -42,21 +42,20 @@ function PlayerBar() {
       }
     });
 
-    wsRef.current = ws;
+    setWs(newWs);
 
     return () => {
-      ws.destroy();
-      wsRef.current = null;
+      newWs.destroy();
+      setWs(null);
     };
-  }, [audioRef]);
+  }, [audioRef, ws]);
 
   // Load audio into WaveSurfer for waveform display when track changes
   useEffect(() => {
-    if (!wsRef.current || !currentTrack?.id) return;
+    if (!ws || !currentTrack?.id) return;
     if (lastTrackIdRef.current === currentTrack.id) return;
 
     lastTrackIdRef.current = currentTrack.id;
-    const ws = wsRef.current;
     const src = `/api/submissions/${currentTrack.id}/download?type=mp3`;
 
     const load = async () => {
@@ -78,7 +77,7 @@ function PlayerBar() {
     };
 
     load();
-  }, [currentTrack?.id, duration]);
+  }, [ws, currentTrack?.id, duration]);
 
   if (!hasTracks || !currentTrack) return null;
 

@@ -38,14 +38,17 @@ export function PlayerProvider({ children, initialTracks = [] }: { children: Rea
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolumeState] = useState(0.8);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(
+    typeof window !== "undefined" ? new Audio() : null
+  );
 
   const currentTrack = tracks[currentIndex] ?? null;
   const hasTracks = tracks.length > 0;
 
   useEffect(() => {
-    if (!audioRef.current) audioRef.current = new Audio();
-    audioRef.current.volume = volume;
+    if (audioRef.current) {
+      audioRef.current.volume = volume;
+    }
   }, []);
 
   useEffect(() => {
