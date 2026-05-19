@@ -122,7 +122,9 @@ function PlayerBar() {
       </button>
 
       {/* WaveSurfer waveform container */}
-      <div className="flex-1 h-full cursor-pointer" ref={waveformRef} onClick={handleSeek} />
+      <div className="flex-1" style={{ height: "48px", minWidth: 0 }}>
+        <div ref={waveformRef} onClick={handleSeek} style={{ width: "100%", height: "100%", cursor: "pointer" }} />
+      </div>
 
       <span className="text-[10px] font-mono" style={{ color: "var(--text-muted)", whiteSpace: "nowrap" }}>
         {formatTime(audioRef.current?.currentTime ?? 0)} / {formatTime(duration)}
