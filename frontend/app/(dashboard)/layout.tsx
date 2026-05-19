@@ -15,6 +15,7 @@ import WaveSurfer from "wavesurfer.js";
 function PlayerBar() {
   const { currentTrack, isPlaying, progress, duration, volume, hasTracks, togglePlay, prevTrack, nextTrack, setVolume, seekTo, formatTime, audioRef } = usePlayer();
   const wsRef = useRef<WaveSurfer | null>(null);
+  const waveformRef = useRef<HTMLDivElement | null>(null);
   const [loadedTrackId, setLoadedTrackId] = useState<string | null>(null);
   const [hoverWidth, setHoverWidth] = useState<string>("0%");
   const [isHovering, setIsHovering] = useState(false);
@@ -28,9 +29,8 @@ function PlayerBar() {
   // Reset loadedTrackId on unmount or track change
   const isCurrentlyLoading = !currentTrack?.id || currentTrack.id !== loadedTrackId;
 
-  // Callback ref to initialize WaveSurfer immediately when container DOM mounts
-  const initWaveform = useCallback((node: HTMLDivElement | null) => {
-    if (!node) {
+  useEffect(() => {
+    if (!waveformRef.current || !currentTrack?.id || !audioRef.current) {
       if (wsRef.current) {
         wsRef.current.destroy();
         wsRef.current = null;
@@ -38,17 +38,16 @@ function PlayerBar() {
       isInitializingRef.current = null;
       return;
     }
-    if (wsRef.current || isInitializingRef.current === currentTrack?.id) return;
-    if (!audioRef.current || !currentTrack?.id) return;
 
     const trackId = currentTrack.id;
+    if (isInitializingRef.current === trackId) return;
+
     isInitializingRef.current = trackId;
     const token = localStorage.getItem("token") || "";
 
     const loadAndCreate = async () => {
       let peaksData: number[] | undefined = undefined;
       let trackDuration: number | undefined = undefined;
-      const src = `/api/submissions/${trackId}/download?type=mp3`;
       
       try {
         const res = await fetch(`/api/submissions/${trackId}/peaks`, {
@@ -68,7 +67,8 @@ function PlayerBar() {
         console.error("Error loading peaks:", err);
       }
 
-      if (!node.isConnected || isInitializingRef.current !== trackId) return;
+      // Check if we are still initializing this track
+      if (isInitializingRef.current !== trackId || !waveformRef.current) return;
 
       // Clean up any stale instances just in case before creating
       if (wsRef.current) {
@@ -77,7 +77,7 @@ function PlayerBar() {
       }
 
       const newWs = WaveSurfer.create({
-        container: node,
+        container: waveformRef.current,
         media: audioRef.current!, // Automatically syncs progress, playback, and seeks!
         waveColor: "#27272a",
         progressColor: "#10b981",
@@ -92,19 +92,8 @@ function PlayerBar() {
         duration: trackDuration || durationRef.current || undefined,
       });
 
-      if (peaksData) {
-        // Peaks are available, render is instant and we don't call load() to avoid media loading conflicts
-        setLoadedTrackId(trackId);
-      } else {
-        const handleReady = () => {
-          if (isInitializingRef.current === trackId || wsRef.current === newWs) {
-            setLoadedTrackId(trackId);
-          }
-        };
-        newWs.once("ready", handleReady);
-        newWs.once("decode", handleReady);
-        newWs.load(src);
-      }
+      // Show the waveform and hide the loading state
+      setLoadedTrackId(trackId);
 
       newWs.on("error", () => {
         setLoadedTrackId(trackId);
@@ -115,10 +104,7 @@ function PlayerBar() {
     };
 
     loadAndCreate();
-  }, [audioRef, currentTrack?.id]);
 
-  // Clean up WaveSurfer instance when the component unmounts
-  useEffect(() => {
     return () => {
       if (wsRef.current) {
         wsRef.current.destroy();
@@ -126,7 +112,7 @@ function PlayerBar() {
       }
       isInitializingRef.current = null;
     };
-  }, []);
+  }, [currentTrack?.id, audioRef]);
 
   if (!hasTracks || !currentTrack) return null;
 
@@ -180,8 +166,7 @@ function PlayerBar() {
       >
         {/* Actual WaveSurfer div */}
         <div
-          key={currentTrack?.id}
-          ref={initWaveform}
+          ref={waveformRef}
           style={{
             width: "100%",
             height: "100%",
@@ -209,38 +194,14 @@ function PlayerBar() {
             className="absolute inset-0 flex items-center gap-[1px] pointer-events-none overflow-hidden justify-start z-20"
             style={{ backgroundColor: "var(--bg-card)" }}
           >
-            <style>{`
-              @keyframes tp-wave-loading-1 {
-                0%, 100% { height: 8px; }
-                50% { height: 28px; }
-              }
-              @keyframes tp-wave-loading-2 {
-                0%, 100% { height: 16px; }
-                50% { height: 36px; }
-              }
-              @keyframes tp-wave-loading-3 {
-                0%, 100% { height: 24px; }
-                50% { height: 10px; }
-              }
-              @keyframes tp-wave-loading-4 {
-                0%, 100% { height: 12px; }
-                50% { height: 32px; }
-              }
-              @keyframes tp-wave-loading-5 {
-                0%, 100% { height: 20px; }
-                50% { height: 8px; }
-              }
-            `}</style>
             {Array.from({ length: 480 }).map((_, i) => (
               <div
                 key={i}
+                className={cn(
+                  "w-[3px] bg-[#27272a] rounded-[2px] shrink-0",
+                  `animate-tp-wave-${(i % 5) + 1}`
+                )}
                 style={{
-                  width: "3px",
-                  height: "16px",
-                  background: "#27272a",
-                  borderRadius: "2px",
-                  flexShrink: 0,
-                  animation: `tp-wave-loading-${(i % 5) + 1} 1.2s infinite ease-in-out`,
                   animationDelay: `${(i % 12) * 60}ms`,
                 }}
               />

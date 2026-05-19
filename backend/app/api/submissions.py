@@ -405,7 +405,35 @@ async def get_waveform_peaks(
     _verify_label_ownership(session, auth["label_id"], submission)
 
     if not submission.peaks:
-        raise HTTPException(status_code=404, detail="Waveform peaks not available for this track.")
+        if submission.mp3_path and os.path.exists(submission.mp3_path):
+            try:
+                import librosa
+                from app.audio.analyzer import _extract_waveform_peaks
+                import asyncio
+
+                def load_and_extract():
+                    y, sr = librosa.load(submission.mp3_path, sr=None, mono=False)
+                    peaks = _extract_waveform_peaks(y)
+                    duration = float(len(librosa.to_mono(y)) / sr) if sr and len(y) > 0 else 0.0
+                    return peaks, duration
+
+                peaks, duration = await asyncio.to_thread(load_and_extract)
+
+                submission.peaks = peaks
+                if not submission.duration:
+                    submission.duration = duration
+                session.add(submission)
+                session.commit()
+            except Exception as e:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to generate peaks dynamically: {e}"
+                )
+        else:
+            raise HTTPException(
+                status_code=404,
+                detail="Waveform peaks not available and MP3 file is missing on the server."
+            )
 
     return {
         "peaks": submission.peaks,

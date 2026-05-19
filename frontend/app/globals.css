@@ -98,3 +98,31 @@
   0%, 100% { transform: scaleY(0.3); }
   50% { transform: scaleY(1); }
 }
+
+/* Wave loading animations */
+@keyframes tp-wave-loading-1 {
+  0%, 100% { height: 8px; }
+  50% { height: 28px; }
+}
+@keyframes tp-wave-loading-2 {
+  0%, 100% { height: 16px; }
+  50% { height: 36px; }
+}
+@keyframes tp-wave-loading-3 {
+  0%, 100% { height: 24px; }
+  50% { height: 10px; }
+}
+@keyframes tp-wave-loading-4 {
+  0%, 100% { height: 12px; }
+  50% { height: 32px; }
+}
+@keyframes tp-wave-loading-5 {
+  0%, 100% { height: 20px; }
+  50% { height: 8px; }
+}
+
+.animate-tp-wave-1 { animation: tp-wave-loading-1 1.2s infinite ease-in-out; }
+.animate-tp-wave-2 { animation: tp-wave-loading-2 1.2s infinite ease-in-out; }
+.animate-tp-wave-3 { animation: tp-wave-loading-3 1.2s infinite ease-in-out; }
+.animate-tp-wave-4 { animation: tp-wave-loading-4 1.2s infinite ease-in-out; }
+.animate-tp-wave-5 { animation: tp-wave-loading-5 1.2s infinite ease-in-out; }
