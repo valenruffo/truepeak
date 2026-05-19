@@ -70,6 +70,95 @@ function buildTemplates(labelName: string, t: (key: any) => string): Template[] 
   ];
 }
 
+const variables = [
+  { key: "{producer}", label: "Productor", desc: "Nombre del productor" },
+  { key: "{track}", label: "Track", desc: "Nombre del track" },
+  { key: "{bpm}", label: "BPM", desc: "Tempo del track" },
+  { key: "{label}", label: "Sello", desc: "Nombre del sello" },
+];
+
+const escapeHtml = (str: string) => {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+};
+
+const convertTextToHtml = (text: string, c: Contact | null, labelName: string) => {
+  if (!text) return "";
+  
+  let html = escapeHtml(text);
+
+  const name = c ? c.name : "Productor";
+  const trackName = c ? c.track : "Track";
+  const bpmValue = c ? c.bpm : "BPM";
+  const labelVal = labelName || "Sello";
+
+  const badges: Record<string, string> = {
+    "{producer}": `<span contenteditable="false" class="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20 select-all" data-variable="{producer}">${escapeHtml(name)}</span>`,
+    "{track}": `<span contenteditable="false" class="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20 select-all" data-variable="{track}">${escapeHtml(trackName)}</span>`,
+    "{bpm}": `<span contenteditable="false" class="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20 select-all" data-variable="{bpm}">${escapeHtml(bpmValue)}</span>`,
+    "{label}": `<span contenteditable="false" class="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20 select-all" data-variable="{label}">${escapeHtml(labelVal)}</span>`
+  };
+
+  Object.entries(badges).forEach(([placeholder, badgeHtml]) => {
+    const regex = new RegExp(placeholder.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), 'g');
+    html = html.replace(regex, badgeHtml);
+  });
+
+  return html.replace(/\n/g, "<br>");
+};
+
+const convertHtmlToText = (html: string) => {
+  if (typeof document === "undefined") return html;
+  const temp = document.createElement("div");
+  temp.innerHTML = html;
+  
+  const badges = temp.querySelectorAll("span[data-variable]");
+  badges.forEach((badge) => {
+    const variable = badge.getAttribute("data-variable");
+    if (variable) {
+      badge.replaceWith(document.createTextNode(variable));
+    }
+  });
+
+  let text = "";
+  const walk = (node: Node) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      text += node.nodeValue;
+    } else if (node.nodeType === Node.ELEMENT_NODE) {
+      const el = node as HTMLElement;
+      if (el.tagName === "BR") {
+        text += "\n";
+      } else if (el.tagName === "DIV" || el.tagName === "P") {
+        if (text && !text.endsWith("\n")) {
+          text += "\n";
+        }
+        el.childNodes.forEach(walk);
+        if (text && !text.endsWith("\n")) {
+          text += "\n";
+        }
+      } else {
+        el.childNodes.forEach(walk);
+      }
+    }
+  };
+  
+  temp.childNodes.forEach(walk);
+  return text.replace(/\r\n/g, "\n");
+};
+
+const resolvePlaceholders = (text: string, c: Contact, labelName: string) => {
+  if (!text) return "";
+  return text
+    .replace(/{producer}/g, c.name || "")
+    .replace(/{track}/g, c.track || "")
+    .replace(/{bpm}/g, c.bpm || "")
+    .replace(/{label}/g, labelName || "");
+};
+
 function CRMContent() {
   const { t } = useLanguage();
   const [selectedTemplate, setSelectedTemplate] = useState("reject-phase");
@@ -88,6 +177,11 @@ function CRMContent() {
   const { playTrack, togglePlay, isPlaying, currentTrack } = usePlayer();
   const searchParams = useSearchParams();
   const highlightParam = searchParams.get("highlight");
+
+  const emailBodyDivRef = useRef<HTMLDivElement | null>(null);
+  const lastSyncedTextRef = useRef("");
+  const lastSyncedContactRef = useRef<Contact | null>(null);
+  const lastSyncedLabelRef = useRef("");
 
   useEffect(() => {
     const fetchData = async () => {
@@ -136,33 +230,49 @@ function CRMContent() {
   const template = templates.find((t) => t.id === selectedTemplate);
 
   const resolveTemplate = (tpl: Template, c: Contact) => {
-    return tpl.body.replace(/{producer}/g, c.name).replace(/{track}/g, c.track).replace(/{bpm}/g, c.bpm);
+    return tpl.body;
   };
 
   const handleTemplateChange = (id: string) => {
     setSelectedTemplate(id);
     const tpl = templates.find((t) => t.id === id)!;
     setEmailSubject(tpl.subject);
-    if (contact) setEmailBody(resolveTemplate(tpl, contact));
-    else setEmailBody(tpl.body);
+    setEmailBody(tpl.body); // Keep placeholders!
     setSent(false);
   };
 
   const handleContactChange = (idx: number) => {
     setSelectedContact(idx);
-    const tpl = templates.find((t) => t.id === selectedTemplate)!;
-    const c = contacts[idx];
-    if (c) setEmailBody(resolveTemplate(tpl, c));
-    else setEmailBody(tpl.body);
     setSent(false);
   };
 
   useEffect(() => {
     if (template && contacts.length > 0 && !emailBody) {
       setEmailSubject(template.subject);
-      setEmailBody(resolveTemplate(template, contacts[0]));
+      setEmailBody(template.body); // Keep placeholders!
     }
   }, [template, contacts, labelName]);
+
+  // Sync contenteditable HTML when text or contact details change
+  useEffect(() => {
+    const contactChanged = contact !== lastSyncedContactRef.current;
+    const labelChanged = labelName !== lastSyncedLabelRef.current;
+    const textChanged = emailBody !== lastSyncedTextRef.current;
+
+    if (textChanged || contactChanged || labelChanged) {
+      const isTyping = textChanged && !contactChanged && !labelChanged && emailBody === lastSyncedTextRef.current;
+      
+      if (!isTyping) {
+        if (emailBodyDivRef.current) {
+          emailBodyDivRef.current.innerHTML = convertTextToHtml(emailBody, contact || null, labelName);
+        }
+      }
+      
+      lastSyncedTextRef.current = emailBody;
+      lastSyncedContactRef.current = contact || null;
+      lastSyncedLabelRef.current = labelName;
+    }
+  }, [emailBody, contact, labelName]);
 
   const rejectionCount = contacts.filter((c) => c.status === "rejected").length;
   const approvalCount = contacts.filter((c) => c.status === "approved").length;
@@ -180,9 +290,7 @@ function CRMContent() {
   const [subjectCursor, setSubjectCursor] = useState(0);
   const [bodyRef, setBodyRef] = useState<HTMLTextAreaElement | null>(null);
   const [subjectRef, setSubjectRef] = useState<HTMLInputElement | null>(null);
-  const [emailBodyRef, setEmailBodyRef] = useState<HTMLTextAreaElement | null>(null);
   const [emailSubjectRef, setEmailSubjectRef] = useState<HTMLInputElement | null>(null);
-  const [emailBodyCursor, setEmailBodyCursor] = useState(0);
   const [emailSubjectCursor, setEmailSubjectCursor] = useState(0);
   const [dragOverField, setDragOverField] = useState<"email-body" | "email-subject" | "template-body" | "template-subject" | null>(null);
   const [dragCursorPos, setDragCursorPos] = useState(0);
@@ -206,9 +314,11 @@ function CRMContent() {
     if (!contact.email) { setSendError(t("crm.send_error_no_email")); return; }
     setSending(true); setSendError(null);
     try {
+      const resolvedSubject = resolvePlaceholders(emailSubject, contact, labelName);
+      const resolvedBody = resolvePlaceholders(emailBody, contact, labelName);
       const res = await fetch(`/api/email/send`, {
         method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ to: contact.email, subject: emailSubject, body: emailBody, from_name: labelName }),
+        body: JSON.stringify({ to: contact.email, subject: resolvedSubject, body: resolvedBody, from_name: labelName }),
       });
       if (!res.ok) { const err = await res.json().catch(() => null); throw new Error(err?.detail || `Error ${res.status}`); }
       setSent(true);
@@ -216,13 +326,6 @@ function CRMContent() {
     } catch (e) { setSendError(e instanceof Error ? e.message : t("crm.send_error")); }
     finally { setSending(false); }
   };
-
-  const variables = [
-    { key: "{producer}", label: "Productor", desc: "Nombre del productor" },
-    { key: "{track}", label: "Track", desc: "Nombre del track" },
-    { key: "{bpm}", label: "BPM", desc: "Tempo del track" },
-    { key: "{label}", label: "Sello", desc: "Nombre del sello" },
-  ];
 
   /** Get character offset in a textarea/input from mouse event coordinates */
   const getCaretOffsetFromPoint = useCallback((el: HTMLInputElement | HTMLTextAreaElement, x: number, y: number): number => {
@@ -307,36 +410,173 @@ function CRMContent() {
   };
 
   const insertEmailVariable = (variable: string, field: "body" | "subject") => {
-    if (field === "body" && emailBodyRef) {
-      const pos = dragOverField === "email-body" ? dragCursorPos : emailBodyCursor;
-      const before = emailBody.slice(0, pos);
-      const after = emailBody.slice(pos);
-      setEmailBody(before + variable + after);
-      const newPos = pos + variable.length;
-      setTimeout(() => { emailBodyRef.focus(); emailBodyRef.setSelectionRange(newPos, newPos); }, 0);
-    } else if (field === "subject" && emailSubjectRef) {
-      const pos = dragOverField === "email-subject" ? dragCursorPos : emailSubjectCursor;
+    if (field === "subject" && emailSubjectRef) {
+      const pos = emailSubjectCursor;
       const before = emailSubject.slice(0, pos);
       const after = emailSubject.slice(pos);
       setEmailSubject(before + variable + after);
       const newPos = pos + variable.length;
       setTimeout(() => { emailSubjectRef.focus(); emailSubjectRef.setSelectionRange(newPos, newPos); }, 0);
+      setDragOverField(null);
+      return;
+    }
+    
+    // For body, which is contentEditable
+    if (emailBodyDivRef.current) {
+      emailBodyDivRef.current.focus();
+      const sel = window.getSelection();
+      let range: Range | null = null;
+      
+      if (sel && sel.rangeCount > 0) {
+        const potentialRange = sel.getRangeAt(0);
+        if (emailBodyDivRef.current.contains(potentialRange.commonAncestorContainer)) {
+          range = potentialRange;
+        }
+      }
+      
+      if (!range) {
+        range = document.createRange();
+        range.selectNodeContents(emailBodyDivRef.current);
+        range.collapse(false);
+      }
+      
+      const name = contact ? contact.name : "Productor";
+      const trackName = contact ? contact.track : "Track";
+      const bpmValue = contact ? contact.bpm : "BPM";
+      const labelVal = labelName || "Sello";
+
+      let textToShow = "";
+      if (variable === "{producer}") textToShow = name;
+      else if (variable === "{track}") textToShow = trackName;
+      else if (variable === "{bpm}") textToShow = bpmValue;
+      else if (variable === "{label}") textToShow = labelVal;
+
+      const span = document.createElement("span");
+      span.setAttribute("contenteditable", "false");
+      span.setAttribute("data-variable", variable);
+      span.className = "inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20 select-all";
+      span.textContent = textToShow;
+
+      range.insertNode(span);
+      range.setStartAfter(span);
+      range.setEndAfter(span);
+      
+      if (sel) {
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+      
+      const html = emailBodyDivRef.current.innerHTML;
+      const text = convertHtmlToText(html);
+      lastSyncedTextRef.current = text;
+      setEmailBody(text);
     }
     setDragOverField(null);
   };
 
+  const handleEmailBodyInput = (e: React.FormEvent<HTMLDivElement>) => {
+    const html = e.currentTarget.innerHTML;
+    const text = convertHtmlToText(html);
+    lastSyncedTextRef.current = text;
+    setEmailBody(text);
+  };
+
+  const handleEmailBodyDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+    setDragOverField("email-body");
+
+    // Position selection caret under mouse
+    let range: Range | null = null;
+    if (document.caretRangeFromPoint) {
+      range = document.caretRangeFromPoint(e.clientX, e.clientY);
+    } else if (e.nativeEvent && (e.nativeEvent as any).rangeParent) {
+      const ne = e.nativeEvent as any;
+      range = document.createRange();
+      range.setStart(ne.rangeParent, ne.rangeOffset);
+    }
+
+    if (range) {
+      const sel = window.getSelection();
+      if (sel) {
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+    }
+  };
+
+  const handleEmailBodyDragLeave = () => {
+    setDragOverField(null);
+  };
+
+  const handleEmailBodyDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setDragOverField(null);
+    const variable = e.dataTransfer.getData("text/plain");
+    
+    if (variable && variables.some(v => v.key === variable)) {
+      let range: Range | null = null;
+      if (document.caretRangeFromPoint) {
+        range = document.caretRangeFromPoint(e.clientX, e.clientY);
+      } else if (e.nativeEvent && (e.nativeEvent as any).rangeParent) {
+        const ne = e.nativeEvent as any;
+        range = document.createRange();
+        range.setStart(ne.rangeParent, ne.rangeOffset);
+      }
+
+      if (range) {
+        const name = contact ? contact.name : "Productor";
+        const trackName = contact ? contact.track : "Track";
+        const bpmValue = contact ? contact.bpm : "BPM";
+        const labelVal = labelName || "Sello";
+
+        let textToShow = "";
+        if (variable === "{producer}") textToShow = name;
+        else if (variable === "{track}") textToShow = trackName;
+        else if (variable === "{bpm}") textToShow = bpmValue;
+        else if (variable === "{label}") textToShow = labelVal;
+
+        const span = document.createElement("span");
+        span.setAttribute("contenteditable", "false");
+        span.setAttribute("data-variable", variable);
+        span.className = "inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20 select-all";
+        span.textContent = textToShow;
+
+        range.insertNode(span);
+        range.setStartAfter(span);
+        range.setEndAfter(span);
+        
+        const sel = window.getSelection();
+        if (sel) {
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
+
+        const html = e.currentTarget.innerHTML;
+        const text = convertHtmlToText(html);
+        lastSyncedTextRef.current = text;
+        setEmailBody(text);
+      }
+    }
+  };
+
   const handleEmailDrop = (e: React.DragEvent, field: "body" | "subject") => {
     e.preventDefault();
+    const el = e.currentTarget;
     const variable = e.dataTransfer.getData("text/plain");
     if (variable && variables.some(v => v.key === variable)) {
-      insertEmailVariable(variable, field);
+      if (field === "subject" && emailSubjectRef) {
+        const offset = getCaretOffsetFromPoint(el as HTMLInputElement, e.clientX, e.clientY);
+        const before = emailSubject.slice(0, offset);
+        const after = emailSubject.slice(offset);
+        setEmailSubject(before + variable + after);
+      }
     }
     setDragOverField(null);
   };
 
   const handleBodySelect = () => { if (bodyRef && bodyRef.selectionStart != null) setBodyCursor(bodyRef.selectionStart); };
   const handleSubjectSelect = () => { if (subjectRef && subjectRef.selectionStart != null) setSubjectCursor(subjectRef.selectionStart); };
-  const handleEmailBodySelect = () => { if (emailBodyRef && emailBodyRef.selectionStart != null) setEmailBodyCursor(emailBodyRef.selectionStart); };
   const handleEmailSubjectSelect = () => { if (emailSubjectRef && emailSubjectRef.selectionStart != null) setEmailSubjectCursor(emailSubjectRef.selectionStart); };
 
   const VariableChips = ({ target }: { target: "email" | "template" }) => (
@@ -346,7 +586,14 @@ function CRMContent() {
           key={v.key}
           draggable
           onDragStart={(e) => handleDragStart(e, v.key)}
-          className="text-[10px] px-2 py-0.5 rounded border cursor-grab active:cursor-grabbing transition-colors hover:border-emerald-500 select-none"
+          onClick={() => {
+            if (target === "email") {
+              insertEmailVariable(v.key, "body");
+            } else {
+              insertVariable(v.key, "body");
+            }
+          }}
+          className="text-[10px] px-2 py-0.5 rounded border cursor-grab active:cursor-grabbing transition-colors hover:border-emerald-500 hover:bg-emerald-500/5 select-none"
           style={{ borderColor: "var(--border)", color: "var(--text-muted)", background: "transparent" }}
           title={v.desc}
         >
@@ -569,7 +816,22 @@ function CRMContent() {
                 <div className="mb-4">
                   <label className="text-[10px] font-mono uppercase tracking-wider text-muted mb-1 block">{t("crm.body_label")}</label>
                   <VariableChips target="email" />
-                  <textarea ref={setEmailBodyRef} value={emailBody} onChange={(e) => setEmailBody(e.target.value)} onDragOver={(e) => handleDragOverField(e, "email-body")} onDragLeave={handleDragLeave} onDrop={(e) => handleEmailDrop(e, "body")} onSelect={handleEmailBodySelect} onClick={handleEmailBodySelect} className="w-full px-3 py-2 rounded border text-sm leading-relaxed bg-transparent resize-none" style={{ borderColor: "var(--border)", minHeight: "200px", caretColor: dragOverField === "email-body" ? "#10b981" : undefined }} rows={8} />
+                  <div
+                    ref={emailBodyDivRef}
+                    contentEditable
+                    suppressContentEditableWarning
+                    onInput={handleEmailBodyInput}
+                    onDragOver={handleEmailBodyDragOver}
+                    onDragLeave={handleEmailBodyDragLeave}
+                    onDrop={handleEmailBodyDrop}
+                    className="w-full px-3 py-2 rounded border text-sm leading-relaxed bg-transparent overflow-y-auto focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
+                    style={{
+                      borderColor: dragOverField === "email-body" ? "#10b981" : "var(--border)",
+                      boxShadow: dragOverField === "email-body" ? "0 0 8px rgba(16,185,129,0.2)" : "none",
+                      minHeight: "220px",
+                      caretColor: "#10b981",
+                    }}
+                  />
                 </div>
 
                 <div className="flex items-center justify-between gap-3 mt-4">
