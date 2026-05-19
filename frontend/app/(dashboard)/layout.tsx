@@ -118,7 +118,7 @@ function PlayerBar() {
 
   return (
     <div
-      className="fixed bottom-0 left-0 right-0 z-50 flex items-center gap-2 md:gap-4 px-2 md:px-4 md:ml-[240px]"
+      className="fixed bottom-0 left-0 right-0 z-30 flex items-center gap-2 md:gap-4 px-2 md:px-4 md:ml-[240px]"
       style={{
         height: "64px",
         background: "var(--bg-card)",

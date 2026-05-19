@@ -41,7 +41,8 @@ def _check_sonic_signature(
     if rules.get("tempo", False) or rules.get("reject_out_of_tempo", False):
         bpm_min = sonic_signature.get("bpm_min", 70)
         bpm_max = sonic_signature.get("bpm_max", 180)
-        if metrics["bpm"] < bpm_min or metrics["bpm"] > bpm_max:
+        track_bpm = round(metrics["bpm"])
+        if track_bpm < bpm_min or track_bpm > bpm_max:
             return "rejected", "out_of_tempo"
 
     # Clipping check
