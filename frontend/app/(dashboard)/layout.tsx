@@ -14,20 +14,23 @@ import WaveSurfer from "wavesurfer.js";
 
 function PlayerBar() {
   const { currentTrack, isPlaying, progress, duration, volume, hasTracks, togglePlay, prevTrack, nextTrack, setVolume, seekTo, formatTime, audioRef } = usePlayer();
-  const waveformRef = useRef<HTMLDivElement>(null);
   const [ws, setWs] = useState<WaveSurfer | null>(null);
   const lastTrackIdRef = useRef<string | null>(null);
 
-  // Create WaveSurfer instance and bind it directly to the HTML5 audio element
-  useEffect(() => {
-    console.log("WaveSurfer: Create useEffect triggered. waveformRef.current:", !!waveformRef.current, "audioRef.current:", !!audioRef.current, "ws:", !!ws);
-    if (!waveformRef.current || !audioRef.current || ws) return;
+  // Callback ref to initialize WaveSurfer immediately when container DOM mounts
+  const initWaveform = useCallback((node: HTMLDivElement | null) => {
+    console.log("WaveSurfer: initWaveform callback. node:", !!node, "audioRef.current:", !!audioRef.current, "ws:", !!ws);
+    if (!node || ws) return;
+    if (!audioRef.current) {
+      console.warn("WaveSurfer: audioRef.current is not ready inside callback.");
+      return;
+    }
 
     const token = localStorage.getItem("token") || "";
-    console.log("WaveSurfer: Creating instance...");
+    console.log("WaveSurfer: Creating instance via callback ref...");
 
     const newWs = WaveSurfer.create({
-      container: waveformRef.current,
+      container: node,
       media: audioRef.current, // Automatically syncs progress, playback, and seeks!
       waveColor: "#27272a",
       progressColor: "#10b981",
@@ -44,15 +47,19 @@ function PlayerBar() {
       }
     });
 
-    console.log("WaveSurfer: Instance created successfully.");
+    console.log("WaveSurfer: Instance created successfully via callback ref.");
     setWs(newWs);
-
-    return () => {
-      console.log("WaveSurfer: Destroying instance.");
-      newWs.destroy();
-      setWs(null);
-    };
   }, [audioRef, ws]);
+
+  // Clean up WaveSurfer instance when the component unmounts
+  useEffect(() => {
+    return () => {
+      if (ws) {
+        console.log("WaveSurfer: Destroying instance on cleanup.");
+        ws.destroy();
+      }
+    };
+  }, [ws]);
 
   // Load audio into WaveSurfer for waveform display when track changes
   useEffect(() => {
@@ -127,7 +134,7 @@ function PlayerBar() {
 
       {/* WaveSurfer waveform container */}
       <div className="flex-1" style={{ height: "48px", minWidth: 0 }}>
-        <div ref={waveformRef} style={{ width: "100%", height: "100%", cursor: "pointer" }} />
+        <div ref={initWaveform} style={{ width: "100%", height: "100%", cursor: "pointer" }} />
       </div>
 
       <span className="text-[10px] font-mono" style={{ color: "var(--text-muted)", whiteSpace: "nowrap" }}>
