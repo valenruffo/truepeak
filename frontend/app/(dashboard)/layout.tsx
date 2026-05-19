@@ -412,45 +412,16 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
         className={`fixed top-0 left-0 h-full flex flex-col z-40 transition-transform ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0`}
         style={{ width: "240px", background: "var(--bg-card)", borderRight: "1px solid var(--border)" }}
       >
-        <div className="px-5 pt-6 pb-4">
-          <Link href="/"><img src="/logo.png" alt="True Peak AI" className="h-7 w-auto" /></Link>
+        <div className="px-6 pt-8 pb-6 flex items-center justify-start">
+          <Link href="/"><img src="/logo.png" alt="True Peak AI" className="h-10 w-auto object-contain" /></Link>
         </div>
 
-        {/* Label info with logo/avatar */}
-        {labelName && (
-          <div className="px-5 pb-3">
-            <div style={{ borderBottom: "1px solid var(--border)" }} className="pb-3">
-              <div className="flex items-center gap-3">
-                {logoPath ? (
-                  <img
-                    src={`/logos/${logoPath}`}
-                    alt={labelName}
-                    className="w-8 h-8 rounded-full object-cover flex-shrink-0"
-                    style={{ border: "1px solid var(--border)" }}
-                  />
-                ) : (
-                  <div
-                    className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0"
-                    style={{ background: "rgba(16,185,129,0.15)", color: "#10b981" }}
-                  >
-                    {labelInitial}
-                  </div>
-                )}
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium truncate">{labelName}</div>
-                  {planInfo && <div className="text-[10px] text-muted mt-0.5">{planInfo}</div>}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <nav className="flex-1 px-3 pt-3">
+        <nav className="flex-1 px-3 pt-4 space-y-1">
           {navItems.map((item) => {
             const isActive = pathname === item.href;
             return (
               <Link key={item.href} href={item.href} onClick={() => setSidebarOpen(false)}
-                className={cn("block text-sm px-3 py-2 rounded transition-colors mb-0.5", isActive ? "font-medium" : "hover:bg-white/5")}
+                className={cn("block text-base px-4 py-2.5 rounded transition-all duration-200 mb-1", isActive ? "font-semibold shadow-sm" : "hover:bg-white/5 hover:translate-x-1")}
                 style={{ color: isActive ? "#10b981" : "var(--text-secondary)", background: isActive ? "rgba(16,185,129,0.08)" : "transparent" }}>
                 {item.label}
               </Link>
@@ -459,7 +430,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
         </nav>
 
         {plan === "free" && (
-          <div className="px-3 mb-1 space-y-1">
+          <div className="px-4 mb-2 space-y-1">
             {monthlyUsed >= maxTracksMonth ? (
               <div className="px-3 py-1.5 rounded text-xs font-mono" style={{ background: "rgba(239,68,68,0.06)", color: "#ef4444" }}>
                 {t("dashboard.no_tracks")} —{" "}
@@ -484,14 +455,14 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
           </div>
         )}
         {plan === "indie" && (
-          <div className="px-3 mb-1">
+          <div className="px-4 mb-2">
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-mono text-emerald-500" style={{ background: "rgba(16,185,129,0.06)" }}>
               <Clock className="w-3.5 h-3.5" /> {lang === "es" ? "HQ guardados por 7 días" : "HQ stored for 7 days"}
             </div>
           </div>
         )}
         {plan === "pro" && (
-          <div className="px-3 mb-1">
+          <div className="px-4 mb-2">
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-mono text-emerald-500" style={{ background: "rgba(16,185,129,0.06)" }}>
               <Clock className="w-3.5 h-3.5" /> {lang === "es" ? "HQ guardados por 14 días" : "HQ stored for 14 days"}
             </div>
@@ -589,30 +560,67 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
           </div>
         )}
 
-        {/* Bottom area: Settings + Logout */}
-        <div className="px-3 pb-5">
-          <Link
-            href="/settings"
-            onClick={() => setSidebarOpen(false)}
-            className="block text-sm px-3 py-2 rounded transition-colors hover:bg-white/5"
-            style={{ color: "var(--text-muted)" }}
-          >
-            {t("dashboard.nav.settings")}
-          </Link>
-          <button
-            onClick={() => {
-              localStorage.removeItem("slug");
-              localStorage.removeItem("label_id");
-              localStorage.removeItem("plan");
-              localStorage.removeItem("token");
-              fetch(`/api/labels/logout`, { method: "POST", credentials: "include" }).catch(() => {});
-              router.push("/");
-            }}
-            className="w-full text-left text-sm px-3 py-2 rounded transition-colors hover:bg-white/5"
-            style={{ color: "var(--text-muted)" }}
-          >
-            {t("dashboard.logout")}
-          </button>
+        {/* Bottom area: Profile Info + Settings + Logout */}
+        <div className="mt-auto px-4 pb-6 pt-4 border-t" style={{ borderColor: "var(--border)" }}>
+          {labelName && (
+            <div className="mb-4 px-2">
+              <div className="flex items-center gap-3">
+                {logoPath ? (
+                  <img
+                    src={`/logos/${logoPath}`}
+                    alt={labelName}
+                    className="w-9 h-9 rounded-full object-cover flex-shrink-0"
+                    style={{ border: "1px solid var(--border)" }}
+                  />
+                ) : (
+                  <div
+                    className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0"
+                    style={{ background: "rgba(16,185,129,0.15)", color: "#10b981" }}
+                  >
+                    {labelInitial}
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium truncate" style={{ color: "var(--text-primary)" }}>{labelName}</div>
+                  <div className="text-[10px] text-emerald-400 font-medium mt-0.5">
+                    {plan === "pro" ? "Plan Pro" : plan === "indie" ? "Plan Indie" : plan === "free" ? "Plan Free" : `Plan ${plan.charAt(0).toUpperCase() + plan.slice(1)}`}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-1">
+            <Link
+              href="/settings"
+              onClick={() => setSidebarOpen(false)}
+              className="flex items-center gap-2 text-sm px-3 py-2 rounded transition-colors hover:bg-white/5"
+              style={{ color: "var(--text-muted)" }}
+            >
+              <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              {t("dashboard.nav.settings")}
+            </Link>
+            <button
+              onClick={() => {
+                localStorage.removeItem("slug");
+                localStorage.removeItem("label_id");
+                localStorage.removeItem("plan");
+                localStorage.removeItem("token");
+                fetch(`/api/labels/logout`, { method: "POST", credentials: "include" }).catch(() => {});
+                router.push("/");
+              }}
+              className="w-full flex items-center gap-2 text-left text-sm px-3 py-2 rounded transition-colors hover:bg-white/5"
+              style={{ color: "var(--text-muted)" }}
+            >
+              <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+              {t("dashboard.logout")}
+            </button>
+          </div>
         </div>
       </aside>
 
