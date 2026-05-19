@@ -860,7 +860,7 @@ function CRMContent() {
                   const isHighlighted = highlightParam === c.id;
 
                   return (
-                    <div key={i} id={`crm-contact-${c.id}`} onClick={() => handleContactChange(i)} className="w-full text-left px-4 py-3 border-b transition-all duration-500 cursor-pointer" style={{ borderColor: "var(--border-light)", background: isHighlighted ? "rgba(16,185,129,0.08)" : selectedContact === i ? "rgba(16,185,129,0.04)" : "transparent", animation: isHighlighted ? "breathe 1.2s ease-in-out 1 forwards" : "none", transition: "background 1.5s ease-out" }}>
+                    <div key={i} id={`crm-contact-${c.id}`} onClick={() => handleContactChange(i)} className="w-full text-left px-4 py-3 border-b cursor-pointer" style={{ borderColor: "var(--border-light)", background: selectedContact === i ? "rgba(16,185,129,0.08)" : "transparent", animation: isHighlighted ? "breathe 1.2s ease-in-out 1 forwards" : "none" }}>
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-sm font-medium truncate">{c.name}</span>
                         <span className="font-mono text-[10px] px-1.5 py-0.5 rounded flex-shrink-0 ml-2" style={{ background: c.status === "rejected" ? "rgba(239,68,68,0.15)" : "rgba(16,185,129,0.15)", color: c.status === "rejected" ? "#ef4444" : "#10b981" }}>
