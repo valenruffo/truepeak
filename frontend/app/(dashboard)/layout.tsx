@@ -18,6 +18,7 @@ function PlayerBar() {
   const [loadedTrackId, setLoadedTrackId] = useState<string | null>(null);
   const [hoverWidth, setHoverWidth] = useState<string>("0%");
   const [isHovering, setIsHovering] = useState(false);
+  const isInitializingRef = useRef<string | null>(null);
   const durationRef = useRef(duration);
 
   useEffect(() => {
@@ -34,19 +35,22 @@ function PlayerBar() {
         wsRef.current.destroy();
         wsRef.current = null;
       }
+      isInitializingRef.current = null;
       return;
     }
-    if (wsRef.current) return;
+    if (wsRef.current || isInitializingRef.current === currentTrack?.id) return;
     if (!audioRef.current || !currentTrack?.id) return;
 
+    const trackId = currentTrack.id;
+    isInitializingRef.current = trackId;
     const token = localStorage.getItem("token") || "";
 
     const loadAndCreate = async () => {
       let peaksData: number[] | undefined = undefined;
-      const src = `/api/submissions/${currentTrack.id}/download?type=mp3`;
+      const src = `/api/submissions/${trackId}/download?type=mp3`;
       
       try {
-        const res = await fetch(`/api/submissions/${currentTrack.id}/peaks`, {
+        const res = await fetch(`/api/submissions/${trackId}/peaks`, {
           credentials: "include",
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
@@ -60,7 +64,13 @@ function PlayerBar() {
         console.error("Error loading peaks:", err);
       }
 
-      if (!node.isConnected) return;
+      if (!node.isConnected || isInitializingRef.current !== trackId) return;
+
+      // Clean up any stale instances just in case before creating
+      if (wsRef.current) {
+        wsRef.current.destroy();
+        wsRef.current = null;
+      }
 
       const newWs = WaveSurfer.create({
         container: node,
@@ -77,21 +87,26 @@ function PlayerBar() {
         peaks: peaksData ? [peaksData] : undefined,
       });
 
-      const handleReady = () => {
-        setLoadedTrackId(currentTrack.id);
-      };
-
-      newWs.on("ready", handleReady);
-      newWs.on("decode", handleReady);
-      newWs.on("redrawcomplete", handleReady);
-      newWs.on("timeupdate", handleReady);
+      if (peaksData) {
+        // Peaks are available, render is instant
+        setLoadedTrackId(trackId);
+      } else {
+        const handleReady = () => {
+          if (isInitializingRef.current === trackId || wsRef.current === newWs) {
+            setLoadedTrackId(trackId);
+          }
+        };
+        newWs.once("ready", handleReady);
+        newWs.once("decode", handleReady);
+      }
 
       newWs.on("error", () => {
-        setLoadedTrackId(currentTrack.id);
+        setLoadedTrackId(trackId);
       });
 
       newWs.load(src, peaksData ? [peaksData] : undefined, durationRef.current || undefined);
       wsRef.current = newWs;
+      isInitializingRef.current = null;
     };
 
     loadAndCreate();
@@ -104,6 +119,7 @@ function PlayerBar() {
         wsRef.current.destroy();
         wsRef.current = null;
       }
+      isInitializingRef.current = null;
     };
   }, []);
 
