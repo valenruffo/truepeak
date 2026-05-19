@@ -20,9 +20,11 @@ function PlayerBar() {
 
   // Create WaveSurfer instance and bind it directly to the HTML5 audio element
   useEffect(() => {
+    console.log("WaveSurfer: Create useEffect triggered. waveformRef.current:", !!waveformRef.current, "audioRef.current:", !!audioRef.current, "ws:", !!ws);
     if (!waveformRef.current || !audioRef.current || ws) return;
 
     const token = localStorage.getItem("token") || "";
+    console.log("WaveSurfer: Creating instance...");
 
     const newWs = WaveSurfer.create({
       container: waveformRef.current,
@@ -42,9 +44,11 @@ function PlayerBar() {
       }
     });
 
+    console.log("WaveSurfer: Instance created successfully.");
     setWs(newWs);
 
     return () => {
+      console.log("WaveSurfer: Destroying instance.");
       newWs.destroy();
       setWs(null);
     };
@@ -52,27 +56,38 @@ function PlayerBar() {
 
   // Load audio into WaveSurfer for waveform display when track changes
   useEffect(() => {
+    console.log("WaveSurfer: Load useEffect triggered. ws:", !!ws, "currentTrack.id:", currentTrack?.id, "lastTrackId:", lastTrackIdRef.current);
     if (!ws || !currentTrack?.id) return;
-    if (lastTrackIdRef.current === currentTrack.id) return;
+    if (lastTrackIdRef.current === currentTrack.id) {
+      console.log("WaveSurfer: Track ID match. Skipping load.");
+      return;
+    }
 
     lastTrackIdRef.current = currentTrack.id;
     const src = `/api/submissions/${currentTrack.id}/download?type=mp3`;
+    console.log("WaveSurfer: Starting load for track:", currentTrack.id, "src:", src);
 
     const load = async () => {
       try {
         const token = localStorage.getItem("token");
+        console.log("WaveSurfer: Fetching peaks...");
         const res = await fetch(`/api/submissions/${currentTrack.id}/peaks`, {
           credentials: "include",
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
+        console.log("WaveSurfer: Peaks response status:", res.status);
         if (res.ok) {
           const data = await res.json();
           if (data.peaks && data.peaks.length > 0) {
+            console.log("WaveSurfer: Loading with precalculated peaks.");
             ws.load(src, [data.peaks], duration || undefined);
             return;
           }
         }
-      } catch {}
+      } catch (err) {
+        console.error("WaveSurfer: Error fetching peaks:", err);
+      }
+      console.log("WaveSurfer: Falling back to decoding from src:", src);
       ws.load(src);
     };
 
