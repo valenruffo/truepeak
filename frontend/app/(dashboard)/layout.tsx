@@ -50,6 +50,36 @@ function PlayerBar() {
     };
   }, [audioRef]);
 
+  // Load audio into WaveSurfer for waveform display when track changes
+  useEffect(() => {
+    if (!wsRef.current || !currentTrack?.id) return;
+    if (lastTrackIdRef.current === currentTrack.id) return;
+
+    lastTrackIdRef.current = currentTrack.id;
+    const ws = wsRef.current;
+    const src = `/api/submissions/${currentTrack.id}/download?type=mp3`;
+
+    const load = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const res = await fetch(`/api/submissions/${currentTrack.id}/peaks`, {
+          credentials: "include",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.peaks && data.peaks.length > 0) {
+            ws.load(src, [data.peaks], duration || undefined);
+            return;
+          }
+        }
+      } catch {}
+      ws.load(src);
+    };
+
+    load();
+  }, [currentTrack?.id, duration]);
+
   if (!hasTracks || !currentTrack) return null;
 
   return (
