@@ -90,7 +90,7 @@ function PlayerBar() {
         setLoadedTrackId(currentTrack.id);
       });
 
-      newWs.load(src, peaksData, durationRef.current || undefined);
+      newWs.load(src, peaksData ? [peaksData] : undefined, durationRef.current || undefined);
       wsRef.current = newWs;
     };
 
