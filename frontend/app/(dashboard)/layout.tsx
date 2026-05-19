@@ -18,14 +18,15 @@ function PlayerBar() {
   const wsRef = useRef<WaveSurfer | null>(null);
   const lastTrackIdRef = useRef<string | null>(null);
 
-  // Create WaveSurfer instance once for visualization
+  // Create WaveSurfer instance and bind it directly to the HTML5 audio element
   useEffect(() => {
-    if (!waveformRef.current || wsRef.current) return;
+    if (!waveformRef.current || !audioRef.current || wsRef.current) return;
 
     const token = localStorage.getItem("token") || "";
 
     const ws = WaveSurfer.create({
       container: waveformRef.current,
+      media: audioRef.current, // Automatically syncs progress, playback, and seeks!
       waveColor: "#27272a",
       progressColor: "#10b981",
       cursorColor: "#10b981",
@@ -47,50 +48,7 @@ function PlayerBar() {
       ws.destroy();
       wsRef.current = null;
     };
-  }, []);
-
-  // Load audio into WaveSurfer for waveform display when track changes
-  useEffect(() => {
-    if (!wsRef.current || !currentTrack?.id || !duration || duration <= 0) return;
-    if (lastTrackIdRef.current === currentTrack.id) return;
-
-    lastTrackIdRef.current = currentTrack.id;
-    const ws = wsRef.current;
-
-    const src = `/api/submissions/${currentTrack.id}/download?type=mp3`;
-
-    const load = async () => {
-      try {
-        const token = localStorage.getItem("token");
-        const res = await fetch(`/api/submissions/${currentTrack.id}/peaks`, {
-          credentials: "include",
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.peaks && data.peaks.length > 0) {
-            ws.load(src, [Float32Array.from(data.peaks)], duration);
-            return;
-          }
-        }
-      } catch {}
-      ws.load(src);
-    };
-
-    load();
-  }, [currentTrack?.id, duration]);
-
-  // Sync progress from HTML5 audio context to WaveSurfer cursor position
-  useEffect(() => {
-    if (!wsRef.current || !duration || duration <= 0) return;
-    wsRef.current.seekTo(progress / 100);
-  }, [progress, duration]);
-
-  const handleSeek = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const pct = (e.clientX - rect.left) / rect.width;
-    seekTo(pct);
-  }, [seekTo]);
+  }, [audioRef]);
 
   if (!hasTracks || !currentTrack) return null;
 
@@ -125,7 +83,7 @@ function PlayerBar() {
 
       {/* WaveSurfer waveform container */}
       <div className="flex-1" style={{ height: "48px", minWidth: 0 }}>
-        <div ref={waveformRef} onClick={handleSeek} style={{ width: "100%", height: "100%", cursor: "pointer" }} />
+        <div ref={waveformRef} style={{ width: "100%", height: "100%", cursor: "pointer" }} />
       </div>
 
       <span className="text-[10px] font-mono" style={{ color: "var(--text-muted)", whiteSpace: "nowrap" }}>
