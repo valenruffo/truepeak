@@ -389,3 +389,22 @@ async def download_original(
         filename=filename,
         media_type=media_type,
     )
+
+
+@router.get("/{submission_id}/peaks")
+async def get_waveform_peaks(
+    submission_id: str,
+    auth: dict = Depends(_get_label_from_token),
+    session: Session = Depends(get_session),
+):
+    """Return pre-computed waveform peaks for WaveSurfer.js visualization."""
+    submission = session.get(Submission, submission_id)
+    if not submission:
+        raise HTTPException(status_code=404, detail="Submission not found.")
+
+    _verify_label_ownership(session, auth["label_id"], submission)
+
+    if not submission.peaks:
+        raise HTTPException(status_code=404, detail="Waveform peaks not available for this track.")
+
+    return {"peaks": submission.peaks}

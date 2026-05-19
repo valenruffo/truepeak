@@ -183,6 +183,7 @@ async def upload_audio(
                 rejection_reason=result["rejection_reason"],
                 mp3_path=result["mp3_path"],
                 original_path=original_path,
+                peaks=result.get("peaks"),
                 notes=notes or None,
             )
             session.add(submission)

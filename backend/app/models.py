@@ -78,6 +78,7 @@ class Submission(SQLModel, table=True):
     rejection_reason: str | None = None
     mp3_path: str | None = None
     original_path: str | None = None  # WAV/FLAC/AIFF original for download
+    peaks: list[float] | None = Field(sa_type=JSON, default=None)  # Waveform peaks for WaveSurfer.js
     notes: str | None = None
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),

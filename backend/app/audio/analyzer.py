@@ -11,6 +11,47 @@ import pyloudnorm as pyln
 from app.audio.exceptions import AudioAnalysisError
 
 
+def _extract_waveform_peaks(y: np.ndarray, target_points: int = 2000) -> list[float]:
+    """Extract normalized waveform peaks from audio signal for WaveSurfer.js.
+
+    Takes the raw audio samples and downsamples them to a manageable number
+    of peak values (max and min per window), then normalizes to resolve
+    amplitude discrepancies between tracks.
+
+    Args:
+        y: Audio signal (mono or stereo).
+        target_points: Number of peak pairs to return.
+
+    Returns:
+        List of normalized peak values in [-1.0, 1.0] range.
+    """
+    y_mono = librosa.to_mono(y) if y.ndim == 2 else y
+
+    src_len = len(y_mono)
+    if src_len == 0:
+        return [0.0] * target_points
+
+    window_size = max(1, src_len // (target_points * 2))
+
+    peaks: list[float] = []
+    for i in range(0, src_len, window_size):
+        chunk = y_mono[i : i + window_size]
+        if len(chunk) == 0:
+            break
+        positive_peak = float(np.max(chunk))
+        negative_peak = float(np.min(chunk))
+        peaks.append(positive_peak)
+        peaks.append(negative_peak)
+        if len(peaks) >= target_points * 2:
+            break
+
+    max_abs = max(abs(max(peaks)), abs(min(peaks)))
+    if max_abs > 0:
+        peaks = [p / max_abs for p in peaks]
+
+    return peaks
+
+
 def _detect_musical_key(chroma: np.ndarray) -> str:
     """Detect the musical key and map to Camelot Wheel format (1A-12B)."""
     major_profile = np.array([6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88])
@@ -77,6 +118,9 @@ def _analyze_audio_sync(file_path: str) -> dict[str, Any]:
     try:
         y, sr = librosa.load(file_path, sr=None, mono=False)
 
+        # --- Waveform peaks for WaveSurfer.js visualization ---
+        peaks = _extract_waveform_peaks(y)
+
         # Convert to mono for beat tracking and chroma (librosa 0.11+ requires mono)
         y_mono = librosa.to_mono(y) if y.ndim == 2 else y
 
@@ -119,6 +163,7 @@ def _analyze_audio_sync(file_path: str) -> dict[str, Any]:
             "phase_correlation": round(phase_correlation, 4),
             "musical_key": musical_key,
             "duration": round(duration, 1),
+            "peaks": peaks,
         }
 
     except librosa.LibrosaError as e:

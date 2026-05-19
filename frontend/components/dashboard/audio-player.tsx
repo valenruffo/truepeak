@@ -1,156 +1,195 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import WaveSurfer from "wavesurfer.js";
 import { Play, Pause, Volume2, VolumeX } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 interface AudioPlayerProps {
-  src?: string;
+  src: string;
   trackTitle: string;
+  submissionId: string;
 }
 
-// Generate mock waveform data
-function generateWaveform(length: number = 100): number[] {
-  return Array.from({ length }, () => Math.random() * 0.8 + 0.2);
-}
-
-export function AudioPlayer({ src, trackTitle }: AudioPlayerProps) {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+export function AudioPlayer({ src, trackTitle, submissionId }: AudioPlayerProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const wavesurferRef = useRef<WaveSurfer | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(0.8);
   const [isMuted, setIsMuted] = useState(false);
-  const [waveform] = useState(() => generateWaveform(80));
-  const [hasAudio, setHasAudio] = useState(!!src);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (src) {
-      audioRef.current = new Audio(src);
-      const audio = audioRef.current;
+    if (!containerRef.current || !src) return;
 
-      audio.addEventListener("loadedmetadata", () => {
-        setDuration(audio.duration);
-        setHasAudio(true);
-      });
-      audio.addEventListener("timeupdate", () => {
-        setCurrentTime(audio.currentTime);
-      });
-      audio.addEventListener("ended", () => {
-        setIsPlaying(false);
-        setCurrentTime(0);
-      });
-      audio.addEventListener("error", () => {
-        setHasAudio(false);
-      });
+    let ws: WaveSurfer | null = null;
+    let cancelled = false;
 
-      audio.volume = volume;
+    const init = async () => {
+      try {
+        setLoading(true);
+        setError(null);
 
-      return () => {
-        audio.pause();
-        audio.src = "";
-      };
+        let peaks: number[] | undefined;
+
+        if (submissionId) {
+          try {
+            const token = localStorage.getItem("token");
+            const res = await fetch(`/api/submissions/${submissionId}/peaks`, {
+              credentials: "include",
+              headers: token ? { Authorization: `Bearer ${token}` } : {},
+            });
+            if (res.ok) {
+              const data = await res.json();
+              peaks = data.peaks;
+            }
+          } catch {
+            // Peaks not available — WaveSurfer will decode audio instead
+          }
+        }
+
+        if (cancelled) return;
+
+        ws = WaveSurfer.create({
+          container: containerRef.current!,
+          waveColor: "#27272a",
+          progressColor: "#10b981",
+          cursorColor: "#10b981",
+          cursorWidth: 1,
+          height: 48,
+          barWidth: 3,
+          barGap: 1,
+          barRadius: 2,
+          normalize: true,
+          backend: "WebAudio",
+        });
+
+        ws.on("ready", () => {
+          if (cancelled) return;
+          setDuration(ws!.getDuration());
+          setLoading(false);
+        });
+
+        ws.on("audioprocess", () => {
+          if (cancelled) return;
+          setCurrentTime(ws!.getCurrentTime());
+        });
+
+        ws.on("play", () => {
+          if (cancelled) return;
+          setIsPlaying(true);
+        });
+
+        ws.on("pause", () => {
+          if (cancelled) return;
+          setIsPlaying(false);
+        });
+
+        ws.on("finish", () => {
+          if (cancelled) return;
+          setIsPlaying(false);
+          setCurrentTime(0);
+        });
+
+        ws.on("error", (err) => {
+          if (cancelled) return;
+          setError("Preview no disponible");
+          setLoading(false);
+        });
+
+        ws.setVolume(isMuted ? 0 : volume);
+
+        if (peaks && peaks.length > 0) {
+          ws.load(src, [Float32Array.from(peaks)]);
+        } else {
+          ws.load(src);
+        }
+
+        wavesurferRef.current = ws;
+      } catch {
+        if (!cancelled) {
+          setError("Error loading audio");
+          setLoading(false);
+        }
+      }
+    };
+
+    init();
+
+    return () => {
+      cancelled = true;
+      if (ws) {
+        ws.destroy();
+        wavesurferRef.current = null;
+      }
+    };
+  }, [src, submissionId]);
+
+  const togglePlay = useCallback(() => {
+    if (wavesurferRef.current) {
+      wavesurferRef.current.playPause();
     }
-  }, [src]);
+  }, []);
 
-  function togglePlay() {
-    if (!audioRef.current) return;
-    if (isPlaying) {
-      audioRef.current.pause();
-    } else {
-      audioRef.current.play().catch(() => setHasAudio(false));
-    }
-    setIsPlaying(!isPlaying);
-  }
-
-  function handleSeek(e: React.MouseEvent<HTMLDivElement>) {
-    if (!audioRef.current || !duration) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const percent = (e.clientX - rect.left) / rect.width;
-    audioRef.current.currentTime = percent * duration;
-    setCurrentTime(percent * duration);
-  }
-
-  function handleVolumeChange(e: React.ChangeEvent<HTMLInputElement>) {
+  const handleVolumeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const newVolume = parseFloat(e.target.value);
     setVolume(newVolume);
-    if (audioRef.current) {
-      audioRef.current.volume = newVolume;
-    }
     setIsMuted(newVolume === 0);
-  }
-
-  function toggleMute() {
-    if (audioRef.current) {
-      if (isMuted) {
-        audioRef.current.volume = volume || 0.8;
-        setIsMuted(false);
-      } else {
-        audioRef.current.volume = 0;
-        setIsMuted(true);
-      }
+    if (wavesurferRef.current) {
+      wavesurferRef.current.setVolume(newVolume);
     }
-  }
+  }, []);
 
-  function formatTime(seconds: number): string {
+  const toggleMute = useCallback(() => {
+    if (isMuted) {
+      setVolume(volume || 0.8);
+      setIsMuted(false);
+      wavesurferRef.current?.setVolume(volume || 0.8);
+    } else {
+      setIsMuted(true);
+      wavesurferRef.current?.setVolume(0);
+    }
+  }, [isMuted, volume]);
+
+  const formatTime = (seconds: number): string => {
     if (!seconds || isNaN(seconds)) return "0:00";
     const m = Math.floor(seconds / 60);
     const s = Math.floor(seconds % 60);
     return `${m}:${s.toString().padStart(2, "0")}`;
-  }
-
-  const progress = duration ? (currentTime / duration) * 100 : 0;
+  };
 
   return (
-    <div className="rounded-lg border border-border bg-surface p-4">
-      <div className="mb-3">
-        <p className="text-sm font-medium text-foreground">{trackTitle}</p>
-        {!hasAudio && (
-          <p className="text-xs text-muted">Preview not available — pending review.</p>
+    <div className="rounded-lg border p-4" style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}>
+      <div className="mb-2 flex items-center justify-between">
+        <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>{trackTitle}</p>
+        {loading && (
+          <span className="text-[10px] font-mono" style={{ color: "var(--text-muted)" }}>Analizando forma de onda...</span>
+        )}
+        {error && (
+          <span className="text-[10px] font-mono" style={{ color: "#ef4444" }}>{error}</span>
         )}
       </div>
 
-      {/* Waveform Visualization */}
-      <div
-        className="mb-3 flex cursor-pointer items-center gap-px"
-        onClick={handleSeek}
-      >
-        {waveform.map((height, i) => {
-          const isActive = (i / waveform.length) * 100 <= progress;
-          return (
-            <div
-              key={i}
-              className={cn(
-                "w-1 rounded-full transition-colors",
-                isActive ? "bg-accent" : "bg-surface2"
-              )}
-              style={{ height: `${height * 24 + 4}px` }}
-            />
-          );
-        })}
-      </div>
+      <div ref={containerRef} className="mb-3" />
 
-      {/* Controls */}
       <div className="flex items-center gap-3">
         <button
           onClick={togglePlay}
-          disabled={!hasAudio}
-          className={cn(
-            "flex h-8 w-8 items-center justify-center rounded-full transition-colors",
-            hasAudio
-              ? "bg-accent text-background hover:bg-accent/90"
-              : "bg-surface2 text-muted cursor-not-allowed"
-          )}
+          disabled={loading}
+          className="flex h-8 w-8 items-center justify-center rounded-full transition-colors hover:opacity-90"
+          style={{ background: "#10b981", color: "#09090b" }}
         >
           {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 ml-0.5" />}
         </button>
 
-        <span className="font-mono text-xs text-muted">
+        <span className="font-mono text-xs" style={{ color: "var(--text-muted)" }}>
           {formatTime(currentTime)} / {formatTime(duration)}
         </span>
 
         <div className="ml-auto flex items-center gap-2">
-          <button onClick={toggleMute} className="text-muted hover:text-foreground">
+          <button onClick={toggleMute} className="hover:opacity-80" style={{ color: "var(--text-muted)" }}>
             {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
           </button>
           <input
@@ -160,7 +199,8 @@ export function AudioPlayer({ src, trackTitle }: AudioPlayerProps) {
             step="0.01"
             value={isMuted ? 0 : volume}
             onChange={handleVolumeChange}
-            className="h-1 w-20 accent-accent"
+            className="h-1 w-20"
+            style={{ accentColor: "#10b981" }}
           />
         </div>
       </div>

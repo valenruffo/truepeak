@@ -142,4 +142,5 @@ async def process_submission(
         "metrics": metrics,
         "rejection_reason": rejection_reason,
         "mp3_path": mp3_path,
+        "peaks": metrics.get("peaks"),
     }

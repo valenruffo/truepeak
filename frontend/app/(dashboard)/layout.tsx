@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -10,14 +10,110 @@ import WhatsAppBubble from "@/components/WhatsAppBubble";
 import { useLanguage } from "@/lib/i18n";
 import { useTheme } from "@/lib/theme";
 import { Music, Clock, AlertTriangle } from "lucide-react";
+import WaveSurfer from "wavesurfer.js";
 
 function PlayerBar() {
-  const { currentTrack, isPlaying, progress, duration, volume, hasTracks, togglePlay, prevTrack, nextTrack, setVolume, seekTo, formatTime, audioRef } = usePlayer();
+  const { currentTrack, isPlaying, setPlaying, setDuration, duration: ctxDuration, volume, hasTracks, togglePlay, prevTrack, nextTrack, setVolume, formatTime } = usePlayer();
+  const waveformRef = useRef<HTMLDivElement>(null);
+  const wsRef = useRef<WaveSurfer | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const lastTrackIdRef = useRef<string | null>(null);
 
-  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
+  // Create WaveSurfer instance once
+  useEffect(() => {
+    if (!waveformRef.current || wsRef.current) return;
+
+    const ws = WaveSurfer.create({
+      container: waveformRef.current,
+      waveColor: "#27272a",
+      progressColor: "#10b981",
+      cursorColor: "#10b981",
+      cursorWidth: 1,
+      height: 64,
+      barWidth: 3,
+      barGap: 1,
+      barRadius: 2,
+      normalize: true,
+      backend: "WebAudio",
+    });
+
+    ws.setVolume(volume);
+
+    ws.on("timeupdate", () => {
+      setCurrentTime(ws.getCurrentTime());
+    });
+
+    ws.on("ready", () => {
+      setDuration(ws.getDuration());
+      setLoading(false);
+    });
+
+    ws.on("play", () => setPlaying(true));
+    ws.on("pause", () => setPlaying(false));
+    ws.on("finish", () => setPlaying(false));
+
+    wsRef.current = ws;
+
+    return () => {
+      ws.destroy();
+      wsRef.current = null;
+    };
+  }, []);
+
+  // Load track when it changes
+  useEffect(() => {
+    if (!wsRef.current || !currentTrack?.id) return;
+    if (lastTrackIdRef.current === currentTrack.id) return;
+
+    const ws = wsRef.current;
+    lastTrackIdRef.current = currentTrack.id;
+    setLoading(true);
+
+    const src = `/api/submissions/${currentTrack.id}/download?type=mp3`;
+
+    const load = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const res = await fetch(`/api/submissions/${currentTrack.id}/peaks`, {
+          credentials: "include",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.peaks && data.peaks.length > 0) {
+            ws.load(src, [Float32Array.from(data.peaks)]);
+            return;
+          }
+        }
+      } catch {}
+      ws.load(src);
+    };
+
+    load();
+  }, [currentTrack?.id]);
+
+  // Sync play/pause
+  useEffect(() => {
+    if (!wsRef.current) return;
+    if (isPlaying) {
+      wsRef.current.play().catch(() => setPlaying(false));
+    } else {
+      wsRef.current.pause();
+    }
+  }, [isPlaying]);
+
+  // Sync volume
+  useEffect(() => {
+    if (wsRef.current) wsRef.current.setVolume(volume);
+  }, [volume]);
+
+  const handleSeek = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (!wsRef.current) return;
     const rect = e.currentTarget.getBoundingClientRect();
-    seekTo((e.clientX - rect.left) / rect.width);
-  };
+    const pct = (e.clientX - rect.left) / rect.width;
+    wsRef.current.seekTo(pct);
+  }, []);
 
   if (!hasTracks || !currentTrack) return null;
 
@@ -50,17 +146,20 @@ function PlayerBar() {
         </svg>
       </button>
 
-      <div className="flex-1 h-1.5 rounded-full cursor-pointer group" style={{ background: "var(--border)" }} onClick={handleSeek}>
-        <div className="h-full rounded-full transition-all duration-150 group-hover:h-2" style={{ width: `${progress}%`, background: "#10b981" }} />
-      </div>
+      {/* WaveSurfer waveform container */}
+      <div className="flex-1 h-full cursor-pointer" ref={waveformRef} onClick={handleSeek} />
 
-      <span className="text-[10px] font-mono text-muted whitespace-nowrap">
-        {formatTime(audioRef.current?.currentTime ?? 0)} / {formatTime(duration)}
+      {loading && (
+        <span className="text-[10px] font-mono" style={{ color: "var(--text-muted)" }}>Cargando...</span>
+      )}
+
+      <span className="text-[10px] font-mono" style={{ color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+        {formatTime(currentTime)} / {formatTime(ctxDuration)}
       </span>
 
       <div className="min-w-0 max-w-[200px]">
-        <div className="text-xs font-medium truncate">{currentTrack.track_name}</div>
-        <div className="text-[10px] text-muted truncate">{currentTrack.producer_name}</div>
+        <div className="text-xs font-medium truncate" style={{ color: "var(--text-primary)" }}>{currentTrack.track_name}</div>
+        <div className="text-[10px] truncate" style={{ color: "var(--text-muted)" }}>{currentTrack.producer_name}</div>
       </div>
 
       <div className="flex items-center gap-1.5">
@@ -69,7 +168,7 @@ function PlayerBar() {
           {volume > 0 && <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />}
           {volume > 0.5 && <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />}
         </svg>
-        <input type="range" min="0" max="1" step="0.01" value={volume} onChange={(e) => setVolume(parseFloat(e.target.value))} className="w-16 h-1 accent-emerald-500" />
+        <input type="range" min="0" max="1" step="0.01" value={volume} onChange={(e) => setVolume(parseFloat(e.target.value))} className="w-16 h-1" style={{ accentColor: "#10b981" }} />
       </div>
     </div>
   );
