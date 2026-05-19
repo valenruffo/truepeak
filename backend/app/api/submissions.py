@@ -407,4 +407,7 @@ async def get_waveform_peaks(
     if not submission.peaks:
         raise HTTPException(status_code=404, detail="Waveform peaks not available for this track.")
 
-    return {"peaks": submission.peaks}
+    return {
+        "peaks": submission.peaks,
+        "duration": submission.duration
+    }

@@ -47,6 +47,7 @@ function PlayerBar() {
 
     const loadAndCreate = async () => {
       let peaksData: number[] | undefined = undefined;
+      let trackDuration: number | undefined = undefined;
       const src = `/api/submissions/${trackId}/download?type=mp3`;
       
       try {
@@ -58,6 +59,9 @@ function PlayerBar() {
           const data = await res.json();
           if (data.peaks && data.peaks.length > 0) {
             peaksData = data.peaks;
+          }
+          if (data.duration) {
+            trackDuration = data.duration;
           }
         }
       } catch (err) {
@@ -85,10 +89,11 @@ function PlayerBar() {
         barRadius: 2,
         normalize: true,
         peaks: peaksData ? [peaksData] : undefined,
+        duration: trackDuration || durationRef.current || undefined,
       });
 
       if (peaksData) {
-        // Peaks are available, render is instant
+        // Peaks are available, render is instant and we don't call load() to avoid media loading conflicts
         setLoadedTrackId(trackId);
       } else {
         const handleReady = () => {
@@ -98,13 +103,13 @@ function PlayerBar() {
         };
         newWs.once("ready", handleReady);
         newWs.once("decode", handleReady);
+        newWs.load(src);
       }
 
       newWs.on("error", () => {
         setLoadedTrackId(trackId);
       });
 
-      newWs.load(src, peaksData ? [peaksData] : undefined, durationRef.current || undefined);
       wsRef.current = newWs;
       isInitializingRef.current = null;
     };
@@ -189,11 +194,10 @@ function PlayerBar() {
         {/* SoundCloud-style Hover Progress Overlay */}
         {isHovering && !isCurrentlyLoading && (
           <div
-            className="absolute top-0 bottom-0 left-0 pointer-events-none border-r border-[#10b981]/50"
+            className="absolute top-0 bottom-0 left-0 pointer-events-none border-r border-[#10b981]/40"
             style={{
               width: hoverWidth,
-              background: "rgba(16, 185, 129, 0.25)",
-              mixBlendMode: "color-dodge",
+              background: "rgba(16, 185, 129, 0.12)",
               zIndex: 10,
             }}
           />
@@ -201,7 +205,10 @@ function PlayerBar() {
 
         {/* Loading/Static Placeholder Waveform */}
         {isCurrentlyLoading && (
-          <div className="absolute inset-0 flex items-center gap-[1px] pointer-events-none bg-transparent overflow-hidden justify-start">
+          <div
+            className="absolute inset-0 flex items-center gap-[1px] pointer-events-none overflow-hidden justify-start z-20"
+            style={{ backgroundColor: "var(--bg-card)" }}
+          >
             <style>{`
               @keyframes tp-wave-loading-1 {
                 0%, 100% { height: 8px; }
@@ -233,8 +240,8 @@ function PlayerBar() {
                   background: "#27272a",
                   borderRadius: "2px",
                   flexShrink: 0,
-                  animation: isPlaying ? `tp-wave-loading-${(i % 5) + 1} 1.2s infinite ease-in-out` : undefined,
-                  animationDelay: isPlaying ? `${(i % 12) * 60}ms` : undefined,
+                  animation: `tp-wave-loading-${(i % 5) + 1} 1.2s infinite ease-in-out`,
+                  animationDelay: `${(i % 12) * 60}ms`,
                 }}
               />
             ))}
