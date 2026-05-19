@@ -14,7 +14,7 @@ import WaveSurfer from "wavesurfer.js";
 
 function PlayerBar() {
   const { currentTrack, isPlaying, progress, duration, volume, hasTracks, togglePlay, prevTrack, nextTrack, setVolume, seekTo, formatTime, audioRef } = usePlayer();
-  const [ws, setWs] = useState<WaveSurfer | null>(null);
+  const wsRef = useRef<WaveSurfer | null>(null);
   const [playerState, setPlayerState] = useState<"static" | "loading" | "ready">("static");
   const [hoverWidth, setHoverWidth] = useState<string>("0%");
   const [isHovering, setIsHovering] = useState(false);
@@ -33,13 +33,13 @@ function PlayerBar() {
   // Callback ref to initialize WaveSurfer immediately when container DOM mounts
   const initWaveform = useCallback((node: HTMLDivElement | null) => {
     if (!node) {
-      if (ws) {
-        ws.destroy();
-        setWs(null);
+      if (wsRef.current) {
+        wsRef.current.destroy();
+        wsRef.current = null;
       }
       return;
     }
-    if (ws) return;
+    if (wsRef.current) return;
     if (!audioRef.current || !currentTrack?.id) return;
 
     const token = localStorage.getItem("token") || "";
@@ -101,17 +101,18 @@ function PlayerBar() {
     };
 
     load();
-    setWs(newWs);
-  }, [audioRef, ws, currentTrack?.id]);
+    wsRef.current = newWs;
+  }, [audioRef, currentTrack?.id]);
 
   // Clean up WaveSurfer instance when the component unmounts
   useEffect(() => {
     return () => {
-      if (ws) {
-        ws.destroy();
+      if (wsRef.current) {
+        wsRef.current.destroy();
+        wsRef.current = null;
       }
     };
-  }, [ws]);
+  }, []);
 
   // Sync playerState with isPlaying when track is loading
   useEffect(() => {
