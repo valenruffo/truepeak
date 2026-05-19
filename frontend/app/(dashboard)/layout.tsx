@@ -18,18 +18,29 @@ function PlayerBar() {
   const [playerState, setPlayerState] = useState<"static" | "loading" | "ready">("static");
   const [hoverWidth, setHoverWidth] = useState<string>("0%");
   const [isHovering, setIsHovering] = useState(false);
-  const lastTrackIdRef = useRef<string | null>(null);
   const isReadyRef = useRef(false);
   const isPlayingRef = useRef(isPlaying);
+  const durationRef = useRef(duration);
 
   useEffect(() => {
     isPlayingRef.current = isPlaying;
   }, [isPlaying]);
 
+  useEffect(() => {
+    durationRef.current = duration;
+  }, [duration]);
+
   // Callback ref to initialize WaveSurfer immediately when container DOM mounts
   const initWaveform = useCallback((node: HTMLDivElement | null) => {
-    if (!node || ws) return;
-    if (!audioRef.current) return;
+    if (!node) {
+      if (ws) {
+        ws.destroy();
+        setWs(null);
+      }
+      return;
+    }
+    if (ws) return;
+    if (!audioRef.current || !currentTrack?.id) return;
 
     const token = localStorage.getItem("token") || "";
     isReadyRef.current = false;
@@ -69,8 +80,29 @@ function PlayerBar() {
       setPlayerState("ready");
     });
 
+    // Load peaks and audio immediately
+    const src = `/api/submissions/${currentTrack.id}/download?type=mp3`;
+    
+    const load = async () => {
+      try {
+        const res = await fetch(`/api/submissions/${currentTrack.id}/peaks`, {
+          credentials: "include",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.peaks && data.peaks.length > 0) {
+            newWs.load(src, data.peaks, durationRef.current || undefined);
+            return;
+          }
+        }
+      } catch (err) {}
+      newWs.load(src);
+    };
+
+    load();
     setWs(newWs);
-  }, [audioRef, ws]);
+  }, [audioRef, ws, currentTrack?.id]);
 
   // Clean up WaveSurfer instance when the component unmounts
   useEffect(() => {
@@ -86,37 +118,6 @@ function PlayerBar() {
     if (isReadyRef.current) return;
     setPlayerState(isPlaying ? "loading" : "static");
   }, [isPlaying]);
-
-  // Load audio into WaveSurfer for waveform display when track changes
-  useEffect(() => {
-    if (!ws || !currentTrack?.id) return;
-    if (lastTrackIdRef.current === currentTrack.id) return;
-
-    lastTrackIdRef.current = currentTrack.id;
-    const src = `/api/submissions/${currentTrack.id}/download?type=mp3`;
-    isReadyRef.current = false;
-    setPlayerState(isPlaying ? "loading" : "static");
-
-    const load = async () => {
-      try {
-        const token = localStorage.getItem("token");
-        const res = await fetch(`/api/submissions/${currentTrack.id}/peaks`, {
-          credentials: "include",
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.peaks && data.peaks.length > 0) {
-            ws.load(src, [data.peaks], duration || undefined);
-            return;
-          }
-        }
-      } catch (err) {}
-      ws.load(src);
-    };
-
-    load();
-  }, [ws, currentTrack?.id, duration, isPlaying]);
 
   if (!hasTracks || !currentTrack) return null;
 
@@ -170,6 +171,7 @@ function PlayerBar() {
       >
         {/* Actual WaveSurfer div */}
         <div
+          key={currentTrack?.id}
           ref={initWaveform}
           style={{
             width: "100%",
