@@ -17,8 +17,10 @@ function PlayerBar() {
   const waveformRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WaveSurfer | null>(null);
   const [loading, setLoading] = useState(false);
+  const [ready, setReady] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const lastTrackIdRef = useRef<string | null>(null);
+  const pendingPlayRef = useRef(false);
 
   // Create WaveSurfer instance once
   useEffect(() => {
@@ -30,7 +32,7 @@ function PlayerBar() {
       progressColor: "#10b981",
       cursorColor: "#10b981",
       cursorWidth: 1,
-      height: 64,
+      height: 48,
       barWidth: 3,
       barGap: 1,
       barRadius: 2,
@@ -47,11 +49,20 @@ function PlayerBar() {
     ws.on("ready", () => {
       setDuration(ws.getDuration());
       setLoading(false);
+      setReady(true);
+      // If a play was requested while loading, start now
+      if (pendingPlayRef.current) {
+        pendingPlayRef.current = false;
+        ws.play().catch(() => setPlaying(false));
+      }
     });
 
     ws.on("play", () => setPlaying(true));
     ws.on("pause", () => setPlaying(false));
-    ws.on("finish", () => setPlaying(false));
+    ws.on("finish", () => {
+      setPlaying(false);
+      lastTrackIdRef.current = null;
+    });
 
     wsRef.current = ws;
 
@@ -69,6 +80,8 @@ function PlayerBar() {
     const ws = wsRef.current;
     lastTrackIdRef.current = currentTrack.id;
     setLoading(true);
+    setReady(false);
+    setCurrentTime(0);
 
     const src = `/api/submissions/${currentTrack.id}/download?type=mp3`;
 
@@ -93,15 +106,22 @@ function PlayerBar() {
     load();
   }, [currentTrack?.id]);
 
-  // Sync play/pause
+  // Sync play/pause — only if ready
   useEffect(() => {
-    if (!wsRef.current) return;
+    if (!wsRef.current || !ready) return;
     if (isPlaying) {
       wsRef.current.play().catch(() => setPlaying(false));
     } else {
       wsRef.current.pause();
     }
-  }, [isPlaying]);
+  }, [isPlaying, ready]);
+
+  // When play is requested but not ready, queue it
+  useEffect(() => {
+    if (!ready && isPlaying) {
+      pendingPlayRef.current = true;
+    }
+  }, [isPlaying, ready]);
 
   // Sync volume
   useEffect(() => {
