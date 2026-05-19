@@ -23,6 +23,23 @@ class EmailSendResult(BaseModel):
     status: str
 
 
+def text_to_html(text: str) -> str:
+    """Convert plain text to HTML paragraphs and line breaks."""
+    if not text:
+        return ""
+    # If the text already has HTML tag-like structure, return as is
+    if "<p>" in text or "<br" in text or "<html>" in text:
+        return text
+    # Convert double newlines to paragraph breaks, and single newlines to <br />
+    paragraphs = text.split("\n\n")
+    html_paragraphs = []
+    for p in paragraphs:
+        if p.strip():
+            formatted_p = p.strip().replace("\n", "<br />")
+            html_paragraphs.append(f"<p>{formatted_p}</p>")
+    return "".join(html_paragraphs)
+
+
 async def send_email(
     to: str,
     subject: str,
@@ -49,12 +66,13 @@ async def send_email(
         raise EmailSendError("RESEND_API_KEY is not configured.", status_code=500)
 
     from_email = f"{from_name} <noreply@truepeak.space>"
+    html_body = text_to_html(body)
 
     payload: dict = {
         "from": from_email,
         "to": [to],
         "subject": subject,
-        "html": body,
+        "html": html_body,
     }
     if reply_to:
         payload["reply_to"] = reply_to

@@ -129,6 +129,24 @@ function formatDuration(seconds: number | null): string {
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
+function cleanHtmlToPlainText(html: string): string {
+  if (!html) return "";
+  if (!html.includes("<") && !html.includes(">")) {
+    return html;
+  }
+  let text = html;
+  text = text.replace(/<br\s*\/?>/gi, "\n");
+  text = text.replace(/<\/p>\s*<p>/gi, "\n\n");
+  text = text.replace(/<\/div>\s*<div>/gi, "\n\n");
+  text = text.replace(/<[^>]*>/g, "");
+  text = text.replace(/&amp;/g, "&")
+             .replace(/&lt;/g, "<")
+             .replace(/&gt;/g, ">")
+             .replace(/&quot;/g, '"')
+             .replace(/&#039;/g, "'");
+  return text.trim();
+}
+
 function replaceVariables(
   template: string,
   sub: SubmissionSummary
@@ -643,10 +661,10 @@ useEffect(() => {
       templates,
       selectedTemplate: firstMatch?.id || "",
       subject: firstMatch
-        ? replaceVariables(firstMatch.subject_template, sub)
+        ? replaceVariables(cleanHtmlToPlainText(firstMatch.subject_template), sub)
         : "",
       body: firstMatch
-        ? replaceVariables(firstMatch.body_template, sub)
+        ? replaceVariables(cleanHtmlToPlainText(firstMatch.body_template), sub)
         : "",
       sending: false,
       sent: false,
@@ -660,8 +678,8 @@ useEffect(() => {
     setEmailModal((prev) => ({
       ...prev,
       selectedTemplate: templateId,
-      subject: replaceVariables(tmpl.subject_template, prev.submission!),
-      body: replaceVariables(tmpl.body_template, prev.submission!),
+      subject: replaceVariables(cleanHtmlToPlainText(tmpl.subject_template), prev.submission!),
+      body: replaceVariables(cleanHtmlToPlainText(tmpl.body_template), prev.submission!),
     }));
   };
 

@@ -48,21 +48,21 @@ def _get_default_templates(label_id: str, role: str) -> list[dict]:
                 "name": "Promo rechazada",
                 "template_type": "rejection",
                 "subject_template": "Tu promo no fue seleccionada",
-                "body_template": "<p>Hola,</p><p>Gracias por enviar tu promo. Después de listenarla, no fue seleccionada para nuestros sets.</p><p>Te deseamos lo mejor en tus próximas productions.</p><p>Saludos</p>",
+                "body_template": "Hola,\n\nGracias por enviar tu promo. Después de escucharla, no fue seleccionada para nuestros sets.\n\nTe deseamos lo mejor en tus próximas producciones.\n\nSaludos",
             },
             {
                 "label_id": label_id,
                 "name": "Promo seleccionada",
                 "template_type": "approval",
                 "subject_template": "Nos interesa tu promo",
-                "body_template": "<p>Hola,</p><p>Tu promo nos gustó. Vamos a estar en contacto soon para discutir los detalles.</p><p>Saludos</p>",
+                "body_template": "Hola,\n\nTu promo nos gustó. Vamos a estar en contacto pronto para discutir los detalles.\n\nSaludos",
             },
             {
                 "label_id": label_id,
                 "name": "Seguimiento",
                 "template_type": "followup",
                 "subject_template": "Seguimiento de tu promo",
-                "body_template": "<p>Hola,</p><p>Queríamos saber si la promo que enviaste está aún disponible. Quedamos atentos.</p><p>Saludos</p>",
+                "body_template": "Hola,\n\nQueríamos saber si la promo que enviaste está aún disponible. Quedamos atentos.\n\nSaludos",
             },
         ]
     # Label defaults
@@ -72,28 +72,28 @@ def _get_default_templates(label_id: str, role: str) -> list[dict]:
             "name": "Rechazo — Problema de fase",
             "template_type": "rejection",
             "subject_template": "Tu demo tiene problemas de fase",
-            "body_template": "<p>Hola,</p><p>Gracias por enviar tu track. Después de analizarlo detectamos problemas de correlación de fase que impiden que sea considerado para nuestro catálogo.</p><p>Te recomendamos revisar la fase estéreo de tu master antes de volver a enviar.</p><p>Saludos</p>",
+            "body_template": "Hola,\n\nGracias por enviar tu track. Después de analizarlo detectamos problemas de correlación de fase que impiden que sea considerado para nuestro catálogo.\n\nTe recomendamos revisar la fase estéreo de tu master antes de volver a enviar.\n\nSaludos",
         },
         {
             "label_id": label_id,
             "name": "Rechazo — Fuera de tempo",
             "template_type": "rejection",
             "subject_template": "Tu demo está fuera del rango de tempo",
-            "body_template": "<p>Hola,</p><p>Gracias por enviar tu track. El tempo no se ajusta al rango que buscamos actualmente. Estate atento a futuras búsquedas.</p><p>Saludos</p>",
+            "body_template": "Hola,\n\nGracias por enviar tu track. El tempo no se ajusta al rango que buscamos actualmente. Estate atento a futuras búsquedas.\n\nSaludos",
         },
         {
             "label_id": label_id,
             "name": "Aprobacion — Interes en el track",
             "template_type": "approval",
             "subject_template": "Nos interesa tu track",
-            "body_template": "<p>Hola,</p><p>Tu track nos gustó mucho. Creemos que puede encajar en nuestra visión. Quedamos en contacto para conocer más sobre ti y tu música.</p><p>Saludos</p>",
+            "body_template": "Hola,\n\nTu track nos gustó mucho. Creemos que puede encajar en nuestra visión. Quedamos en contacto para conocer más sobre ti y tu música.\n\nSaludos",
         },
         {
             "label_id": label_id,
             "name": "Seguimiento — Segunda version",
             "template_type": "followup",
             "subject_template": "Seguimiento de tu demo",
-            "body_template": "<p>Hola,</p><p>Te escribimos para saber si tenés una nueva versión de tu track o si hay alguna actualización. Quedamos atentos.</p><p>Saludos</p>",
+            "body_template": "Hola,\n\nTe escribimos para saber si tenés una nueva versión de tu track o si hay alguna actualización. Quedamos atentos.\n\nSaludos",
         },
     ]
 

@@ -1071,9 +1071,9 @@ function CRMContent() {
                       setTemplateName(tpl.name);
                       setTemplateType(tpl.template_type);
                       templateSubjectState.reset();
-                      templateSubjectState.set(tpl.subject_template);
+                      templateSubjectState.set(convertHtmlToText(tpl.subject_template));
                       templateBodyState.reset();
-                      templateBodyState.set(tpl.body_template);
+                      templateBodyState.set(convertHtmlToText(tpl.body_template));
                     }}
                     className="text-[10px] text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1"
                   >
