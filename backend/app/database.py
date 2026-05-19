@@ -43,6 +43,8 @@ def _apply_migrations(session: Session) -> None:
         # Polar ID tracking
         "ALTER TABLE label ADD COLUMN polar_customer_id TEXT",
         "ALTER TABLE label ADD COLUMN polar_subscription_id TEXT",
+        # Waveform peaks column
+        "ALTER TABLE submission ADD COLUMN peaks TEXT",
     ]
     for sql in migrations:
         try:
