@@ -10,17 +10,87 @@ import WhatsAppBubble from "@/components/WhatsAppBubble";
 import { useLanguage } from "@/lib/i18n";
 import { useTheme } from "@/lib/theme";
 import { Music, Clock, AlertTriangle } from "lucide-react";
-import { Waveform, useWaveformPeaks } from "@/components/dashboard/waveform";
+import WaveSurfer from "wavesurfer.js";
 
 function PlayerBar() {
   const { currentTrack, isPlaying, progress, duration, volume, hasTracks, togglePlay, prevTrack, nextTrack, setVolume, seekTo, formatTime, audioRef } = usePlayer();
-  const peaks = useWaveformPeaks(currentTrack?.id);
+  const waveformRef = useRef<HTMLDivElement>(null);
+  const wsRef = useRef<WaveSurfer | null>(null);
+  const lastTrackIdRef = useRef<string | null>(null);
 
-  const handleSeek = useCallback((pct: number) => {
+  // Create WaveSurfer instance once for visualization
+  useEffect(() => {
+    if (!waveformRef.current || wsRef.current) return;
+
+    const token = localStorage.getItem("token") || "";
+
+    const ws = WaveSurfer.create({
+      container: waveformRef.current,
+      waveColor: "#27272a",
+      progressColor: "#10b981",
+      cursorColor: "#10b981",
+      cursorWidth: 1,
+      height: 48,
+      barWidth: 3,
+      barGap: 1,
+      barRadius: 2,
+      normalize: true,
+      fetchParams: {
+        credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      }
+    });
+
+    wsRef.current = ws;
+
+    return () => {
+      ws.destroy();
+      wsRef.current = null;
+    };
+  }, []);
+
+  // Load audio into WaveSurfer for waveform display when track changes
+  useEffect(() => {
+    if (!wsRef.current || !currentTrack?.id || !duration || duration <= 0) return;
+    if (lastTrackIdRef.current === currentTrack.id) return;
+
+    lastTrackIdRef.current = currentTrack.id;
+    const ws = wsRef.current;
+
+    const src = `/api/submissions/${currentTrack.id}/download?type=mp3`;
+
+    const load = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const res = await fetch(`/api/submissions/${currentTrack.id}/peaks`, {
+          credentials: "include",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.peaks && data.peaks.length > 0) {
+            ws.load(src, [Float32Array.from(data.peaks)], duration);
+            return;
+          }
+        }
+      } catch {}
+      ws.load(src);
+    };
+
+    load();
+  }, [currentTrack?.id, duration]);
+
+  // Sync progress from HTML5 audio context to WaveSurfer cursor position
+  useEffect(() => {
+    if (!wsRef.current || !duration || duration <= 0) return;
+    wsRef.current.seekTo(progress / 100);
+  }, [progress, duration]);
+
+  const handleSeek = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pct = (e.clientX - rect.left) / rect.width;
     seekTo(pct);
   }, [seekTo]);
-
-  if (!hasTracks || !currentTrack) return null;
 
   if (!hasTracks || !currentTrack) return null;
 
@@ -53,14 +123,9 @@ function PlayerBar() {
         </svg>
       </button>
 
-      {/* Waveform */}
-      <div className="flex-1" style={{ minWidth: 0 }}>
-        <Waveform
-          peaks={peaks}
-          progress={progress}
-          height={48}
-          onSeek={handleSeek}
-        />
+      {/* WaveSurfer waveform container */}
+      <div className="flex-1" style={{ height: "48px", minWidth: 0 }}>
+        <div ref={waveformRef} onClick={handleSeek} style={{ width: "100%", height: "100%", cursor: "pointer" }} />
       </div>
 
       <span className="text-[10px] font-mono" style={{ color: "var(--text-muted)", whiteSpace: "nowrap" }}>
