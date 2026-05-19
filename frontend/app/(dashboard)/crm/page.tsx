@@ -847,7 +847,7 @@ function CRMContent() {
         <div className="rounded border overflow-hidden" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
           <div className="grid grid-cols-5" style={{ minHeight: "500px" }}>
             {/* Left Sidebar - Contacts */}
-            <div className="col-span-2 border-r" style={{ borderColor: "var(--border)" }}>
+            <div className="col-span-2 border-r flex flex-col" style={{ borderColor: "var(--border)" }}>
               <div className="px-4 py-3 border-b" style={{ borderColor: "var(--border)" }}>
                 <div className="text-[10px] font-mono uppercase tracking-wider text-muted mb-2">{t("crm.contacts_label")}</div>
                 <div className="flex gap-2">
@@ -855,7 +855,7 @@ function CRMContent() {
                   <span className="text-[10px] px-2 py-0.5 rounded" style={{ background: "rgba(16,185,129,0.15)", color: "#10b981" }}>{approvalCount} {t("crm.approvals")}</span>
                 </div>
               </div>
-              <div className="overflow-y-auto" style={{ maxHeight: "450px" }}>
+              <div className="overflow-y-auto flex-1" style={{ maxHeight: "680px" }}>
                 {contacts.length > 0 ? contacts.map((c, i) => {
                   const isHighlighted = highlightParam === c.id;
 
