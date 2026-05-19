@@ -15,20 +15,17 @@ import WaveSurfer from "wavesurfer.js";
 function PlayerBar() {
   const { currentTrack, isPlaying, progress, duration, volume, hasTracks, togglePlay, prevTrack, nextTrack, setVolume, seekTo, formatTime, audioRef } = usePlayer();
   const wsRef = useRef<WaveSurfer | null>(null);
-  const [playerState, setPlayerState] = useState<"static" | "loading" | "ready">("static");
+  const [loadedTrackId, setLoadedTrackId] = useState<string | null>(null);
   const [hoverWidth, setHoverWidth] = useState<string>("0%");
   const [isHovering, setIsHovering] = useState(false);
-  const isReadyRef = useRef(false);
-  const isPlayingRef = useRef(isPlaying);
   const durationRef = useRef(duration);
-
-  useEffect(() => {
-    isPlayingRef.current = isPlaying;
-  }, [isPlaying]);
 
   useEffect(() => {
     durationRef.current = duration;
   }, [duration]);
+
+  // Reset loadedTrackId on unmount or track change
+  const isCurrentlyLoading = !currentTrack?.id || currentTrack.id !== loadedTrackId;
 
   // Callback ref to initialize WaveSurfer immediately when container DOM mounts
   const initWaveform = useCallback((node: HTMLDivElement | null) => {
@@ -43,47 +40,11 @@ function PlayerBar() {
     if (!audioRef.current || !currentTrack?.id) return;
 
     const token = localStorage.getItem("token") || "";
-    isReadyRef.current = false;
-    setPlayerState(isPlayingRef.current ? "loading" : "static");
 
-    const newWs = WaveSurfer.create({
-      container: node,
-      media: audioRef.current, // Automatically syncs progress, playback, and seeks!
-      waveColor: "#27272a",
-      progressColor: "#10b981",
-      cursorColor: "#10b981",
-      cursorWidth: 1,
-      height: 48,
-      barWidth: 3,
-      barGap: 1,
-      barRadius: 2,
-      normalize: true,
-      fetchParams: {
-        credentials: "include",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      }
-    });
-
-    const setReady = () => {
-      isReadyRef.current = true;
-      setPlayerState("ready");
-    };
-
-    newWs.on("ready", setReady);
-    newWs.on("decode", setReady);
-    newWs.on("redrawcomplete", setReady);
-    newWs.on("timeupdate", setReady);
-    newWs.on("interaction", setReady);
-
-    newWs.on("error", () => {
-      isReadyRef.current = true;
-      setPlayerState("ready");
-    });
-
-    // Load peaks and audio immediately
-    const src = `/api/submissions/${currentTrack.id}/download?type=mp3`;
-    
-    const load = async () => {
+    const loadAndCreate = async () => {
+      let peaksData: number[] | undefined = undefined;
+      const src = `/api/submissions/${currentTrack.id}/download?type=mp3`;
+      
       try {
         const res = await fetch(`/api/submissions/${currentTrack.id}/peaks`, {
           credentials: "include",
@@ -92,16 +53,48 @@ function PlayerBar() {
         if (res.ok) {
           const data = await res.json();
           if (data.peaks && data.peaks.length > 0) {
-            newWs.load(src, data.peaks, durationRef.current || undefined);
-            return;
+            peaksData = data.peaks;
           }
         }
-      } catch (err) {}
-      newWs.load(src);
+      } catch (err) {
+        console.error("Error loading peaks:", err);
+      }
+
+      if (!node.isConnected) return;
+
+      const newWs = WaveSurfer.create({
+        container: node,
+        media: audioRef.current!, // Automatically syncs progress, playback, and seeks!
+        waveColor: "#27272a",
+        progressColor: "#10b981",
+        cursorColor: "#10b981",
+        cursorWidth: 1,
+        height: 48,
+        barWidth: 3,
+        barGap: 1,
+        barRadius: 2,
+        normalize: true,
+        peaks: peaksData ? [peaksData] : undefined,
+      });
+
+      const handleReady = () => {
+        setLoadedTrackId(currentTrack.id);
+      };
+
+      newWs.on("ready", handleReady);
+      newWs.on("decode", handleReady);
+      newWs.on("redrawcomplete", handleReady);
+      newWs.on("timeupdate", handleReady);
+
+      newWs.on("error", () => {
+        setLoadedTrackId(currentTrack.id);
+      });
+
+      newWs.load(src, peaksData, durationRef.current || undefined);
+      wsRef.current = newWs;
     };
 
-    load();
-    wsRef.current = newWs;
+    loadAndCreate();
   }, [audioRef, currentTrack?.id]);
 
   // Clean up WaveSurfer instance when the component unmounts
@@ -113,12 +106,6 @@ function PlayerBar() {
       }
     };
   }, []);
-
-  // Sync playerState with isPlaying when track is loading
-  useEffect(() => {
-    if (isReadyRef.current) return;
-    setPlayerState(isPlaying ? "loading" : "static");
-  }, [isPlaying]);
 
   if (!hasTracks || !currentTrack) return null;
 
@@ -156,14 +143,14 @@ function PlayerBar() {
         className="flex-1 relative group"
         style={{ height: "48px", minWidth: 0 }}
         onPointerMove={(e) => {
-          if (playerState !== "ready") return;
+          if (isCurrentlyLoading) return;
           const rect = e.currentTarget.getBoundingClientRect();
           const x = e.clientX - rect.left;
           const pct = Math.max(0, Math.min(100, (x / rect.width) * 100));
           setHoverWidth(`${pct}%`);
         }}
         onPointerEnter={() => {
-          if (playerState === "ready") setIsHovering(true);
+          if (!isCurrentlyLoading) setIsHovering(true);
         }}
         onPointerLeave={() => {
           setIsHovering(false);
@@ -178,13 +165,13 @@ function PlayerBar() {
             width: "100%",
             height: "100%",
             cursor: "pointer",
-            opacity: playerState === "ready" ? 1 : 0,
+            opacity: !isCurrentlyLoading ? 1 : 0,
             transition: "opacity 0.2s ease-in-out",
           }}
         />
 
         {/* SoundCloud-style Hover Progress Overlay */}
-        {isHovering && playerState === "ready" && (
+        {isHovering && !isCurrentlyLoading && (
           <div
             className="absolute top-0 bottom-0 left-0 pointer-events-none border-r border-[#10b981]/50"
             style={{
@@ -197,7 +184,7 @@ function PlayerBar() {
         )}
 
         {/* Loading/Static Placeholder Waveform */}
-        {playerState !== "ready" && (
+        {isCurrentlyLoading && (
           <div className="absolute inset-0 flex items-center gap-[1px] pointer-events-none bg-transparent overflow-hidden justify-start">
             <style>{`
               @keyframes tp-wave-loading-1 {
@@ -230,8 +217,8 @@ function PlayerBar() {
                   background: "#27272a",
                   borderRadius: "2px",
                   flexShrink: 0,
-                  animation: playerState === "loading" ? `tp-wave-loading-${(i % 5) + 1} 1.2s infinite ease-in-out` : undefined,
-                  animationDelay: playerState === "loading" ? `${(i % 12) * 60}ms` : undefined,
+                  animation: isPlaying ? `tp-wave-loading-${(i % 5) + 1} 1.2s infinite ease-in-out` : undefined,
+                  animationDelay: isPlaying ? `${(i % 12) * 60}ms` : undefined,
                 }}
               />
             ))}
