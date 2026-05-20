@@ -13,6 +13,8 @@ export default function SubmissionPage() {
   const [submissionDescription, setSubmissionDescription] = useState(
     "Subí tu WAV. Analizamos BPM, LUFS, fase y headroom antes de que el sello lo escuche."
   );
+  const [askInstagram, setAskInstagram] = useState(false);
+  const [askSoundcloud, setAskSoundcloud] = useState(false);
   const [labelLoading, setLabelLoading] = useState(true);
   const [labelError, setLabelError] = useState(false);
 
@@ -28,6 +30,8 @@ export default function SubmissionPage() {
           }
           if (data.submission_title) setSubmissionTitle(data.submission_title);
           if (data.submission_description) setSubmissionDescription(data.submission_description);
+          setAskInstagram(!!data.ask_instagram);
+          setAskSoundcloud(!!data.ask_soundcloud);
         } else {
           setLabelError(true);
         }
@@ -44,6 +48,8 @@ export default function SubmissionPage() {
   const [file, setFile] = useState<File | null>(null);
   const [producerName, setProducerName] = useState("");
   const [producerEmail, setProducerEmail] = useState("");
+  const [producerInstagram, setProducerInstagram] = useState("");
+  const [producerSoundcloud, setProducerSoundcloud] = useState("");
   const [trackName, setTrackName] = useState("");
   const [notes, setNotes] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -105,6 +111,8 @@ export default function SubmissionPage() {
       formData.append("track_name", trackName);
       formData.append("label_slug", slug);
       formData.append("notes", notes);
+      if (producerInstagram) formData.append("producer_instagram", producerInstagram);
+      if (producerSoundcloud) formData.append("producer_soundcloud", producerSoundcloud);
 
       const xhr = new XMLHttpRequest();
       const apiUrl = (process.env.NEXT_PUBLIC_API_URL || "");
@@ -230,6 +238,34 @@ export default function SubmissionPage() {
                 required
               />
             </div>
+
+            {askInstagram && (
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">Instagram (opcional)</label>
+                <input
+                  type="text"
+                  value={producerInstagram}
+                  onChange={(e) => setProducerInstagram(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded border text-sm bg-transparent"
+                  style={{ borderColor: "#27272a" }}
+                  placeholder="@djkrill"
+                />
+              </div>
+            )}
+
+            {askSoundcloud && (
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">SoundCloud (opcional)</label>
+                <input
+                  type="text"
+                  value={producerSoundcloud}
+                  onChange={(e) => setProducerSoundcloud(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded border text-sm bg-transparent"
+                  style={{ borderColor: "#27272a" }}
+                  placeholder="djkrill"
+                />
+              </div>
+            )}
 
             <div>
               <label className="text-sm font-medium mb-1.5 block">Nombre del track</label>

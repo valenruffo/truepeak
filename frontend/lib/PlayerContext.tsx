@@ -47,8 +47,8 @@ export function PlayerProvider({ children, initialTracks = [] }: { children: Rea
 
   useEffect(() => {
     if (audioRef.current) {
-      // Apply quadratic (logarithmic perception) volume curve with 90% safety headroom
-      audioRef.current.volume = Math.pow(volume, 2) * 0.9;
+      // Apply cubic (logarithmic perception) volume curve with 90% safety headroom
+      audioRef.current.volume = Math.pow(volume, 3) * 0.9;
     }
   }, []);
 
@@ -77,8 +77,8 @@ export function PlayerProvider({ children, initialTracks = [] }: { children: Rea
 
   useEffect(() => {
     if (audioRef.current) {
-      // Apply quadratic (logarithmic perception) volume curve with 90% safety headroom
-      audioRef.current.volume = Math.pow(volume, 2) * 0.9;
+      // Apply cubic (logarithmic perception) volume curve with 90% safety headroom
+      audioRef.current.volume = Math.pow(volume, 3) * 0.9;
     }
   }, [volume]);
 

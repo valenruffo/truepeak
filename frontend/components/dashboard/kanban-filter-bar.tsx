@@ -3,7 +3,7 @@
 import { useKanbanFilters } from "@/store/kanban-filters";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
-import { CalendarIcon, FilterX } from "lucide-react";
+import { CalendarIcon, FilterX, Filter } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Slider } from "@/components/ui/slider";
 import { useEffect, useState } from "react";
@@ -60,95 +60,64 @@ export function KanbanFilterBar({ sonicSignature }: { sonicSignature?: any }) {
   }, [bpmMin, bpmMax, sliderMin, sliderMax]);
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <div className="text-sm font-semibold mr-2 flex items-center gap-2" style={{ color: "#10b981" }}>
-        Filtros
-        {activeFilterCount > 0 && (
-          <span className="flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold" style={{ background: "#10b981", color: "#09090b" }}>
-            {activeFilterCount}
-          </span>
-        )}
-      </div>
-
-      {/* BPM */}
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="h-8 transition-colors"
-            style={{ 
-              borderColor: (bpmMin !== null || bpmMax !== null) ? "#10b981" : "var(--border)",
-              background: (bpmMin !== null || bpmMax !== null) ? "rgba(16, 185, 129, 0.1)" : "transparent",
-              color: (bpmMin !== null || bpmMax !== null) ? "#10b981" : "var(--text-primary)"
-            }}
-          >
-            BPM
-            {(bpmMin !== null || bpmMax !== null) && (
-              <span className="ml-2 opacity-80">
-                ({bpmMin || sliderMin} - {bpmMax || sliderMax})
-              </span>
-            )}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-64 p-4" align="end">
-          <div className="space-y-4">
-            <div className="flex justify-between items-center border-b pb-2" style={{ borderColor: "var(--border)" }}>
-              <h4 className="font-medium text-sm">Rango de BPM</h4>
-              <span className="text-xs text-muted-foreground font-mono">
-                {sliderValues[0]} - {sliderValues[1]}
-              </span>
-            </div>
-            <div className="pt-2 pb-1">
-              <Slider
-                min={sliderMin}
-                max={sliderMax}
-                step={1}
-                value={sliderValues}
-                onValueChange={setSliderValues}
-                onValueCommit={(vals) => {
-                  setBpmMin(vals[0]);
-                  setBpmMax(vals[1]);
-                }}
-              />
-            </div>
-            <div className="flex justify-between text-[10px] text-muted-foreground font-mono">
-              <span>{sliderMin}</span>
-              <span>{sliderMax}</span>
-            </div>
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="h-8 transition-colors flex items-center gap-1.5"
+          style={{ 
+            borderColor: activeFilterCount > 0 ? "#10b981" : "var(--border)",
+            background: activeFilterCount > 0 ? "rgba(16, 185, 129, 0.1)" : "transparent",
+            color: activeFilterCount > 0 ? "#10b981" : "var(--text-primary)"
+          }}
+        >
+          <Filter className="h-3.5 w-3.5 mr-0.5" />
+          Filtros
+          {activeFilterCount > 0 && (
+            <span className="flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-bold ml-1.5" style={{ background: "#10b981", color: "#09090b" }}>
+              {activeFilterCount}
+            </span>
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-80 p-4 space-y-4 shadow-xl border" align="end" style={{ background: "var(--bg-card)", borderColor: "var(--border)" }}>
+        {/* BPM Range Slider */}
+        <div>
+          <div className="flex justify-between items-center mb-1.5">
+            <span className="text-xs font-semibold text-primary">Rango de BPM</span>
+            <span className="text-[10px] text-muted font-mono">{sliderValues[0]} - {sliderValues[1]}</span>
           </div>
-        </PopoverContent>
-      </Popover>
+          <div className="px-1 py-1">
+            <Slider
+              min={sliderMin}
+              max={sliderMax}
+              step={1}
+              value={sliderValues}
+              onValueChange={setSliderValues}
+              onValueCommit={(vals) => {
+                setBpmMin(vals[0]);
+                setBpmMax(vals[1]);
+              }}
+            />
+          </div>
+          <div className="flex justify-between text-[9px] text-muted font-mono mt-1">
+            <span>{sliderMin} BPM</span>
+            <span>{sliderMax} BPM</span>
+          </div>
+        </div>
 
-      {/* TONALIDAD CAMELOT */}
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="h-8 transition-colors"
-            style={{ 
-              borderColor: tonalidades.length > 0 ? "#10b981" : "var(--border)",
-              background: tonalidades.length > 0 ? "rgba(16, 185, 129, 0.1)" : "transparent",
-              color: tonalidades.length > 0 ? "#10b981" : "var(--text-primary)"
-            }}
-          >
-            Tonalidad
-            {tonalidades.length > 0 && (
-              <span className="ml-2 opacity-80">({tonalidades.length})</span>
-            )}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-64 p-3" align="end">
-          <h4 className="font-medium text-sm mb-3 border-b pb-2" style={{ borderColor: "var(--border)" }}>Tonalidad Camelot</h4>
-          <div className="grid grid-cols-4 gap-2">
+        {/* Camelot Key Grid */}
+        <div className="border-t pt-3" style={{ borderColor: "var(--border-light)" }}>
+          <span className="text-xs font-semibold text-primary block mb-2">Tonalidad Camelot</span>
+          <div className="grid grid-cols-6 gap-1">
             {camelotKeys.map((key) => {
               const isSelected = tonalidades.includes(key);
               return (
                 <div
                   key={key}
                   onClick={() => toggleTonalidad(key)}
-                  className="text-xs text-center py-1.5 rounded cursor-pointer border transition-colors font-medium"
+                  className="text-[9px] text-center py-1 rounded cursor-pointer border transition-colors font-mono font-medium"
                   style={{
                     background: isSelected ? "#10b981" : "var(--bg-secondary)",
                     borderColor: isSelected ? "#10b981" : "var(--border)",
@@ -160,48 +129,38 @@ export function KanbanFilterBar({ sonicSignature }: { sonicSignature?: any }) {
               );
             })}
           </div>
-        </PopoverContent>
-      </Popover>
+        </div>
 
-      {/* FECHA */}
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="h-8 transition-colors"
-            style={{ 
-              borderColor: fechaLabel ? "#10b981" : "var(--border)",
-              background: fechaLabel ? "rgba(16, 185, 129, 0.1)" : "transparent",
-              color: fechaLabel ? "#10b981" : "var(--text-primary)"
-            }}
-          >
-            <CalendarIcon className="mr-2 h-4 w-4" />
-            Fecha
-            {fechaLabel && (
-              <span className="ml-2 opacity-80">({fechaLabel})</span>
-            )}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-48 p-2" align="end">
-          <div className="flex flex-col gap-1">
+        {/* Date Filter */}
+        <div className="border-t pt-3" style={{ borderColor: "var(--border-light)" }}>
+          <span className="text-xs font-semibold text-primary block mb-1.5">Fecha de Envío</span>
+          <div className="flex flex-wrap gap-1">
             {[
-              { label: "Últimos 7 días", value: "7d", days: 7 },
-              { label: "Últimos 15 días", value: "15d", days: 15 },
-              { label: "Últimos 30 días", value: "30d", days: 30 },
-              { label: "Últimos 3 meses", value: "3m", months: 3 },
-              { label: "Histórico (Todos)", value: "all", clear: true },
+              { label: "7d", days: 7 },
+              { label: "15d", days: 15 },
+              { label: "30d", days: 30 },
+              { label: "3m", months: 3 },
+              { label: "Histórico", clear: true },
             ].map((option) => {
-              const isActive = fechaLabel === option.label;
+              const displayLabel = option.clear ? "Todos" : option.label;
+              const isFullLabelActive = option.clear 
+                ? !fechaLabel 
+                : (fechaLabel && (
+                    fechaLabel.includes(option.label) || 
+                    (option.label === "7d" && fechaLabel.includes("7")) || 
+                    (option.label === "15d" && fechaLabel.includes("15")) || 
+                    (option.label === "30d" && fechaLabel.includes("30")) || 
+                    (option.label === "3m" && fechaLabel.includes("3"))
+                  ));
+              
               return (
-                <Button
-                  key={option.value}
-                  variant="ghost"
-                  size="sm"
-                  className="justify-start text-xs font-normal transition-colors"
+                <button
+                  key={option.label}
+                  className="text-[10px] px-2.5 py-1 rounded border transition-colors font-medium"
                   style={{
-                    background: isActive ? "#10b981" : "transparent",
-                    color: isActive ? "#09090b" : "var(--text-primary)",
+                    background: isFullLabelActive ? "#10b981" : "var(--bg-secondary)",
+                    borderColor: isFullLabelActive ? "#10b981" : "var(--border)",
+                    color: isFullLabelActive ? "#09090b" : "var(--text-muted)",
                   }}
                   onClick={() => {
                     if (option.clear) {
@@ -216,30 +175,32 @@ export function KanbanFilterBar({ sonicSignature }: { sonicSignature?: any }) {
                     if (option.months) past.setMonth(today.getMonth() - option.months);
                     setFechaInicio(past);
                     setFechaFin(today);
-                    setFechaLabel(option.label);
+                    setFechaLabel(`Últimos ${option.label === "3m" ? "3 meses" : option.label === "7d" ? "7 días" : option.label === "15d" ? "15 días" : "30 días"}`);
                   }}
                 >
-                  {option.label}
-                </Button>
+                  {displayLabel}
+                </button>
               );
             })}
           </div>
-        </PopoverContent>
-      </Popover>
+        </div>
 
-      {/* CLEAR */}
-      {activeFilterCount > 0 && (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={clearFilters}
-          className="h-8 px-2 lg:px-3 hover:bg-transparent"
-          style={{ color: "var(--text-muted)" }}
-        >
-          <FilterX className="mr-2 h-4 w-4" />
-          <span className="hover:text-white transition-colors">Limpiar</span>
-        </Button>
-      )}
-    </div>
+        {/* Clear Filters Button */}
+        {activeFilterCount > 0 && (
+          <div className="border-t pt-3 flex justify-end animate-fade-in" style={{ borderColor: "var(--border-light)" }}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearFilters}
+              className="h-7 text-xs px-2 hover:bg-transparent"
+              style={{ color: "var(--text-muted)" }}
+            >
+              <FilterX className="mr-1.5 h-3.5 w-3.5" />
+              <span className="hover:text-white transition-colors">Limpiar Filtros</span>
+            </Button>
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
   );
 }

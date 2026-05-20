@@ -21,6 +21,8 @@ interface Submission {
   musical_key: string | null;
   mp3_path: string | null;
   created_at: string;
+  producer_instagram?: string | null;
+  producer_soundcloud?: string | null;
 }
 
 interface Contact {
@@ -32,6 +34,8 @@ interface Contact {
   bpm: string;
   sent: boolean;
   mp3_path: string | null;
+  producer_instagram?: string | null;
+  producer_soundcloud?: string | null;
 }
 
 interface Template {
@@ -213,6 +217,13 @@ function CRMContent() {
   const { playTrack, togglePlay, isPlaying, currentTrack } = usePlayer();
   const searchParams = useSearchParams();
   const highlightParam = searchParams.get("highlight");
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (highlightParam) {
+      setHighlightedId(highlightParam);
+    }
+  }, [highlightParam]);
 
   const emailBodyDivRef = useRef<HTMLDivElement | null>(null);
   const lastSyncedTextRef = useRef("");
@@ -247,6 +258,8 @@ function CRMContent() {
           id: s.id, name: s.producer_name || "Anónimo", email: s.producer_email || "",
           track: s.track_name || "Sin nombre", status: s.status as "approved" | "rejected",
           bpm: s.bpm != null ? String(Math.round(s.bpm)) : "—", sent: false, mp3_path: s.mp3_path || null,
+          producer_instagram: s.producer_instagram || null,
+          producer_soundcloud: s.producer_soundcloud || null,
         }));
         setContacts(mapped);
       } catch (e) { setError(e instanceof Error ? e.message : t("inbox.error_unknown")); }
@@ -256,17 +269,25 @@ function CRMContent() {
   }, []);
 
   useEffect(() => {
-    if (highlightParam && contacts.length > 0) {
-      const idx = contacts.findIndex((c) => c.id === highlightParam);
+    if (highlightedId && contacts.length > 0) {
+      const idx = contacts.findIndex((c) => c.id === highlightedId);
       if (idx >= 0) {
         setSelectedContact(idx);
         setTimeout(() => {
-          const el = document.getElementById(`crm-contact-${highlightParam}`);
+          const el = document.getElementById(`crm-contact-${highlightedId}`);
           if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+          
+          // Clear highlight indicators after the breathe animation completes
+          setTimeout(() => {
+            setHighlightedId(null);
+            if (window.location.search.includes("highlight")) {
+              window.history.replaceState(null, "", "/crm");
+            }
+          }, 1500);
         }, 200);
       }
     }
-  }, [highlightParam, contacts]);
+  }, [highlightedId, contacts]);
 
   const templates = buildTemplates(labelName || "tu sello", t);
   const contact = contacts[selectedContact];
@@ -287,6 +308,10 @@ function CRMContent() {
   const handleContactChange = (idx: number) => {
     setSelectedContact(idx);
     setSent(false);
+    setHighlightedId(null);
+    if (window.location.search.includes("highlight")) {
+      window.history.replaceState(null, "", "/crm");
+    }
   };
 
   useEffect(() => {
@@ -754,7 +779,7 @@ function CRMContent() {
 
   if (loading) {
     return (
-      <div className="max-w-6xl mx-auto px-6 py-8">
+      <div className="w-full max-w-[1700px] mx-auto px-6 py-8">
         <h1 className="font-display font-semibold text-xl mb-6">{t("crm.title")}</h1>
         <div className="rounded border overflow-hidden animate-pulse" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
           <div className="grid grid-cols-5" style={{ minHeight: "500px" }}>
@@ -784,7 +809,7 @@ function CRMContent() {
 
   if (error) {
     return (
-      <div className="max-w-6xl mx-auto px-6 py-8">
+      <div className="w-full max-w-[1700px] mx-auto px-6 py-8">
         <h1 className="font-display font-semibold text-xl mb-6">{t("crm.title")}</h1>
         <div className="rounded border p-8 text-center" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
           <p className="text-sm" style={{ color: "#ef4444" }}>{t("crm.error_load")}: {error}</p>
@@ -795,7 +820,7 @@ function CRMContent() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-6 py-8 relative">
+    <div className="w-full max-w-[1700px] mx-auto px-6 py-8 relative">
       {isFree && (
         <div className="absolute inset-0 z-20 flex flex-col items-center justify-center mx-6 my-8" style={{ pointerEvents: "auto" }}>
           <div className="text-center p-8 rounded border max-w-sm" style={{ background: "var(--bg-card)", borderColor: "var(--border)" }}>
@@ -857,10 +882,10 @@ function CRMContent() {
               </div>
               <div className="overflow-y-auto flex-1" style={{ maxHeight: "680px" }}>
                 {contacts.length > 0 ? contacts.map((c, i) => {
-                  const isHighlighted = highlightParam === c.id;
+                  const isHighlighted = highlightedId === c.id;
 
                   return (
-                    <div key={i} id={`crm-contact-${c.id}`} onClick={() => handleContactChange(i)} className="w-full text-left px-4 py-3 border-b cursor-pointer" style={{ borderColor: "var(--border-light)", background: selectedContact === i ? "rgba(16,185,129,0.08)" : "transparent", animation: isHighlighted ? "breathe 1.2s ease-in-out 1 forwards" : "none" }}>
+                    <div key={i} id={`crm-contact-${c.id}`} onClick={() => handleContactChange(i)} className="w-full text-left px-4 py-3 border-b cursor-pointer transition-none" style={{ borderColor: "var(--border-light)", background: selectedContact === i ? "rgba(16,185,129,0.08)" : "transparent", animation: isHighlighted ? "breathe 1.2s ease-in-out 1 forwards" : "none" }}>
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-sm font-medium truncate">{c.name}</span>
                         <span className="font-mono text-[10px] px-1.5 py-0.5 rounded flex-shrink-0 ml-2" style={{ background: c.status === "rejected" ? "rgba(239,68,68,0.15)" : "rgba(16,185,129,0.15)", color: c.status === "rejected" ? "#ef4444" : "#10b981" }}>
@@ -908,7 +933,37 @@ function CRMContent() {
                 <div className="mb-3">
                   <label className="text-[10px] font-mono uppercase tracking-wider text-muted mb-1 block">{t("crm.to_label")}</label>
                   {contact ? (
-                    <div className="text-sm font-medium">{contact.name} {contact.email ? <span className="text-muted">&lt;{contact.email}&gt;</span> : <span className="text-muted">({t("crm.no_email")})</span>}</div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="text-sm font-medium">
+                        {contact.name} {contact.email ? <span className="text-muted">&lt;{contact.email}&gt;</span> : <span className="text-muted">({t("crm.no_email")})</span>}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {contact.producer_instagram && (
+                          <a
+                            href={`https://instagram.com/${contact.producer_instagram.replace(/^@/, "")}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-5 h-5 rounded flex items-center justify-center transition-colors hover:bg-white/10"
+                            style={{ color: "#10b981" }}
+                            title={`Instagram: @${contact.producer_instagram.replace(/^@/, "")}`}
+                          >
+                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5" /><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" /><line x1="17.5" y1="6.5" x2="17.51" y2="6.5" /></svg>
+                          </a>
+                        )}
+                        {contact.producer_soundcloud && (
+                          <a
+                            href={`https://soundcloud.com/${contact.producer_soundcloud}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-5 h-5 rounded flex items-center justify-center transition-colors hover:bg-white/10"
+                            style={{ color: "#f97316" }}
+                            title={`SoundCloud: ${contact.producer_soundcloud}`}
+                          >
+                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 9c-.55 0-1 .45-1 1v7c0 .55.45 1 1 1s1-.45 1-1v-7c0-.55-.45-1-1-1zm3-2c-.55 0-1 .45-1 1v9c0 .55.45 1 1 1s1-.45 1-1V8c0-.55-.45-1-1-1zm3 2c-.55 0-1 .45-1 1v7c0 .55.45 1 1 1s1-.45 1-1v-7c0-.55-.45-1-1-1zm3 2c-.55 0-1 .45-1 1v5c0 .55.45 1 1 1s1-.45 1-1v-5c0-.55-.45-1-1-1zM9 11c-.55 0-1 .45-1 1v5c0 .55.45 1 1 1s1-.45 1-1v-5c0-.55-.45-1-1-1zm-3 2c-.55 0-1 .45-1 1v3c0 .55.45 1 1 1s1-.45 1-1v-3c0-.55-.45-1-1-1zm-3 1c-.55 0-1 .45-1 1v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1z" /></svg>
+                          </a>
+                        )}
+                      </div>
+                    </div>
                   ) : (
                     <div className="text-sm text-muted">{t("crm.no_contact")}</div>
                   )}
@@ -1097,7 +1152,7 @@ function CRMContent() {
 
 export default function CRMPage() {
   return (
-    <Suspense fallback={<div className="max-w-6xl mx-auto px-6 py-8"><div className="animate-pulse h-96 rounded" style={{ background: "var(--bg-secondary)", border: "1px solid var(--border)" }} /></div>}>
+    <Suspense fallback={<div className="w-full max-w-[1700px] mx-auto px-6 py-8"><div className="animate-pulse h-96 rounded" style={{ background: "var(--bg-secondary)", border: "1px solid var(--border)" }} /></div>}>
       <CRMContent />
     </Suspense>
   );

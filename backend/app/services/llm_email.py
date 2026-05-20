@@ -70,14 +70,25 @@ Technical analysis:
 {metrics_text}
 {rejection_context}
 
-Write a professional, respectful email. For rejections, be constructive and encouraging — mention the specific technical reason but frame it positively. For approvals, be enthusiastic and include next steps.
+Write a professional, respectful email.
+- For rejections, be constructive and encouraging — mention the specific technical reason but frame it positively.
+- For approvals, be enthusiastic and include next steps.
 
-Return ONLY a JSON object with "subject" and "body" keys. The body should be HTML-formatted.
+LANGUAGE RULE:
+- Detect the language of the inputs (rejection reason, label name, etc.). If they are in Spanish, the email MUST be written entirely in Spanish.
+- Since this is an Argentine record label, use natural Argentine Spanish (voseo, e.g., "Hola", "cómo estás", "queríamos contarte", "te mandamos un abrazo", etc.). Do NOT use "tú" or mix Spanish and English.
+- If the inputs are in English, write the email entirely in English.
+
+FORMAT RULE:
+- The email body MUST be plain text. Do NOT include any HTML tags like <p>, <strong>, <br>, etc.
+- Use normal newlines (\n) for line breaks and double newlines (\n\n) for paragraph breaks.
+
+Return ONLY a JSON object with "subject" and "body" keys.
 
 Example format:
 {{
-  "subject": "Your submission to {label.name}",
-  "body": "<p>Hi {submission.producer_name},</p><p>...</p>"
+  "subject": "Tu demo para {label.name}",
+  "body": "Hola {submission.producer_name},\n\nMuchas gracias por enviarnos tu track..."
 }}
 """
 
@@ -140,24 +151,24 @@ def get_fallback_template(
     """
     if template_type == "rejection":
         return {
-            "subject": f"Your submission to {label.name} — {submission.track_name}",
+            "subject": f"Tu demo para {label.name} — {submission.track_name}",
             "body": (
-                f"<p>Hi {submission.producer_name},</p>"
-                f"<p>Thank you for submitting <strong>{submission.track_name}</strong> to {label.name}.</p>"
-                f"<p>After careful review, we've decided not to move forward with this track at this time."
-                f"{' Reason: ' + submission.rejection_reason if submission.rejection_reason else ''}</p>"
-                f"<p>We appreciate your time and encourage you to keep creating. We'd love to hear future submissions.</p>"
-                f"<p>Best regards,<br>{label.name} A&R Team</p>"
+                f"Hola {submission.producer_name},\n\n"
+                f"Muchas gracias por enviar tu track \"{submission.track_name}\" a {label.name}.\n\n"
+                f"Después de escucharlo detalladamente, decidimos no avanzar con el lanzamiento en este momento."
+                f"{' Detalle técnico: ' + submission.rejection_reason if submission.rejection_reason else ''}\n\n"
+                f"Valoramos tu tiempo y te alentamos a seguir produciendo. Nos encantaría escuchar tus futuros trabajos.\n\n"
+                f"Saludos,\nEl equipo de {label.name}"
             ),
         }
     else:
         return {
-            "subject": f"Great news! Your track has been approved by {label.name}",
+            "subject": f"¡Buenas noticias! Tu track fue aprobado por {label.name}",
             "body": (
-                f"<p>Hi {submission.producer_name},</p>"
-                f"<p>We're excited to let you know that <strong>{submission.track_name}</strong> has been approved by {label.name}!</p>"
-                f"<p>Our team will be in touch shortly with next steps.</p>"
-                f"<p>Congratulations and welcome aboard!</p>"
-                f"<p>Best regards,<br>{label.name} A&R Team</p>"
+                f"Hola {submission.producer_name},\n\n"
+                f"¡Queríamos contarte que tu track \"{submission.track_name}\" fue aprobado por {label.name}!\n\n"
+                f"Nos vamos a poner en contacto con vos muy pronto para coordinar los próximos pasos.\n\n"
+                f"¡Felicitaciones!\n\n"
+                f"Saludos,\nEl equipo de {label.name}"
             ),
         }

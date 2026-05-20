@@ -34,6 +34,8 @@ class SubmissionDetail(BaseModel):
     mp3_path: str | None
     original_path: str | None
     notes: str | None
+    producer_instagram: str | None = None
+    producer_soundcloud: str | None = None
     created_at: str
 
 
@@ -54,6 +56,8 @@ class SubmissionSummary(BaseModel):
     true_peak: float | None = None
     crest_factor: float | None = None
     notes: str | None
+    producer_instagram: str | None = None
+    producer_soundcloud: str | None = None
     created_at: str
     deleted_at: str | None = None
 
@@ -159,6 +163,8 @@ async def list_submissions(
             true_peak=s.true_peak,
             crest_factor=s.crest_factor,
             notes=s.notes,
+            producer_instagram=s.producer_instagram,
+            producer_soundcloud=s.producer_soundcloud,
             created_at=s.created_at.isoformat(),
             deleted_at=s.deleted_at.isoformat() if s.deleted_at else None,
         )
@@ -195,6 +201,8 @@ async def get_submission(
         mp3_path=submission.mp3_path,
         original_path=submission.original_path,
         notes=submission.notes,
+        producer_instagram=submission.producer_instagram,
+        producer_soundcloud=submission.producer_soundcloud,
         created_at=submission.created_at.isoformat(),
     )
 

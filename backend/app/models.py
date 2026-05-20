@@ -50,6 +50,8 @@ class Label(SQLModel, table=True):
     role: str = Field(default="label")  # "label" | "dj"
     polar_customer_id: str | None = None
     polar_subscription_id: str | None = None
+    ask_instagram: bool = Field(default=False)
+    ask_soundcloud: bool = Field(default=False)
 
     submissions: list["Submission"] = Relationship(back_populates="label")
     email_templates: list["EmailTemplate"] = Relationship(back_populates="label")
@@ -80,6 +82,8 @@ class Submission(SQLModel, table=True):
     original_path: str | None = None  # WAV/FLAC/AIFF original for download
     peaks: list[float] | None = Field(sa_type=JSON, default=None)  # Waveform peaks for WaveSurfer.js
     notes: str | None = None
+    producer_instagram: str | None = Field(default=None)
+    producer_soundcloud: str | None = Field(default=None)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
     )

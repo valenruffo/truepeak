@@ -17,13 +17,15 @@ interface SonicSignature {
 }
 
 const GENRE_PRESETS: Record<string, { bpm: [number, number]; lufs: number; durMax?: number; color: string }> = {
-  "Techno": { bpm: [126, 138], lufs: -8, durMax: 420, color: "#06b6d4" },
-  "House": { bpm: [122, 126], lufs: -10, durMax: 480, color: "#10b981" },
-  "Tech House": { bpm: [124, 128], lufs: -9, durMax: 420, color: "#fbbf24" },
-  "Progressive": { bpm: [120, 126], lufs: -11, durMax: 540, color: "#8b5cf6" },
-  "Minimal": { bpm: [124, 128], lufs: -12, durMax: 540, color: "#64748b" },
-  "Drum & Bass": { bpm: [170, 176], lufs: -6, durMax: 360, color: "#ef4444" },
-  "Melodic": { bpm: [120, 125], lufs: -10, durMax: 540, color: "#ec4899" },
+  "Techno": { bpm: [125, 142], lufs: -8, durMax: 450, color: "#06b6d4" },
+  "House": { bpm: [120, 126], lufs: -10, durMax: 480, color: "#10b981" },
+  "Tech House": { bpm: [124, 128], lufs: -8, durMax: 420, color: "#fbbf24" },
+  "Progressive": { bpm: [120, 126], lufs: -10, durMax: 540, color: "#8b5cf6" },
+  "Minimal / Deep Tech": { bpm: [123, 128], lufs: -11, durMax: 480, color: "#64748b" },
+  "Drum & Bass": { bpm: [170, 178], lufs: -6, durMax: 360, color: "#ef4444" },
+  "Melodic House & Techno": { bpm: [120, 126], lufs: -9, durMax: 540, color: "#ec4899" },
+  "Trance": { bpm: [128, 140], lufs: -8, durMax: 500, color: "#3b82f6" },
+  "Afro House": { bpm: [118, 124], lufs: -10, durMax: 480, color: "#f97316" },
 };
 
 export default function ConfigPage() {

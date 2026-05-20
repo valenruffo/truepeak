@@ -232,10 +232,10 @@ function PlayerBar() {
           step="0.01" 
           value={volume} 
           onChange={(e) => setVolume(parseFloat(e.target.value))} 
-          className="w-28 spotify-slider" 
+          className="w-36 spotify-slider" 
           style={{
-            background: `linear-gradient(to right, var(--text-primary) ${volume * 100}%, var(--border) ${volume * 100}%)`
-          }}
+            "--volume-percent": `${volume * 100}%`
+          } as React.CSSProperties}
         />
       </div>
     </div>
@@ -423,16 +423,16 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
         className={`fixed top-0 left-0 h-full flex flex-col z-40 transition-transform ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0`}
         style={{ width: "240px", background: "var(--bg-card)", borderRight: "1px solid var(--border)" }}
       >
-        <div className="px-6 pt-8 pb-6 flex items-center justify-start">
-          <Link href="/"><img src="/logo.png" alt="True Peak AI" className="h-10 w-auto object-contain" /></Link>
+        <div className="px-6 pt-9 pb-6 flex items-center justify-start">
+          <Link href="/"><img src="/logo.png" alt="True Peak AI" className="h-12 w-auto object-contain" /></Link>
         </div>
 
-        <nav className="flex-1 px-3 pt-4 space-y-1">
+        <nav className="flex-1 px-3 pt-6 space-y-2">
           {navItems.map((item) => {
             const isActive = pathname === item.href;
             return (
               <Link key={item.href} href={item.href} onClick={() => setSidebarOpen(false)}
-                className={cn("block text-base px-4 py-2.5 rounded transition-all duration-200 mb-1", isActive ? "font-semibold shadow-sm" : "hover:bg-white/5 hover:translate-x-1")}
+                className={cn("block text-[17px] font-medium px-4 py-3 rounded transition-all duration-200 mb-1.5", isActive ? "font-semibold shadow-sm" : "hover:bg-white/5 hover:translate-x-1")}
                 style={{ color: isActive ? "#10b981" : "var(--text-secondary)", background: isActive ? "rgba(16,185,129,0.08)" : "transparent" }}>
                 {item.label}
               </Link>
@@ -594,7 +594,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium truncate" style={{ color: "var(--text-primary)" }}>{labelName}</div>
                   <div className="text-[10px] text-emerald-400 font-medium mt-0.5">
-                    {plan === "pro" ? "Plan Pro" : plan === "indie" ? "Plan Indie" : plan === "free" ? "Plan Free" : `Plan ${plan.charAt(0).toUpperCase() + plan.slice(1)}`}
+                    {plan.toLowerCase() === "pro" ? "Plan Pro" : plan.toLowerCase() === "indie" ? "Plan Indie" : "Plan Free"}
                   </div>
                 </div>
               </div>

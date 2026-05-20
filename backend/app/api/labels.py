@@ -220,6 +220,8 @@ class LabelConfig(BaseModel):
     logo_path: str | None = None
     submission_title: str | None = None
     submission_description: str | None = None
+    ask_instagram: bool = False
+    ask_soundcloud: bool = False
 
 
 class SonicSignatureUpdate(BaseModel):
@@ -359,6 +361,8 @@ async def get_label_config(
         logo_path=label.logo_path,
         submission_title=label.submission_title,
         submission_description=label.submission_description,
+        ask_instagram=label.ask_instagram,
+        ask_soundcloud=label.ask_soundcloud,
     )
 
 
@@ -407,6 +411,8 @@ async def update_label_config(
         logo_path=label.logo_path,
         submission_title=label.submission_title,
         submission_description=label.submission_description,
+        ask_instagram=label.ask_instagram,
+        ask_soundcloud=label.ask_soundcloud,
     )
 
 
@@ -639,11 +645,15 @@ async def upload_label_logo(
 class SubmissionTextUpdate(BaseModel):
     title: str | None = None
     description: str | None = None
+    ask_instagram: bool | None = None
+    ask_soundcloud: bool | None = None
 
 
 class SubmissionTextResponse(BaseModel):
     submission_title: str | None
     submission_description: str | None
+    ask_instagram: bool
+    ask_soundcloud: bool
 
 
 @router.put("/{slug}/submission-text", response_model=SubmissionTextResponse)
@@ -665,6 +675,10 @@ async def update_submission_text(
         label.submission_title = body.title
     if body.description is not None:
         label.submission_description = body.description
+    if body.ask_instagram is not None:
+        label.ask_instagram = body.ask_instagram
+    if body.ask_soundcloud is not None:
+        label.ask_soundcloud = body.ask_soundcloud
     label.updated_at = datetime.now(timezone.utc)
 
     session.add(label)
@@ -673,6 +687,8 @@ async def update_submission_text(
     return SubmissionTextResponse(
         submission_title=label.submission_title,
         submission_description=label.submission_description,
+        ask_instagram=label.ask_instagram,
+        ask_soundcloud=label.ask_soundcloud,
     )
 
 

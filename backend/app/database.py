@@ -45,6 +45,11 @@ def _apply_migrations(session: Session) -> None:
         "ALTER TABLE label ADD COLUMN polar_subscription_id TEXT",
         # Waveform peaks column
         "ALTER TABLE submission ADD COLUMN peaks TEXT",
+        # Social links and switches
+        "ALTER TABLE label ADD COLUMN ask_instagram BOOLEAN DEFAULT 0",
+        "ALTER TABLE label ADD COLUMN ask_soundcloud BOOLEAN DEFAULT 0",
+        "ALTER TABLE submission ADD COLUMN producer_instagram TEXT",
+        "ALTER TABLE submission ADD COLUMN producer_soundcloud TEXT",
     ]
     for sql in migrations:
         try:

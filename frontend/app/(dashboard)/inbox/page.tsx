@@ -40,6 +40,8 @@ interface SubmissionSummary {
   human_email_sent?: boolean;
   rejection_reason?: string | null;
   notes?: string | null;
+  producer_instagram?: string | null;
+  producer_soundcloud?: string | null;
   created_at: string;
   deleted_at?: string | null;
 }
@@ -217,7 +219,7 @@ function ExpirationCountdown({ createdAt, retentionDays }: { createdAt: string, 
 
 export default function InboxPage() {
   return (
-    <Suspense fallback={<div className="max-w-7xl mx-auto px-6 py-8"><div className="animate-pulse h-96 rounded" style={{ background: "var(--bg-secondary)", border: "1px solid var(--border)" }} /></div>}>
+    <Suspense fallback={<div className="w-full max-w-[1700px] mx-auto px-6 py-8"><div className="animate-pulse h-96 rounded" style={{ background: "var(--bg-secondary)", border: "1px solid var(--border)" }} /></div>}>
       <InboxContent />
     </Suspense>
   );
@@ -1000,6 +1002,32 @@ useEffect(() => {
                   <Mail className="w-4 h-4" />
                 </Link>
               )}
+              {sub.producer_instagram && (
+                <a
+                  href={`https://instagram.com/${sub.producer_instagram.replace(/^@/, "")}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-6 h-6 rounded flex items-center justify-center transition-colors hover:bg-white/10"
+                  style={{ color: "#10b981" }}
+                  title={`Instagram: @${sub.producer_instagram.replace(/^@/, "")}`}
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5" /><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" /><line x1="17.5" y1="6.5" x2="17.51" y2="6.5" /></svg>
+                </a>
+              )}
+              {sub.producer_soundcloud && (
+                <a
+                  href={`https://soundcloud.com/${sub.producer_soundcloud}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-6 h-6 rounded flex items-center justify-center transition-colors hover:bg-white/10"
+                  style={{ color: "#f97316" }}
+                  title={`SoundCloud: ${sub.producer_soundcloud}`}
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 9c-.55 0-1 .45-1 1v7c0 .55.45 1 1 1s1-.45 1-1v-7c0-.55-.45-1-1-1zm3-2c-.55 0-1 .45-1 1v9c0 .55.45 1 1 1s1-.45 1-1V8c0-.55-.45-1-1-1zm3 2c-.55 0-1 .45-1 1v7c0 .55.45 1 1 1s1-.45 1-1v-7c0-.55-.45-1-1-1zm3 2c-.55 0-1 .45-1 1v5c0 .55.45 1 1 1s1-.45 1-1v-5c0-.55-.45-1-1-1zM9 11c-.55 0-1 .45-1 1v5c0 .55.45 1 1 1s1-.45 1-1v-5c0-.55-.45-1-1-1zm-3 2c-.55 0-1 .45-1 1v3c0 .55.45 1 1 1s1-.45 1-1v-3c0-.55-.45-1-1-1zm-3 1c-.55 0-1 .45-1 1v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1z" /></svg>
+                </a>
+              )}
               <div className="flex-1" />
               {colId !== "shortlist" && (
                 <button
@@ -1388,7 +1416,7 @@ useEffect(() => {
   ];
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+    <div className="w-full max-w-[1700px] mx-auto px-4 sm:px-6 py-6 sm:py-8">
       {/* Header */}
       <div className="flex items-center gap-3 mb-5">
         <h1 className="font-display font-semibold text-xl">
@@ -1618,11 +1646,41 @@ useEffect(() => {
                       <h3 className="text-xs font-mono uppercase tracking-widest text-muted border-b pb-1.5" style={{ borderColor: "var(--border)" }}>
                         Contacto
                       </h3>
-                      <div className="space-y-2">
+                      <div className="space-y-3">
                         <p className="text-sm">
                           <span className="text-muted block text-[10px] uppercase mb-0.5">Email del productor</span>
                           {sub.producer_email || t("crm.no_email")}
                         </p>
+                        {sub.producer_instagram && (
+                          <p className="text-sm">
+                            <span className="text-muted block text-[10px] uppercase mb-0.5">Instagram</span>
+                            <a 
+                              href={`https://instagram.com/${sub.producer_instagram.replace(/^@/, "")}`} 
+                              target="_blank" 
+                              rel="noopener noreferrer" 
+                              className="inline-flex items-center gap-1.5 text-emerald-400 hover:text-emerald-300 transition-colors font-medium"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5" /><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" /><line x1="17.5" y1="6.5" x2="17.51" y2="6.5" /></svg>
+                              @{sub.producer_instagram.replace(/^@/, "")}
+                            </a>
+                          </p>
+                        )}
+                        {sub.producer_soundcloud && (
+                          <p className="text-sm">
+                            <span className="text-muted block text-[10px] uppercase mb-0.5">SoundCloud</span>
+                            <a 
+                              href={`https://soundcloud.com/${sub.producer_soundcloud}`} 
+                              target="_blank" 
+                              rel="noopener noreferrer" 
+                              className="inline-flex items-center gap-1.5 text-orange-400 hover:text-orange-300 transition-colors font-medium"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 9c-.55 0-1 .45-1 1v7c0 .55.45 1 1 1s1-.45 1-1v-7c0-.55-.45-1-1-1zm3-2c-.55 0-1 .45-1 1v9c0 .55.45 1 1 1s1-.45 1-1V8c0-.55-.45-1-1-1zm3 2c-.55 0-1 .45-1 1v7c0 .55.45 1 1 1s1-.45 1-1v-7c0-.55-.45-1-1-1zm3 2c-.55 0-1 .45-1 1v5c0 .55.45 1 1 1s1-.45 1-1v-5c0-.55-.45-1-1-1zM9 11c-.55 0-1 .45-1 1v5c0 .55.45 1 1 1s1-.45 1-1v-5c0-.55-.45-1-1-1zm-3 2c-.55 0-1 .45-1 1v3c0 .55.45 1 1 1s1-.45 1-1v-3c0-.55-.45-1-1-1zm-3 1c-.55 0-1 .45-1 1v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1z" /></svg>
+                              {sub.producer_soundcloud}
+                            </a>
+                          </p>
+                        )}
                         <p className="text-sm">
                           <span className="text-muted block text-[10px] uppercase mb-0.5">Recibido</span>
                           {new Date(sub.created_at).toLocaleString("es-AR")}
