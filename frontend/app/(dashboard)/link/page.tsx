@@ -64,7 +64,7 @@ export default function LinkPage() {
 
     const fetchLabel = async () => {
       try {
-        const res = await fetch(`/api/labels/${storedSlug}`);
+        const res = await fetch(`/api/labels/${storedSlug}?t=${Date.now()}`);
         if (!res.ok) throw new Error("Failed to fetch label");
         const data: LabelInfo = await res.json();
         setLabelName(data.name);
@@ -137,7 +137,10 @@ export default function LinkPage() {
       const resText = await fetch(`/api/labels/${slug}/submission-text`, {
         method: "PUT",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          ...getAuthHeaders()
+        },
         body: JSON.stringify({ 
           title: editTitle, 
           description: editDescription,
@@ -245,26 +248,31 @@ export default function LinkPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-6 py-12">
+    <div className="w-full max-w-[1700px] mx-auto px-6 py-12">
       <div className="text-xs font-mono uppercase tracking-wider text-muted mb-1">{t("link.section_label")}</div>
-      <h1 className="font-display font-semibold text-2xl mb-6">{t("link.title")}</h1>
-
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 mb-4 max-w-3xl">
-        <div className="flex-1 px-4 py-3 rounded border font-mono text-sm overflow-x-auto whitespace-nowrap" style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}>
-          {submissionUrl}
-        </div>
-        <button onClick={handleCopy} className="px-4 py-3 rounded text-sm font-medium transition-all hover:opacity-90 flex-shrink-0" style={{ background: "#10b981", color: "#09090b" }}>
-          {copied ? t("link.copied") : t("link.copy")}
-        </button>
-      </div>
-
-      <p className="text-sm text-muted mb-8 max-w-3xl">{t("link.description")}</p>
+      <h1 className="font-display font-semibold text-2xl mb-8">{t("link.title")}</h1>
 
       {/* Main Grid: Left side config, Right side simulation */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         
         {/* Left Column: Config Panel */}
-        <div className="lg:col-span-7">
+        <div className="lg:col-span-7 space-y-6">
+          
+          {/* Compartir Link Card */}
+          <div className="rounded-lg border p-6" style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}>
+            <h2 className="text-xs font-semibold text-white mb-2 uppercase tracking-wider">Compartir link con productores</h2>
+            <p className="text-xs text-muted mb-4">{t("link.description")}</p>
+            
+            <div className="flex items-center gap-2">
+              <div className="flex-1 px-3 py-2 rounded border font-mono text-xs overflow-x-auto whitespace-nowrap bg-zinc-950/40" style={{ borderColor: "var(--border)" }}>
+                {submissionUrl}
+              </div>
+              <button onClick={handleCopy} className="px-4 py-2 rounded text-xs font-bold transition-all hover:opacity-90 flex-shrink-0" style={{ background: "#10b981", color: "#09090b" }}>
+                {copied ? t("link.copied") : t("link.copy")}
+              </button>
+            </div>
+          </div>
+
           <div className="rounded-lg border p-6" style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}>
             <div className="text-xs font-mono text-muted mb-6">{t("link.edit.section")}</div>
             

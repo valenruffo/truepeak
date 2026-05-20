@@ -21,7 +21,7 @@ export default function SubmissionPage() {
   useEffect(() => {
     const fetchLabel = async () => {
       try {
-        const res = await fetch(`/api/labels/${slug}`);
+        const res = await fetch(`/api/labels/${slug}?t=${Date.now()}`);
         if (res.ok) {
           const data = await res.json();
           setLabelName(data.name);
@@ -242,14 +242,21 @@ export default function SubmissionPage() {
             {askInstagram && (
               <div>
                 <label className="text-sm font-medium mb-1.5 block">Instagram (opcional)</label>
-                <input
-                  type="text"
-                  value={producerInstagram}
-                  onChange={(e) => setProducerInstagram(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded border text-sm bg-transparent"
-                  style={{ borderColor: "#27272a" }}
-                  placeholder="@djkrill"
-                />
+                <div className="flex rounded border bg-transparent" style={{ borderColor: "#27272a" }}>
+                  <span className="flex items-center justify-center px-3 bg-zinc-900/50 text-zinc-500 border-r border-zinc-800 text-sm select-none rounded-l">
+                    @
+                  </span>
+                  <input
+                    type="text"
+                    value={producerInstagram}
+                    onChange={(e) => {
+                      const cleanVal = e.target.value.replace(/[@\s]/g, "");
+                      setProducerInstagram(cleanVal);
+                    }}
+                    className="flex-1 px-3 py-2.5 bg-transparent border-0 outline-none text-sm rounded-r"
+                    placeholder="djkrill"
+                  />
+                </div>
               </div>
             )}
 
