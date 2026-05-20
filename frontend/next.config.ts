@@ -14,6 +14,11 @@ const nextConfig: NextConfig = {
         source: "/api/debug-backend",
         destination: "/api/debug-backend",
       },
+      // Proxy label logos to backend
+      {
+        source: "/logos/:path*",
+        destination: "http://164.152.194.196:8000/logos/:path*",
+      },
       // All other API requests proxied to backend
       {
         source: "/api/:path*",

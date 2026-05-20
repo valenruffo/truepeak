@@ -1,9 +1,12 @@
 {
   "rewrites": [
-
     {
       "source": "/api/debug-backend",
       "destination": "/api/debug-backend"
+    },
+    {
+      "source": "/logos/:path*",
+      "destination": "http://164.152.194.196:8000/logos/:path*"
     },
     {
       "source": "/api/:path*",
