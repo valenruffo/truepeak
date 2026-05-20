@@ -263,8 +263,30 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
     setMounted(true);
     const slug = localStorage.getItem("slug");
     const token = localStorage.getItem("token");
+
+    if (!slug || !token) {
+      router.push("/login");
+      return;
+    }
+
     const storedRole = localStorage.getItem("role") || "label";
     setCurrentRole(storedRole);
+
+    // Intercept 401 Unauthorized globally while on dashboard
+    const originalFetch = window.fetch;
+    window.fetch = async (...args) => {
+      const res = await originalFetch(...args);
+      if (res.status === 401) {
+        localStorage.removeItem("slug");
+        localStorage.removeItem("label_id");
+        localStorage.removeItem("plan");
+        localStorage.removeItem("token");
+        localStorage.removeItem("role");
+        localStorage.removeItem("admin_plan_override");
+        window.location.href = "/login";
+      }
+      return res;
+    };
 
     const fetchLabel = async () => {
       if (!slug) { setLabelName(""); setPlanInfo(""); return; }
@@ -385,6 +407,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
     fetchTracks();
 
     return () => {
+      window.fetch = originalFetch;
       window.removeEventListener("plan_updated", handlePlanUpdate);
     };
   }, []);
