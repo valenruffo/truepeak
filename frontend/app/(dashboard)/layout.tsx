@@ -225,7 +225,7 @@ function PlayerBar() {
           {volume > 0 && <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />}
           {volume > 0.5 && <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />}
         </svg>
-        <input type="range" min="0" max="1" step="0.01" value={volume} onChange={(e) => setVolume(parseFloat(e.target.value))} className="w-16 h-1" style={{ accentColor: "#10b981" }} />
+        <input type="range" min="0" max="1" step="0.01" value={volume} onChange={(e) => setVolume(parseFloat(e.target.value))} className="w-28 spotify-slider" />
       </div>
     </div>
   );

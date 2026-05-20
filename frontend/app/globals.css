@@ -126,3 +126,59 @@
 .animate-tp-wave-3 { animation: tp-wave-loading-3 1.2s infinite ease-in-out; }
 .animate-tp-wave-4 { animation: tp-wave-loading-4 1.2s infinite ease-in-out; }
 .animate-tp-wave-5 { animation: tp-wave-loading-5 1.2s infinite ease-in-out; }
+
+/* Spotify-like slider styling */
+.spotify-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  background: #27272a;
+  border-radius: 4px;
+  outline: none;
+  height: 4px;
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+
+.spotify-slider:hover {
+  background: #3f3f46;
+}
+
+/* Chrome, Safari, Opera, and Edge */
+.spotify-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #10b981;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.1s ease, transform 0.1s ease;
+}
+
+.spotify-slider:hover::-webkit-slider-thumb,
+.spotify-slider:focus-within::-webkit-slider-thumb,
+.spotify-slider::-webkit-slider-thumb:active {
+  opacity: 1;
+  transform: scale(1.2);
+}
+
+/* Firefox */
+.spotify-slider::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #10b981;
+  cursor: pointer;
+  border: none;
+  opacity: 0;
+  transition: opacity 0.1s ease, transform 0.1s ease;
+}
+
+.spotify-slider:hover::-moz-range-thumb,
+.spotify-slider:focus-within::-moz-range-thumb,
+.spotify-slider::-moz-range-thumb:active {
+  opacity: 1;
+  transform: scale(1.2);
+}
+
