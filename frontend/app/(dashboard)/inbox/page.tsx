@@ -1410,47 +1410,51 @@ useEffect(() => {
         </div>
       )}
 
-      {/* Tabs */}
-      <div className="mb-5 flex gap-1 items-center">
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className="px-4 py-1.5 text-sm font-medium rounded transition-colors"
-            style={{
-              background:
-                activeTab === tab.key
-                  ? "var(--bg-card-alt)"
-                  : "transparent",
-              color:
-                activeTab === tab.key
-                  ? "var(--text-primary)"
-                  : "var(--text-muted)",
-              border:
-                activeTab === tab.key
-                  ? "1px solid var(--border)"
-                  : "1px solid transparent",
-            }}
-          >
-            <span className="flex items-center gap-2">
-              {tab.label}
-              {tab.key === "kanban" && (
-                (() => {
-                  const unreadCount = board.inbox.filter(s => !interactedIds.has(s.id)).length;
-                  if (unreadCount === 0) return null;
-                  return (
-                    <span className="w-4 h-4 flex items-center justify-center rounded-full text-[9px] bg-emerald-500/80 text-black font-bold">
-                      {unreadCount}
-                    </span>
-                  );
-                })()
-              )}
-            </span>
-          </button>
-        ))}
-      </div>
+      {/* Tabs & Filters Row */}
+      <div className="mb-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        {/* Left Side: Tabs */}
+        <div className="flex gap-1 items-center flex-wrap">
+          {tabs.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className="px-4 py-1.5 text-sm font-medium rounded transition-colors"
+              style={{
+                background:
+                  activeTab === tab.key
+                    ? "var(--bg-card-alt)"
+                    : "transparent",
+                color:
+                  activeTab === tab.key
+                    ? "var(--text-primary)"
+                    : "var(--text-muted)",
+                border:
+                  activeTab === tab.key
+                    ? "1px solid var(--border)"
+                    : "1px solid transparent",
+              }}
+            >
+              <span className="flex items-center gap-2">
+                {tab.label}
+                {tab.key === "kanban" && (
+                  (() => {
+                    const unreadCount = board.inbox.filter(s => !interactedIds.has(s.id)).length;
+                    if (unreadCount === 0) return null;
+                    return (
+                      <span className="w-4 h-4 flex items-center justify-center rounded-full text-[9px] bg-emerald-500/80 text-black font-bold">
+                        {unreadCount}
+                      </span>
+                    );
+                  })()
+                )}
+              </span>
+            </button>
+          ))}
+        </div>
 
-      <KanbanFilterBar sonicSignature={sonicSignature} />
+        {/* Right Side: Filters */}
+        <KanbanFilterBar sonicSignature={sonicSignature} />
+      </div>
 
       {activeTab === "kanban" && (
         <DragDropContext onDragEnd={handleDragEnd}>

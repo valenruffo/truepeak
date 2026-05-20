@@ -60,14 +60,7 @@ export function KanbanFilterBar({ sonicSignature }: { sonicSignature?: any }) {
   }, [bpmMin, bpmMax, sliderMin, sliderMax]);
 
   return (
-    <div 
-      className="flex flex-wrap items-center gap-3 mb-6 p-4 rounded-md border"
-      style={{ 
-        background: "rgba(16, 185, 129, 0.02)", 
-        borderColor: "rgba(16, 185, 129, 0.15)",
-        color: "var(--text-primary)"
-      }}
-    >
+    <div className="flex flex-wrap items-center gap-2">
       <div className="text-sm font-semibold mr-2 flex items-center gap-2" style={{ color: "#10b981" }}>
         Filtros
         {activeFilterCount > 0 && (
@@ -98,7 +91,7 @@ export function KanbanFilterBar({ sonicSignature }: { sonicSignature?: any }) {
             )}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-64 p-4" align="start">
+        <PopoverContent className="w-64 p-4" align="end">
           <div className="space-y-4">
             <div className="flex justify-between items-center border-b pb-2" style={{ borderColor: "var(--border)" }}>
               <h4 className="font-medium text-sm">Rango de BPM</h4>
@@ -146,7 +139,7 @@ export function KanbanFilterBar({ sonicSignature }: { sonicSignature?: any }) {
             )}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-64 p-3" align="start">
+        <PopoverContent className="w-64 p-3" align="end">
           <h4 className="font-medium text-sm mb-3 border-b pb-2" style={{ borderColor: "var(--border)" }}>Tonalidad Camelot</h4>
           <div className="grid grid-cols-4 gap-2">
             {camelotKeys.map((key) => {
@@ -190,7 +183,7 @@ export function KanbanFilterBar({ sonicSignature }: { sonicSignature?: any }) {
             )}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-48 p-2" align="start">
+        <PopoverContent className="w-48 p-2" align="end">
           <div className="flex flex-col gap-1">
             {[
               { label: "Últimos 7 días", value: "7d", days: 7 },
