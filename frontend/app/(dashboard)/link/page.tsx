@@ -510,7 +510,7 @@ export default function LinkPage() {
                 <label className="text-xs font-medium text-zinc-400 mb-1 block">Archivo de audio</label>
                 <div className="rounded-lg border border-dashed border-zinc-800 p-6 text-center bg-zinc-900/20">
                   <div className="text-xs text-zinc-400 font-medium">Arrastrá tu audio acá</div>
-                  <div className="text-[10px] text-zinc-600 mt-0.5">WAV, FLAC o AIFF · Max 100MB</div>
+                  <div className="text-[10px] text-zinc-600 mt-0.5">WAV, FLAC o AIFF · Max 200MB</div>
                 </div>
               </div>
 

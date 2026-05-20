@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 router = APIRouter(prefix="/api", tags=["upload"])
 
 # Constants
-MAX_AUDIO_SIZE = 100 * 1024 * 1024  # 100MB
+MAX_AUDIO_SIZE = 200 * 1024 * 1024  # 200MB
 ALLOWED_EXTENSIONS = {".wav", ".flac", ".aiff", ".aif"}
 TMP_DIR = Path("/tmp")
 TMP_DIR.mkdir(parents=True, exist_ok=True)

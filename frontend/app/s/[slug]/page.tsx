@@ -85,8 +85,8 @@ export default function SubmissionPage() {
       setError("Solo se aceptan archivos WAV, FLAC o AIFF");
       return;
     }
-    if (f.size > 100 * 1024 * 1024) {
-      setError("El archivo no puede superar los 100MB");
+    if (f.size > 200 * 1024 * 1024) {
+      setError("El archivo no puede superar los 200MB");
       return;
     }
     setError("");
@@ -316,7 +316,7 @@ export default function SubmissionPage() {
                 ) : (
                   <div>
                     <div className="text-sm mb-1">Arrastrá tu audio acá</div>
-                    <div className="text-xs text-muted">o hacé clic para seleccionar · Max 100MB</div>
+                    <div className="text-xs text-muted">o hacé clic para seleccionar · Max 200MB</div>
                   </div>
                 )}
               </div>
