@@ -118,7 +118,9 @@ def _seed_demo_user(session: Session) -> None:
                 "tempo": True,
                 "reject_clipping": True,
                 "reject_low_dynamic_range": True
-            }
+            },
+            "allowed_formats": ["wav", "flac", "aiff"],
+            "max_upload_size_mb": 100
         }
     )
     session.add(label)

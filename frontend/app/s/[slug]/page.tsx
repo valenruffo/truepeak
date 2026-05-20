@@ -15,6 +15,8 @@ export default function SubmissionPage() {
   );
   const [askInstagram, setAskInstagram] = useState(false);
   const [askSoundcloud, setAskSoundcloud] = useState(false);
+  const [allowedFormats, setAllowedFormats] = useState<string[]>(["wav", "flac", "aiff"]);
+  const [maxUploadSizeMb, setMaxUploadSizeMb] = useState<number>(100);
   const [labelLoading, setLabelLoading] = useState(true);
   const [labelError, setLabelError] = useState(false);
 
@@ -32,6 +34,14 @@ export default function SubmissionPage() {
           if (data.submission_description) setSubmissionDescription(data.submission_description);
           setAskInstagram(!!data.ask_instagram);
           setAskSoundcloud(!!data.ask_soundcloud);
+          if (data.sonic_signature) {
+            if (data.sonic_signature.allowed_formats) {
+              setAllowedFormats(data.sonic_signature.allowed_formats);
+            }
+            if (data.sonic_signature.max_upload_size_mb) {
+              setMaxUploadSizeMb(data.sonic_signature.max_upload_size_mb);
+            }
+          }
         } else {
           setLabelError(true);
         }
@@ -79,14 +89,21 @@ export default function SubmissionPage() {
   }, []);
 
   const handleFile = (f: File) => {
-    const validExts = [".wav", ".flac", ".aiff", ".aif"];
+    const validExts = allowedFormats.flatMap((fmt) => {
+      const lower = fmt.toLowerCase();
+      if (lower === "wav") return [".wav"];
+      if (lower === "flac") return [".flac"];
+      if (lower === "aiff" || lower === "aif") return [".aiff", ".aif"];
+      return [`.${lower}`];
+    });
     const ext = "." + f.name.split(".").pop()?.toLowerCase();
     if (!validExts.includes(ext)) {
-      setError("Solo se aceptan archivos WAV, FLAC o AIFF");
+      const allowedStr = allowedFormats.map(fmt => fmt.toUpperCase()).join(", ");
+      setError(`Solo se aceptan archivos ${allowedStr}`);
       return;
     }
-    if (f.size > 200 * 1024 * 1024) {
-      setError("El archivo no puede superar los 200MB");
+    if (f.size > maxUploadSizeMb * 1024 * 1024) {
+      setError(`El archivo no puede superar los ${maxUploadSizeMb}MB`);
       return;
     }
     setError("");
@@ -304,7 +321,10 @@ export default function SubmissionPage() {
                 <input
                   id="file-input"
                   type="file"
-                  accept=".wav,.flac,.aiff,.aif"
+                  accept={allowedFormats.map(fmt => {
+                    if (fmt.toLowerCase() === "aiff") return ".aiff,.aif";
+                    return `.${fmt.toLowerCase()}`;
+                  }).join(",")}
                   className="hidden"
                   onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
                 />
@@ -316,7 +336,7 @@ export default function SubmissionPage() {
                 ) : (
                   <div>
                     <div className="text-sm mb-1">Arrastrá tu audio acá</div>
-                    <div className="text-xs text-muted">o hacé clic para seleccionar · Max 200MB</div>
+                    <div className="text-xs text-muted">o hacé clic para seleccionar · Max {maxUploadSizeMb}MB ({allowedFormats.map(f => f.toUpperCase()).join(", ")})</div>
                   </div>
                 )}
               </div>

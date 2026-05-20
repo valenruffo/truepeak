@@ -14,6 +14,8 @@ interface SonicSignature {
   duration_enabled?: boolean;
   duration_max?: number;
   auto_reject_rules: { phase: boolean; tempo: boolean; clipping?: boolean; dynamics?: boolean; reject_clipping?: boolean; reject_low_dynamic_range?: boolean };
+  allowed_formats?: string[];
+  max_upload_size_mb?: number;
 }
 
 const GENRE_PRESETS: Record<string, { bpm: [number, number]; lufs: number; durMax?: number; color: string }> = {
@@ -38,6 +40,8 @@ export default function ConfigPage() {
   const [autoReject, setAutoReject] = useState({ phase: true, tempo: true, clipping: false, dynamics: false });
   const [durationEnabled, setDurationEnabled] = useState(false);
   const [durationMax, setDurationMax] = useState(600);
+  const [allowedFormats, setAllowedFormats] = useState<string[]>(["wav", "flac", "aiff"]);
+  const [maxUploadSizeMb, setMaxUploadSizeMb] = useState<number>(100);
 
   const [fetching, setFetching] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -72,6 +76,8 @@ export default function ConfigPage() {
           });
           setDurationEnabled(sig.duration_enabled ?? false);
           if (sig.duration_max) setDurationMax(sig.duration_max);
+          setAllowedFormats(sig.allowed_formats ?? ["wav", "flac", "aiff"]);
+          setMaxUploadSizeMb(sig.max_upload_size_mb ?? 100);
         }
       } catch (e) { setFetchError(e instanceof Error ? e.message : t("inbox.error_unknown")); }
       finally { setFetching(false); }
@@ -101,7 +107,7 @@ export default function ConfigPage() {
     try {
       const res = await fetch(`${API}/api/labels/${slug}/config`, {
         method: "PUT", headers: getAuthHeaders(), credentials: "include",
-        body: JSON.stringify({ sonic_signature: { bpm_min: bpmRange[0], bpm_max: bpmRange[1], lufs_target: lufsTarget, lufs_tolerance: lufsTolerance, target_camelot_keys: selectedCamelotKeys, preferred_scales: selectedCamelotKeys, duration_enabled: durationEnabled, duration_max: durationEnabled ? durationMax : null, auto_reject_rules: { phase: autoReject.phase, tempo: autoReject.tempo, reject_clipping: autoReject.clipping, reject_low_dynamic_range: autoReject.dynamics } } }),
+        body: JSON.stringify({ sonic_signature: { bpm_min: bpmRange[0], bpm_max: bpmRange[1], lufs_target: lufsTarget, lufs_tolerance: lufsTolerance, target_camelot_keys: selectedCamelotKeys, preferred_scales: selectedCamelotKeys, duration_enabled: durationEnabled, duration_max: durationEnabled ? durationMax : null, auto_reject_rules: { phase: autoReject.phase, tempo: autoReject.tempo, reject_clipping: autoReject.clipping, reject_low_dynamic_range: autoReject.dynamics }, allowed_formats: allowedFormats, max_upload_size_mb: maxUploadSizeMb } }),
       });
       if (!res.ok) throw new Error(`Error ${res.status}`);
       setSaved(true);
@@ -246,6 +252,64 @@ export default function ConfigPage() {
               <div className="flex justify-between text-[10px] font-mono text-muted mt-1"><span>0:00</span><span>20:00</span></div>
             </div>
           )}
+        </div>
+
+        {/* Upload Limits (Formats and Size) */}
+        <div className="rounded border p-5" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Allowed Formats */}
+            <div>
+              <label className="text-sm font-medium mb-3 block">{t("config.formats_label")}</label>
+              <div className="flex gap-2">
+                {["wav", "flac", "aiff"].map((fmt) => {
+                  const isActive = allowedFormats.includes(fmt);
+                  return (
+                    <button
+                      key={fmt}
+                      onClick={() => {
+                        setAllowedFormats((prev) => {
+                          if (prev.includes(fmt)) {
+                            if (prev.length === 1) return prev;
+                            return prev.filter((f) => f !== fmt);
+                          }
+                          return [...prev, fmt];
+                        });
+                      }}
+                      className="px-4 py-2 rounded-lg text-xs font-semibold border transition-all active:scale-95 flex-1 text-center"
+                      style={{
+                        borderColor: isActive ? "#10b981" : "var(--border)",
+                        background: isActive ? "rgba(16,185,129,0.1)" : "transparent",
+                        color: isActive ? "#10b981" : "var(--text-muted)"
+                      }}
+                    >
+                      {fmt.toUpperCase()}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Max Upload Size */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <label className="text-sm font-medium">{t("config.max_size_label")}</label>
+                <span className="font-mono text-xs px-2.5 py-0.5 rounded-lg" style={{ background: "var(--bg-card)", color: "#10b981" }}>{maxUploadSizeMb} MB</span>
+              </div>
+              <input
+                type="range"
+                min={50}
+                max={200}
+                step={10}
+                value={maxUploadSizeMb}
+                onChange={(e) => setMaxUploadSizeMb(+e.target.value)}
+                className="w-full cursor-pointer accent-emerald-500"
+              />
+              <div className="flex justify-between text-[10px] font-mono text-muted mt-1">
+                <span>50 MB</span>
+                <span>200 MB</span>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Camelot Wheel Selection */}

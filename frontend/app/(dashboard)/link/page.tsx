@@ -14,7 +14,7 @@ type LabelStats = {
   max_tracks_month: number;
   emails_sent_this_month: number;
 };
-type LabelInfo = { id: string; name: string; slug: string; owner_email: string; sonic_signature: string; created_at: string; submission_title?: string; submission_description?: string; plan?: string; max_tracks_month?: number; logo_path?: string | null; ask_instagram?: boolean; ask_soundcloud?: boolean };
+type LabelInfo = { id: string; name: string; slug: string; owner_email: string; sonic_signature: any; created_at: string; submission_title?: string; submission_description?: string; plan?: string; max_tracks_month?: number; logo_path?: string | null; ask_instagram?: boolean; ask_soundcloud?: boolean };
 
 export default function LinkPage() {
   const { t } = useLanguage();
@@ -36,6 +36,8 @@ export default function LinkPage() {
   const [textsError, setTextsError] = useState<string | null>(null);
   const [askInstagram, setAskInstagram] = useState(false);
   const [askSoundcloud, setAskSoundcloud] = useState(false);
+  const [allowedFormats, setAllowedFormats] = useState<string[]>(["wav", "flac", "aiff"]);
+  const [maxUploadSizeMb, setMaxUploadSizeMb] = useState<number>(100);
 
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
@@ -79,6 +81,11 @@ export default function LinkPage() {
         if (data.logo_path) setLogoUrl(`/logos/${data.logo_path}`);
         setAskInstagram(!!data.ask_instagram);
         setAskSoundcloud(!!data.ask_soundcloud);
+        if (data.sonic_signature) {
+          const sig = typeof data.sonic_signature === "string" ? JSON.parse(data.sonic_signature) : data.sonic_signature;
+          if (sig.allowed_formats) setAllowedFormats(sig.allowed_formats);
+          if (sig.max_upload_size_mb) setMaxUploadSizeMb(sig.max_upload_size_mb);
+        }
       } catch {
         setLabelName(storedSlug);
       }
@@ -510,7 +517,7 @@ export default function LinkPage() {
                 <label className="text-xs font-medium text-zinc-400 mb-1 block">Archivo de audio</label>
                 <div className="rounded-lg border border-dashed border-zinc-800 p-6 text-center bg-zinc-900/20">
                   <div className="text-xs text-zinc-400 font-medium">Arrastrá tu audio acá</div>
-                  <div className="text-[10px] text-zinc-600 mt-0.5">WAV, FLAC o AIFF · Max 200MB</div>
+                  <div className="text-[10px] text-zinc-600 mt-0.5">{allowedFormats.map(f => f.toUpperCase()).join(", ")} · Max {maxUploadSizeMb}MB</div>
                 </div>
               </div>
 

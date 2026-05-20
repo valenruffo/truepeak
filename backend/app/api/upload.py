@@ -65,46 +65,11 @@ async def upload_audio(
     audio_path: str | None = None
 
     try:
-        # --- Validate file type ---
-        if not file.filename:
-            raise HTTPException(
-                status_code=400,
-                detail="No filename provided.",
-            )
-        ext = Path(file.filename).suffix.lower()
-        if ext not in ALLOWED_EXTENSIONS:
-            raise HTTPException(
-                status_code=400,
-                detail="Only WAV, FLAC, and AIFF files are accepted.",
-            )
-
-        # --- Read file content and validate size ---
-        content = await file.read()
-        if len(content) > MAX_AUDIO_SIZE:
-            raise HTTPException(
-                status_code=413,
-                detail=f"File too large. Maximum size is {MAX_AUDIO_SIZE // (1024 * 1024)}MB.",
-            )
-
-        if len(content) == 0:
-            raise HTTPException(
-                status_code=400,
-                detail="Empty file received.",
-            )
-
-        # --- Save to /tmp with UUID name, preserving original extension ---
-        audio_filename = f"{uuid.uuid4()}{ext}"
-        audio_path = str(TMP_DIR / audio_filename)
-
-        with open(audio_path, "wb") as f:
-            f.write(content)
-
-        # --- Look up label and sonic signature ---
+        # --- Look up label and sonic signature first ---
         session = next(get_session())
         try:
             label = session.query(Label).filter(Label.slug == label_slug).first()
             if not label:
-                _safe_remove(audio_path)
                 raise HTTPException(
                     status_code=404,
                     detail=f"Label with slug '{label_slug}' not found.",
@@ -127,13 +92,66 @@ async def upload_audio(
                     )
                 ).one()
                 if month_count >= label.max_tracks_month:
-                    _safe_remove(audio_path)
                     raise HTTPException(
                         status_code=400,
                         detail=f"Plan gratuito: máximo {label.max_tracks_month} tracks por mes. Esperá al mes próximo o hacé upgrade.",
                     )
         finally:
             session.close()
+
+        # --- Validate file type ---
+        if not file.filename:
+            raise HTTPException(
+                status_code=400,
+                detail="No filename provided.",
+            )
+        ext = Path(file.filename).suffix.lower()
+        
+        # Get allowed formats from sonic signature (fallback to all 3)
+        allowed_formats = sonic_signature.get("allowed_formats", ["wav", "flac", "aiff"])
+        
+        # Build allowed extensions set
+        allowed_exts = set()
+        for fmt in allowed_formats:
+            fmt_lower = fmt.lower()
+            if fmt_lower == "wav":
+                allowed_exts.update({".wav"})
+            elif fmt_lower == "flac":
+                allowed_exts.update({".flac"})
+            elif fmt_lower in ("aiff", "aif"):
+                allowed_exts.update({".aiff", ".aif"})
+                
+        if ext not in allowed_exts:
+            allowed_str = ", ".join(fmt.upper() for fmt in allowed_formats)
+            raise HTTPException(
+                status_code=400,
+                detail=f"Formatos permitidos por este sello: {allowed_str}.",
+            )
+
+        # Get max upload size from sonic signature (fallback to 100MB, cap at 200MB)
+        max_upload_size_mb = min(sonic_signature.get("max_upload_size_mb", 100), 200)
+        max_size_bytes = max_upload_size_mb * 1024 * 1024
+
+        # --- Read file content and validate size ---
+        content = await file.read()
+        if len(content) > max_size_bytes:
+            raise HTTPException(
+                status_code=413,
+                detail=f"El archivo es demasiado grande. El límite para este sello es {max_upload_size_mb}MB.",
+            )
+
+        if len(content) == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Empty file received.",
+            )
+
+        # --- Save to /tmp with UUID name, preserving original extension ---
+        audio_filename = f"{uuid.uuid4()}{ext}"
+        audio_path = str(TMP_DIR / audio_filename)
+
+        with open(audio_path, "wb") as f:
+            f.write(content)
 
         # --- Process through lifecycle ---
         submission_id = str(uuid.uuid4())
