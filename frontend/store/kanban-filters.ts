@@ -7,6 +7,7 @@ export interface KanbanFiltersState {
   fechaInicio: Date | null;
   fechaFin: Date | null;
   fechaLabel: string | null;
+  hqDownloaded: boolean | null; // null = all, true = downloaded only, false = not downloaded
 
   setBpmMin: (min: number | null) => void;
   setBpmMax: (max: number | null) => void;
@@ -14,6 +15,7 @@ export interface KanbanFiltersState {
   setFechaInicio: (fecha: Date | null) => void;
   setFechaFin: (fecha: Date | null) => void;
   setFechaLabel: (label: string | null) => void;
+  setHqDownloaded: (val: boolean | null) => void;
   clearFilters: () => void;
 }
 
@@ -24,6 +26,7 @@ export const useKanbanFilters = create<KanbanFiltersState>((set) => ({
   fechaInicio: null,
   fechaFin: null,
   fechaLabel: null,
+  hqDownloaded: null,
 
   setBpmMin: (bpmMin) => set({ bpmMin }),
   setBpmMax: (bpmMax) => set({ bpmMax }),
@@ -31,6 +34,7 @@ export const useKanbanFilters = create<KanbanFiltersState>((set) => ({
   setFechaInicio: (fechaInicio) => set({ fechaInicio }),
   setFechaFin: (fechaFin) => set({ fechaFin }),
   setFechaLabel: (fechaLabel) => set({ fechaLabel }),
+  setHqDownloaded: (hqDownloaded) => set({ hqDownloaded }),
   clearFilters: () =>
     set({
       bpmMin: null,
@@ -39,6 +43,7 @@ export const useKanbanFilters = create<KanbanFiltersState>((set) => ({
       fechaInicio: null,
       fechaFin: null,
       fechaLabel: null,
+      hqDownloaded: null,
     }),
 }));
 
@@ -76,6 +81,11 @@ export const filterSubmissions = (
         endOfDay.setHours(23, 59, 59, 999);
         if (subDate > endOfDay) return false;
       }
+    }
+
+    if (filters.hqDownloaded !== null) {
+      if (filters.hqDownloaded && !sub.hq_downloaded) return false;
+      if (!filters.hqDownloaded && sub.hq_downloaded) return false;
     }
 
     return true;

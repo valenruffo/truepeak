@@ -38,6 +38,7 @@ interface SubmissionSummary {
   mp3_path: string | null;
   original_path: string | null;
   human_email_sent?: boolean;
+  hq_downloaded?: boolean;
   rejection_reason?: string | null;
   notes?: string | null;
   producer_instagram?: string | null;
@@ -353,6 +354,9 @@ useEffect(() => {
     reason: string;
   } | null>(null);
 
+  // Download loading state per submission
+  const [downloadLoading, setDownloadLoading] = useState<Record<string, boolean>>({});
+
   // Scroll refs for infinite scroll
   const inboxScrollRef = useRef<HTMLDivElement>(null);
   const shortlistScrollRef = useRef<HTMLDivElement>(null);
@@ -612,11 +616,7 @@ useEffect(() => {
         }
         return next;
       });
-
-      // Open email modal for shortlist or rejected
-      if (status === "shortlist" || status === "rejected") {
-        openEmailModal(sub, status);
-      }
+      // NOTE: email modal is now decoupled — user triggers it manually from the card
     } catch (e) {
       addToast({
         title: "Error",
@@ -720,6 +720,64 @@ useEffect(() => {
 
   const closeEmailModal = () => {
     setEmailModal((p) => ({ ...p, open: false }));
+  };
+
+  // ─── HQ Download ─────────────────────────────────────────────────────────
+
+  const handleDownloadHQ = async (sub: SubmissionSummary) => {
+    setDownloadLoading((p) => ({ ...p, [sub.id]: true }));
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const res = await fetch(`/api/submissions/${sub.id}/download`, {
+        credentials: "include",
+        headers,
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `Error ${res.status}`);
+      }
+
+      // Trigger browser download
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const contentDisposition = res.headers.get("content-disposition") || "";
+      const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
+      a.href = url;
+      a.download = filenameMatch?.[1] || `${sub.track_name || sub.id}.wav`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      // Mark as downloaded in local state (original_path will be null server-side)
+      const updateSub = (s: SubmissionSummary) =>
+        s.id === sub.id ? { ...s, hq_downloaded: true, original_path: null } : s;
+
+      setBoard((prev) => ({
+        inbox: prev.inbox.map(updateSub),
+        shortlist: prev.shortlist.map(updateSub),
+        rejected: prev.rejected.map(updateSub),
+      }));
+
+      addToast({ title: "HQ descargado y eliminado del servidor", variant: "success" });
+    } catch (e) {
+      addToast({
+        title: "Error al descargar",
+        description: e instanceof Error ? e.message : "Error desconocido",
+        variant: "destructive",
+      });
+    } finally {
+      setDownloadLoading((p) => {
+        const next = { ...p };
+        delete next[sub.id];
+        return next;
+      });
+    }
   };
 
   // ─── Delete / Restore ─────────────────────────────────────────────────────
@@ -989,19 +1047,54 @@ useEffect(() => {
                 </button>
               )}
               {sub.producer_email && (
-                <Link
-                  href={`/crm?highlight=${sub.id}`}
+                <button
                   onClick={(e) => {
                     e.stopPropagation();
                     markAsInteracted(sub.id);
+                    openEmailModal(sub, sub.status === "shortlist" ? "shortlist" : "rejected");
                   }}
                   className="w-6 h-6 rounded flex items-center justify-center transition-colors hover:bg-white/10"
-                  style={{ color: "#10b981" }}
-                  title="Ver en CRM"
+                  style={{ color: sub.human_email_sent ? "#10b981" : "var(--text-muted)" }}
+                  title={sub.human_email_sent ? "Mail enviado — enviar otro" : "Enviar email al productor"}
                 >
                   <Mail className="w-4 h-4" />
-                </Link>
+                </button>
               )}
+              {/* HQ Download button */}
+              {sub.hq_downloaded ? (
+                <div
+                  className="w-6 h-6 rounded flex items-center justify-center"
+                  style={{ color: "#10b981" }}
+                  title="HQ descargado"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                </div>
+              ) : sub.original_path ? (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDownloadHQ(sub);
+                  }}
+                  disabled={downloadLoading[sub.id]}
+                  className="w-6 h-6 rounded flex items-center justify-center transition-colors hover:bg-white/10 disabled:opacity-50"
+                  style={{ color: "#10b981" }}
+                  title="Descargar HQ (se elimina del servidor al descargar)"
+                >
+                  {downloadLoading[sub.id] ? (
+                    <div className="w-3 h-3 border border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
+                  ) : (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  )}
+                </button>
+              ) : sub.status === "shortlist" ? (
+                <div
+                  className="w-6 h-6 rounded flex items-center justify-center"
+                  style={{ color: "var(--text-muted)" }}
+                  title="El archivo de alta calidad expiró. Contactá al productor para solicitar el HQ original"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                </div>
+              ) : null}
               {sub.producer_instagram && (
                 <a
                   href={`https://instagram.com/${sub.producer_instagram.replace(/^@/, "")}`}
@@ -1744,20 +1837,56 @@ useEffect(() => {
                   </button>
                 )}
                 {detailModal.submission.producer_email && (
-                  <Link
-                    href={`/crm?highlight=${detailModal.submission.id}`}
-                    className="px-4 py-2 rounded-full text-sm font-medium border border-white/10 hover:bg-white/5 transition-colors"
+                  <button
+                    onClick={() => {
+                      const sub = detailModal.submission!;
+                      setDetailModal({ open: false, submission: null });
+                      openEmailModal(sub, sub.status === "shortlist" ? "shortlist" : "rejected");
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium border transition-colors hover:bg-white/5"
+                    style={{
+                      borderColor: detailModal.submission.human_email_sent ? "rgba(16,185,129,0.5)" : "rgba(255,255,255,0.1)",
+                      color: detailModal.submission.human_email_sent ? "#10b981" : "var(--text-secondary)",
+                    }}
                   >
-                    CONTACTAR
-                  </Link>
+                    <Mail className="w-4 h-4" />
+                    {detailModal.submission.human_email_sent ? "REENVIAR MAIL" : "ENVIAR MAIL"}
+                  </button>
                 )}
+                {detailModal.submission.hq_downloaded ? (
+                  <div className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium border" style={{ borderColor: "rgba(16,185,129,0.3)", color: "#10b981" }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                    HQ DESCARGADO
+                  </div>
+                ) : detailModal.submission.original_path ? (
+                  <button
+                    onClick={() => { handleDownloadHQ(detailModal.submission!); setDetailModal({ open: false, submission: null }); }}
+                    disabled={downloadLoading[detailModal.submission.id]}
+                    className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium border transition-all hover:scale-105 disabled:opacity-50"
+                    style={{ borderColor: "#10b981", color: "#10b981", background: "rgba(16,185,129,0.08)" }}
+                    title="El archivo original se eliminará del servidor tras la descarga"
+                  >
+                    {downloadLoading[detailModal.submission.id] ? (
+                      <div className="w-4 h-4 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
+                    ) : (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    )}
+                    DESCARGAR HQ
+                  </button>
+                ) : detailModal.submission.status === "shortlist" ? (
+                  <div className="flex items-center gap-2 px-4 py-2 rounded-full text-sm border" style={{ borderColor: "rgba(255,255,255,0.08)", color: "var(--text-muted)" }}
+                    title="El archivo de alta calidad expiró. Contactá al productor para solicitar el HQ original">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    HQ EXPIRADO
+                  </div>
+                ) : null}
               </div>
 
               <div className="flex items-center gap-3">
                 {detailModal.submission.status === "inbox" && (
                   <>
                     <button
-                      onClick={() => { updateStatus(detailModal.submission!, "rejected"); setDetailModal({ open: false, submission: null }); }}
+                      onClick={() => { setPendingReject({ sub: detailModal.submission!, reason: "" }); setDetailModal({ open: false, submission: null }); }}
                       className="text-[10px] font-bold text-red-500 hover:underline uppercase tracking-widest"
                     >
                       {t("inbox.kanban.reject")}

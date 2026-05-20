@@ -84,6 +84,7 @@ class Submission(SQLModel, table=True):
     notes: str | None = None
     producer_instagram: str | None = Field(default=None)
     producer_soundcloud: str | None = Field(default=None)
+    hq_downloaded: bool = Field(default=False)  # True once original file has been downloaded
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
     )

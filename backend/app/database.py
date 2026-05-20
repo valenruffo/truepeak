@@ -50,6 +50,8 @@ def _apply_migrations(session: Session) -> None:
         "ALTER TABLE label ADD COLUMN ask_soundcloud BOOLEAN DEFAULT 0",
         "ALTER TABLE submission ADD COLUMN producer_instagram TEXT",
         "ALTER TABLE submission ADD COLUMN producer_soundcloud TEXT",
+        # HQ download tracking
+        "ALTER TABLE submission ADD COLUMN hq_downloaded BOOLEAN DEFAULT 0",
     ]
     for sql in migrations:
         try:

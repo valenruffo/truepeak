@@ -58,6 +58,8 @@ class SubmissionSummary(BaseModel):
     notes: str | None
     producer_instagram: str | None = None
     producer_soundcloud: str | None = None
+    human_email_sent: bool = False
+    hq_downloaded: bool = False
     created_at: str
     deleted_at: str | None = None
 
@@ -165,6 +167,8 @@ async def list_submissions(
             notes=s.notes,
             producer_instagram=s.producer_instagram,
             producer_soundcloud=s.producer_soundcloud,
+            human_email_sent=bool(s.human_email_sent),
+            hq_downloaded=bool(s.hq_downloaded),
             created_at=s.created_at.isoformat(),
             deleted_at=s.deleted_at.isoformat() if s.deleted_at else None,
         )
@@ -372,26 +376,58 @@ async def download_original(
     auth: dict = Depends(_get_label_from_token),
     session: Session = Depends(get_session),
 ):
-    """Download the original or MP3 file. Requires label owner auth."""
+    """Download the original or MP3 file.
+    
+    When downloading the original HQ file:
+    - Marks hq_downloaded = True on the submission
+    - Deletes the original file from disk after serving (keeps only MP3)
+    """
     submission = session.get(Submission, submission_id)
     if not submission:
         raise HTTPException(status_code=404, detail="Submission not found.")
 
     _verify_label_ownership(session, auth["label_id"], submission)
 
+    is_hq_download = type != "mp3"
+
     if type == "mp3":
         file_path = submission.mp3_path
     else:
         file_path = submission.original_path or submission.mp3_path
+        is_hq_download = bool(submission.original_path)  # Only true if original existed
 
     if not file_path or not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="File not available.")
 
     ext = Path(file_path).suffix
     filename = f"{submission.track_name or submission.id}{ext}"
-    
     media_type = "audio/wav" if ext in (".wav",) else "audio/flac" if ext in (".flac",) else "audio/aiff" if ext in (".aiff", ".aif") else "audio/mpeg"
-    
+
+    # If downloading HQ original: mark as downloaded + delete original file after serving
+    if is_hq_download and submission.original_path and os.path.exists(submission.original_path):
+        original_to_delete = submission.original_path
+        submission.hq_downloaded = True
+        submission.original_path = None  # Unlink from DB — MP3 preview remains
+        session.add(submission)
+        session.commit()
+
+        def _delete_after_serve(path: str) -> None:
+            """Delete original HQ file from disk after response has been sent."""
+            try:
+                if os.path.exists(path):
+                    os.remove(path)
+            except OSError:
+                pass  # Best-effort
+
+        from starlette.background import BackgroundTask
+
+        return FileResponse(
+            path=original_to_delete,
+            filename=filename,
+            media_type=media_type,
+            background=BackgroundTask(_delete_after_serve, original_to_delete),
+        )
+
     return FileResponse(
         path=file_path,
         filename=filename,

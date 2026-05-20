@@ -22,12 +22,14 @@ export function KanbanFilterBar({ sonicSignature }: { sonicSignature?: any }) {
     fechaInicio,
     fechaFin,
     fechaLabel,
+    hqDownloaded,
     setBpmMin,
     setBpmMax,
     setTonalidades,
     setFechaInicio,
     setFechaFin,
     setFechaLabel,
+    setHqDownloaded,
     clearFilters,
   } = useKanbanFilters();
 
@@ -42,7 +44,8 @@ export function KanbanFilterBar({ sonicSignature }: { sonicSignature?: any }) {
   const activeFilterCount =
     tonalidades.length +
     (bpmMin !== null || bpmMax !== null ? 1 : 0) +
-    (fechaInicio !== null || fechaFin !== null ? 1 : 0);
+    (fechaInicio !== null || fechaFin !== null ? 1 : 0) +
+    (hqDownloaded !== null ? 1 : 0);
 
   // Default slider bounds based on sonic signature or standard defaults
   const sliderMin = sonicSignature?.bpm_min ?? 70;
@@ -179,6 +182,34 @@ export function KanbanFilterBar({ sonicSignature }: { sonicSignature?: any }) {
                   }}
                 >
                   {displayLabel}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* HQ Download Filter */}
+        <div className="border-t pt-3" style={{ borderColor: "var(--border-light)" }}>
+          <span className="text-xs font-semibold text-primary block mb-1.5">HQ Descargado</span>
+          <div className="flex gap-1">
+            {[
+              { label: "Todos", value: null },
+              { label: "✓ Descargados", value: true },
+              { label: "↓ Pendientes", value: false },
+            ].map((opt) => {
+              const isActive = hqDownloaded === opt.value;
+              return (
+                <button
+                  key={String(opt.value)}
+                  onClick={() => setHqDownloaded(opt.value)}
+                  className="flex-1 text-[10px] px-2 py-1 rounded border transition-colors font-medium"
+                  style={{
+                    background: isActive ? (opt.value === true ? "#10b981" : opt.value === false ? "rgba(6,182,212,0.15)" : "var(--bg-secondary)") : "var(--bg-secondary)",
+                    borderColor: isActive ? (opt.value === true ? "#10b981" : opt.value === false ? "#06b6d4" : "var(--border)") : "var(--border)",
+                    color: isActive ? (opt.value === true ? "#09090b" : opt.value === false ? "#06b6d4" : "var(--text-muted)") : "var(--text-muted)",
+                  }}
+                >
+                  {opt.label}
                 </button>
               );
             })}
