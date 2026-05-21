@@ -1495,17 +1495,6 @@ useEffect(() => {
                 >
                   {statusLabel(sub.status, role, t)}
                 </span>
-                {sub.human_email_sent && (
-                  <span
-                    className="font-mono text-[10px] px-1.5 py-0.5 rounded"
-                    style={{
-                      background: "rgba(16,185,129,0.10)",
-                      color: "#10b981",
-                    }}
-                  >
-                    {t("inbox.kanban.email_sent")}
-                  </span>
-                )}
                 <div className="text-[10px]">
                   <ExpirationCountdown createdAt={sub.created_at} retentionDays={retentionDays} />
                 </div>
@@ -1538,13 +1527,13 @@ useEffect(() => {
               )}
               {sub.producer_email && (
                 sub.human_email_sent ? (
-                  <span
-                    className="font-mono text-[10px] px-1.5 py-0.5 rounded cursor-not-allowed"
-                    style={{ background: "rgba(16,185,129,0.12)", color: "#10b981", border: "1px solid rgba(16,185,129,0.25)" }}
+                  <div
+                    className="w-6 h-6 rounded flex items-center justify-center"
+                    style={{ color: "#10b981" }}
                     title="Email ya enviado al productor"
                   >
-                    Enviado!
-                  </span>
+                    <Mail className="w-4 h-4" />
+                  </div>
                 ) : (
                   <button
                     onClick={(e) => {
@@ -1915,16 +1904,16 @@ useEffect(() => {
                     </svg>
                   </button>
 
-                  {/* Email: disabled badge if sent, button otherwise */}
+                  {/* Email: icon only — green if sent, clickable if not */}
                   {d.producer_email && (
                     d.human_email_sent ? (
-                      <span
-                        className="font-mono text-[10px] px-1.5 py-0.5 rounded cursor-not-allowed"
-                        style={{ background: "rgba(16,185,129,0.12)", color: "#10b981", border: "1px solid rgba(16,185,129,0.25)" }}
+                      <div
+                        className="w-7 h-7 rounded flex items-center justify-center"
+                        style={{ color: "#10b981" }}
                         title="Email ya enviado al productor"
                       >
-                        Enviado!
-                      </span>
+                        <Mail className="w-3.5 h-3.5" />
+                      </div>
                     ) : (
                       <button
                         onClick={(e) => {
