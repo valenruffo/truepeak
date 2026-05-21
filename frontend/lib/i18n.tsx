@@ -229,6 +229,8 @@ const translations = {
     "inbox.error_discard": "Error al descartar",
     "inbox.download_unavailable": "Archivo no disponible para descarga.",
     "inbox.hq_toggle": "HQ",
+    "inbox.view.kanban": "Kanban",
+    "inbox.view.list": "Lista",
 
     // Kanban
     "inbox.kanban_tab": "Kanban",
@@ -727,6 +729,8 @@ const translations = {
     "inbox.error_discard": "Error discarding",
     "inbox.download_unavailable": "File not available for download.",
     "inbox.hq_toggle": "HQ",
+    "inbox.view.kanban": "Kanban",
+    "inbox.view.list": "List",
 
     // Kanban
     "inbox.kanban_tab": "Kanban",

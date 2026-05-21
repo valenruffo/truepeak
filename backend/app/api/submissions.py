@@ -65,7 +65,7 @@ class SubmissionSummary(BaseModel):
 
 
 class UpdateStatusRequest(BaseModel):
-    status: str  # "shortlist" | "rejected" | "approved" | "auto_rejected"
+    status: str  # "inbox" | "shortlist" | "rejected" | "approved" | "auto_rejected"
     rejection_reason: str | None = None
 
 
@@ -219,10 +219,10 @@ async def update_submission_status(
     session: Session = Depends(get_session),
 ):
     """Update submission status (shortlist/reject/auto_reject manually). Requires label owner auth."""
-    if body.status not in ("shortlist", "rejected", "approved", "auto_rejected"):
+    if body.status not in ("inbox", "shortlist", "rejected", "approved", "auto_rejected"):
         raise HTTPException(
             status_code=400,
-            detail="Status must be 'shortlist', 'rejected', 'approved', or 'auto_rejected'.",
+            detail="Status must be 'inbox', 'shortlist', 'rejected', 'approved', or 'auto_rejected'.",
         )
 
     submission = session.get(Submission, submission_id)

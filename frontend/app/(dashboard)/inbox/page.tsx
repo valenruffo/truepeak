@@ -237,6 +237,18 @@ function InboxContent() {
   const [activeTab, setActiveTab] = useState<TabKey>("kanban");
   const [fetchError, setFetchError] = useState<string | null>(null);
 
+  const [viewMode, setViewMode] = useState<"kanban" | "list">(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("inboxViewMode");
+      if (saved === "kanban" || saved === "list") return saved;
+    }
+    return "kanban";
+  });
+
+  useEffect(() => {
+    localStorage.setItem("inboxViewMode", viewMode);
+  }, [viewMode]);
+
   // Role for dynamic i18n keys
   const [role, setRole] = useState<"label" | "dj">("label");
 
@@ -363,6 +375,7 @@ useEffect(() => {
   const rejectedScrollRef = useRef<HTMLDivElement>(null);
   const systemScrollRef = useRef<HTMLDivElement>(null);
   const trashScrollRef = useRef<HTMLDivElement>(null);
+  const listScrollRef = useRef<HTMLDivElement>(null);
 
   const API = "";
 
@@ -492,7 +505,7 @@ useEffect(() => {
   const handleScroll = useCallback(
     (
       e: React.UIEvent<HTMLDivElement>,
-      column: "inbox" | "shortlist" | "rejected" | "system" | "trash"
+      column: "inbox" | "shortlist" | "rejected" | "system" | "trash" | "list"
     ) => {
       const el = e.currentTarget;
       const nearBottom =
@@ -517,6 +530,10 @@ useEffect(() => {
         fetchSystem(true);
       } else if (column === "trash" && trashHasMore && !trashLoading) {
         fetchTrash(true);
+      } else if (column === "list") {
+        if (boardHasMore.inbox && !boardLoading.inbox) fetchColumn("inbox", true);
+        if (boardHasMore.shortlist && !boardLoading.shortlist) fetchColumn("shortlist", true);
+        if (boardHasMore.rejected && !boardLoading.rejected) fetchColumn("rejected", true);
       }
     },
     [
@@ -582,7 +599,7 @@ useEffect(() => {
 
   const updateStatus = async (
     sub: SubmissionSummary,
-    status: "shortlist" | "rejected",
+    status: "inbox" | "shortlist" | "rejected",
     reason?: string
   ) => {
     setActionLoading((p) => ({ ...p, [sub.id]: status }));
@@ -613,6 +630,8 @@ useEffect(() => {
           next.shortlist = [updated, ...next.shortlist];
         } else if (status === "rejected") {
           next.rejected = [updated, ...next.rejected];
+        } else if (status === "inbox") {
+          next.inbox = [updated, ...next.inbox];
         }
         return next;
       });
@@ -1122,32 +1141,6 @@ useEffect(() => {
                 </a>
               )}
               <div className="flex-1" />
-              {colId !== "shortlist" && (
-                <button
-                  onClick={() => updateStatus(sub, "shortlist")}
-                  disabled={!!isLoading}
-                  className="px-2 py-0.5 rounded text-[10px] font-medium disabled:opacity-50 transition-colors hover:bg-white/10"
-                  style={{ background: "#10b981", color: "#09090b" }}
-                >
-                  {isLoading === "shortlist"
-                    ? "..."
-                    : t("inbox.kanban.approve")}
-                </button>
-              )}
-              {colId !== "rejected" && (
-                <button
-                  onClick={() => {
-                    setPendingReject({ sub, reason: "" });
-                  }}
-                  disabled={!!isLoading}
-                  className="px-2 py-0.5 rounded text-[10px] font-medium disabled:opacity-50 transition-colors hover:bg-white/10"
-                  style={{ background: "rgba(239,68,68,0.15)", color: "#ef4444" }}
-                >
-                  {isLoading === "rejected"
-                    ? "..."
-                    : t("inbox.kanban.reject")}
-                </button>
-              )}
               <TwoClickDelete
                 onDelete={() => handleDelete(sub)}
                 size={20}
@@ -1248,6 +1241,250 @@ useEffect(() => {
             </div>
           )}
         </Droppable>
+      </div>
+    );
+  };
+
+  // ─── Status change for list view ──────────────────────────────────────────
+
+  const handleStatusChange = async (sub: SubmissionSummary, newStatus: "inbox" | "shortlist" | "rejected") => {
+    if (newStatus === "rejected") {
+      setPendingReject({ sub, reason: "" });
+    } else {
+      await updateStatus(sub, newStatus);
+    }
+  };
+
+  const handleLoadMoreList = async () => {
+    const promises = [];
+    if (boardHasMore.inbox && !boardLoading.inbox) promises.push(fetchColumn("inbox", true));
+    if (boardHasMore.shortlist && !boardLoading.shortlist) promises.push(fetchColumn("shortlist", true));
+    if (boardHasMore.rejected && !boardLoading.rejected) promises.push(fetchColumn("rejected", true));
+    await Promise.all(promises);
+  };
+
+  // ─── Render: List Tab (Compact Table View) ────────────────────────────────
+
+  const renderListTab = () => {
+    const allItems = [...board.inbox, ...board.shortlist, ...board.rejected];
+    const uniqueItems = Array.from(new Map(allItems.map(item => [item.id, item])).values());
+    uniqueItems.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    const filteredItems = filterSubmissions(uniqueItems, filters);
+
+    return (
+      <div
+        ref={listScrollRef}
+        className="rounded border overflow-hidden"
+        style={{
+          background: "var(--bg-secondary)",
+          borderColor: "var(--border)",
+          maxHeight: "calc(100vh - 250px)",
+          overflowY: "auto",
+        }}
+        onScroll={(e) => handleScroll(e, "list")}
+      >
+        {/* Header */}
+        <div
+          className="grid grid-cols-12 gap-2 px-4 py-2.5 text-[10px] font-mono uppercase tracking-wider text-muted border-b"
+          style={{ borderColor: "var(--border)" }}
+        >
+          <div className="col-span-3 flex items-center gap-2">
+            <span>{t("inbox.header.track")}</span>
+          </div>
+          <div className="col-span-1 text-center">{t("inbox.header.bpm")}</div>
+          <div className="col-span-1 text-center">{t("inbox.header.lufs")}</div>
+          <div className="col-span-1 text-center">{t("inbox.header.phase")}</div>
+          <div className="col-span-1 text-center">Clave</div>
+          <div className="col-span-2 text-center">Estado</div>
+          <div className="col-span-3 text-right">Acciones</div>
+        </div>
+
+        {filteredItems.length > 0 ? (
+          filteredItems.map((d) => {
+            const isPlayingThis = isPlaying && currentTrack?.id === d.id;
+            const isLoading = actionLoading[d.id];
+            
+            return (
+              <div
+                key={d.id}
+                className="grid grid-cols-12 gap-2 px-4 py-3 text-xs items-center border-b cursor-pointer hover:bg-white/[0.02] transition-colors"
+                style={{ borderColor: "var(--border-light)" }}
+                onClick={() => setDetailModal({ open: true, submission: d })}
+              >
+                {/* Track Details & Play Button */}
+                <div className="col-span-3 flex items-center gap-2 min-w-0">
+                  {d.mp3_path && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleListen(d);
+                      }}
+                      disabled={!!isLoading}
+                      className="w-8 h-8 rounded-full flex items-center justify-center transition-all bg-white/5 hover:bg-white/10 text-white flex-shrink-0 disabled:opacity-50"
+                      style={{
+                        color: isPlayingThis ? "#10b981" : "inherit",
+                        border: isPlayingThis ? "1px solid #10b981" : "1px solid var(--border)",
+                      }}
+                      title={isPlayingThis ? "Pausar" : "Reproducir"}
+                    >
+                      {isPlayingThis ? (
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+                          <rect x="6" y="4" width="4" height="16" />
+                          <rect x="14" y="4" width="4" height="16" />
+                        </svg>
+                      ) : (
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" className="ml-0.5">
+                          <polygon points="5 3 19 12 5 21 5 3" />
+                        </svg>
+                      )}
+                    </button>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium truncate hover:text-emerald-500 transition-colors">
+                      {d.track_name || t("inbox.modal.no_name")}
+                    </div>
+                    <div className="text-[10px] text-muted truncate">
+                      {d.producer_name || t("inbox.modal.anonymous")} · {formatRelativeTime(d.created_at)}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Technical Columns */}
+                <div className="col-span-1 text-center font-mono">
+                  {formatBpm(d.bpm)}
+                </div>
+                <div className="col-span-1 text-center font-mono">
+                  {formatLufs(d.lufs)}
+                </div>
+                <div className="col-span-1 text-center font-mono text-muted">
+                  {d.phase_correlation != null ? d.phase_correlation.toFixed(2) : "—"}
+                </div>
+                <div className="col-span-1 text-center font-mono text-muted">
+                  {formatKey(d.musical_key)}
+                </div>
+
+                {/* Status Dropdown */}
+                <div className="col-span-2 text-center" onClick={(e) => e.stopPropagation()}>
+                  <select
+                    value={d.status}
+                    onChange={(e) => handleStatusChange(d, e.target.value as any)}
+                    disabled={!!isLoading}
+                    className="bg-zinc-950 text-xs text-white border rounded px-2 py-1 font-sans focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer disabled:opacity-50"
+                    style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}
+                  >
+                    <option value="inbox">{t("inbox.kanban.inbox_col")}</option>
+                    <option value="shortlist">{t("inbox.kanban.shortlist_col")}</option>
+                    <option value="rejected">{t("inbox.kanban.rejected_col")}</option>
+                  </select>
+                </div>
+
+                {/* Action Buttons */}
+                <div
+                  className="col-span-3 text-right flex items-center justify-end gap-1.5"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {/* Approve checkmark button */}
+                  {d.status !== "shortlist" && (
+                    <button
+                      onClick={() => updateStatus(d, "shortlist")}
+                      disabled={!!isLoading}
+                      className="w-7 h-7 rounded flex items-center justify-center transition-colors hover:bg-emerald-500/10 disabled:opacity-50"
+                      style={{ color: "#10b981", border: "1px solid rgba(16,185,129,0.2)" }}
+                      title={t("inbox.kanban.approve")}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    </button>
+                  )}
+
+                  {/* Reject cross button */}
+                  {d.status !== "rejected" && (
+                    <button
+                      onClick={() => setPendingReject({ sub: d, reason: "" })}
+                      disabled={!!isLoading}
+                      className="w-7 h-7 rounded flex items-center justify-center transition-colors hover:bg-red-500/10 disabled:opacity-50"
+                      style={{ color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}
+                      title={t("inbox.kanban.reject")}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    </button>
+                  )}
+
+                  {/* Email button */}
+                  {d.producer_email && (
+                    <button
+                      onClick={() => {
+                        markAsInteracted(d.id);
+                        openEmailModal(d, d.status === "shortlist" ? "shortlist" : "rejected");
+                      }}
+                      disabled={!!isLoading}
+                      className="w-7 h-7 rounded flex items-center justify-center transition-colors hover:bg-white/5 disabled:opacity-50 border"
+                      style={{
+                        borderColor: "var(--border)",
+                        color: d.human_email_sent ? "#10b981" : "var(--text-muted)",
+                      }}
+                      title={d.human_email_sent ? "Mail enviado — enviar otro" : "Enviar email al productor"}
+                    >
+                      <Mail className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+
+                  {/* Download HQ button */}
+                  {d.original_path && (
+                    <button
+                      onClick={() => handleDownloadHQ(d)}
+                      disabled={downloadLoading[d.id] || !!isLoading}
+                      className="w-7 h-7 rounded flex items-center justify-center transition-colors hover:bg-white/5 disabled:opacity-50 border"
+                      style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}
+                      title="Descargar Original (HQ)"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                      </svg>
+                    </button>
+                  )}
+
+                  {/* Delete button */}
+                  <TwoClickDelete
+                    onDelete={() => handleDelete(d)}
+                    size={20}
+                  />
+                </div>
+              </div>
+            );
+          })
+        ) : (
+          <div className="py-12 text-center text-muted">
+            No hay demos en esta vista.
+          </div>
+        )}
+
+        {/* Load more indicator */}
+        {(boardLoading.inbox || boardLoading.shortlist || boardLoading.rejected) && (
+          <div className="py-3 text-center text-muted text-[10px]">
+            {t("inbox.kanban.loading_more")}
+          </div>
+        )}
+
+        {/* Load more button */}
+        {(boardHasMore.inbox || boardHasMore.shortlist || boardHasMore.rejected) &&
+          !(boardLoading.inbox || boardLoading.shortlist || boardLoading.rejected) && (
+            <div className="py-4 flex justify-center">
+              <button
+                onClick={handleLoadMoreList}
+                className="px-4 py-1.5 text-xs border rounded hover:bg-white/5 transition-colors"
+                style={{ borderColor: "var(--border)" }}
+              >
+                Cargar más
+              </button>
+            </div>
+          )}
       </div>
     );
   };
@@ -1571,6 +1808,32 @@ useEffect(() => {
               </span>
             </button>
           ))}
+          {activeTab === "kanban" && (
+            <div className="ml-2 sm:ml-4 flex items-center rounded p-0.5 border" style={{ borderColor: "var(--border)", background: "var(--bg-card-alt)" }}>
+              <button
+                onClick={() => setViewMode("kanban")}
+                className="px-3 py-1 text-xs font-medium rounded transition-all"
+                style={{
+                  background: viewMode === "kanban" ? "var(--bg-secondary)" : "transparent",
+                  color: viewMode === "kanban" ? "var(--text-primary)" : "var(--text-muted)",
+                  boxShadow: viewMode === "kanban" ? "0 1px 2px rgba(0,0,0,0.2)" : "none",
+                }}
+              >
+                {t("inbox.view.kanban")}
+              </button>
+              <button
+                onClick={() => setViewMode("list")}
+                className="px-3 py-1 text-xs font-medium rounded transition-all"
+                style={{
+                  background: viewMode === "list" ? "var(--bg-secondary)" : "transparent",
+                  color: viewMode === "list" ? "var(--text-primary)" : "var(--text-muted)",
+                  boxShadow: viewMode === "list" ? "0 1px 2px rgba(0,0,0,0.2)" : "none",
+                }}
+              >
+                {t("inbox.view.list")}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Right Side: Filters */}
@@ -1578,21 +1841,25 @@ useEffect(() => {
       </div>
 
       {activeTab === "kanban" && (
-        <DragDropContext onDragEnd={handleDragEnd}>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {renderColumn("inbox", t(role === "dj" ? "inbox.kanban_dj.inbox_col" : "inbox.kanban.inbox_col"), "#06b6d4")}
-            {renderColumn(
-              "shortlist",
-              t(role === "dj" ? "inbox.kanban_dj.shortlist_col" : "inbox.kanban.shortlist_col"),
-              "#10b981"
-            )}
-            {renderColumn(
-              "rejected",
-              t(role === "dj" ? "inbox.kanban_dj.rejected_col" : "inbox.kanban.rejected_col"),
-              "#ef4444"
-            )}
-          </div>
-        </DragDropContext>
+        viewMode === "kanban" ? (
+          <DragDropContext onDragEnd={handleDragEnd}>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {renderColumn("inbox", t(role === "dj" ? "inbox.kanban_dj.inbox_col" : "inbox.kanban.inbox_col"), "#06b6d4")}
+              {renderColumn(
+                "shortlist",
+                t(role === "dj" ? "inbox.kanban_dj.shortlist_col" : "inbox.kanban.shortlist_col"),
+                "#10b981"
+              )}
+              {renderColumn(
+                "rejected",
+                t(role === "dj" ? "inbox.kanban_dj.rejected_col" : "inbox.kanban.rejected_col"),
+                "#ef4444"
+              )}
+            </div>
+          </DragDropContext>
+        ) : (
+          renderListTab()
+        )
       )}
 
       {activeTab === "system" && renderSystemTab()}
