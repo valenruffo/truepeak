@@ -302,7 +302,7 @@ function resolvePlaceholders(text: string, sub: SubmissionSummary, labelName: st
     .replace(/\{label\}/g, labelName || "Sello");
 }
 
-function statusLabel(status: string, role: "label" | "dj", t: (key: string) => string): string {
+function statusLabel(status: string, role: "label" | "dj", t: (key: any) => string): string {
   const prefix = role === "dj" ? "inbox.kanban_dj" : "inbox.kanban";
   switch (status) {
     case "inbox":
