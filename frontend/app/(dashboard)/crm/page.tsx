@@ -23,6 +23,7 @@ interface Submission {
   created_at: string;
   producer_instagram?: string | null;
   producer_soundcloud?: string | null;
+  human_email_sent?: boolean;
 }
 
 interface Contact {
@@ -257,7 +258,7 @@ function CRMContent() {
         const mapped: Contact[] = resolved.map((s) => ({
           id: s.id, name: s.producer_name || "Anónimo", email: s.producer_email || "",
           track: s.track_name || "Sin nombre", status: s.status as "approved" | "rejected",
-          bpm: s.bpm != null ? String(Math.round(s.bpm)) : "—", sent: false, mp3_path: s.mp3_path || null,
+          bpm: s.bpm != null ? String(Math.round(s.bpm)) : "—", sent: s.human_email_sent ?? false, mp3_path: s.mp3_path || null,
           producer_instagram: s.producer_instagram || null,
           producer_soundcloud: s.producer_soundcloud || null,
         }));
@@ -291,6 +292,7 @@ function CRMContent() {
 
   const templates = buildTemplates(labelName || "tu sello", t);
   const contact = contacts[selectedContact];
+  const isAlreadySent = sent || (contact?.sent ?? false);
   const template = templates.find((t) => t.id === selectedTemplate);
 
   const resolveTemplate = (tpl: Template, c: Contact) => {
@@ -328,9 +330,9 @@ function CRMContent() {
     const textChanged = emailBody !== lastSyncedTextRef.current;
 
     if (textChanged || contactChanged || labelChanged) {
-      const isTyping = textChanged && !contactChanged && !labelChanged && emailBody === lastSyncedTextRef.current;
+      const isFocused = typeof document !== "undefined" && document.activeElement === emailBodyDivRef.current;
       
-      if (!isTyping) {
+      if (!isFocused || contactChanged || labelChanged) {
         if (emailBodyDivRef.current) {
           emailBodyDivRef.current.innerHTML = convertTextToHtml(emailBody, contact || null, labelName);
         }
@@ -349,9 +351,9 @@ function CRMContent() {
     const textChanged = emailSubject !== lastSyncedSubjectTextRef.current;
 
     if (textChanged || contactChanged || labelChanged) {
-      const isTyping = textChanged && !contactChanged && !labelChanged && emailSubject === lastSyncedSubjectTextRef.current;
+      const isFocused = typeof document !== "undefined" && document.activeElement === emailSubjectDivRef.current;
       
-      if (!isTyping) {
+      if (!isFocused || contactChanged || labelChanged) {
         if (emailSubjectDivRef.current) {
           emailSubjectDivRef.current.innerHTML = convertTextToHtml(emailSubject, contact || null, labelName);
         }
@@ -405,7 +407,7 @@ function CRMContent() {
       const resolvedBody = resolvePlaceholders(emailBody, contact, labelName);
       const res = await fetch(`/api/email/send`, {
         method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ to: contact.email, subject: resolvedSubject, body: resolvedBody, from_name: labelName }),
+        body: JSON.stringify({ to: contact.email, subject: resolvedSubject, body: resolvedBody, from_name: labelName, submission_id: contact.id }),
       });
       if (!res.ok) { const err = await res.json().catch(() => null); throw new Error(err?.detail || `Error ${res.status}`); }
       setSent(true);
@@ -905,7 +907,11 @@ function CRMContent() {
                         )}
                         <span className="text-[10px] text-muted">"{c.track}"</span>
                         <Link href={`/inbox?highlight=${c.id}`} className="text-[10px] hover:underline" style={{ color: "#10b981" }} onClick={(e) => e.stopPropagation()} title="Ver demo">{t("crm.view_demo")}</Link>
-                        {c.sent && <span className="text-[10px]" style={{ color: "#10b981" }}>{t("crm.sent_label")}</span>}
+                        {c.sent && (
+                          <span className="font-mono text-[9px] px-1.5 py-0.5 rounded font-semibold cursor-default select-none border border-emerald-500/30" style={{ background: "rgba(16,185,129,0.15)", color: "#10b981" }}>
+                            {t("crm.sent")}!
+                          </span>
+                        )}
                         {!c.sent && <span className="text-[10px] text-muted">{t("crm.pending_email")}</span>}
                       </div>
                     </div>
@@ -1015,10 +1021,10 @@ function CRMContent() {
 
                 <div className="flex items-center justify-between gap-3 mt-4">
                   <div className="text-xs text-muted">
-                    {sent ? <span style={{ color: "#10b981" }}>{t("crm.sent_msg")} {contact?.name}</span> : sendError ? <span style={{ color: "#ef4444" }}>{sendError}</span> : <span>{t("crm.variables")}</span>}
+                    {isAlreadySent ? <span style={{ color: "#10b981" }}>{t("crm.sent_msg")} {contact?.name}</span> : sendError ? <span style={{ color: "#ef4444" }}>{sendError}</span> : <span>{t("crm.variables")}</span>}
                   </div>
-                  <button onClick={handleSendEmail} disabled={sending} className="px-5 py-2 rounded text-sm font-medium transition-all hover:opacity-90 disabled:opacity-50" style={{ background: sent ? "var(--border)" : "#10b981", color: sent ? "var(--text-muted)" : "#09090b" }}>
-                    {sending ? t("crm.sending") : sent ? t("crm.sent") : t("crm.send")}
+                  <button onClick={handleSendEmail} disabled={sending || isAlreadySent} className="px-5 py-2 rounded text-sm font-medium transition-all hover:opacity-90 disabled:opacity-50" style={{ background: isAlreadySent ? "var(--border)" : "#10b981", color: isAlreadySent ? "var(--text-muted)" : "#09090b" }}>
+                    {sending ? t("crm.sending") : isAlreadySent ? t("crm.sent") : t("crm.send")}
                   </button>
                 </div>
               </div>

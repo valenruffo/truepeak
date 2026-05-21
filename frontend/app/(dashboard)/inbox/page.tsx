@@ -17,6 +17,7 @@ import {
 } from "@hello-pangea/dnd";
 import { Clock, Mail, AlertTriangle, Trash2, RotateCcw, X } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
+import { useUndoableState, useUndoRedoKey } from "@/lib/useUndoableState";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -152,14 +153,10 @@ function cleanHtmlToPlainText(html: string): string {
 
 function replaceVariables(
   template: string,
-  sub: SubmissionSummary
+  sub: SubmissionSummary,
+  labelName: string
 ): string {
-  return template
-    .replace(/\{producer_name\}/g, sub.producer_name || "Productor")
-    .replace(/\{track_name\}/g, sub.track_name || "Track")
-    .replace(/\{producer\}/g, sub.producer_name || "Productor")
-    .replace(/\{track\}/g, sub.track_name || "Track")
-    .replace(/\{bpm\}/g, sub.bpm ? String(Math.round(sub.bpm)) : "—");
+  return resolvePlaceholders(template, sub, labelName);
 }
 
 function statusBadgeColor(status: string): { bg: string; color: string } {
@@ -178,17 +175,146 @@ function statusBadgeColor(status: string): { bg: string; color: string } {
   }
 }
 
-function statusLabel(status: string, t: (key: "inbox.status.pending" | "inbox.status.approved" | "inbox.status.rejected") => string): string {
+const variables = [
+  { key: "{producer}", label: "Productor", desc: "Nombre del productor" },
+  { key: "{track}", label: "Track", desc: "Nombre del track" },
+  { key: "{bpm}", label: "BPM", desc: "Tempo del track" },
+  { key: "{label}", label: "Sello", desc: "Nombre del sello" },
+];
+
+const escapeHtml = (str: string) => {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+};
+
+const convertTextToHtml = (text: string, sub: SubmissionSummary | null, labelName: string) => {
+  if (!text) return "";
+  
+  let html = escapeHtml(text);
+
+  const name = sub ? sub.producer_name : "Productor";
+  const trackName = sub ? sub.track_name : "Track";
+  const bpmValue = sub ? (sub.bpm ? String(Math.round(sub.bpm)) : "—") : "BPM";
+  const labelVal = labelName || "Sello";
+
+  const badges: Record<string, string> = {
+    "{producer}": `<span contenteditable="false" class="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20 select-all" data-variable="{producer}">${escapeHtml(name)}</span>`,
+    "{track}": `<span contenteditable="false" class="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20 select-all" data-variable="{track}">${escapeHtml(trackName)}</span>`,
+    "{bpm}": `<span contenteditable="false" class="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20 select-all" data-variable="{bpm}">${escapeHtml(bpmValue)}</span>`,
+    "{label}": `<span contenteditable="false" class="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20 select-all" data-variable="{label}">${escapeHtml(labelVal)}</span>`
+  };
+
+  Object.entries(badges).forEach(([placeholder, badgeHtml]) => {
+    const regex = new RegExp(placeholder.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), 'g');
+    html = html.replace(regex, badgeHtml);
+  });
+
+  return html.replace(/\n/g, "<br>");
+};
+
+const convertHtmlToText = (html: string) => {
+  if (typeof document === "undefined") return html;
+  const temp = document.createElement("div");
+  temp.innerHTML = html;
+  
+  const badges = temp.querySelectorAll("span[data-variable]");
+  badges.forEach((badge) => {
+    const variable = badge.getAttribute("data-variable");
+    if (variable) {
+      badge.replaceWith(document.createTextNode(variable));
+    }
+  });
+
+  let text = "";
+  const walk = (node: Node) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      text += node.nodeValue;
+    } else if (node.nodeType === Node.ELEMENT_NODE) {
+      const el = node as HTMLElement;
+      if (el.tagName === "BR") {
+        text += "\n";
+      } else if (el.tagName === "DIV" || el.tagName === "P") {
+        if (text && !text.endsWith("\n")) {
+          text += "\n";
+        }
+        el.childNodes.forEach(walk);
+        if (text && !text.endsWith("\n")) {
+          text += "\n";
+        }
+      } else {
+        el.childNodes.forEach(walk);
+      }
+    }
+  };
+  
+  temp.childNodes.forEach(walk);
+  return text.replace(/\r\n/g, "\n");
+};
+
+const updateDragCaret = (e: React.DragEvent, container: HTMLDivElement) => {
+  const existing = document.getElementById("tp-drag-caret");
+  if (existing) {
+    existing.remove();
+  }
+
+  let range: Range | null = null;
+  if (document.caretRangeFromPoint) {
+    range = document.caretRangeFromPoint(e.clientX, e.clientY);
+  } else if (e.nativeEvent && (e.nativeEvent as any).rangeParent) {
+    const ne = e.nativeEvent as any;
+    range = document.createRange();
+    range.setStart(ne.rangeParent, ne.rangeOffset);
+  }
+
+  if (range && container.contains(range.commonAncestorContainer)) {
+    const caret = document.createElement("span");
+    caret.id = "tp-drag-caret";
+    caret.className = "inline-block w-[3px] h-[1.2em] bg-emerald-400 align-middle animate-pulse mx-0.5 pointer-events-none rounded";
+    caret.style.marginTop = "-2px";
+    
+    try {
+      range.insertNode(caret);
+    } catch (err) {
+      container.appendChild(caret);
+    }
+  }
+};
+
+const removeDragCaret = () => {
+  const existing = document.getElementById("tp-drag-caret");
+  if (existing) {
+    existing.remove();
+  }
+};
+
+function resolvePlaceholders(text: string, sub: SubmissionSummary, labelName: string): string {
+  if (!text) return "";
+  return text
+    .replace(/\{producer_name\}/g, sub.producer_name || "Productor")
+    .replace(/\{track_name\}/g, sub.track_name || "Track")
+    .replace(/\{producer\}/g, sub.producer_name || "Productor")
+    .replace(/\{track\}/g, sub.track_name || "Track")
+    .replace(/\{bpm\}/g, sub.bpm ? String(Math.round(sub.bpm)) : "—")
+    .replace(/\{label\}/g, labelName || "Sello");
+}
+
+function statusLabel(status: string, role: "label" | "dj", t: (key: string) => string): string {
+  const prefix = role === "dj" ? "inbox.kanban_dj" : "inbox.kanban";
   switch (status) {
     case "inbox":
     case "pending":
-      return t("inbox.status.pending");
+      return t(`${prefix}.inbox_col`);
     case "shortlist":
     case "approved":
-      return t("inbox.status.approved");
+      return t(`${prefix}.shortlist_col`);
     case "rejected":
+      return t(`${prefix}.rejected_col`);
     case "auto_rejected":
-      return t("inbox.status.rejected");
+      return t(`${prefix}.auto_rejected_col`);
     default:
       return status;
   }
@@ -251,6 +377,314 @@ function InboxContent() {
 
   // Role for dynamic i18n keys
   const [role, setRole] = useState<"label" | "dj">("label");
+
+  // Label name state
+  const [labelName, setLabelName] = useState<string>("");
+
+  // Undoable states for email subject and body
+  const emailBodyState = useUndoableState("");
+  const emailSubjectState = useUndoableState("");
+  const { value: emailBody, set: setEmailBody, undo: undoEmailBody, redo: redoEmailBody } = emailBodyState;
+  const { value: emailSubject, set: setEmailSubject, undo: undoEmailSubject, redo: redoEmailSubject } = emailSubjectState;
+
+  const emailBodyDivRef = useRef<HTMLDivElement | null>(null);
+  const lastSyncedTextRef = useRef("");
+  const lastSyncedContactRef = useRef<SubmissionSummary | null>(null);
+  const lastSyncedLabelRef = useRef("");
+
+  const emailSubjectDivRef = useRef<HTMLDivElement | null>(null);
+  const lastSyncedSubjectTextRef = useRef("");
+  const lastSyncedSubjectContactRef = useRef<SubmissionSummary | null>(null);
+  const lastSyncedSubjectLabelRef = useRef("");
+
+  const [lastActiveField, setLastActiveField] = useState<"body" | "subject">("body");
+  const [dragOverField, setDragOverField] = useState<"email-body" | "email-subject" | null>(null);
+
+  // Wire undo/redo for email composer (active when emailModal is open)
+  useUndoRedoKey({
+    onUndo: () => { undoEmailBody(); undoEmailSubject(); },
+    onRedo: () => { redoEmailBody(); redoEmailSubject(); },
+    enabled: emailModal.open,
+  });
+
+  // Sync contenteditable HTML when text or contact details change (body)
+  useEffect(() => {
+    const contactChanged = emailModal.submission !== lastSyncedContactRef.current;
+    const labelChanged = labelName !== lastSyncedLabelRef.current;
+    const textChanged = emailBody !== lastSyncedTextRef.current;
+
+    if (textChanged || contactChanged || labelChanged) {
+      const isFocused = typeof document !== "undefined" && document.activeElement === emailBodyDivRef.current;
+      
+      if (!isFocused || contactChanged || labelChanged) {
+        if (emailBodyDivRef.current) {
+          emailBodyDivRef.current.innerHTML = convertTextToHtml(emailBody, emailModal.submission || null, labelName);
+        }
+      }
+      
+      lastSyncedTextRef.current = emailBody;
+      lastSyncedContactRef.current = emailModal.submission || null;
+      lastSyncedLabelRef.current = labelName;
+    }
+  }, [emailBody, emailModal.submission, labelName]);
+
+  // Sync contenteditable HTML when text or contact details change (subject)
+  useEffect(() => {
+    const contactChanged = emailModal.submission !== lastSyncedSubjectContactRef.current;
+    const labelChanged = labelName !== lastSyncedSubjectLabelRef.current;
+    const textChanged = emailSubject !== lastSyncedSubjectTextRef.current;
+
+    if (textChanged || contactChanged || labelChanged) {
+      const isFocused = typeof document !== "undefined" && document.activeElement === emailSubjectDivRef.current;
+      
+      if (!isFocused || contactChanged || labelChanged) {
+        if (emailSubjectDivRef.current) {
+          emailSubjectDivRef.current.innerHTML = convertTextToHtml(emailSubject, emailModal.submission || null, labelName);
+        }
+      }
+      
+      lastSyncedSubjectTextRef.current = emailSubject;
+      lastSyncedSubjectContactRef.current = emailModal.submission || null;
+      lastSyncedSubjectLabelRef.current = labelName;
+    }
+  }, [emailSubject, emailModal.submission, labelName]);
+
+  const insertEmailVariable = (variable: string, field: "body" | "subject") => {
+    const divRef = field === "subject" ? emailSubjectDivRef : emailBodyDivRef;
+    if (divRef.current) {
+      divRef.current.focus();
+      const sel = window.getSelection();
+      let range: Range | null = null;
+      
+      if (sel && sel.rangeCount > 0) {
+        const potentialRange = sel.getRangeAt(0);
+        if (divRef.current.contains(potentialRange.commonAncestorContainer)) {
+          range = potentialRange;
+        }
+      }
+      
+      if (!range) {
+        range = document.createRange();
+        range.selectNodeContents(divRef.current);
+        range.collapse(false);
+      }
+      
+      const name = emailModal.submission ? emailModal.submission.producer_name : "Productor";
+      const trackName = emailModal.submission ? emailModal.submission.track_name : "Track";
+      const bpmValue = emailModal.submission ? (emailModal.submission.bpm ? String(Math.round(emailModal.submission.bpm)) : "—") : "BPM";
+      const labelVal = labelName || "Sello";
+
+      let textToShow = "";
+      if (variable === "{producer}") textToShow = name;
+      else if (variable === "{track}") textToShow = trackName;
+      else if (variable === "{bpm}") textToShow = bpmValue;
+      else if (variable === "{label}") textToShow = labelVal;
+
+      const span = document.createElement("span");
+      span.setAttribute("contenteditable", "false");
+      span.setAttribute("data-variable", variable);
+      span.className = "inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20 select-all";
+      span.textContent = textToShow;
+
+      range.insertNode(span);
+      range.setStartAfter(span);
+      range.setEndAfter(span);
+      
+      if (sel) {
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+      
+      const html = divRef.current.innerHTML;
+      const text = convertHtmlToText(html);
+      
+      if (field === "subject") {
+        lastSyncedSubjectTextRef.current = text;
+        setEmailSubject(text);
+      } else {
+        lastSyncedTextRef.current = text;
+        setEmailBody(text);
+      }
+    }
+  };
+
+  const handleDragStart = (e: React.DragEvent, variable: string) => {
+    e.dataTransfer.setData("text/plain", variable);
+    e.dataTransfer.effectAllowed = "copy";
+  };
+
+  const handleEmailBodyInput = (e: React.FormEvent<HTMLDivElement>) => {
+    const html = e.currentTarget.innerHTML;
+    const text = convertHtmlToText(html);
+    lastSyncedTextRef.current = text;
+    setEmailBody(text);
+  };
+
+  const handleEmailBodyDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+    setDragOverField("email-body");
+    if (emailBodyDivRef.current) {
+      updateDragCaret(e, emailBodyDivRef.current);
+    }
+  };
+
+  const handleEmailBodyDragLeave = () => {
+    setDragOverField(null);
+    removeDragCaret();
+  };
+
+  const handleEmailBodyDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setDragOverField(null);
+    removeDragCaret();
+    const variable = e.dataTransfer.getData("text/plain");
+    
+    if (variable && variables.some(v => v.key === variable)) {
+      let range: Range | null = null;
+      if (document.caretRangeFromPoint) {
+        range = document.caretRangeFromPoint(e.clientX, e.clientY);
+      } else if (e.nativeEvent && (e.nativeEvent as any).rangeParent) {
+        const ne = e.nativeEvent as any;
+        range = document.createRange();
+        range.setStart(ne.rangeParent, ne.rangeOffset);
+      }
+
+      if (range) {
+        const name = emailModal.submission ? emailModal.submission.producer_name : "Productor";
+        const trackName = emailModal.submission ? emailModal.submission.track_name : "Track";
+        const bpmValue = emailModal.submission ? (emailModal.submission.bpm ? String(Math.round(emailModal.submission.bpm)) : "—") : "BPM";
+        const labelVal = labelName || "Sello";
+
+        let textToShow = "";
+        if (variable === "{producer}") textToShow = name;
+        else if (variable === "{track}") textToShow = trackName;
+        else if (variable === "{bpm}") textToShow = bpmValue;
+        else if (variable === "{label}") textToShow = labelVal;
+
+        const span = document.createElement("span");
+        span.setAttribute("contenteditable", "false");
+        span.setAttribute("data-variable", variable);
+        span.className = "inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20 select-all";
+        span.textContent = textToShow;
+
+        range.insertNode(span);
+        range.setStartAfter(span);
+        range.setEndAfter(span);
+        
+        const sel = window.getSelection();
+        if (sel) {
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
+
+        const html = e.currentTarget.innerHTML;
+        const text = convertHtmlToText(html);
+        lastSyncedTextRef.current = text;
+        setEmailBody(text);
+      }
+    }
+  };
+
+  const handleEmailSubjectInput = (e: React.FormEvent<HTMLDivElement>) => {
+    const html = e.currentTarget.innerHTML;
+    const text = convertHtmlToText(html);
+    lastSyncedSubjectTextRef.current = text;
+    setEmailSubject(text);
+  };
+
+  const handleEmailSubjectKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+    }
+  };
+
+  const handleEmailSubjectDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+    setDragOverField("email-subject");
+    if (emailSubjectDivRef.current) {
+      updateDragCaret(e, emailSubjectDivRef.current);
+    }
+  };
+
+  const handleEmailSubjectDragLeave = () => {
+    setDragOverField(null);
+    removeDragCaret();
+  };
+
+  const handleEmailSubjectDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setDragOverField(null);
+    removeDragCaret();
+    const variable = e.dataTransfer.getData("text/plain");
+    
+    if (variable && variables.some(v => v.key === variable)) {
+      let range: Range | null = null;
+      if (document.caretRangeFromPoint) {
+        range = document.caretRangeFromPoint(e.clientX, e.clientY);
+      } else if (e.nativeEvent && (e.nativeEvent as any).rangeParent) {
+        const ne = e.nativeEvent as any;
+        range = document.createRange();
+        range.setStart(ne.rangeParent, ne.rangeOffset);
+      }
+
+      if (range) {
+        const name = emailModal.submission ? emailModal.submission.producer_name : "Productor";
+        const trackName = emailModal.submission ? emailModal.submission.track_name : "Track";
+        const bpmValue = emailModal.submission ? (emailModal.submission.bpm ? String(Math.round(emailModal.submission.bpm)) : "—") : "BPM";
+        const labelVal = labelName || "Sello";
+
+        let textToShow = "";
+        if (variable === "{producer}") textToShow = name;
+        else if (variable === "{track}") textToShow = trackName;
+        else if (variable === "{bpm}") textToShow = bpmValue;
+        else if (variable === "{label}") textToShow = labelVal;
+
+        const span = document.createElement("span");
+        span.setAttribute("contenteditable", "false");
+        span.setAttribute("data-variable", variable);
+        span.className = "inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20 select-all";
+        span.textContent = textToShow;
+
+        range.insertNode(span);
+        range.setStartAfter(span);
+        range.setEndAfter(span);
+        
+        const sel = window.getSelection();
+        if (sel) {
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
+
+        const html = e.currentTarget.innerHTML;
+        const text = convertHtmlToText(html);
+        lastSyncedSubjectTextRef.current = text;
+        setEmailSubject(text);
+      }
+    }
+  };
+
+  const VariableChips = () => (
+    <div className="flex gap-1.5 flex-wrap mb-2">
+      {variables.map((v) => (
+        <span
+          key={v.key}
+          draggable
+          onDragStart={(e) => handleDragStart(e, v.key)}
+          onClick={() => {
+            insertEmailVariable(v.key, lastActiveField);
+          }}
+          className="text-[10px] px-2 py-0.5 rounded border cursor-grab active:cursor-grabbing transition-colors hover:border-emerald-500 hover:bg-emerald-500/5 select-none"
+          style={{ borderColor: "var(--border)", color: "var(--text-muted)", background: "transparent" }}
+          title={v.desc}
+        >
+          +{v.label}
+        </span>
+      ))}
+      <span className="text-[9px] text-muted self-center ml-1">{t("crm.drag_hint")}</span>
+    </div>
+  );
 
   // Kanban board state
   const [board, setBoard] = useState<BoardState>({
@@ -343,6 +777,7 @@ useEffect(() => {
         if (res.ok) {
           const data = await res.json();
           setSonicSignature(data.sonic_signature);
+          setLabelName(data.name || slug);
         }
       } catch (e) { /* silent */ }
     };
@@ -581,14 +1016,22 @@ useEffect(() => {
         ? "shortlist"
         : destination.droppableId === "rejected"
         ? "rejected"
+        : destination.droppableId === "inbox"
+        ? "inbox"
         : null;
 
-    // If dropping to same column or inbox, no status change needed
+    // If dropping to same column, no status change needed
     if (!targetStatus || destination.droppableId === sourceCol) return;
 
     // If rejecting, we need a reason — open rejection modal
     if (targetStatus === "rejected") {
       setPendingReject({ sub, reason: "" });
+      return;
+    }
+
+    if (targetStatus === "inbox") {
+      markAsInteracted(subId);
+      await updateStatus(sub, "inbox");
       return;
     }
 
@@ -675,18 +1118,24 @@ useEffect(() => {
       (t) => t.template_type === targetType
     );
 
+    const initSubject = firstMatch
+      ? replaceVariables(cleanHtmlToPlainText(firstMatch.subject_template), sub, labelName)
+      : "";
+    const initBody = firstMatch
+      ? replaceVariables(cleanHtmlToPlainText(firstMatch.body_template), sub, labelName)
+      : "";
+
+    setEmailSubject(initSubject);
+    setEmailBody(initBody);
+
     setEmailModal({
       open: true,
       submission: sub,
       targetStatus,
       templates,
       selectedTemplate: firstMatch?.id || "",
-      subject: firstMatch
-        ? replaceVariables(cleanHtmlToPlainText(firstMatch.subject_template), sub)
-        : "",
-      body: firstMatch
-        ? replaceVariables(cleanHtmlToPlainText(firstMatch.body_template), sub)
-        : "",
+      subject: initSubject,
+      body: initBody,
       sending: false,
       sent: false,
       error: null,
@@ -696,16 +1145,23 @@ useEffect(() => {
   const handleTemplateChange = (templateId: string) => {
     const tmpl = emailModal.templates.find((t) => t.id === templateId);
     if (!tmpl || !emailModal.submission) return;
+    const newSubject = replaceVariables(cleanHtmlToPlainText(tmpl.subject_template), emailModal.submission, labelName);
+    const newBody = replaceVariables(cleanHtmlToPlainText(tmpl.body_template), emailModal.submission, labelName);
+    setEmailSubject(newSubject);
+    setEmailBody(newBody);
     setEmailModal((prev) => ({
       ...prev,
       selectedTemplate: templateId,
-      subject: replaceVariables(cleanHtmlToPlainText(tmpl.subject_template), prev.submission!),
-      body: replaceVariables(cleanHtmlToPlainText(tmpl.body_template), prev.submission!),
+      subject: newSubject,
+      body: newBody,
     }));
   };
 
   const handleSendEmail = async () => {
     if (!emailModal.submission) return;
+    const subId = emailModal.submission.id;
+    const subjectToSend = emailSubject;
+    const bodyToSend = emailBody;
     setEmailModal((p) => ({ ...p, sending: true, error: null }));
     try {
       const res = await fetch("/api/email/send", {
@@ -714,16 +1170,34 @@ useEffect(() => {
         credentials: "include",
         body: JSON.stringify({
           to: emailModal.submission.producer_email || "",
-          subject: emailModal.subject,
-          body: emailModal.body,
-          from_name: "True Peak AI",
-          submission_id: emailModal.submission.id,
+          subject: subjectToSend,
+          body: bodyToSend,
+          from_name: labelName || "True Peak AI",
+          submission_id: subId,
         }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.detail || `Error ${res.status}`);
       }
+
+      // Mark human_email_sent locally across all state stores
+      const markSent = (s: SubmissionSummary) =>
+        s.id === subId ? { ...s, human_email_sent: true } : s;
+
+      setBoard((prev) => ({
+        inbox: prev.inbox.map(markSent),
+        shortlist: prev.shortlist.map(markSent),
+        rejected: prev.rejected.map(markSent),
+      }));
+      setSystemItems((prev) => prev.map(markSent));
+      setTrashItems((prev) => prev.map(markSent));
+      setDetailModal((prev) =>
+        prev.submission?.id === subId
+          ? { ...prev, submission: { ...prev.submission, human_email_sent: true } }
+          : prev
+      );
+
       setEmailModal((p) => ({ ...p, sending: false, sent: true }));
       setTimeout(() => {
         setEmailModal((p) => ({ ...p, open: false }));
@@ -1022,7 +1496,7 @@ useEffect(() => {
                   className="font-mono text-[10px] px-1.5 py-0.5 rounded"
                   style={{ background: badge.bg, color: badge.color }}
                 >
-                  {statusLabel(sub.status, t)}
+                  {statusLabel(sub.status, role, t)}
                 </span>
                 {sub.human_email_sent && (
                   <span
@@ -1066,18 +1540,28 @@ useEffect(() => {
                 </button>
               )}
               {sub.producer_email && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    markAsInteracted(sub.id);
-                    openEmailModal(sub, sub.status === "shortlist" ? "shortlist" : "rejected");
-                  }}
-                  className="w-6 h-6 rounded flex items-center justify-center transition-colors hover:bg-white/10"
-                  style={{ color: sub.human_email_sent ? "#10b981" : "var(--text-muted)" }}
-                  title={sub.human_email_sent ? "Mail enviado — enviar otro" : "Enviar email al productor"}
-                >
-                  <Mail className="w-4 h-4" />
-                </button>
+                sub.human_email_sent ? (
+                  <span
+                    className="font-mono text-[10px] px-1.5 py-0.5 rounded cursor-not-allowed"
+                    style={{ background: "rgba(16,185,129,0.12)", color: "#10b981", border: "1px solid rgba(16,185,129,0.25)" }}
+                    title="Email ya enviado al productor"
+                  >
+                    Enviado!
+                  </span>
+                ) : (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      markAsInteracted(sub.id);
+                      openEmailModal(sub, sub.status === "shortlist" ? "shortlist" : "rejected");
+                    }}
+                    className="w-6 h-6 rounded flex items-center justify-center transition-colors hover:bg-white/10"
+                    style={{ color: "var(--text-muted)" }}
+                    title="Enviar email al productor"
+                  >
+                    <Mail className="w-4 h-4" />
+                  </button>
+                )
               )}
               {/* HQ Download button */}
               {sub.hq_downloaded ? (
@@ -1363,19 +1847,14 @@ useEffect(() => {
                   {formatKey(d.musical_key)}
                 </div>
 
-                {/* Status Dropdown */}
-                <div className="col-span-2 text-center" onClick={(e) => e.stopPropagation()}>
-                  <select
-                    value={d.status}
-                    onChange={(e) => handleStatusChange(d, e.target.value as any)}
-                    disabled={!!isLoading}
-                    className="bg-zinc-950 text-xs text-white border rounded px-2 py-1 font-sans focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer disabled:opacity-50"
-                    style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}
+                {/* Status Badge (static) */}
+                <div className="col-span-2 text-center">
+                  <span
+                    className="font-mono text-[10px] px-2 py-0.5 rounded"
+                    style={{ background: statusBadgeColor(d.status).bg, color: statusBadgeColor(d.status).color }}
                   >
-                    <option value="inbox">{t("inbox.kanban.inbox_col")}</option>
-                    <option value="shortlist">{t("inbox.kanban.shortlist_col")}</option>
-                    <option value="rejected">{t("inbox.kanban.rejected_col")}</option>
-                  </select>
+                    {statusLabel(d.status, role, t)}
+                  </span>
                 </div>
 
                 {/* Action Buttons */}
@@ -1383,54 +1862,87 @@ useEffect(() => {
                   className="col-span-3 text-right flex items-center justify-end gap-1.5"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  {/* Approve checkmark button */}
-                  {d.status !== "shortlist" && (
-                    <button
-                      onClick={() => updateStatus(d, "shortlist")}
-                      disabled={!!isLoading}
-                      className="w-7 h-7 rounded flex items-center justify-center transition-colors hover:bg-emerald-500/10 disabled:opacity-50"
-                      style={{ color: "#10b981", border: "1px solid rgba(16,185,129,0.2)" }}
-                      title={t("inbox.kanban.approve")}
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                    </button>
-                  )}
+                  {/* Approve (checkmark) — disabled if already shortlist */}
+                  <button
+                    onClick={() => updateStatus(d, "shortlist")}
+                    disabled={!!isLoading || d.status === "shortlist"}
+                    className="w-7 h-7 rounded flex items-center justify-center transition-colors hover:bg-emerald-500/10"
+                    style={{
+                      color: "#10b981",
+                      border: "1px solid rgba(16,185,129,0.2)",
+                      opacity: d.status === "shortlist" ? 0.3 : 1,
+                      pointerEvents: d.status === "shortlist" ? "none" : "auto",
+                    }}
+                    title={t("inbox.kanban.approve")}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  </button>
 
-                  {/* Reject cross button */}
-                  {d.status !== "rejected" && (
-                    <button
-                      onClick={() => setPendingReject({ sub: d, reason: "" })}
-                      disabled={!!isLoading}
-                      className="w-7 h-7 rounded flex items-center justify-center transition-colors hover:bg-red-500/10 disabled:opacity-50"
-                      style={{ color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}
-                      title={t("inbox.kanban.reject")}
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <line x1="18" y1="6" x2="6" y2="18" />
-                        <line x1="6" y1="6" x2="18" y2="18" />
-                      </svg>
-                    </button>
-                  )}
+                  {/* Reject (cross) — disabled if already rejected */}
+                  <button
+                    onClick={() => setPendingReject({ sub: d, reason: "" })}
+                    disabled={!!isLoading || d.status === "rejected"}
+                    className="w-7 h-7 rounded flex items-center justify-center transition-colors hover:bg-red-500/10"
+                    style={{
+                      color: "#ef4444",
+                      border: "1px solid rgba(239,68,68,0.2)",
+                      opacity: d.status === "rejected" ? 0.3 : 1,
+                      pointerEvents: d.status === "rejected" ? "none" : "auto",
+                    }}
+                    title={t("inbox.kanban.reject")}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
 
-                  {/* Email button */}
+                  {/* Reset to inbox (RotateCcw) — disabled if already inbox */}
+                  <button
+                    onClick={() => updateStatus(d, "inbox")}
+                    disabled={!!isLoading || d.status === "inbox"}
+                    className="w-7 h-7 rounded flex items-center justify-center transition-colors hover:bg-white/5"
+                    style={{
+                      color: "var(--text-muted)",
+                      border: "1px solid var(--border)",
+                      opacity: d.status === "inbox" ? 0.3 : 1,
+                      pointerEvents: d.status === "inbox" ? "none" : "auto",
+                    }}
+                    title="Mover a Inbox"
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="1 4 1 10 7 10" />
+                      <path d="M3.51 15a9 9 0 1 0 .49-3.27" />
+                    </svg>
+                  </button>
+
+                  {/* Email: disabled badge if sent, button otherwise */}
                   {d.producer_email && (
-                    <button
-                      onClick={() => {
-                        markAsInteracted(d.id);
-                        openEmailModal(d, d.status === "shortlist" ? "shortlist" : "rejected");
-                      }}
-                      disabled={!!isLoading}
-                      className="w-7 h-7 rounded flex items-center justify-center transition-colors hover:bg-white/5 disabled:opacity-50 border"
-                      style={{
-                        borderColor: "var(--border)",
-                        color: d.human_email_sent ? "#10b981" : "var(--text-muted)",
-                      }}
-                      title={d.human_email_sent ? "Mail enviado — enviar otro" : "Enviar email al productor"}
-                    >
-                      <Mail className="w-3.5 h-3.5" />
-                    </button>
+                    d.human_email_sent ? (
+                      <span
+                        className="font-mono text-[10px] px-1.5 py-0.5 rounded cursor-not-allowed"
+                        style={{ background: "rgba(16,185,129,0.12)", color: "#10b981", border: "1px solid rgba(16,185,129,0.25)" }}
+                        title="Email ya enviado al productor"
+                      >
+                        Enviado!
+                      </span>
+                    ) : (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          markAsInteracted(d.id);
+                          openEmailModal(d, d.status === "shortlist" ? "shortlist" : "rejected");
+                        }}
+                        disabled={!!isLoading}
+                        className="w-7 h-7 rounded flex items-center justify-center transition-colors hover:bg-white/5 disabled:opacity-50 border"
+                        style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}
+                        title="Enviar email al productor"
+                      >
+                        <Mail className="w-3.5 h-3.5" />
+                      </button>
+                    )
                   )}
 
                   {/* Download HQ button */}
@@ -1663,7 +2175,7 @@ useEffect(() => {
                     color: "#a1a1aa",
                   }}
                 >
-                  {statusLabel(d.status, t)}
+                  {statusLabel(d.status, role, t)}
                 </span>
               </div>
               <div className="col-span-3 text-center text-muted text-[11px]">
@@ -1994,7 +2506,7 @@ useEffect(() => {
                       <div className="flex justify-between items-center text-sm py-1 border-b border-white/[0.03]">
                         <span className="text-muted">Estado Actual</span>
                         <span className="font-mono" style={{ color: statusBadgeColor(sub.status).color }}>
-                          {statusLabel(sub.status, t).toUpperCase()}
+                          {statusLabel(sub.status, role, t).toUpperCase()}
                         </span>
                       </div>
                     </div>
@@ -2104,21 +2616,29 @@ useEffect(() => {
                   </button>
                 )}
                 {detailModal.submission.producer_email && (
-                  <button
-                    onClick={() => {
-                      const sub = detailModal.submission!;
-                      setDetailModal({ open: false, submission: null });
-                      openEmailModal(sub, sub.status === "shortlist" ? "shortlist" : "rejected");
-                    }}
-                    className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium border transition-colors hover:bg-white/5"
-                    style={{
-                      borderColor: detailModal.submission.human_email_sent ? "rgba(16,185,129,0.5)" : "rgba(255,255,255,0.1)",
-                      color: detailModal.submission.human_email_sent ? "#10b981" : "var(--text-secondary)",
-                    }}
-                  >
-                    <Mail className="w-4 h-4" />
-                    {detailModal.submission.human_email_sent ? "REENVIAR MAIL" : "ENVIAR MAIL"}
-                  </button>
+                  detailModal.submission.human_email_sent ? (
+                    <div
+                      className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium border cursor-not-allowed"
+                      style={{ borderColor: "rgba(16,185,129,0.4)", color: "#10b981", background: "rgba(16,185,129,0.07)" }}
+                      title="Email ya enviado al productor"
+                    >
+                      <Mail className="w-4 h-4" />
+                      ENVIADO!
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        const sub = detailModal.submission!;
+                        setDetailModal({ open: false, submission: null });
+                        openEmailModal(sub, sub.status === "shortlist" ? "shortlist" : "rejected");
+                      }}
+                      className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium border transition-colors hover:bg-white/5"
+                      style={{ borderColor: "rgba(255,255,255,0.1)", color: "var(--text-secondary)" }}
+                    >
+                      <Mail className="w-4 h-4" />
+                      ENVIAR MAIL
+                    </button>
+                  )
                 )}
                 {detailModal.submission.hq_downloaded ? (
                   <div className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium border" style={{ borderColor: "rgba(16,185,129,0.3)", color: "#10b981" }}>
@@ -2248,25 +2768,32 @@ useEffect(() => {
                     )}
                   </div>
 
+                  {/* Variable Chips */}
+                  <VariableChips />
+
                   {/* Subject */}
                   <div>
                     <label className="text-[10px] text-muted uppercase tracking-wider block mb-1">
                       {t("inbox.kanban.email_subject")}
                     </label>
-                    <input
-                      type="text"
-                      value={emailModal.subject}
-                      onChange={(e) =>
-                        setEmailModal((p) => ({
-                          ...p,
-                          subject: e.target.value,
-                        }))
-                      }
-                      className="w-full rounded px-3 py-2 text-sm border"
+                    <div
+                      ref={emailSubjectDivRef}
+                      contentEditable
+                      suppressContentEditableWarning
+                      onInput={handleEmailSubjectInput}
+                      onKeyDown={handleEmailSubjectKeyDown}
+                      onFocus={() => setLastActiveField("subject")}
+                      onDragOver={handleEmailSubjectDragOver}
+                      onDragLeave={handleEmailSubjectDragLeave}
+                      onDrop={handleEmailSubjectDrop}
+                      className="w-full rounded px-3 py-2 text-sm border min-h-[36px] outline-none transition-colors"
                       style={{
                         background: "var(--bg-card)",
-                        borderColor: "var(--border)",
+                        borderColor: dragOverField === "email-subject" ? "#10b981" : "var(--border)",
                         color: "var(--text-primary)",
+                        lineHeight: "1.5",
+                        whiteSpace: "pre-wrap",
+                        wordBreak: "break-word",
                       }}
                     />
                   </div>
@@ -2276,20 +2803,25 @@ useEffect(() => {
                     <label className="text-[10px] text-muted uppercase tracking-wider block mb-1">
                       {t("inbox.kanban.email_body")}
                     </label>
-                    <textarea
-                      value={emailModal.body}
-                      onChange={(e) =>
-                        setEmailModal((p) => ({
-                          ...p,
-                          body: e.target.value,
-                        }))
-                      }
-                      rows={6}
-                      className="w-full rounded px-3 py-2 text-sm border resize-none"
+                    <div
+                      ref={emailBodyDivRef}
+                      contentEditable
+                      suppressContentEditableWarning
+                      onInput={handleEmailBodyInput}
+                      onFocus={() => setLastActiveField("body")}
+                      onDragOver={handleEmailBodyDragOver}
+                      onDragLeave={handleEmailBodyDragLeave}
+                      onDrop={handleEmailBodyDrop}
+                      className="w-full rounded px-3 py-2 text-sm border min-h-[150px] outline-none transition-colors"
                       style={{
                         background: "var(--bg-card)",
-                        borderColor: "var(--border)",
+                        borderColor: dragOverField === "email-body" ? "#10b981" : "var(--border)",
                         color: "var(--text-primary)",
+                        lineHeight: "1.6",
+                        whiteSpace: "pre-wrap",
+                        wordBreak: "break-word",
+                        overflowY: "auto",
+                        maxHeight: "260px",
                       }}
                     />
                   </div>
