@@ -170,18 +170,18 @@ async def upload_audio(
                 detail=f"Audio analysis failed: {e}",
             )
 
-        # --- Save original file for HQ download ---
+        # --- Save original file for HQ download based on plan limits ---
         original_path: str | None = None
         if hq_retention_days > 0:
-            try:
-                ORIGINALS_DIR.mkdir(parents=True, exist_ok=True)
-                orig_filename = f"{submission_id}{ext}"
-                orig_fullpath = str(ORIGINALS_DIR / orig_filename)
-                with open(orig_fullpath, "wb") as f:
-                    f.write(content)
-                original_path = orig_fullpath
-            except OSError:
-                pass  # Best-effort: if we can't save original, continue with MP3 only
+            original_path = result["original_path"]
+        else:
+            # Plan Free has 0 hq_retention_days: delete original WAV from R2 immediately to clean up storage
+            if result["original_path"]:
+                from app.services.r2 import delete_file_from_r2
+                try:
+                    await delete_file_from_r2(result["original_path"])
+                except Exception:
+                    pass  # Best-effort cleanup
 
         # --- Create submission record in DB ---
         session = next(get_session())

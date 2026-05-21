@@ -57,7 +57,7 @@ export function PlayerProvider({ children, initialTracks = [] }: { children: Rea
     const track = tracks[currentIndex];
     if (!track?.id) return;
 
-    audioRef.current.src = `/api/submissions/${track.id}/download?type=mp3`;
+    audioRef.current.src = track.mp3_path || `/api/submissions/${track.id}/download?type=mp3`;
     audioRef.current.load();
     setProgress(0);
 

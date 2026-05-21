@@ -368,7 +368,6 @@ async def delete_submission_file(
 
     return DeleteFileResponse(deleted=True)
 
-
 @router.get("/{submission_id}/download")
 async def download_original(
     submission_id: str,
@@ -379,9 +378,15 @@ async def download_original(
     """Download the original or MP3 file.
     
     When downloading the original HQ file:
-    - Marks hq_downloaded = True on the submission
-    - Deletes the original file from disk after serving (keeps only MP3)
+    - Downloads the file from R2 to a temporary local path in Oracle.
+    - Marks hq_downloaded = True on the submission.
+    - Cleans up both the temporary local file and the file from Cloudflare R2 after serving.
     """
+    from fastapi.responses import RedirectResponse
+    from app.services.r2 import download_file_from_r2, delete_file_from_r2
+    from starlette.background import BackgroundTask
+    import tempfile
+
     submission = session.get(Submission, submission_id)
     if not submission:
         raise HTTPException(status_code=404, detail="Submission not found.")
@@ -391,47 +396,72 @@ async def download_original(
     is_hq_download = type != "mp3"
 
     if type == "mp3":
-        file_path = submission.mp3_path
-    else:
-        file_path = submission.original_path or submission.mp3_path
-        is_hq_download = bool(submission.original_path)  # Only true if original existed
+        if not submission.mp3_path:
+            raise HTTPException(status_code=404, detail="MP3 file not available.")
+        # If it's a full R2 URL, redirect directly
+        if submission.mp3_path.startswith("http://") or submission.mp3_path.startswith("https://"):
+            return RedirectResponse(url=submission.mp3_path)
+        # Fallback for old local files
+        if os.path.exists(submission.mp3_path):
+            ext = Path(submission.mp3_path).suffix
+            filename = f"{submission.track_name or submission.id}{ext}"
+            return FileResponse(path=submission.mp3_path, filename=filename, media_type="audio/mpeg")
+        raise HTTPException(status_code=404, detail="MP3 file not available.")
 
-    if not file_path or not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="File not available.")
+    # HQ download flow
+    original_key = submission.original_path
+    if not original_key:
+        raise HTTPException(status_code=404, detail="Original HQ file is not available or has already been downloaded.")
 
-    ext = Path(file_path).suffix
+    # Determine file extension and content type
+    ext = Path(original_key).suffix.lower()
     filename = f"{submission.track_name or submission.id}{ext}"
-    media_type = "audio/wav" if ext in (".wav",) else "audio/flac" if ext in (".flac",) else "audio/aiff" if ext in (".aiff", ".aif") else "audio/mpeg"
+    media_type = (
+        "audio/wav" if ext == ".wav" 
+        else "audio/flac" if ext == ".flac" 
+        else "audio/aiff" if ext in (".aiff", ".aif") 
+        else "application/octet-stream"
+    )
 
-    # If downloading HQ original: mark as downloaded + delete original file after serving
-    if is_hq_download and submission.original_path and os.path.exists(submission.original_path):
-        original_to_delete = submission.original_path
-        submission.hq_downloaded = True
-        submission.original_path = None  # Unlink from DB — MP3 preview remains
-        session.add(submission)
-        session.commit()
+    # Step 1: Create a temporary path in /tmp on Oracle VPS
+    temp_dir = tempfile.gettempdir()
+    local_temp_path = os.path.join(temp_dir, f"{submission_id}{ext}")
 
-        def _delete_after_serve(path: str) -> None:
-            """Delete original HQ file from disk after response has been sent."""
-            try:
-                if os.path.exists(path):
-                    os.remove(path)
-            except OSError:
-                pass  # Best-effort
-
-        from starlette.background import BackgroundTask
-
-        return FileResponse(
-            path=original_to_delete,
-            filename=filename,
-            media_type=media_type,
-            background=BackgroundTask(_delete_after_serve, original_to_delete),
+    try:
+        # Step 2: Download original file from R2 to local /tmp
+        await download_file_from_r2(original_key, local_temp_path)
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch original file from R2 storage: {e}"
         )
 
+    # Step 3: Unlink original_path from DB and mark as downloaded
+    submission.hq_downloaded = True
+    submission.original_path = None  # Unlink from DB
+    session.add(submission)
+    session.commit()
+
+    # Step 4: Background task to clean up local temp and R2 original
+    async def _cleanup_after_serve(local_path: str, r2_key: str) -> None:
+        # Remove from Oracle VPS disk
+        try:
+            if os.path.exists(local_path):
+                os.remove(local_path)
+        except OSError:
+            pass
+        
+        # Remove from Cloudflare R2
+        try:
+            await delete_file_from_r2(r2_key)
+        except Exception:
+            pass
+
     return FileResponse(
-        path=file_path,
+        path=local_temp_path,
         filename=filename,
         media_type=media_type,
+        background=BackgroundTask(_cleanup_after_serve, local_temp_path, original_key),
     )
 
 
@@ -449,34 +479,60 @@ async def get_waveform_peaks(
     _verify_label_ownership(session, auth["label_id"], submission)
 
     if not submission.peaks:
-        if submission.mp3_path and os.path.exists(submission.mp3_path):
-            try:
-                import librosa
-                from app.audio.analyzer import _extract_waveform_peaks
-                import asyncio
+        # Fallback to extract peaks if they are missing
+        if submission.mp3_path:
+            import tempfile
+            from app.services.r2 import download_file_from_r2
+            import librosa
+            from app.audio.analyzer import _extract_waveform_peaks
+            import asyncio
 
-                def load_and_extract():
-                    y, sr = librosa.load(submission.mp3_path, sr=None, mono=False)
+            # Download MP3 from R2 to a temporary local file
+            temp_dir = tempfile.gettempdir()
+            temp_mp3_path = os.path.join(temp_dir, f"{submission_id}_peaks_temp.mp3")
+
+            try:
+                if submission.mp3_path.startswith("http://") or submission.mp3_path.startswith("https://"):
+                    # Extract S3 key from URL: we know key is "tracks/{submission_id}/preview.mp3"
+                    r2_key = f"tracks/{submission_id}/preview.mp3"
+                    await download_file_from_r2(r2_key, temp_mp3_path)
+                else:
+                    # Fallback for old local file
+                    if os.path.exists(submission.mp3_path):
+                        temp_mp3_path = submission.mp3_path
+                    else:
+                        raise FileNotFoundError("Local MP3 file missing.")
+
+                def load_and_extract(path):
+                    y, sr = librosa.load(path, sr=None, mono=False)
                     peaks = _extract_waveform_peaks(y)
                     duration = float(len(librosa.to_mono(y)) / sr) if sr and len(y) > 0 else 0.0
                     return peaks, duration
 
-                peaks, duration = await asyncio.to_thread(load_and_extract)
+                peaks, duration = await asyncio.to_thread(load_and_extract, temp_mp3_path)
 
                 submission.peaks = peaks
                 if not submission.duration:
                     submission.duration = duration
                 session.add(submission)
                 session.commit()
+
             except Exception as e:
                 raise HTTPException(
                     status_code=500,
                     detail=f"Failed to generate peaks dynamically: {e}"
                 )
+            finally:
+                # Always clean up temp file
+                if temp_mp3_path != submission.mp3_path and os.path.exists(temp_mp3_path):
+                    try:
+                        os.remove(temp_mp3_path)
+                    except OSError:
+                        pass
         else:
             raise HTTPException(
                 status_code=404,
-                detail="Waveform peaks not available and MP3 file is missing on the server."
+                detail="Waveform peaks not available and MP3 file is missing."
             )
 
     return {

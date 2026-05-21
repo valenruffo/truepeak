@@ -88,11 +88,12 @@ async def process_submission(
     Steps:
         1. Analyze audio file (BPM, LUFS, phase correlation, musical key).
         2. Compare results against sonic signature rules.
-        3. If accepted → convert to MP3 → save to /app/data/mp3s/{submission_id}.mp3 → delete WAV.
-        4. If rejected → delete WAV immediately.
+        3. Convert WAV to MP3 preview locally.
+        4. Upload WAV original, MP3 preview, and waveform peaks JSON in combo to R2.
+        5. Clean up all local files (WAV, MP3) from the server immediately.
 
     Args:
-        file_path: Path to the temporary WAV file.
+        file_path: Path to the temporary original audio file.
         submission_id: UUID of the submission record.
         label_id: UUID of the label (for logging).
         sonic_signature: Label's sonic signature configuration.
@@ -103,15 +104,24 @@ async def process_submission(
             "metrics": {"bpm": ..., "lufs": ..., ...},
             "rejection_reason": str | None,
             "mp3_path": str | None,
+            "original_path": str | None,
+            "peaks": list[float] | None,
         }
 
     Raises:
         AudioAnalysisError: If analysis fails (caller must handle).
     """
+    import json
+    import os
+    from pathlib import Path
+    from app.services.r2 import upload_file_to_r2, upload_bytes_to_r2
+
     metrics: dict[str, Any] = {}
     status = "rejected"
     rejection_reason: str | None = None
-    mp3_path: str | None = None
+    mp3_temp_path: str | None = None
+    r2_mp3_url: str | None = None
+    r2_original_path: str | None = None
 
     try:
         # Step 1: Analyze audio
@@ -120,28 +130,56 @@ async def process_submission(
         # Step 2: Compare against sonic signature
         status, rejection_reason = _check_sonic_signature(metrics, sonic_signature)
 
-        if status == "approved":
-            # Step 3: Convert to MP3 and save
-            mp3_dir = Path("/app/data/mp3s")
-            mp3_dir.mkdir(parents=True, exist_ok=True)
-            mp3_path = str(mp3_dir / f"{submission_id}.mp3")
+        # Step 3: Convert to MP3 locally in /tmp
+        ext = Path(file_path).suffix.lower()
+        mp3_temp_path = f"/tmp/{submission_id}.mp3"
+        
+        try:
+            convert_to_mp3(file_path, mp3_temp_path, bitrate="320k")
+        except ConversionError as e:
+            # Conversion failed — treat as rejected and raise
+            status = "rejected"
+            rejection_reason = f"conversion_failed: {e}"
+            raise AudioAnalysisError(f"Audio conversion failed: {e}") from e
 
-            try:
-                convert_to_mp3(file_path, mp3_path, bitrate="320k")
-            except ConversionError as e:
-                # Conversion failed — treat as rejected
-                status = "rejected"
-                rejection_reason = f"conversion_failed: {e}"
-                mp3_path = None
+        # Step 4: Upload combo (original, preview.mp3, waveform.json) to R2
+        r2_original_key = f"tracks/{submission_id}/original{ext}"
+        r2_mp3_key = f"tracks/{submission_id}/preview.mp3"
+        r2_peaks_key = f"tracks/{submission_id}/waveform.json"
+
+        # Determine original content type
+        orig_content_type = "audio/wav"
+        if ext == ".flac":
+            orig_content_type = "audio/flac"
+        elif ext in (".aiff", ".aif"):
+            orig_content_type = "audio/aiff"
+
+        # Upload files in parallel/sequence to R2
+        await upload_file_to_r2(file_path, r2_original_key, orig_content_type)
+        await upload_file_to_r2(mp3_temp_path, r2_mp3_key, "audio/mpeg")
+
+        # Upload peaks waveform JSON
+        peaks = metrics.get("peaks", [])
+        duration = metrics.get("duration", 0.0)
+        peaks_data = json.dumps({"peaks": peaks, "duration": duration}).encode("utf-8")
+        await upload_bytes_to_r2(peaks_data, r2_peaks_key, "application/json")
+
+        # Set R2 paths for DB persistence
+        public_url_base = os.getenv("CLOUDFLARE_R2_PUBLIC_URL", "").rstrip("/")
+        r2_mp3_url = f"{public_url_base}/{r2_mp3_key}"
+        r2_original_path = r2_original_key
 
     finally:
-        # Step 4: ALWAYS clean up WAV file — no exceptions
+        # Step 5: ALWAYS clean up local files from Oracle server immediately
         _safe_remove(file_path)
+        if mp3_temp_path:
+            _safe_remove(mp3_temp_path)
 
     return {
         "status": status,
         "metrics": metrics,
         "rejection_reason": rejection_reason,
-        "mp3_path": mp3_path,
+        "mp3_path": r2_mp3_url,
+        "original_path": r2_original_path,
         "peaks": metrics.get("peaks"),
     }
