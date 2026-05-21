@@ -401,47 +401,6 @@ function InboxContent() {
   const [dragOverField, setDragOverField] = useState<"email-body" | "email-subject" | null>(null);
 
 
-  // Sync contenteditable HTML when text or contact details change (body)
-  useEffect(() => {
-    const contactChanged = emailModal.submission !== lastSyncedContactRef.current;
-    const labelChanged = labelName !== lastSyncedLabelRef.current;
-    const textChanged = emailBody !== lastSyncedTextRef.current;
-
-    if (textChanged || contactChanged || labelChanged) {
-      const isFocused = typeof document !== "undefined" && document.activeElement === emailBodyDivRef.current;
-      
-      if (!isFocused || contactChanged || labelChanged) {
-        if (emailBodyDivRef.current) {
-          emailBodyDivRef.current.innerHTML = convertTextToHtml(emailBody, emailModal.submission || null, labelName);
-        }
-      }
-      
-      lastSyncedTextRef.current = emailBody;
-      lastSyncedContactRef.current = emailModal.submission || null;
-      lastSyncedLabelRef.current = labelName;
-    }
-  }, [emailBody, emailModal.submission, labelName]);
-
-  // Sync contenteditable HTML when text or contact details change (subject)
-  useEffect(() => {
-    const contactChanged = emailModal.submission !== lastSyncedSubjectContactRef.current;
-    const labelChanged = labelName !== lastSyncedSubjectLabelRef.current;
-    const textChanged = emailSubject !== lastSyncedSubjectTextRef.current;
-
-    if (textChanged || contactChanged || labelChanged) {
-      const isFocused = typeof document !== "undefined" && document.activeElement === emailSubjectDivRef.current;
-      
-      if (!isFocused || contactChanged || labelChanged) {
-        if (emailSubjectDivRef.current) {
-          emailSubjectDivRef.current.innerHTML = convertTextToHtml(emailSubject, emailModal.submission || null, labelName);
-        }
-      }
-      
-      lastSyncedSubjectTextRef.current = emailSubject;
-      lastSyncedSubjectContactRef.current = emailModal.submission || null;
-      lastSyncedSubjectLabelRef.current = labelName;
-    }
-  }, [emailSubject, emailModal.submission, labelName]);
 
   const insertEmailVariable = (variable: string, field: "body" | "subject") => {
     const divRef = field === "subject" ? emailSubjectDivRef : emailBodyDivRef;
@@ -723,7 +682,44 @@ function InboxContent() {
     enabled: emailModal.open,
   });
 
-  // Detail modal
+  // Sync contenteditable HTML when text or contact details change (body)
+  useEffect(() => {
+    const contactChanged = emailModal.submission !== lastSyncedContactRef.current;
+    const labelChanged = labelName !== lastSyncedLabelRef.current;
+    const textChanged = emailBody !== lastSyncedTextRef.current;
+
+    if (textChanged || contactChanged || labelChanged) {
+      const isFocused = typeof document !== "undefined" && document.activeElement === emailBodyDivRef.current;
+      if (!isFocused || contactChanged || labelChanged) {
+        if (emailBodyDivRef.current) {
+          emailBodyDivRef.current.innerHTML = convertTextToHtml(emailBody, emailModal.submission || null, labelName);
+        }
+      }
+      lastSyncedTextRef.current = emailBody;
+      lastSyncedContactRef.current = emailModal.submission || null;
+      lastSyncedLabelRef.current = labelName;
+    }
+  }, [emailBody, emailModal.submission, labelName]);
+
+  // Sync contenteditable HTML when text or contact details change (subject)
+  useEffect(() => {
+    const contactChanged = emailModal.submission !== lastSyncedSubjectContactRef.current;
+    const labelChanged = labelName !== lastSyncedSubjectLabelRef.current;
+    const textChanged = emailSubject !== lastSyncedSubjectTextRef.current;
+
+    if (textChanged || contactChanged || labelChanged) {
+      const isFocused = typeof document !== "undefined" && document.activeElement === emailSubjectDivRef.current;
+      if (!isFocused || contactChanged || labelChanged) {
+        if (emailSubjectDivRef.current) {
+          emailSubjectDivRef.current.innerHTML = convertTextToHtml(emailSubject, emailModal.submission || null, labelName);
+        }
+      }
+      lastSyncedSubjectTextRef.current = emailSubject;
+      lastSyncedSubjectContactRef.current = emailModal.submission || null;
+      lastSyncedSubjectLabelRef.current = labelName;
+    }
+  }, [emailSubject, emailModal.submission, labelName]);
+
   const [detailModal, setDetailModal] = useState<DetailModalState>({
     open: false,
     submission: null,
