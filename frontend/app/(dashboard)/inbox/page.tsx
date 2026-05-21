@@ -400,12 +400,6 @@ function InboxContent() {
   const [lastActiveField, setLastActiveField] = useState<"body" | "subject">("body");
   const [dragOverField, setDragOverField] = useState<"email-body" | "email-subject" | null>(null);
 
-  // Wire undo/redo for email composer (active when emailModal is open)
-  useUndoRedoKey({
-    onUndo: () => { undoEmailBody(); undoEmailSubject(); },
-    onRedo: () => { redoEmailBody(); redoEmailSubject(); },
-    enabled: emailModal.open,
-  });
 
   // Sync contenteditable HTML when text or contact details change (body)
   useEffect(() => {
@@ -720,6 +714,13 @@ function InboxContent() {
     sending: false,
     sent: false,
     error: null,
+  });
+
+  // Wire undo/redo for email composer (active when emailModal is open)
+  useUndoRedoKey({
+    onUndo: () => { undoEmailBody(); undoEmailSubject(); },
+    onRedo: () => { redoEmailBody(); redoEmailSubject(); },
+    enabled: emailModal.open,
   });
 
   // Detail modal
