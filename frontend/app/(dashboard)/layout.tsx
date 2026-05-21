@@ -9,7 +9,7 @@ import { ToastProvider } from "@/components/ui/toast";
 import WhatsAppBubble from "@/components/WhatsAppBubble";
 import { useLanguage } from "@/lib/i18n";
 import { useTheme } from "@/lib/theme";
-import { Music, Clock, AlertTriangle } from "lucide-react";
+import { Music, Clock, AlertTriangle, Sliders, Link2, Inbox, Mail, BookOpen, Settings, LogOut } from "lucide-react";
 import WaveSurfer from "wavesurfer.js";
 
 function PlayerBar() {
@@ -118,7 +118,7 @@ function PlayerBar() {
 
   return (
     <div
-      className="fixed bottom-0 left-0 right-0 z-30 flex items-center gap-2 md:gap-4 px-2 md:px-4 md:ml-[240px]"
+      className="fixed bottom-0 left-0 right-0 z-30 flex items-center gap-2 md:gap-4 px-2 md:px-4 md:ml-[200px]"
       style={{
         height: "64px",
         background: "var(--bg-card)",
@@ -414,11 +414,11 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
 
   const role = currentRole;
   const navItems = [
-    { href: "/config", label: t("dashboard.nav.config") },
-    { href: "/link", label: t("dashboard.nav.link") },
-    { href: "/inbox", label: role === "dj" ? "Promos" : "Demos" },
-    { href: "/crm", label: t("dashboard.nav.crm") },
-    { href: "/guide", label: t("dashboard.nav.guide") },
+    { href: "/config", label: t("dashboard.nav.config"), icon: Sliders },
+    { href: "/link", label: t("dashboard.nav.link"), icon: Link2 },
+    { href: "/inbox", label: role === "dj" ? "Promos" : "Demos", icon: Inbox },
+    { href: "/crm", label: t("dashboard.nav.crm"), icon: Mail },
+    { href: "/guide", label: t("dashboard.nav.guide"), icon: BookOpen },
   ];
 
   const labelInitial = labelName ? labelName.charAt(0).toUpperCase() : "?";
@@ -444,20 +444,25 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
       {/* Sidebar */}
       <aside
         className={`fixed top-0 left-0 h-full flex flex-col z-40 transition-transform ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0`}
-        style={{ width: "240px", background: "var(--bg-card)", borderRight: "1px solid var(--border)" }}
+        style={{ width: "200px", background: "var(--bg-card)", borderRight: "1px solid var(--border)" }}
       >
-        <div className="px-6 pt-9 pb-6 flex items-center justify-start">
-          <Link href="/"><img src="/logo.png" alt="True Peak AI" className="h-12 w-auto object-contain" /></Link>
+        <div className="px-4 pt-6 pb-4 flex items-center justify-start">
+          <Link href="/"><img src="/logo.png" alt="True Peak AI" className="h-8 w-auto object-contain" /></Link>
         </div>
 
-        <nav className="flex-1 px-3 pt-6 space-y-2">
+        <nav className="flex-1 px-2.5 pt-4 space-y-1">
           {navItems.map((item) => {
             const isActive = pathname === item.href;
+            const Icon = item.icon;
             return (
               <Link key={item.href} href={item.href} onClick={() => setSidebarOpen(false)}
-                className={cn("block text-[17px] font-medium px-4 py-3 rounded transition-all duration-200 mb-1.5", isActive ? "font-semibold shadow-sm" : "hover:bg-white/5 hover:translate-x-1")}
+                className={cn(
+                  "flex items-center gap-2.5 text-[13px] font-medium px-3 py-2 rounded transition-all duration-200 mb-0.5",
+                  isActive ? "font-semibold shadow-sm" : "hover:bg-white/5 hover:translate-x-0.5"
+                )}
                 style={{ color: isActive ? "#10b981" : "var(--text-secondary)", background: isActive ? "rgba(16,185,129,0.08)" : "transparent" }}>
-                {item.label}
+                <Icon className={cn("w-4 h-4", isActive ? "text-emerald-500" : "text-zinc-400")} />
+                <span>{item.label}</span>
               </Link>
             );
           })}
@@ -595,28 +600,28 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
         )}
 
         {/* Bottom area: Profile Info + Settings + Logout */}
-        <div className="mt-auto px-4 pb-6 pt-4 border-t" style={{ borderColor: "var(--border)" }}>
+        <div className="mt-auto px-3 pb-4 pt-3 border-t" style={{ borderColor: "var(--border)" }}>
           {labelName && (
-            <div className="mb-4 px-2">
-              <div className="flex items-center gap-3">
+            <div className="mb-3 px-1">
+              <div className="flex items-center gap-2.5">
                 {logoPath ? (
                   <img
                     src={`/logos/${logoPath}`}
                     alt={labelName}
-                    className="w-9 h-9 rounded-full object-cover flex-shrink-0"
+                    className="w-8 h-8 rounded-full object-cover flex-shrink-0"
                     style={{ border: "1px solid var(--border)" }}
                   />
                 ) : (
                   <div
-                    className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0"
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0"
                     style={{ background: "rgba(16,185,129,0.15)", color: "#10b981" }}
                   >
                     {labelInitial}
                   </div>
                 )}
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium truncate" style={{ color: "var(--text-primary)" }}>{labelName}</div>
-                  <div className="text-[10px] text-emerald-400 font-medium mt-0.5">
+                  <div className="text-xs font-medium truncate" style={{ color: "var(--text-primary)" }}>{labelName}</div>
+                  <div className="text-[9px] text-emerald-400 font-medium mt-0.5">
                     {plan.toLowerCase() === "pro" ? "Plan Pro" : plan.toLowerCase() === "indie" ? "Plan Indie" : "Plan Free"}
                   </div>
                 </div>
@@ -624,17 +629,14 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
             </div>
           )}
 
-          <div className="space-y-1">
+          <div className="space-y-0.5">
             <Link
               href="/settings"
               onClick={() => setSidebarOpen(false)}
-              className="flex items-center gap-2 text-sm px-3 py-2 rounded transition-colors hover:bg-white/5"
+              className="flex items-center gap-2.5 text-[13px] px-3.5 py-1.5 rounded transition-colors hover:bg-white/5"
               style={{ color: "var(--text-muted)" }}
             >
-              <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
+              <Settings className="w-4 h-4 flex-shrink-0 text-zinc-500" />
               {t("dashboard.nav.settings")}
             </Link>
             <button
@@ -646,12 +648,10 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
                 fetch(`/api/labels/logout`, { method: "POST", credentials: "include" }).catch(() => {});
                 router.push("/");
               }}
-              className="w-full flex items-center gap-2 text-left text-sm px-3 py-2 rounded transition-colors hover:bg-white/5"
+              className="w-full flex items-center gap-2.5 text-left text-[13px] px-3.5 py-1.5 rounded transition-colors hover:bg-white/5"
               style={{ color: "var(--text-muted)" }}
             >
-              <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-              </svg>
+              <LogOut className="w-4 h-4 flex-shrink-0 text-zinc-500" />
               {t("dashboard.logout")}
             </button>
           </div>
@@ -659,7 +659,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
       </aside>
 
       <main className="flex-1 pt-12 md:pt-0" style={{ marginLeft: "0", paddingBottom: "80px" }}>
-        <div className="mx-auto max-w-6xl px-3 md:px-6 py-4 md:py-8 md:ml-[240px]">
+        <div className="mx-auto max-w-6xl px-3 md:px-6 py-4 md:py-8 md:ml-[200px]">
           {/* Upgrade banner for Free users */}
           {plan === "free" && (
             <div
