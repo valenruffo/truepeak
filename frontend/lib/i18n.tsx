@@ -37,7 +37,7 @@ const translations = {
     "sellos.benefit2.desc": "Mails de rechazo automatico y plantillas pre-armadas para pedir pre-masters y firmar contratos con un solo clic.",
 
     // Landing - DJs section
-    "djs.section_label": "Para DJs de Gira",
+    "djs.section_label": "Para DJ's",
     "djs.title": "El escudo definitivo para tu pendrive.",
     "djs.description": "Recibir cientos de promos por semana es un privilegio, pero analizarlos en Rekordbox uno por uno es una pesadilla. Configura tu link publico, compartilo con agencias de PR y deja que nuestro motor separe los bangers del ruido.",
     "djs.benefit0.title": "Mix Perfecto",
@@ -73,8 +73,8 @@ const translations = {
     "step.01.desc": "Los productores envian sus tracks a traves de tu URL personalizada. Sin registro, sin friccion. Solo suben el WAV y listo.",
     "step.02.title": "Analisis Automático",
     "step.02.desc": "La IA analiza BPM, LUFS, fase, headroom y tonalidad músical. Rechaza automaticamente los tracks que no cumplen tus reglas.",
-    "step.03.title": "Escucha y decidí",
-    "step.03.desc": "Revisa los tracks pendientes en tu dashboard. Escucha, aproba o rechaza. Solo llega a tus oidos lo que vale la pena.",
+    "step.03.title": "Escuchá al instante",
+    "step.03.desc": "Reproducí las demos directo desde tu Kanban con el reproductor online integrado en calidad MP3 a 320 kbps. Evaluá, considerá o descartá al instante sin salir de la misma pantalla y sin descargar nada.",
     "step.04.title": "Contacta productores",
     "step.04.desc": "Envia emails desde la seccion Emails con plantillas pre-armadas. Variables como nombre y track se rellenan solas.",
 
@@ -537,7 +537,7 @@ const translations = {
     "sellos.benefit2.desc": "Automatic rejection emails and pre-built templates to request pre-masters and sign contracts with one click.",
 
     // Landing - DJs section
-    "djs.section_label": "For Touring DJs",
+    "djs.section_label": "For DJ's",
     "djs.title": "The ultimate shield for your USB drive.",
     "djs.description": "Receiving hundreds of promos per week is a privilege, but analyzing them one by one in Rekordbox is a nightmare. Set up your public link, share it with PR agencies, and let our engine separate the bangers from the noise.",
     "djs.benefit0.title": "Perfect Mix",
@@ -573,8 +573,8 @@ const translations = {
     "step.01.desc": "Producers submit tracks through your custom URL. No signup, no friction. Just upload the WAV and done.",
     "step.02.title": "Automatic analysis",
     "step.02.desc": "AI analyzes BPM, LUFS, phase, headroom and músical key. Automatically rejects tracks that don't meet your rules.",
-    "step.03.title": "Listen and decide",
-    "step.03.desc": "Review pending tracks in your dashboard. Listen, approve or reject. Only what's worth it reaches your ears.",
+    "step.03.title": "Listen Instantly",
+    "step.03.desc": "Play incoming demos directly from your Kanban board with the integrated online player in 320 kbps MP3 quality. Evaluate or discard instantly on a single screen without downloading anything.",
     "step.04.title": "Contact producers",
     "step.04.desc": "Send emails from the Emails section with pre-built templates. Variables like name and track auto-fill.",
 

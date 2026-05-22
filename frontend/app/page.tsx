@@ -283,7 +283,7 @@ function Hero() {
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
-          backgroundImage: "linear-gradient(rgba(82,82,91,0.28) 1px, transparent 1px), linear-gradient(90deg, rgba(82,82,91,0.28) 1px, transparent 1px)",
+          backgroundImage: "linear-gradient(rgba(82,82,91,0.48) 1px, transparent 1px), linear-gradient(90deg, rgba(82,82,91,0.48) 1px, transparent 1px)",
           backgroundSize: "40px 40px",
           maskImage: "radial-gradient(ellipse 70% 60% at 50% 40%, black 20%, transparent 100%)",
           WebkitMaskImage: "radial-gradient(ellipse 70% 60% at 50% 40%, black 20%, transparent 100%)",
@@ -337,27 +337,69 @@ function Hero() {
 
 // ─── Persona Selector Section ──────────────────────────────────────────────────
 
+const camelotKeysRowB = ["1B", "2B", "3B", "4B", "5B", "6B", "7B", "8B", "9B", "10B", "11B", "12B"];
+const camelotKeysRowA = ["1A", "2A", "3A", "4A", "5A", "6A", "7A", "8A", "9A", "10A", "11A", "12A"];
+
 function PersonaSelectorSection() {
   const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState<"labels" | "djs">("labels");
 
   // --- States for Labels interactive widget ---
-  const [selectedGenre, setSelectedGenre] = useState<"techno" | "house" | "dnb">("techno");
-  const [bpmRange, setBpmRange] = useState([125, 132]);
-  const [lufsTarget, setLufsTarget] = useState(-11);
+  const signaturePresets = {
+    techno: { label: "Techno", bpmMin: 125, bpmMax: 132, lufs: -6.0, tolerance: 1.5, duration: 8, formats: ["WAV", "FLAC", "AIFF"], size: 100, scale: "A" },
+    house: { label: "House", bpmMin: 120, bpmMax: 126, lufs: -8.0, tolerance: 1.5, duration: 7, formats: ["WAV", "FLAC", "AIFF"], size: 80, scale: "B" },
+    techhouse: { label: "Tech House", bpmMin: 123, bpmMax: 128, lufs: -7.0, tolerance: 1.0, duration: 7.5, formats: ["WAV", "FLAC"], size: 90, scale: "A" },
+    progressive: { label: "Progressive", bpmMin: 120, bpmMax: 126, lufs: -10.0, tolerance: 1.0, duration: 9, formats: ["WAV", "FLAC", "AIFF"], size: 100, scale: "B" },
+    minimal: { label: "Minimal / Deep Tech", bpmMin: 122, bpmMax: 127, lufs: -9.0, tolerance: 1.0, duration: 8, formats: ["WAV"], size: 70, scale: "A" },
+    dnb: { label: "Drum & Bass", bpmMin: 170, bpmMax: 178, lufs: -5.0, tolerance: 1.0, duration: 6, formats: ["WAV", "FLAC", "AIFF"], size: 120, scale: "A" },
+    melodic: { label: "Melodic House & Techno", bpmMin: 120, bpmMax: 126, lufs: -9.0, tolerance: 1.5, duration: 8.5, formats: ["WAV", "FLAC"], size: 100, scale: "A" },
+    trance: { label: "Trance", bpmMin: 134, bpmMax: 140, lufs: -6.0, tolerance: 1.0, duration: 9, formats: ["WAV", "FLAC", "AIFF"], size: 110, scale: "B" },
+    afrohouse: { label: "Afro House", bpmMin: 118, bpmMax: 124, lufs: -8.0, tolerance: 1.5, duration: 7.5, formats: ["WAV", "FLAC"], size: 90, scale: "B" }
+  };
+
+  const [selectedGenre, setSelectedGenre] = useState<keyof typeof signaturePresets>("progressive");
+  const [bpmRange, setBpmRange] = useState([120, 126]);
+  const [lufsTarget, setLufsTarget] = useState(-10);
+  const [lufsTolerance, setLufsTolerance] = useState(1);
+  const [maxDuration, setMaxDuration] = useState(9);
+  const [durationEnabled, setDurationEnabled] = useState(true);
+  const [allowedFormats, setAllowedFormats] = useState<string[]>(["WAV", "FLAC", "AIFF"]);
+  const [maxFileSize, setMaxFileSize] = useState(100);
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set(["8A", "7A", "9A", "8B"]));
 
   useEffect(() => {
-    if (selectedGenre === "techno") {
-      setBpmRange([125, 132]);
-      setLufsTarget(-11);
-    } else if (selectedGenre === "house") {
-      setBpmRange([120, 126]);
-      setLufsTarget(-13);
-    } else if (selectedGenre === "dnb") {
-      setBpmRange([170, 175]);
-      setLufsTarget(-9);
+    const preset = signaturePresets[selectedGenre];
+    if (preset) {
+      setBpmRange([preset.bpmMin, preset.bpmMax]);
+      setLufsTarget(preset.lufs);
+      setLufsTolerance(preset.tolerance);
+      setMaxDuration(preset.duration);
+      setAllowedFormats(preset.formats);
+      setMaxFileSize(preset.size);
+      
+      if (preset.scale === "A") {
+        setSelectedKeys(new Set(["8A", "7A", "9A", "8B"]));
+      } else {
+        setSelectedKeys(new Set(["8B", "7B", "9B", "8A"]));
+      }
     }
   }, [selectedGenre]);
+
+  const toggleKey = (keyVal: string) => {
+    setSelectedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(keyVal)) {
+        next.delete(keyVal);
+      } else {
+        next.add(keyVal);
+      }
+      return next;
+    });
+  };
+
+  const toggleFormat = (fmt: string) => {
+    setAllowedFormats(prev => prev.includes(fmt) ? prev.filter(f => f !== fmt) : [...prev, fmt]);
+  };
 
   // --- States for DJs interactive widget ---
   const [phaseCorrelation, setPhaseCorrelation] = useState(0.85);
@@ -413,6 +455,20 @@ function PersonaSelectorSection() {
   const accentColor = activeTab === "labels" ? "#10b981" : "#06b6d4";
   const accentBg = activeTab === "labels" ? "rgba(16,185,129,0.06)" : "rgba(6,182,212,0.06)";
   const accentBorder = activeTab === "labels" ? "rgba(16,185,129,0.2)" : "rgba(6,182,212,0.2)";
+
+  // Helper for rendering compatible keys
+  const getCompatibleKeys = (key: string) => {
+    const match = key.match(/(\d+)([AB])/);
+    if (!match) return [key];
+    const num = parseInt(match[1]);
+    const letter = match[2];
+    const prev = num === 1 ? 12 : num - 1;
+    const next = num === 12 ? 1 : num + 1;
+    const oppositeLetter = letter === "A" ? "B" : "A";
+    return [`${num}${letter}`, `${prev}${letter}`, `${next}${letter}`, `${num}${oppositeLetter}`];
+  };
+
+  const compatibleKeys = getCompatibleKeys(selectedKey);
 
   return (
     <section id="personas" className="py-24 px-6 relative overflow-hidden" style={{ borderTop: "1px solid var(--border)" }}>
@@ -492,105 +548,220 @@ function PersonaSelectorSection() {
             {/* Right Col: Widget */}
             <div className="lg:col-span-6">
               {activeTab === "labels" ? (
-                <div className="rounded border overflow-hidden shadow-2xl" style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}>
+                <div className="rounded border overflow-hidden shadow-2xl flex flex-col" style={{ borderColor: "var(--border)", background: "var(--bg-card)", minHeight: "600px" }}>
                   <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: "var(--border)" }}>
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                      <span className="font-mono text-xs text-emerald-500">A&R FILTER ENGINE ACTIVE</span>
+                    <div className="flex flex-col">
+                      <span className="font-mono text-[10px] text-zinc-500 uppercase">Configuration</span>
+                      <span className="font-bold text-sm text-white">Sonic signature — Main label</span>
                     </div>
-                    <span className="font-mono text-[10px] text-muted">SETUP_CONFIG.json</span>
                   </div>
 
-                  <div className="p-6 space-y-6">
-                    <div className="grid grid-cols-12 gap-6 items-center">
-                      {/* Gauge */}
-                      <div className="col-span-5 flex flex-col items-center justify-center">
-                        <div className="relative w-28 h-28 flex items-center justify-center">
-                          <svg className="w-full h-full transform -rotate-90">
-                            <circle cx="56" cy="56" r="48" stroke="rgba(24,24,27,0.8)" strokeWidth="6" fill="transparent" />
-                            <motion.circle
-                              cx="56"
-                              cy="56"
-                              r="48"
-                              stroke="#10b981"
-                              strokeWidth="6"
-                              fill="transparent"
-                              strokeDasharray={301.6}
-                              initial={{ strokeDashoffset: 301.6 }}
-                              animate={{ strokeDashoffset: 301.6 * (1 - 0.92) }}
-                              transition={{ duration: 1.2, ease: "easeOut" }}
-                            />
-                          </svg>
-                          <div className="absolute flex flex-col items-center justify-center">
-                            <span className="text-2xl font-bold font-mono text-white">92%</span>
-                            <span className="text-[8px] text-muted uppercase font-mono tracking-wider">Filtered</span>
+                  <div className="p-6 space-y-6 overflow-y-auto" style={{ maxHeight: "70vh" }}>
+                    {/* Presets */}
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center text-[10px] font-mono text-zinc-400 uppercase">
+                        <span>Preset</span>
+                        <span className="text-zinc-600">Loads suggested values</span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {(Object.keys(signaturePresets) as Array<keyof typeof signaturePresets>).map((genre) => (
+                          <button
+                            key={genre}
+                            onClick={() => setSelectedGenre(genre)}
+                            className="px-3 py-1.5 rounded-full text-[11px] font-medium border transition-all cursor-pointer"
+                            style={{
+                              background: selectedGenre === genre ? "rgba(16,185,129,0.06)" : "transparent",
+                              borderColor: selectedGenre === genre ? "#10b981" : "var(--border)",
+                              color: selectedGenre === genre ? "#10b981" : "var(--text-muted)",
+                            }}
+                          >
+                            {signaturePresets[genre].label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* BPM Range */}
+                    <div className="p-4 rounded border space-y-4" style={{ borderColor: "var(--border)", background: "rgba(9,9,11,0.2)" }}>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-semibold text-white">BPM Range</span>
+                        <span className="text-sm font-bold font-mono" style={{ color: "var(--text-primary)" }}>{bpmRange[0]} — {bpmRange[1]}</span>
+                      </div>
+                      <div className="flex items-center gap-6">
+                        <div className="flex-1 space-y-2">
+                          <div className="flex justify-between text-xs text-zinc-500">
+                            <span>Minimum</span>
+                            <span className="text-emerald-500 font-mono">{bpmRange[0]}</span>
+                          </div>
+                          <div className="h-1.5 rounded-full relative bg-zinc-800">
+                            <motion.div className="absolute left-0 top-0 bottom-0 rounded-full" style={{ background: "#10b981" }} animate={{ width: `${((bpmRange[0] - 80) / 100) * 100}%` }} />
+                            <motion.div className="absolute top-1/2 -mt-2 w-4 h-4 rounded-full bg-zinc-300 border-2 border-zinc-800 shadow cursor-pointer" animate={{ left: `calc(${((bpmRange[0] - 80) / 100) * 100}% - 8px)` }} />
                           </div>
                         </div>
-                        <span className="text-[9px] text-muted text-center mt-2 font-mono">Demos auto-filtrados</span>
+                        <div className="flex-1 space-y-2">
+                          <div className="flex justify-between text-xs text-zinc-500">
+                            <span>Maximum</span>
+                            <span className="text-emerald-500 font-mono">{bpmRange[1]}</span>
+                          </div>
+                          <div className="h-1.5 rounded-full relative bg-zinc-800">
+                            <motion.div className="absolute left-0 top-0 bottom-0 rounded-full" style={{ background: "#10b981" }} animate={{ width: `${((bpmRange[1] - 80) / 100) * 100}%` }} />
+                            <motion.div className="absolute top-1/2 -mt-2 w-4 h-4 rounded-full bg-zinc-300 border-2 border-zinc-800 shadow cursor-pointer" animate={{ left: `calc(${((bpmRange[1] - 80) / 100) * 100}% - 8px)` }} />
+                          </div>
+                        </div>
                       </div>
+                    </div>
 
-                      {/* Presets */}
-                      <div className="col-span-7 space-y-3">
-                        <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider block">Firma Sónica Sugerida:</span>
-                        <div className="flex flex-col gap-2">
-                          {(["techno", "house", "dnb"] as const).map((genre) => (
+                    {/* LUFS target */}
+                    <div className="p-4 rounded border space-y-4" style={{ borderColor: "var(--border)", background: "rgba(9,9,11,0.2)" }}>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-semibold text-white">LUFS target</span>
+                        <span className="text-sm font-bold font-mono" style={{ color: "var(--text-primary)" }}>{lufsTarget} LUFS ± {lufsTolerance}</span>
+                      </div>
+                      <div className="flex items-center gap-6">
+                        <div className="flex-1 space-y-2">
+                          <div className="flex justify-between text-xs text-zinc-500">
+                            <span>Target</span>
+                            <span className="text-emerald-500 font-mono">{lufsTarget}</span>
+                          </div>
+                          <div className="h-1.5 rounded-full relative bg-zinc-800">
+                            <motion.div className="absolute left-0 top-0 bottom-0 rounded-full" style={{ background: "#10b981" }} animate={{ width: `${((lufsTarget + 20) / 20) * 100}%` }} />
+                            <motion.div className="absolute top-1/2 -mt-2 w-4 h-4 rounded-full bg-zinc-300 border-2 border-zinc-800 shadow cursor-pointer" animate={{ left: `calc(${((lufsTarget + 20) / 20) * 100}% - 8px)` }} />
+                          </div>
+                        </div>
+                        <div className="flex-1 space-y-2">
+                          <div className="flex justify-between text-xs text-zinc-500">
+                            <span>Tolerance</span>
+                            <span className="text-emerald-500 font-mono">± {lufsTolerance}</span>
+                          </div>
+                          <div className="h-1.5 rounded-full relative bg-zinc-800">
+                            <motion.div className="absolute left-0 top-0 bottom-0 rounded-full" style={{ background: "var(--text-primary)" }} animate={{ width: `${((lufsTolerance) / 5) * 100}%` }} />
+                            <motion.div className="absolute top-1/2 -mt-2 w-4 h-4 rounded-full bg-zinc-300 border-2 border-zinc-800 shadow cursor-pointer" animate={{ left: `calc(${((lufsTolerance) / 5) * 100}% - 8px)` }} />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Max Duration */}
+                    <div className="p-4 rounded border space-y-4" style={{ borderColor: "var(--border)", background: "rgba(9,9,11,0.2)" }}>
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-semibold text-white">Max duration</span>
+                          <div className={`w-8 h-4 rounded-full flex items-center px-0.5 cursor-pointer transition-colors ${durationEnabled ? "bg-emerald-500" : "bg-zinc-700"}`} onClick={() => setDurationEnabled(!durationEnabled)}>
+                            <motion.div className="w-3 h-3 rounded-full bg-white" animate={{ x: durationEnabled ? 16 : 0 }} />
+                          </div>
+                        </div>
+                        <span className="text-sm font-bold font-mono" style={{ color: "var(--text-primary)" }}>{maxDuration}:00</span>
+                      </div>
+                      <div className="space-y-2" style={{ opacity: durationEnabled ? 1 : 0.5, pointerEvents: durationEnabled ? "auto" : "none" }}>
+                        <div className="flex justify-between text-xs text-zinc-500">
+                          <span>Maximum</span>
+                          <span className="text-emerald-500 font-mono">{maxDuration}:00</span>
+                        </div>
+                        <div className="h-1.5 rounded-full relative bg-zinc-800">
+                          <motion.div className="absolute left-0 top-0 bottom-0 rounded-full" style={{ background: "#10b981" }} animate={{ width: `${(maxDuration / 20) * 100}%` }} />
+                          <motion.div className="absolute top-1/2 -mt-2 w-4 h-4 rounded-full bg-zinc-300 border-2 border-zinc-800 shadow cursor-pointer" animate={{ left: `calc(${(maxDuration / 20) * 100}% - 8px)` }} />
+                        </div>
+                        <div className="flex justify-between text-[10px] text-zinc-600 font-mono">
+                          <span>0:00</span>
+                          <span>20:00</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Allowed formats & Max file size */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-3">
+                        <span className="text-sm font-semibold text-white block">Allowed formats</span>
+                        <div className="flex gap-2">
+                          {["WAV", "FLAC", "AIFF"].map(fmt => (
                             <button
-                              key={genre}
-                              onClick={() => setSelectedGenre(genre)}
-                              className="px-3 py-2 rounded text-left border transition-all text-xs font-mono font-medium flex items-center justify-between cursor-pointer"
+                              key={fmt}
+                              onClick={() => toggleFormat(fmt)}
+                              className="flex-1 py-2 rounded border text-xs font-medium font-mono transition-colors"
                               style={{
-                                background: selectedGenre === genre ? "rgba(16,185,129,0.06)" : "transparent",
-                                borderColor: selectedGenre === genre ? "#10b981" : "var(--border)",
-                                color: selectedGenre === genre ? "#10b981" : "var(--text-muted)",
+                                borderColor: allowedFormats.includes(fmt) ? "#10b981" : "var(--border)",
+                                color: allowedFormats.includes(fmt) ? "#10b981" : "var(--text-muted)",
+                                background: allowedFormats.includes(fmt) ? "rgba(16,185,129,0.05)" : "transparent"
                               }}
                             >
-                              <span>{genre.toUpperCase()} Preset</span>
-                              {selectedGenre === genre && <IconCheck />}
+                              {fmt}
                             </button>
                           ))}
                         </div>
                       </div>
-                    </div>
-
-                    <div className="space-y-4 pt-4 border-t" style={{ borderColor: "var(--border-light)" }}>
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-[10px] font-mono text-zinc-400">
-                          <span>TEMPO LIMIT (BPM)</span>
-                          <span className="text-emerald-500 font-bold">{bpmRange[0]} - {bpmRange[1]} BPM</span>
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-semibold text-white">Max file size limit</span>
+                          <span className="text-xs font-bold font-mono text-emerald-500">{maxFileSize} MB</span>
                         </div>
-                        <div className="h-4 rounded bg-zinc-950 border border-zinc-900 relative flex items-center px-1">
-                          <motion.div
-                            className="h-2 rounded bg-emerald-500/20 border border-emerald-500/50 absolute"
-                            animate={{
-                              left: selectedGenre === "techno" ? "35%" : selectedGenre === "house" ? "20%" : "70%",
-                              right: selectedGenre === "techno" ? "35%" : selectedGenre === "house" ? "55%" : "5%",
-                            }}
-                            transition={{ type: "spring", stiffness: 100 }}
-                          />
+                        <div className="h-1.5 rounded-full relative bg-zinc-800 mt-4">
+                          <motion.div className="absolute left-0 top-0 bottom-0 rounded-full" style={{ background: "var(--text-primary)" }} animate={{ width: `${((maxFileSize - 50) / 150) * 100}%` }} />
+                          <motion.div className="absolute top-1/2 -mt-2 w-4 h-4 rounded-full bg-zinc-300 border-2 border-zinc-800 shadow cursor-pointer" animate={{ left: `calc(${((maxFileSize - 50) / 150) * 100}% - 8px)` }} />
+                        </div>
+                        <div className="flex justify-between text-[10px] text-zinc-600 font-mono mt-1">
+                          <span>50 MB</span>
+                          <span>200 MB</span>
                         </div>
                       </div>
+                    </div>
 
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-[10px] font-mono text-zinc-400">
-                          <span>LOUDNESS TARGET (LUFS)</span>
-                          <span className="text-emerald-500 font-bold">{lufsTarget} LUFS (±1.5)</span>
+                    {/* Camelot Key Grid */}
+                    <div className="p-4 rounded border space-y-4" style={{ borderColor: "var(--border)", background: "rgba(9,9,11,0.2)" }}>
+                      <span className="text-sm font-semibold text-white block">Preferred scale</span>
+                      <div className="flex flex-col gap-2">
+                        <div className="flex gap-2 justify-between">
+                          {camelotKeysRowB.map(k => (
+                            <button
+                              key={k}
+                              onClick={() => toggleKey(k)}
+                              className="flex-1 aspect-square rounded border text-[10px] font-mono font-medium flex items-center justify-center transition-colors"
+                              style={{
+                                borderColor: selectedKeys.has(k) ? "var(--border-light)" : "var(--border)",
+                                background: selectedKeys.has(k) ? "rgba(255,255,255,0.05)" : "transparent",
+                                color: selectedKeys.has(k) ? "var(--text-primary)" : "rgba(255,255,255,0.2)"
+                              }}
+                            >
+                              {k}
+                            </button>
+                          ))}
                         </div>
-                        <div className="h-4 rounded bg-zinc-950 border border-zinc-900 relative flex items-center">
-                          <motion.div
-                            className="w-3.5 h-3.5 rounded-full bg-emerald-500 border border-emerald-400 absolute shadow-lg shadow-emerald-500/40"
-                            animate={{
-                              left: selectedGenre === "techno" ? "50%" : selectedGenre === "house" ? "30%" : "75%",
-                            }}
-                            style={{ x: "-50%" }}
-                            transition={{ type: "spring", stiffness: 100 }}
-                          />
+                        <div className="flex gap-2 justify-between">
+                          {camelotKeysRowA.map(k => (
+                            <button
+                              key={k}
+                              onClick={() => toggleKey(k)}
+                              className="flex-1 aspect-square rounded border text-[10px] font-mono font-medium flex items-center justify-center transition-colors"
+                              style={{
+                                borderColor: selectedKeys.has(k) ? "var(--border-light)" : "var(--border)",
+                                background: selectedKeys.has(k) ? "rgba(255,255,255,0.05)" : "transparent",
+                                color: selectedKeys.has(k) ? "var(--text-primary)" : "rgba(255,255,255,0.2)"
+                              }}
+                            >
+                              {k}
+                            </button>
+                          ))}
                         </div>
+                      </div>
+                      <p className="text-[10px] text-zinc-500 italic mt-2">
+                        Sistema Camelot: Fila superior (B) para tonos Mayores, fila inferior (A) para tonos Menores.
+                      </p>
+                    </div>
+
+                    {/* Auto-reject Tags */}
+                    <div className="p-4 rounded border space-y-3" style={{ borderColor: "var(--border)", background: "rgba(9,9,11,0.2)" }}>
+                      <span className="text-sm font-semibold text-white block">Auto-reject</span>
+                      <div className="flex flex-wrap gap-3">
+                        {["Inverted phase", "Off tempo", "Digital clipping", "Crest Factor"].map(tag => (
+                          <div key={tag} className="px-3 py-1.5 rounded-full border border-red-500/50 text-red-400 text-xs font-medium" style={{ background: "rgba(239,68,68,0.05)" }}>
+                            {tag}
+                          </div>
+                        ))}
                       </div>
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="rounded border overflow-hidden shadow-2xl" style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}>
+                <div className="rounded border overflow-hidden shadow-2xl flex flex-col" style={{ borderColor: "var(--border)", background: "var(--bg-card)", minHeight: "600px" }}>
                   <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: "var(--border)" }}>
                     <div className="flex items-center gap-2">
                       <div className={`w-2 h-2 rounded-full ${isPhaseInverted ? "bg-red-500 animate-ping" : "bg-cyan-500 animate-pulse"}`} />
@@ -601,64 +772,99 @@ function PersonaSelectorSection() {
                     <span className="font-mono text-[10px] text-muted">HARMONIC_ANALYSIS</span>
                   </div>
 
-                  <div className="p-6 space-y-6">
-                    <div className="space-y-3">
-                      <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider block">Claves Camelot Compatibles:</span>
-                      <div className="grid grid-cols-4 gap-2">
-                        {["7A", "8A", "9A", "8B"].map((keyVal) => {
-                          const isSelected = selectedKey === keyVal;
-                          return (
-                            <button
-                              key={keyVal}
-                              onClick={() => setSelectedKey(keyVal)}
-                              className="p-3 rounded border text-center transition-all cursor-pointer bg-zinc-900/40"
-                              style={{
-                                borderColor: isSelected ? "#06b6d4" : "var(--border)",
-                                color: isSelected ? "#06b6d4" : "var(--text-muted)",
-                              }}
-                            >
-                              <div className="font-mono text-sm font-bold">{keyVal}</div>
-                              <div className="text-[8px] font-mono mt-1 opacity-70">
-                                {keyVal === "8A" ? "Am" : keyVal === "7A" ? "Dm" : keyVal === "9A" ? "Em" : "A"}
-                              </div>
-                            </button>
-                          );
-                        })}
+                  <div className="p-6 space-y-8 overflow-y-auto" style={{ maxHeight: "70vh" }}>
+                    <div className="space-y-4">
+                      <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider block">Selector de Tono Actual (DJ Set)</span>
+                      
+                      <div className="flex flex-col gap-2">
+                        <div className="flex gap-2 justify-between">
+                          {camelotKeysRowB.map(k => {
+                            const isSelected = selectedKey === k;
+                            const isCompat = compatibleKeys.includes(k) && !isSelected;
+                            return (
+                              <button
+                                key={k}
+                                onClick={() => setSelectedKey(k)}
+                                className="flex-1 aspect-square rounded border text-[10px] font-mono font-bold flex items-center justify-center transition-all"
+                                style={{
+                                  borderColor: isSelected ? "#06b6d4" : isCompat ? "rgba(6,182,212,0.3)" : "var(--border)",
+                                  background: isSelected ? "rgba(6,182,212,0.15)" : isCompat ? "rgba(6,182,212,0.05)" : "transparent",
+                                  color: isSelected ? "#06b6d4" : isCompat ? "rgba(6,182,212,0.8)" : "rgba(255,255,255,0.2)",
+                                  transform: isSelected ? "scale(1.05)" : "scale(1)"
+                                }}
+                              >
+                                {k}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <div className="flex gap-2 justify-between">
+                          {camelotKeysRowA.map(k => {
+                            const isSelected = selectedKey === k;
+                            const isCompat = compatibleKeys.includes(k) && !isSelected;
+                            return (
+                              <button
+                                key={k}
+                                onClick={() => setSelectedKey(k)}
+                                className="flex-1 aspect-square rounded border text-[10px] font-mono font-bold flex items-center justify-center transition-all"
+                                style={{
+                                  borderColor: isSelected ? "#06b6d4" : isCompat ? "rgba(6,182,212,0.3)" : "var(--border)",
+                                  background: isSelected ? "rgba(6,182,212,0.15)" : isCompat ? "rgba(6,182,212,0.05)" : "transparent",
+                                  color: isSelected ? "#06b6d4" : isCompat ? "rgba(6,182,212,0.8)" : "rgba(255,255,255,0.2)",
+                                  transform: isSelected ? "scale(1.05)" : "scale(1)"
+                                }}
+                              >
+                                {k}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
-                      <span className="text-[9px] text-zinc-500 font-mono block text-center">
+                      
+                      <div className="flex items-center gap-3 mt-4 text-[10px] font-mono">
+                        <div className="flex items-center gap-1.5 text-zinc-400">
+                          <div className="w-3 h-3 rounded-sm border" style={{ borderColor: "#06b6d4", background: "rgba(6,182,212,0.15)" }}></div>
+                          <span>Tono Actual</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-zinc-400">
+                          <div className="w-3 h-3 rounded-sm border" style={{ borderColor: "rgba(6,182,212,0.3)", background: "rgba(6,182,212,0.05)" }}></div>
+                          <span>Tonos Compatibles</span>
+                        </div>
+                      </div>
+                      <span className="text-[10px] text-zinc-500 font-mono block mt-2 border-t border-zinc-800 pt-3">
                         Mezcla armónica perfecta garantizada con tu track activo.
                       </span>
                     </div>
 
-                    <div className="space-y-3 pt-4 border-t" style={{ borderColor: "var(--border-light)" }}>
-                      <div className="flex justify-between text-[10px] font-mono text-zinc-400">
+                    <div className="space-y-4 pt-6 border-t" style={{ borderColor: "var(--border-light)" }}>
+                      <div className="flex justify-between text-[11px] font-mono text-zinc-400">
                         <span>CORRELACIÓN DE FASE ESTÉREO</span>
                         <span className={`font-bold ${isPhaseInverted ? "text-red-500 animate-pulse" : "text-cyan-500"}`}>
                           {(phaseCorrelation).toFixed(2)} {isPhaseInverted ? "(Fase Invertida)" : "(Fase OK)"}
                         </span>
                       </div>
 
-                      <div className="h-5 rounded bg-zinc-900 border border-zinc-800 relative flex items-center px-1">
-                        <div className="absolute left-0 top-0 bottom-0 w-1/3 bg-red-500/5 rounded-l" />
-                        <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-cyan-500/5 rounded-r" />
+                      <div className="h-6 rounded bg-zinc-950 border relative flex items-center px-1" style={{ borderColor: "var(--border)" }}>
+                        <div className="absolute left-0 top-0 bottom-0 w-1/3 bg-red-500/10 rounded-l" />
+                        <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-cyan-500/10 rounded-r" />
 
                         <motion.div
-                          className={`w-1 h-3 rounded absolute ${isPhaseInverted ? "bg-red-500 shadow-md shadow-red-500" : "bg-cyan-500 shadow-md shadow-cyan-500"}`}
+                          className={`w-1.5 h-4 rounded absolute ${isPhaseInverted ? "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]" : "bg-cyan-500 shadow-[0_0_8px_rgba(6,182,212,0.8)]"}`}
                           animate={{
                             left: `${((phaseCorrelation + 1) / 2) * 94 + 3}%`,
                           }}
                           transition={{ type: "spring", stiffness: 120 }}
                         />
 
-                        <div className="absolute left-[3%] text-[7px] font-mono text-zinc-600">-1.0</div>
-                        <div className="absolute left-[50%] -translate-x-1/2 text-[7px] font-mono text-zinc-600">0.0 (Mono)</div>
-                        <div className="absolute right-[3%] text-[7px] font-mono text-zinc-600">+1.0</div>
+                        <div className="absolute left-[3%] text-[9px] font-mono text-zinc-600">-1.0</div>
+                        <div className="absolute left-[50%] -translate-x-1/2 text-[9px] font-mono text-zinc-600">0.0 (Mono)</div>
+                        <div className="absolute right-[3%] text-[9px] font-mono text-zinc-600">+1.0</div>
                       </div>
 
-                      <div className="flex justify-end">
+                      <div className="flex justify-end pt-2">
                         <button
                           onClick={() => setIsPhaseInverted(!isPhaseInverted)}
-                          className="px-3 py-1.5 rounded text-[10px] font-mono border transition-all cursor-pointer flex items-center gap-1.5"
+                          className="px-4 py-2 rounded text-[11px] font-mono border font-bold transition-all cursor-pointer flex items-center gap-2"
                           style={{
                             background: isPhaseInverted ? "rgba(239,68,68,0.1)" : "transparent",
                             borderColor: isPhaseInverted ? "#ef4444" : "var(--border)",
@@ -741,174 +947,138 @@ const stepsData = [
 ];
 
 function ConfiguratorSimulator({ t }: { t: (key: any) => string }) {
-  const [preset, setPreset] = useState("techno"); // techno -> dnb -> house
-  const [copied, setCopied] = useState(false);
+  const [phase, setPhase] = useState<"idle" | "copying" | "typing" | "uploading" | "submitted">("idle");
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   useEffect(() => {
-    const presetTimer = setInterval(() => {
-      setPreset((prev) => {
-        if (prev === "techno") return "dnb";
-        if (prev === "dnb") return "house";
-        return "techno";
-      });
-    }, 4500);
+    let active = true;
+    const run = async () => {
+      while (active) {
+        setPhase("idle");
+        setUploadProgress(0);
+        await new Promise(r => setTimeout(r, 2000));
+        if (!active) break;
 
-    return () => clearInterval(presetTimer);
+        setPhase("copying");
+        await new Promise(r => setTimeout(r, 1500));
+        if (!active) break;
+
+        setPhase("typing");
+        await new Promise(r => setTimeout(r, 2500));
+        if (!active) break;
+
+        setPhase("uploading");
+        for (let i = 0; i <= 100; i += 4) {
+          setUploadProgress(i);
+          await new Promise(r => setTimeout(r, 50));
+          if (!active) break;
+        }
+        if (!active) break;
+
+        setPhase("submitted");
+        await new Promise(r => setTimeout(r, 3000));
+      }
+    };
+    run();
+    return () => { active = false; };
   }, []);
-
-  useEffect(() => {
-    const copyTimer = setInterval(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }, 4500);
-
-    return () => clearInterval(copyTimer);
-  }, []);
-
-  const signatureValues: Record<string, { bpmMin: number; bpmMax: number; lufs: number; tolerance: number }> = {
-    techno: { bpmMin: 125, bpmMax: 132, lufs: -6.0, tolerance: 1.5 },
-    dnb: { bpmMin: 170, bpmMax: 178, lufs: -5.0, tolerance: 1.0 },
-    house: { bpmMin: 120, bpmMax: 126, lufs: -7.5, tolerance: 2.0 },
-  };
-
-  const current = signatureValues[preset];
 
   return (
-    <div className="rounded-xl border overflow-hidden shadow-2xl transition-all duration-300" style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}>
+    <div className="rounded-xl border overflow-hidden shadow-2xl transition-all duration-300 flex flex-col text-left" style={{ borderColor: "var(--border)", background: "var(--bg-card)", height: "520px" }}>
+      {/* Split view representation */}
+      
       {/* Header */}
       <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: "var(--border)", background: "rgba(9,9,11,0.5)" }}>
         <div className="flex items-center gap-1.5">
-          <div className="w-2 h-2 rounded-full" style={{ background: "#ef4444" }} />
-          <div className="w-2 h-2 rounded-full" style={{ background: "#f59e0b" }} />
-          <div className="w-2 h-2 rounded-full" style={{ background: "#10b981" }} />
+          <div className="w-2.5 h-2.5 rounded-full" style={{ background: "#ef4444" }} />
+          <div className="w-2.5 h-2.5 rounded-full" style={{ background: "#f59e0b" }} />
+          <div className="w-2.5 h-2.5 rounded-full" style={{ background: "#10b981" }} />
         </div>
-        <span className="font-mono text-[10px]" style={{ color: "var(--text-muted)" }}>sonic_signature_config.yaml</span>
+        <span className="font-mono text-[10px]" style={{ color: "var(--text-muted)" }}>truepeak.space/s/apex-records</span>
         <div className="w-10 h-2 bg-zinc-800 rounded-full" />
       </div>
 
-      <div className="p-5 space-y-5">
-        {/* Presets */}
-        <div>
-          <label className="text-[10px] font-mono uppercase tracking-wider block mb-2" style={{ color: "var(--text-muted)" }}>
-            {t("config.presets_title") || "Ajuste Rápido / Genre Presets"}
-          </label>
-          <div className="grid grid-cols-3 gap-2">
-            {(["techno", "house", "dnb"] as const).map((g) => (
-              <button
-                key={g}
-                className="py-1.5 px-3 rounded text-xs font-semibold capitalize border transition-all duration-300 relative overflow-hidden"
-                style={{
-                  background: preset === g ? "rgba(16, 185, 129, 0.1)" : "var(--bg-secondary)",
-                  borderColor: preset === g ? "#10b981" : "var(--border)",
-                  color: preset === g ? "#10b981" : "var(--text-muted)",
-                }}
+      {/* Top: Config */}
+      <div className="p-4 border-b flex flex-col gap-2 shrink-0" style={{ background: "rgba(9,9,11,0.8)", borderColor: "var(--border)" }}>
+        <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-wider">Your Submission Link</span>
+        
+        <div className="p-2.5 rounded border bg-zinc-950 flex justify-between items-center" style={{ borderColor: "var(--border)" }}>
+          <span className="text-[10px] font-mono text-zinc-400 truncate pr-2">truepeak.space/s/apex-records</span>
+          <button className="px-2 py-0.5 rounded text-[10px] font-bold transition-all" style={{ background: phase === "copying" ? "#10b981" : "var(--bg-secondary)", color: phase === "copying" ? "#09090b" : "#10b981" }}>
+            {phase === "copying" ? "Copied!" : "Copy"}
+          </button>
+        </div>
+      </div>
+
+      {/* Bottom: Preview */}
+      <div className="p-3 flex-1 overflow-y-auto relative custom-scrollbar" style={{ background: "#09090b" }}>
+        
+        {/* Card container */}
+        <div className="border rounded-xl p-4 max-w-[280px] mx-auto shadow-xl" style={{ borderColor: "rgba(39,39,42,0.5)", background: "#0c0c0e" }}>
+           {/* Logo */}
+           <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-black mx-auto mb-3" style={{ background: "#10b981" }}>AP</div>
+           
+           {/* Title & desc */}
+           <div className="text-center mb-4">
+              <h3 className="font-bold text-white mb-1 text-sm">Enviar demo</h3>
+              <p className="text-[9px] text-zinc-500 leading-tight px-2">Subí tu WAV. Analizamos BPM, LUFS, fase y headroom.</p>
+           </div>
+
+           <div className="space-y-3">
+              {/* Field 1 */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-semibold text-zinc-400">Tu nombre</label>
+                <div className="h-8 w-full rounded border border-zinc-800 px-2 flex items-center text-[11px] text-white" style={{ background: "#09090b" }}>
+                  {(phase === "typing" || phase === "uploading" || phase === "submitted") ? "DJ Krill" : ""}
+                  {phase === "typing" && <span className="w-1 h-3 bg-emerald-500 ml-1 animate-pulse" />}
+                </div>
+              </div>
+
+              {/* Field 2 & 3 (Side by side to save space) */}
+              <div className="flex gap-2">
+                <div className="space-y-1 flex-1">
+                  <label className="text-[10px] font-semibold text-zinc-400">Email</label>
+                  <div className="h-8 w-full rounded border border-zinc-800 px-2 flex items-center text-[11px] truncate" style={{ background: "#09090b", color: (phase === "typing" || phase === "uploading" || phase === "submitted") ? "white" : "rgb(113 113 122)" }}>
+                    {(phase === "typing" || phase === "uploading" || phase === "submitted") ? "tu@email.com" : ""}
+                  </div>
+                </div>
+                <div className="space-y-1 flex-1">
+                  <label className="text-[10px] font-semibold text-zinc-400">Nombre del track</label>
+                  <div className="h-8 w-full rounded border border-zinc-800 px-2 flex items-center text-[11px] truncate" style={{ background: "#09090b", color: (phase === "typing" || phase === "uploading" || phase === "submitted") ? "white" : "rgb(113 113 122)" }}>
+                    {(phase === "typing" || phase === "uploading" || phase === "submitted") ? "Midnight Protocol" : ""}
+                  </div>
+                </div>
+              </div>
+
+              {/* Field 4 Audio */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-semibold text-zinc-400">Archivo de audio</label>
+                <div className="p-2 rounded-lg border-2 border-dashed border-zinc-800 flex flex-col items-center justify-center relative overflow-hidden h-16 transition-colors" style={{ background: "#09090b" }}>
+                  {phase === "idle" || phase === "copying" || phase === "typing" ? (
+                    <>
+                      <span className="text-[11px] text-zinc-300 font-medium">Arrastrá tu audio acá</span>
+                      <span className="text-[9px] text-zinc-600">WAV, FLAC, AIFF - Max 100MB</span>
+                    </>
+                  ) : phase === "uploading" ? (
+                    <div className="w-full px-2 text-center">
+                      <span className="text-[10px] text-emerald-500 font-bold mb-1.5 block">Subiendo... {uploadProgress}%</span>
+                      <div className="w-full h-1 bg-zinc-800 rounded-full overflow-hidden">
+                        <div className="h-full bg-emerald-500" style={{ width: `${uploadProgress}%` }} />
+                      </div>
+                    </div>
+                  ) : (
+                    <span className="text-[11px] text-emerald-500 font-bold flex items-center gap-1.5"><IconCheck /> track_master.wav</span>
+                  )}
+                </div>
+              </div>
+
+              <button 
+                className="w-full py-2 mt-1 rounded text-xs font-bold text-black transition-all" 
+                style={{ background: phase === "submitted" ? "#06b6d4" : "#10b981", opacity: (phase === "idle" || phase === "copying" || phase === "typing") ? 0.5 : 1 }}
               >
-                {g}
-                {preset === g && (
-                  <motion.div
-                    layoutId="activePresetGlow"
-                    className="absolute inset-0 border rounded pointer-events-none"
-                    style={{ borderColor: "rgba(16, 185, 129, 0.5)" }}
-                    initial={false}
-                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                  />
-                )}
+                {phase === "submitted" ? "¡Demo enviada!" : "Submit"}
               </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Sliders */}
-        <div className="space-y-4">
-          {/* BPM */}
-          <div>
-            <div className="flex justify-between text-xs font-mono mb-1">
-              <span style={{ color: "var(--text-muted)" }}>BPM Rango</span>
-              <span className="font-semibold" style={{ color: "#10b981" }}>{current.bpmMin} - {current.bpmMax} BPM</span>
-            </div>
-            <div className="h-5 flex items-center relative">
-              <div className="absolute inset-x-0 h-1.5 rounded" style={{ background: "var(--bg-secondary)" }} />
-              {/* Highlight active range */}
-              <motion.div
-                className="absolute h-1.5 rounded border-l border-r"
-                style={{ background: "rgba(16, 185, 129, 0.2)", borderColor: "#10b981" }}
-                animate={{
-                  left: `${((current.bpmMin - 80) / 120) * 100}%`,
-                  width: `${((current.bpmMax - current.bpmMin) / 120) * 100}%`,
-                }}
-                transition={{ type: "spring", stiffness: 80, damping: 15 }}
-              />
-              {/* Knobs */}
-              <motion.div
-                className="absolute w-3.5 h-3.5 rounded-full shadow-md cursor-pointer border"
-                style={{ background: "#10b981", borderColor: "#10b981" }}
-                animate={{ left: `calc(${((current.bpmMin - 80) / 120) * 100}% - 7px)` }}
-                transition={{ type: "spring", stiffness: 80, damping: 15 }}
-              />
-              <motion.div
-                className="absolute w-3.5 h-3.5 rounded-full shadow-md cursor-pointer border"
-                style={{ background: "#10b981", borderColor: "#10b981" }}
-                animate={{ left: `calc(${((current.bpmMax - 80) / 120) * 100}% - 7px)` }}
-                transition={{ type: "spring", stiffness: 80, damping: 15 }}
-              />
-            </div>
-          </div>
-
-          {/* LUFS */}
-          <div>
-            <div className="flex justify-between text-xs font-mono mb-1">
-              <span style={{ color: "var(--text-muted)" }}>LUFS Objetivo</span>
-              <span className="font-semibold" style={{ color: "#10b981" }}>{current.lufs.toFixed(1)} LUFS (±{current.tolerance.toFixed(1)})</span>
-            </div>
-            <div className="h-5 flex items-center relative">
-              <div className="absolute inset-x-0 h-1.5 rounded" style={{ background: "var(--bg-secondary)" }} />
-              {/* Highlight active range */}
-              <motion.div
-                className="absolute h-1.5 rounded border-l border-r"
-                style={{ background: "rgba(16, 185, 129, 0.2)", borderColor: "#10b981" }}
-                animate={{
-                  left: `${((current.lufs - current.tolerance + 18) / 15) * 100}%`,
-                  width: `${((current.tolerance * 2) / 15) * 100}%`,
-                }}
-                transition={{ type: "spring", stiffness: 80, damping: 15 }}
-              />
-              {/* Target Knob */}
-              <motion.div
-                className="absolute w-4 h-4 rounded border shadow-md rotate-45"
-                style={{ background: "#10b981", borderColor: "#10b981" }}
-                animate={{ left: `calc(${((current.lufs + 18) / 15) * 100}% - 8px)` }}
-                transition={{ type: "spring", stiffness: 80, damping: 15 }}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Public Submission Link */}
-        <div className="pt-4 border-t space-y-2" style={{ borderColor: "var(--border)" }}>
-          <label className="text-[10px] font-mono uppercase tracking-wider block" style={{ color: "var(--text-muted)" }}>
-            {t("link.slug_label") || "Link Público de Subida"}
-          </label>
-          <div className="flex items-center gap-2 p-2 rounded-lg border" style={{ background: "rgba(9,9,11,0.4)", borderColor: "var(--border)" }}>
-            <span className="font-mono text-xs select-none" style={{ color: "var(--text-muted)" }}>truepeak.space/s/</span>
-            <span className="font-mono text-xs flex-1 truncate" style={{ color: "var(--text-primary)" }}>aurora-records</span>
-            <button
-              className="py-1 px-3 rounded text-[10px] font-mono font-semibold transition-all relative overflow-hidden flex items-center gap-1"
-              style={{
-                background: copied ? "#10b981" : "var(--bg-secondary)",
-                color: copied ? "#09090b" : "var(--text-primary)",
-                border: "1px solid",
-                borderColor: copied ? "#10b981" : "var(--border)",
-              }}
-            >
-              {copied ? (
-                <>
-                  <IconCheck /> Copied!
-                </>
-              ) : (
-                "Copy Link"
-              )}
-            </button>
-          </div>
+           </div>
         </div>
       </div>
     </div>
@@ -1311,8 +1481,13 @@ function KanbanSimulator({ t }: { t: (key: any) => string }) {
           </button>
         </div>
         <div className="flex-1 flex flex-col justify-center min-w-0">
-          <div className="text-[10px] font-medium truncate" style={{ color: "var(--text-primary)" }}>
-            {stage === "done" ? "Midnight Protocol" : "No track selected"}
+          <div className="flex items-center gap-2">
+            <div className="text-[10px] font-medium truncate" style={{ color: "var(--text-primary)" }}>
+              {stage === "done" ? "Midnight Protocol" : "No track selected"}
+            </div>
+            {stage === "done" && (
+              <span className="text-[8px] font-mono font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-500 border border-emerald-500/30">MP3 320 kbps</span>
+            )}
           </div>
           {stage === "done" ? (
             <div className="flex items-end gap-[1.5px] h-3.5 mt-0.5">
