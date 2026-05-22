@@ -9,7 +9,7 @@ export default function RegisterPage() {
   const router = useRouter();
   const { t } = useLanguage();
   const [name, setName] = useState("");
-  const [slug, setSlug] = useState("");
+
   const [role, setRole] = useState<"label" | "dj">("label");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -29,7 +29,7 @@ export default function RegisterPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ name, slug: slug.toLowerCase().replace(/\s+/g, "-"), owner_email: email, password, role }),
+        body: JSON.stringify({ name, slug: name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, ""), owner_email: email, password, role }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({ detail: t("register.error_create") }));
@@ -60,11 +60,7 @@ export default function RegisterPage() {
         <div>
           <label className="text-sm font-medium mb-1.5 block">{t("register.name_label")}</label>
           <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full px-3 py-2.5 rounded border text-sm bg-transparent" style={{ borderColor: "var(--border)" }} placeholder={t("register.name_placeholder")} required />
-        </div>
-        <div>
-          <label className="text-sm font-medium mb-1.5 block">{t("register.slug_label")}</label>
-          <input type="text" value={slug} onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))} className="w-full px-3 py-2.5 rounded border text-sm bg-transparent" style={{ borderColor: "var(--border)" }} placeholder={t("register.slug_placeholder")} required />
-          <p className="text-xs text-muted mt-1">{typeof window !== "undefined" ? window.location.origin : ""}/s/{slug || "tu-sello"}</p>
+          <p className="text-xs text-muted mt-1">{typeof window !== "undefined" ? window.location.origin : ""}/s/{name ? name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "") : "tu-sello"}</p>
         </div>
 
         {/* Role selector */}
