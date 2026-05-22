@@ -548,7 +548,7 @@ function PersonaSelectorSection() {
             {/* Right Col: Widget */}
             <div className="lg:col-span-6">
               {activeTab === "labels" ? (
-                <div className="rounded border overflow-hidden shadow-2xl flex flex-col" style={{ borderColor: "var(--border)", background: "var(--bg-card)", minHeight: "600px" }}>
+                <div className="rounded border overflow-hidden shadow-2xl flex flex-col h-[500px] md:h-[600px]" style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}>
                   <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: "var(--border)" }}>
                     <div className="flex flex-col">
                       <span className="font-mono text-[10px] text-zinc-500 uppercase">Configuration</span>
