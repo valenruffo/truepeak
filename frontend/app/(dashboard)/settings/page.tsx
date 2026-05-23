@@ -46,8 +46,12 @@ export default function SettingsPage() {
           if (data?.name) setLabelName(data.name);
           if (data?.owner_email) setLabelEmail(data.owner_email);
           if (data?.plan) {
+            const currentStoredPlan = localStorage.getItem("plan");
             setPlan(data.plan);
-            localStorage.setItem("plan", data.plan);
+            if (currentStoredPlan !== data.plan) {
+              localStorage.setItem("plan", data.plan);
+              window.dispatchEvent(new Event("plan_updated"));
+            }
           }
           if (data?.subscription_status) {
             setSubscriptionStatus(data.subscription_status);

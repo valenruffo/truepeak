@@ -303,9 +303,14 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
             setPlan(overridePlan);
             localStorage.setItem("plan", overridePlan);
           } else {
-            setPlanInfo(data.plan || "");
-            setPlan(data.plan || "free");
-            localStorage.setItem("plan", data.plan || "free");
+            const currentStoredPlan = localStorage.getItem("plan");
+            const newPlan = data.plan || "free";
+            setPlanInfo(newPlan);
+            setPlan(newPlan);
+            if (currentStoredPlan !== newPlan) {
+              localStorage.setItem("plan", newPlan);
+              window.dispatchEvent(new Event("plan_updated"));
+            }
           }
           
           setLogoPath(data.logo_path || null);
