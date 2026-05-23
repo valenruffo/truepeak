@@ -75,6 +75,12 @@ async def upload_audio(
                     detail=f"Label with slug '{label_slug}' not found.",
                 )
 
+            if label.subscription_status == "frozen":
+                raise HTTPException(
+                    status_code=403,
+                    detail="Este link de recepción se encuentra deshabilitado temporalmente.",
+                )
+
             sonic_signature = label.sonic_signature
             label_id = label.id
             hq_retention_days = label.hq_retention_days

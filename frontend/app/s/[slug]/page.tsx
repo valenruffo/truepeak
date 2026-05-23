@@ -19,6 +19,7 @@ export default function SubmissionPage() {
   const [maxUploadSizeMb, setMaxUploadSizeMb] = useState<number>(100);
   const [labelLoading, setLabelLoading] = useState(true);
   const [labelError, setLabelError] = useState(false);
+  const [isFrozen, setIsFrozen] = useState(false);
 
   useEffect(() => {
     const fetchLabel = async () => {
@@ -41,6 +42,9 @@ export default function SubmissionPage() {
             if (data.sonic_signature.max_upload_size_mb) {
               setMaxUploadSizeMb(data.sonic_signature.max_upload_size_mb);
             }
+          }
+          if (data.subscription_status === "frozen") {
+            setIsFrozen(true);
           }
         } else {
           setLabelError(true);
@@ -175,6 +179,26 @@ export default function SubmissionPage() {
       setError("Error al subir el archivo.");
     }
   };
+
+  if (isFrozen) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-6" style={{ background: "#09090b" }}>
+        <div className="text-center max-w-md">
+          <div className="w-16 h-16 rounded-full mx-auto mb-6 flex items-center justify-center" style={{ background: "rgba(239,68,68,0.15)" }}>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+          </div>
+          <h1 className="font-display font-bold text-2xl mb-3">Link deshabilitado</h1>
+          <p className="text-muted mb-6">
+            El sello <strong style={{ color: "#fafafa" }}>{labelName || slug}</strong> actualmente no está recibiendo demos a través de este link.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (submitted) {
     return (

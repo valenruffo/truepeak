@@ -212,6 +212,7 @@ class LabelConfig(BaseModel):
     slug: str
     owner_email: str
     plan: str = "free"
+    subscription_status: str = "active"
     max_tracks_month: int = 10
     max_emails_month: int = 0
     hq_retention_days: int = 0
@@ -353,6 +354,7 @@ async def get_label_config(
         slug=label.slug,
         owner_email=label.owner_email,
         plan=label.plan or "free",
+        subscription_status=label.subscription_status or "active",
         max_tracks_month=label.max_tracks_month,
         max_emails_month=label.max_emails_month,
         hq_retention_days=label.hq_retention_days,
@@ -403,6 +405,7 @@ async def update_label_config(
         slug=label.slug,
         owner_email=label.owner_email,
         plan=label.plan or "free",
+        subscription_status=label.subscription_status or "active",
         max_tracks_month=label.max_tracks_month,
         max_emails_month=label.max_emails_month,
         hq_retention_days=label.hq_retention_days,
@@ -723,6 +726,7 @@ async def update_label_plan(
         slug=label.slug,
         owner_email=label.owner_email,
         plan=label.plan or "free",
+        subscription_status=label.subscription_status or "active",
         max_tracks_month=label.max_tracks_month,
         max_emails_month=label.max_emails_month,
         hq_retention_days=label.hq_retention_days,

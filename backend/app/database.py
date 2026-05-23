@@ -52,6 +52,10 @@ def _apply_migrations(session: Session) -> None:
         "ALTER TABLE submission ADD COLUMN producer_soundcloud TEXT",
         # HQ download tracking
         "ALTER TABLE submission ADD COLUMN hq_downloaded BOOLEAN DEFAULT 0",
+        # Phase 3: Churn and account freeze
+        "ALTER TABLE label ADD COLUMN subscription_status TEXT DEFAULT 'active'",
+        "ALTER TABLE label ADD COLUMN frozen_at DATETIME",
+        "ALTER TABLE label ADD COLUMN churn_warning_sent BOOLEAN DEFAULT 0",
     ]
     for sql in migrations:
         try:

@@ -764,6 +764,7 @@ useEffect(() => {
   // HQ Retention Days for countdowns
   const [retentionDays, setRetentionDays] = useState<number>(0);
   const [sonicSignature, setSonicSignature] = useState<any>(null);
+  const [isFrozen, setIsFrozen] = useState<boolean>(false);
 
   useEffect(() => {
     const fetchSignature = async () => {
@@ -775,6 +776,7 @@ useEffect(() => {
           const data = await res.json();
           setSonicSignature(data.sonic_signature);
           setLabelName(data.name || slug);
+          setIsFrozen(data.subscription_status === "frozen");
         }
       } catch (e) { /* silent */ }
     };
@@ -984,6 +986,14 @@ useEffect(() => {
   // ─── Drag & Drop ──────────────────────────────────────────────────────────
 
   const handleDragEnd = async (result: DropResult) => {
+    if (isFrozen) {
+      addToast({
+        title: "Cuenta congelada",
+        description: "Renueva tu plan para usar el inbox.",
+        variant: "destructive",
+      });
+      return;
+    }
     const { source, destination, draggableId } = result;
     if (!destination) return;
     if (
@@ -1389,6 +1399,14 @@ useEffect(() => {
   // ─── Listen ───────────────────────────────────────────────────────────────
 
   const handleListen = (sub: SubmissionSummary) => {
+    if (isFrozen) {
+      addToast({
+        title: "Cuenta congelada",
+        description: "Renueva tu plan para reproducir audios.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (!sub.mp3_path) return;
     markAsInteracted(sub.id);
     if (currentTrack?.id === sub.id) {

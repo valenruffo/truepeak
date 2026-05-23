@@ -393,6 +393,10 @@ async def download_original(
 
     _verify_label_ownership(session, auth["label_id"], submission)
 
+    label = session.get(Label, auth["label_id"])
+    if label and label.subscription_status == "frozen":
+        raise HTTPException(status_code=402, detail="Cuenta congelada. Reactivá tu plan para escuchar tus demos.")
+
     is_hq_download = type != "mp3"
 
     if type == "mp3":

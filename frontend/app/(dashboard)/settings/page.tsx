@@ -20,6 +20,7 @@ export default function SettingsPage() {
   const [logoutLoading, setLogoutLoading] = useState(false);
   const [labelSlug, setLabelSlug] = useState<string>("");
   const [labelEmail, setLabelEmail] = useState<string>("");
+  const [subscriptionStatus, setSubscriptionStatus] = useState<string>("active");
   const [billing, setBilling] = useState<BillingDetails | null>(null);
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const { addToast } = useToast();
@@ -46,6 +47,9 @@ export default function SettingsPage() {
           if (data?.plan) {
             setPlan(data.plan);
             localStorage.setItem("plan", data.plan);
+          }
+          if (data?.subscription_status) {
+            setSubscriptionStatus(data.subscription_status);
           }
         })
         .catch(() => {});
@@ -203,10 +207,15 @@ export default function SettingsPage() {
           >
             {plan === "pro" ? t("settings.plan_pro") : plan === "indie" ? (lang === "es" ? "Plan Indie" : "Indie Plan") : t("settings.plan_free")}
           </span>
-          {billing?.next_billing_date && (
+          {billing?.next_billing_date && subscriptionStatus !== "frozen" && (
             <span className="text-xs text-muted">
               {t("settings.plan_renew")} {new Date(billing.next_billing_date).toLocaleDateString()}
               {billing.amount && (lang === "es" ? ` por $${(billing.amount / 100).toFixed(0)}` : ` for $${(billing.amount / 100).toFixed(0)}`)}
+            </span>
+          )}
+          {subscriptionStatus === "frozen" && (
+            <span className="text-xs text-red-500 font-medium ml-2 border border-red-500/20 bg-red-500/10 px-2 py-0.5 rounded">
+              {lang === "es" ? "Cuenta Congelada" : "Frozen Account"}
             </span>
           )}
         </div>
@@ -262,17 +271,29 @@ export default function SettingsPage() {
                       {lang === "es" ? "Suscribirse — $25/mes" : "Subscribe — $25/mo"}
                     </a>
                   ) : plan === "indie" ? (
-                    <button
-                      onClick={() => handleCancel("cancel_indie")}
-                      disabled={!!loadingAction}
-                      className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded text-xs font-medium transition-all border border-red-500/30 text-red-500 hover:bg-red-500/5 disabled:opacity-50 min-w-[140px]"
-                    >
-                      {loadingAction === "cancel_indie" ? (
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                      ) : (
-                        lang === "es" ? "Cancelar suscripción" : "Cancel subscription"
-                      )}
-                    </button>
+                    subscriptionStatus === "frozen" ? (
+                      <a
+                        href={getCheckoutUrl(POLAR_CHECKOUT_INDIE)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-block px-4 py-2 rounded text-xs font-medium transition-all hover:opacity-90"
+                        style={{ background: "#10b981", color: "#09090b" }}
+                      >
+                        {lang === "es" ? "Renovar plan — $25/mes" : "Renew plan — $25/mo"}
+                      </a>
+                    ) : (
+                      <button
+                        onClick={() => handleCancel("cancel_indie")}
+                        disabled={!!loadingAction}
+                        className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded text-xs font-medium transition-all border border-red-500/30 text-red-500 hover:bg-red-500/5 disabled:opacity-50 min-w-[140px]"
+                      >
+                        {loadingAction === "cancel_indie" ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          lang === "es" ? "Cancelar suscripción" : "Cancel subscription"
+                        )}
+                      </button>
+                    )
                   ) : (
                     <button
                       onClick={() => handleUpdatePlan("downgrade_indie", "indie")}
@@ -289,17 +310,29 @@ export default function SettingsPage() {
                 </td>
                 <td className="px-4 py-3 text-center">
                   {plan === "pro" ? (
-                    <button
-                      onClick={() => handleCancel("cancel_pro")}
-                      disabled={!!loadingAction}
-                      className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded text-xs font-medium transition-all border border-red-500/30 text-red-500 hover:bg-red-500/5 disabled:opacity-50 min-w-[140px]"
-                    >
-                      {loadingAction === "cancel_pro" ? (
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                      ) : (
-                        lang === "es" ? "Cancelar suscripción" : "Cancel subscription"
-                      )}
-                    </button>
+                    subscriptionStatus === "frozen" ? (
+                      <a
+                        href={getCheckoutUrl(POLAR_CHECKOUT_PRO)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-block px-4 py-2 rounded text-xs font-medium transition-all hover:opacity-90"
+                        style={{ background: "#10b981", color: "#09090b" }}
+                      >
+                        {lang === "es" ? "Renovar plan — $49/mes" : "Renew plan — $49/mo"}
+                      </a>
+                    ) : (
+                      <button
+                        onClick={() => handleCancel("cancel_pro")}
+                        disabled={!!loadingAction}
+                        className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded text-xs font-medium transition-all border border-red-500/30 text-red-500 hover:bg-red-500/5 disabled:opacity-50 min-w-[140px]"
+                      >
+                        {loadingAction === "cancel_pro" ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          lang === "es" ? "Cancelar suscripción" : "Cancel subscription"
+                        )}
+                      </button>
+                    )
                   ) : (
                     <button
                       onClick={(e) => {

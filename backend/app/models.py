@@ -40,6 +40,9 @@ class Label(SQLModel, table=True):
     )
     logo_path: str | None = None
     plan: str = Field(default="free")  # "free" | "indie" | "pro"
+    subscription_status: str = Field(default="active")  # "active" | "frozen" | "canceled"
+    frozen_at: datetime | None = Field(default=None)
+    churn_warning_sent: bool = Field(default=False)
     max_tracks_month: int = Field(default=10)
     max_emails_month: int = Field(default=0)
     hq_retention_days: int = Field(default=0)
