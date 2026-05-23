@@ -21,6 +21,7 @@ export default function SettingsPage() {
   const [labelSlug, setLabelSlug] = useState<string>("");
   const [labelEmail, setLabelEmail] = useState<string>("");
   const [subscriptionStatus, setSubscriptionStatus] = useState<string>("active");
+  const [frozenAt, setFrozenAt] = useState<string | null>(null);
   const [billing, setBilling] = useState<BillingDetails | null>(null);
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const { addToast } = useToast();
@@ -50,6 +51,9 @@ export default function SettingsPage() {
           }
           if (data?.subscription_status) {
             setSubscriptionStatus(data.subscription_status);
+          }
+          if (data?.frozen_at) {
+            setFrozenAt(data.frozen_at);
           }
         })
         .catch(() => {});
@@ -220,7 +224,21 @@ export default function SettingsPage() {
           )}
         </div>
 
-        {plan === "free" && (
+        {subscriptionStatus === "frozen" && frozenAt && (
+          <div className="mb-4 p-3 border border-red-500/30 bg-red-500/5 rounded">
+            <p className="text-sm text-red-500 mb-1 font-medium">
+              {lang === "es" ? "Eliminación programada en: " : "Scheduled deletion in: "}
+              {Math.max(0, 30 - Math.floor((Date.now() - new Date(frozenAt).getTime()) / (1000 * 60 * 60 * 24)))} {lang === "es" ? "días" : "days"}
+            </p>
+            <p className="text-xs text-red-500/80">
+              {lang === "es" 
+                ? "Renová tu plan para evitar la pérdida permanente de todos tus MP3s y el historial de demos de tu cuenta." 
+                : "Renew your plan to avoid permanent loss of all your MP3s and demo history."}
+            </p>
+          </div>
+        )}
+
+        {plan === "free" && subscriptionStatus !== "frozen" && (
           <div className="mb-4">
             <p className="text-sm text-muted mb-3">{t("settings.upgrade_desc")}</p>
           </div>
