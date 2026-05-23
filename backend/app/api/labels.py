@@ -213,6 +213,7 @@ class LabelConfig(BaseModel):
     owner_email: str
     plan: str = "free"
     subscription_status: str = "active"
+    frozen_at: str | None = None
     max_tracks_month: int = 10
     max_emails_month: int = 0
     hq_retention_days: int = 0
@@ -355,6 +356,7 @@ async def get_label_config(
         owner_email=label.owner_email,
         plan=label.plan or "free",
         subscription_status=label.subscription_status or "active",
+        frozen_at=label.frozen_at.isoformat() if label.frozen_at else None,
         max_tracks_month=label.max_tracks_month,
         max_emails_month=label.max_emails_month,
         hq_retention_days=label.hq_retention_days,
@@ -406,6 +408,7 @@ async def update_label_config(
         owner_email=label.owner_email,
         plan=label.plan or "free",
         subscription_status=label.subscription_status or "active",
+        frozen_at=label.frozen_at.isoformat() if label.frozen_at else None,
         max_tracks_month=label.max_tracks_month,
         max_emails_month=label.max_emails_month,
         hq_retention_days=label.hq_retention_days,
@@ -727,6 +730,7 @@ async def update_label_plan(
         owner_email=label.owner_email,
         plan=label.plan or "free",
         subscription_status=label.subscription_status or "active",
+        frozen_at=label.frozen_at.isoformat() if label.frozen_at else None,
         max_tracks_month=label.max_tracks_month,
         max_emails_month=label.max_emails_month,
         hq_retention_days=label.hq_retention_days,
@@ -1243,6 +1247,8 @@ async def admin_update_label_plan(
         slug=label.slug,
         owner_email=label.owner_email,
         plan=label.plan or "free",
+        subscription_status=label.subscription_status or "active",
+        frozen_at=label.frozen_at.isoformat() if label.frozen_at else None,
         max_tracks_month=label.max_tracks_month,
         max_emails_month=label.max_emails_month,
         hq_retention_days=label.hq_retention_days,
