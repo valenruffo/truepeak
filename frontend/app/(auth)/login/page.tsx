@@ -27,10 +27,30 @@ export default function LoginPage() {
 
       if (authError) throw new Error(authError.message);
 
-      const me = await getMe();
+      let me;
+      try {
+        me = await getMe();
+      } catch (meErr) {
+        // Profile missing in Postgres. Auto-create it!
+        const baseName = identifier.split("@")[0] || "sello";
+        const slug = baseName.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "");
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ""}/api/labels/register-profile`, {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${authData.session.access_token}`
+          },
+          credentials: "include",
+          body: JSON.stringify({ name: baseName, slug, role: "label" }),
+        });
+        if (!res.ok) {
+          throw new Error("No se pudo auto-crear tu perfil. Por favor, registrate de nuevo.");
+        }
+        me = await res.json();
+      }
       
       localStorage.setItem("slug", me.slug);
-      localStorage.setItem("label_id", authData.session?.user.id || "");
+      localStorage.setItem("label_id", authData.session?.user.id || me.id || "");
       localStorage.setItem("plan", me.plan || "free");
       localStorage.setItem("role", me.role || "label");
       
