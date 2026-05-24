@@ -632,19 +632,28 @@ async def upload_label_logo(
         # Pillow not available — save raw file (add pillow to dependencies)
         processed_content = content
 
-    # Save to disk
+    # Upload to R2
+    from app.services.r2 import upload_bytes_to_r2
     logo_filename = f"{label.id}.png"
-    logo_path = LOGO_DIR / logo_filename
-    with open(logo_path, "wb") as f:
-        f.write(processed_content)
+    r2_logo_key = f"logos/{logo_filename}"
+    
+    try:
+        await upload_bytes_to_r2(processed_content, r2_logo_key, "image/png")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to upload logo to R2: {e}")
+
+    # Set R2 public URL
+    import os
+    public_url_base = os.getenv("CLOUDFLARE_R2_PUBLIC_URL", "").rstrip("/")
+    logo_url = f"{public_url_base}/{r2_logo_key}"
 
     # Update label
-    label.logo_path = logo_filename
+    label.logo_path = logo_url
     label.updated_at = datetime.now(timezone.utc)
     session.add(label)
     session.commit()
 
-    return LogoUploadResponse(logo_url=f"/logos/{logo_filename}")
+    return LogoUploadResponse(logo_url=logo_url)
 
 
 class SubmissionTextUpdate(BaseModel):
