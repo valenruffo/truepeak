@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useLanguage } from "@/lib/i18n";
+import { supabase } from "@/lib/supabase";
+import { getMe } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -18,22 +20,20 @@ export default function LoginPage() {
     e.preventDefault();
     setError(""); setLoading(true);
     try {
-      const res = await fetch(`/api/labels/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ identifier, password }),
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: identifier,
+        password: password,
       });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({ detail: t("login.error") }));
-        throw new Error(data.detail || t("login.error"));
-      }
-      const data = await res.json();
-      localStorage.setItem("slug", data.slug);
-      localStorage.setItem("label_id", data.id);
-      localStorage.setItem("plan", data.plan || "free");
-      localStorage.setItem("role", data.role || "label");
-      if (data.token) localStorage.setItem("token", data.token);
+
+      if (authError) throw new Error(authError.message);
+
+      const me = await getMe();
+      
+      localStorage.setItem("slug", me.slug);
+      localStorage.setItem("label_id", authData.session?.user.id || "");
+      localStorage.setItem("plan", me.plan || "free");
+      localStorage.setItem("role", me.role || "label");
+      
       router.push("/inbox");
     } catch (err) {
       setError(err instanceof Error ? err.message : t("login.error"));

@@ -1,4 +1,5 @@
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
+import { supabase } from "./supabase";
 
 // --- Helpers ---
 
@@ -16,9 +17,10 @@ async function request<T>(
     ...options.headers,
   };
 
-  // Inject JWT token from localStorage if available
+  // Inject JWT token from Supabase if available
   if (typeof window !== "undefined") {
-    const token = localStorage.getItem("token");
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
     if (token && !headers["Authorization"]) {
       headers["Authorization"] = `Bearer ${token}`;
     }
@@ -286,14 +288,10 @@ export async function createTemplate(
 }
 
 /**
- * Login a label owner and receive a JWT token.
+ * Get secure user details (requires valid Supabase JWT).
  */
-export async function loginLabel(
-  email: string,
-  password: string
-): Promise<LoginResponse> {
-  return request<LoginResponse>("/api/auth/login", {
-    method: "POST",
-    body: JSON.stringify({ email, password }),
-  });
+export async function getMe(): Promise<any> {
+  return request<any>("/api/labels/me/secure");
 }
+
+

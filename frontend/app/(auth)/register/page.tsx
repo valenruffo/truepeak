@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useLanguage } from "@/lib/i18n";
+import { supabase } from "@/lib/supabase";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -25,11 +26,24 @@ export default function RegisterPage() {
     if (password !== confirmPassword) { setError(t("register.error_match")); return; }
     setLoading(true);
     try {
-      const res = await fetch(`/api/labels/register`, {
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+
+      if (authError) throw new Error(authError.message);
+      
+      const session = authData.session;
+      if (!session) throw new Error("No session created. Check email confirmation settings.");
+
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ""}/api/labels/register-profile`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`
+        },
         credentials: "include",
-        body: JSON.stringify({ name, slug: name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, ""), owner_email: email, password, role }),
+        body: JSON.stringify({ name, slug: name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, ""), role }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({ detail: t("register.error_create") }));
@@ -40,7 +54,7 @@ export default function RegisterPage() {
       localStorage.setItem("label_id", data.id);
       localStorage.setItem("plan", data.plan || "free");
       localStorage.setItem("role", data.role || "label");
-      if (data.token) localStorage.setItem("token", data.token);
+      
       router.push("/inbox");
     } catch (err) {
       setError(err instanceof Error ? err.message : t("register.error_create"));

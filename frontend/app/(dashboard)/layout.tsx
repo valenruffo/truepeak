@@ -11,6 +11,7 @@ import { useLanguage } from "@/lib/i18n";
 import { useTheme } from "@/lib/theme";
 import { Music, Clock, AlertTriangle, Sliders, Link2, Inbox, Mail, BookOpen, Settings, LogOut } from "lucide-react";
 import WaveSurfer from "wavesurfer.js";
+import { supabase } from "@/lib/supabase";
 
 function PlayerBar() {
   const { currentTrack, isPlaying, progress, duration, volume, hasTracks, togglePlay, prevTrack, nextTrack, setVolume, seekTo, formatTime, audioRef } = usePlayer();
@@ -43,13 +44,15 @@ function PlayerBar() {
     if (isInitializingRef.current === trackId) return;
 
     isInitializingRef.current = trackId;
-    const token = localStorage.getItem("token") || "";
 
     const loadAndCreate = async () => {
       let peaksData: number[] | undefined = undefined;
       let trackDuration: number | undefined = undefined;
       
       try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token || "";
+        
         const res = await fetch(`/api/submissions/${trackId}/peaks`, {
           credentials: "include",
           headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -250,6 +253,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
   const [labelName, setLabelName] = useState<string>("");
   const [planInfo, setPlanInfo] = useState<string>("");
   const [plan, setPlan] = useState<string>("free");
+  const [subscriptionStatus, setSubscriptionStatus] = useState<string>("active");
   const [logoPath, setLogoPath] = useState<string | null>(null);
   const [hqCount, setHqCount] = useState<{ count: number; limit: number } | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -262,12 +266,17 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setMounted(true);
     const slug = localStorage.getItem("slug");
-    const token = localStorage.getItem("token");
 
-    if (!slug || !token) {
-      router.push("/login");
-      return;
-    }
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      
+      if (!slug || !token) {
+        router.push("/login");
+        return null;
+      }
+      return token;
+    };
 
     const storedRole = localStorage.getItem("role") || "label";
     setCurrentRole(storedRole);
@@ -275,6 +284,18 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
     // Intercept 401 Unauthorized globally while on dashboard
     const originalFetch = window.fetch;
     window.fetch = async (...args) => {
+      if (typeof args[0] === "string" && args[0].startsWith("/api/")) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          const options: RequestInit = args[1] || {};
+          options.headers = {
+            ...options.headers,
+            Authorization: `Bearer ${session.access_token}`
+          };
+          args[1] = options;
+        }
+      }
+
       const res = await originalFetch(...args);
       if (res.status === 401) {
         localStorage.removeItem("slug");
@@ -288,13 +309,15 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
       return res;
     };
 
-    const fetchLabel = async () => {
-      if (!slug) { setLabelName(""); setPlanInfo(""); return; }
+    const fetchLabel = async (): Promise<boolean> => {
+      if (!slug) { setLabelName(""); setPlanInfo(""); return false; }
       try {
         const res = await fetch(`/api/labels/${slug}`);
         if (res.ok) {
           const data = await res.json();
           setLabelName(data.name || slug);
+          const status = data.subscription_status || "active";
+          setSubscriptionStatus(status);
           
           // Check for admin override
           const overridePlan = localStorage.getItem("admin_plan_override");
@@ -315,10 +338,36 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
           
           setLogoPath(data.logo_path || null);
           setMaxTracksMonth(data.max_tracks_month || 10);
-        } else { setLabelName(slug); setPlanInfo(""); }
-      } catch { setLabelName(slug); setPlanInfo(""); }
+          return status === "frozen";
+        } else { setLabelName(slug); setPlanInfo(""); return false; }
+      } catch { setLabelName(slug); setPlanInfo(""); return false; }
     };
-    fetchLabel();
+
+    // Initialize sequentially so fetchTracks knows if frozen
+    const initData = async () => {
+      const isFrozen = await fetchLabel();
+      
+      const fetchTracks = async () => {
+        if (isFrozen) return; // Do not load audio queue if frozen
+        try {
+          const token = await checkAuth();
+          if (!token) return;
+          const res = await fetch(`/api/submissions?status=inbox&limit=100`, {
+            credentials: "include",
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (res.ok) {
+            const data: PlayerTrack[] = await res.json();
+            const withMp3 = data.filter((t) => t.mp3_path);
+            queueTracks(withMp3);
+          }
+        } catch { /* silent */ }
+      };
+      
+      fetchTracks();
+    };
+
+    initData();
 
     // If user just completed a payment, re-fetch plan after a short delay
     // to give the webhook time to process
@@ -333,10 +382,12 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
               const data = await res.json();
               const newPlan = data.plan || "free";
               const oldPlan = localStorage.getItem("plan") || "free";
+              const newStatus = data.subscription_status || "active";
               
-              if (newPlan !== "free" && newPlan !== oldPlan) {
+              if ((newPlan !== "free" && newPlan !== oldPlan) || newStatus === "active") {
                 console.log(`[Payment] Plan upgraded detected: ${newPlan}`);
                 setPlan(newPlan);
+                setSubscriptionStatus(newStatus);
                 setPlanInfo(newPlan.charAt(0).toUpperCase() + newPlan.slice(1));
                 localStorage.setItem("plan", newPlan);
                 window.location.reload(); // Reload to apply new plan limits
@@ -369,7 +420,9 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
     const fetchStats = async () => {
       if (!slug) return;
       try {
-        const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+        const token = await checkAuth();
+        if (!token) return;
+        const authHeaders: Record<string, string> = { Authorization: `Bearer ${token}` };
         const res = await fetch(`/api/labels/${slug}/stats`, {
           credentials: "include",
           headers: authHeaders,
@@ -384,7 +437,9 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
 
     const fetchHqCount = async () => {
       try {
-        const hqHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+        const token = await checkAuth();
+        if (!token) return;
+        const hqHeaders: Record<string, string> = { Authorization: `Bearer ${token}` };
         const res = await fetch(`/api/labels/${slug}/hq-count`, {
           headers: hqHeaders,
         });
@@ -395,21 +450,6 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
       } catch { /* silent */ }
     };
     if (slug) fetchHqCount();
-
-    const fetchTracks = async () => {
-      try {
-        const res = await fetch(`/api/submissions?status=inbox&limit=100`, {
-          credentials: "include",
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        if (res.ok) {
-          const data: PlayerTrack[] = await res.json();
-          const withMp3 = data.filter((t) => t.mp3_path);
-          queueTracks(withMp3);
-        }
-      } catch { /* silent */ }
-    };
-    fetchTracks();
 
     return () => {
       window.fetch = originalFetch;
@@ -650,7 +690,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
                 localStorage.removeItem("label_id");
                 localStorage.removeItem("plan");
                 localStorage.removeItem("token");
-                fetch(`/api/labels/logout`, { method: "POST", credentials: "include" }).catch(() => {});
+                supabase.auth.signOut().catch(() => {});
                 router.push("/");
               }}
               className="w-full flex items-center gap-2.5 text-left text-[13px] px-3.5 py-1.5 rounded transition-colors hover:bg-white/5"
@@ -665,8 +705,38 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
 
       <main className="flex-1 pt-12 md:pt-0" style={{ marginLeft: "0", paddingBottom: "80px" }}>
         <div className="mx-auto max-w-6xl px-3 md:px-6 py-4 md:py-8 md:ml-[200px]">
+          {/* Frozen State Banner */}
+          {subscriptionStatus === "frozen" && (
+            <div
+              className="mb-4 px-4 py-4 rounded border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2"
+              style={{
+                background: "rgba(239, 68, 68, 0.08)",
+                borderColor: "rgba(239, 68, 68, 0.3)",
+              }}
+            >
+              <div className="text-sm">
+                <span className="font-semibold" style={{ color: "#ef4444" }}>
+                  <AlertTriangle className="w-4 h-4 inline-block mr-1.5 -mt-0.5" />
+                  {lang === "es" ? "Cuenta congelada por impago" : "Account frozen due to unpaid invoice"}
+                </span>
+                <span className="text-muted block mt-1">
+                  {lang === "es" 
+                    ? "Tu suscripción ha expirado. El panel se encuentra en modo lectura y el reproductor de demos ha sido desactivado. Actualizá tu método de pago para reactivar." 
+                    : "Your subscription has expired. The dashboard is in read-only mode and the demo player has been disabled. Update your payment method to reactivate."}
+                </span>
+              </div>
+              <Link
+                href="/settings"
+                className="px-4 py-2 rounded text-xs font-bold whitespace-nowrap transition-all hover:opacity-90 shadow-sm"
+                style={{ background: "#ef4444", color: "#fff" }}
+              >
+                {lang === "es" ? "Reactivar cuenta" : "Reactivate account"}
+              </Link>
+            </div>
+          )}
+
           {/* Upgrade banner for Free users */}
-          {plan === "free" && (
+          {plan === "free" && subscriptionStatus !== "frozen" && (
             <div
               className="mb-4 px-4 py-3 rounded border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
               style={{
@@ -697,7 +767,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
         </div>
       </main>
 
-      <PlayerBar />
+      {subscriptionStatus !== "frozen" && <PlayerBar />}
       <WhatsAppBubble />
     </div>
   );

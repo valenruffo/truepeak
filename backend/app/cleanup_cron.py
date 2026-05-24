@@ -4,185 +4,185 @@ Run via: python -m app.cleanup_cron
 Or: docker exec infra-backend-1 python -m app.cleanup_cron
 
 Performs:
-1. Hard delete tracks with deleted_at > 24 hours (permanent removal)
+1. Hard delete tracks with deleted_at > 24 hours (permanent removal from DB and R2)
 2. Clean HQ files (WAV/FLAC/AIFF) past retention period, keep MP3
+3. Dead Account Warning (15 Days)
+4. Dead Account Final Warning (29 Days)
+5. Dead Account Purge (30 Days)
 """
 import os
-import sqlite3
+import asyncio
+import logging
 from datetime import datetime, timezone, timedelta
+from sqlmodel import Session, select
 
-DB_PATH = "/app/data/database.db"
-HQ_DIR = "/app/data/uploads"
+from app.database import engine
+from app.models import Label, Submission
+from app.services.email_service import send_email
+from app.services.r2 import delete_file_from_r2
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-def cleanup():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+async def cleanup_async():
     now = datetime.now(timezone.utc)
     deleted_files = 0
     deleted_rows = 0
     hq_cleaned = 0
     warnings_sent = 0
+    final_warnings_sent = 0
     purged_accounts = 0
 
-    # ── Rule 1: Hard delete tracks with deleted_at > 24h ──
-    cutoff = (now - timedelta(hours=24)).isoformat()
-    old_deleted = conn.execute(
-        "SELECT id, original_path, mp3_path FROM submission WHERE deleted_at IS NOT NULL AND deleted_at < ?",
-        (cutoff,),
-    ).fetchall()
+    with Session(engine) as session:
+        # ── Rule 1: Hard delete tracks with deleted_at > 24h ──
+        cutoff = now - timedelta(hours=24)
+        statement = select(Submission).where(Submission.deleted_at != None).where(Submission.deleted_at < cutoff)
+        old_deleted = session.exec(statement).all()
 
-    for row in old_deleted:
-        # Delete files from disk
-        for path_field in (row["original_path"], row["mp3_path"]):
-            if path_field and os.path.exists(path_field):
-                try:
-                    os.remove(path_field)
-                    deleted_files += 1
-                except OSError:
-                    pass
+        for sub in old_deleted:
+            # Delete files from R2
+            for path_field in (sub.original_path, sub.mp3_path):
+                if path_field:
+                    try:
+                        await delete_file_from_r2(path_field)
+                        deleted_files += 1
+                    except Exception as e:
+                        logger.error(f"Failed to delete {path_field} from R2: {e}")
 
-        # Delete DB record
-        conn.execute("DELETE FROM submission WHERE id = ?", (row["id"],))
-        deleted_rows += 1
+            session.delete(sub)
+            deleted_rows += 1
 
-    if deleted_rows > 0:
-        conn.commit()
-        print(f"[CLEANUP] Hard deleted {deleted_rows} tracks, removed {deleted_files} files")
+        if deleted_rows > 0:
+            session.commit()
+            logger.info(f"[CLEANUP] Hard deleted {deleted_rows} tracks, removed {deleted_files} files from R2")
 
-    # ── Rule 2: Clean HQ files (WAV/FLAC) past retention period, keep MP3 & DB record ──
-    labels = conn.execute(
-        "SELECT id, hq_retention_days FROM label WHERE hq_retention_days > 0"
-    ).fetchall()
+        # ── Rule 2: Clean HQ files (WAV/FLAC) past retention period ──
+        labels_with_retention = session.exec(select(Label).where(Label.hq_retention_days > 0)).all()
 
-    for label in labels:
-        retention = label["hq_retention_days"]
-        cutoff_date = (now - timedelta(days=retention)).isoformat()
+        for label in labels_with_retention:
+            retention = label.hq_retention_days
+            cutoff_date = now - timedelta(days=retention)
 
-        old_submissions = conn.execute(
-            """SELECT id, original_path FROM submission
-               WHERE label_id = ? AND deleted_at IS NULL AND original_path IS NOT NULL AND created_at < ?""",
-            (label["id"], cutoff_date),
-        ).fetchall()
-
-        for row in old_submissions:
-            # Delete HQ file from disk
-            if row["original_path"] and os.path.exists(row["original_path"]):
-                try:
-                    os.remove(row["original_path"])
-                    deleted_files += 1
-                except OSError:
-                    pass
-            
-            # Clear original_path in DB, preserve MP3 and submission record
-            conn.execute(
-                "UPDATE submission SET original_path = NULL WHERE id = ?",
-                (row["id"],),
+            statement = select(Submission).where(
+                Submission.label_id == label.id,
+                Submission.deleted_at == None,
+                Submission.original_path != None,
+                Submission.created_at < cutoff_date
             )
-            hq_cleaned += 1
+            old_submissions = session.exec(statement).all()
 
-    if hq_cleaned > 0:
-        conn.commit()
-        print(f"[HQ] Removed HQ files for {hq_cleaned} expired tracks")
+            for sub in old_submissions:
+                try:
+                    await delete_file_from_r2(sub.original_path)
+                    deleted_files += 1
+                except Exception as e:
+                    logger.error(f"Failed to delete HQ file {sub.original_path} from R2: {e}")
+                
+                sub.original_path = None
+                session.add(sub)
+                hq_cleaned += 1
 
-    # ── Rule 3: Dead Account Warning (15 Days) ──
-    warning_cutoff = (now - timedelta(days=15)).isoformat()
-    try:
-        frozen_labels = conn.execute(
-            """SELECT id, name, owner_email FROM label
-               WHERE subscription_status = 'frozen' 
-               AND frozen_at IS NOT NULL
-               AND frozen_at < ? 
-               AND churn_warning_sent = 0""",
-            (warning_cutoff,),
-        ).fetchall()
+        if hq_cleaned > 0:
+            session.commit()
+            logger.info(f"[HQ] Removed HQ files for {hq_cleaned} expired tracks")
+
+        # ── Rule 3: Dead Account Warning (15 Days) ──
+        warning_cutoff = now - timedelta(days=15)
+        statement = select(Label).where(
+            Label.subscription_status == "frozen",
+            Label.frozen_at != None,
+            Label.frozen_at < warning_cutoff,
+            Label.churn_warning_sent == False
+        )
+        frozen_labels = session.exec(statement).all()
 
         for label in frozen_labels:
             try:
-                import asyncio
-                import sys
-                from pathlib import Path
-                
-                # Make sure app path is in sys.path
-                backend_dir = Path(__file__).parent.parent
-                if str(backend_dir) not in sys.path:
-                    sys.path.append(str(backend_dir))
-                    
-                from app.services.email_service import send_email
-
-                subject = f"Aviso de inactividad de la cuenta - {label['name']}"
+                subject = f"Aviso de inactividad de la cuenta - {label.name}"
                 body = f"""
                 <p>Hola,</p>
-                <p>Tu cuenta de True Peak AI (<b>{label['name']}</b>) lleva congelada más de 15 días.</p>
-                <p>Actualmente estamos conservando tus previas (MP3) y tu historial de demos. Sin embargo, para mantener nuestra infraestructura optimizada, eliminaremos permanentemente tus archivos y registros si la cuenta permanece inactiva durante otros 15 días (cumpliendo 30 días en total).</p>
+                <p>Tu cuenta de True Peak AI (<b>{label.name}</b>) lleva congelada más de 15 días.</p>
+                <p>Actualmente estamos conservando tus previas (MP3) y tu historial de demos. Sin embargo, eliminaremos permanentemente tus archivos y registros si la cuenta permanece inactiva durante otros 15 días (cumpliendo 30 días en total).</p>
                 <p>Si deseas mantener tus datos, por favor renueva tu plan iniciando sesión en el sistema.</p>
                 <p>Saludos,<br/>El equipo de True Peak AI</p>
                 """
-                # Run the async email sender synchronously
-                asyncio.run(send_email(
-                    to=label["owner_email"],
-                    subject=subject,
-                    body=body
-                ))
-                
-                conn.execute(
-                    "UPDATE label SET churn_warning_sent = 1 WHERE id = ?",
-                    (label["id"],)
-                )
+                await send_email(to=label.owner_email, subject=subject, body=body)
+                label.churn_warning_sent = True
+                session.add(label)
                 warnings_sent += 1
-                print(f"[CHURN] Sent 15-day warning to {label['owner_email']}")
+                logger.info(f"[CHURN] Sent 15-day warning to {label.owner_email}")
             except Exception as e:
-                print(f"[CHURN] Error sending warning to {label['owner_email']}: {e}")
-                
-        if warnings_sent > 0:
-            conn.commit()
-    except sqlite3.OperationalError:
-        pass # Migration not run yet
+                logger.error(f"[CHURN] Error sending warning to {label.owner_email}: {e}")
 
-    # ── Rule 4: Dead Account Purge (30 Days) ──
-    purge_cutoff = (now - timedelta(days=30)).isoformat()
-    try:
-        dead_labels = conn.execute(
-            """SELECT id FROM label
-               WHERE subscription_status = 'frozen' 
-               AND frozen_at IS NOT NULL
-               AND frozen_at < ?""",
-            (purge_cutoff,),
-        ).fetchall()
+        if warnings_sent > 0:
+            session.commit()
+
+        # ── Rule 4: Dead Account Final Warning (29 Days / 24h before purge) ──
+        final_warning_cutoff = now - timedelta(days=29)
+        statement = select(Label).where(
+            Label.subscription_status == "frozen",
+            Label.frozen_at != None,
+            Label.frozen_at < final_warning_cutoff,
+            Label.final_warning_sent == False
+        )
+        final_frozen_labels = session.exec(statement).all()
+
+        for label in final_frozen_labels:
+            try:
+                subject = f"ÚLTIMO AVISO: Eliminación de datos inminente - {label.name}"
+                body = f"""
+                <p>Hola,</p>
+                <p>Este es el <b>último aviso</b> de True Peak AI para la cuenta <b>{label.name}</b>.</p>
+                <p>Tu cuenta lleva congelada 29 días. En exactamente <b>24 horas</b>, todos tus historiales de demos, tracks y configuraciones serán <b>eliminados permanentemente y sin posibilidad de recuperación</b>.</p>
+                <p>Si deseas evitar la pérdida total de tus datos, por favor renueva tu plan <b>hoy mismo</b>.</p>
+                <p>Saludos,<br/>El equipo de True Peak AI</p>
+                """
+                await send_email(to=label.owner_email, subject=subject, body=body)
+                label.final_warning_sent = True
+                session.add(label)
+                final_warnings_sent += 1
+                logger.info(f"[CHURN-FINAL] Sent 24h final warning to {label.owner_email}")
+            except Exception as e:
+                logger.error(f"[CHURN-FINAL] Error sending final warning to {label.owner_email}: {e}")
+
+        if final_warnings_sent > 0:
+            session.commit()
+
+        # ── Rule 5: Dead Account Purge (30 Days) ──
+        purge_cutoff = now - timedelta(days=30)
+        statement = select(Label).where(
+            Label.subscription_status == "frozen",
+            Label.frozen_at != None,
+            Label.frozen_at < purge_cutoff
+        )
+        dead_labels = session.exec(statement).all()
 
         for label in dead_labels:
-            subs = conn.execute(
-                "SELECT id, original_path, mp3_path FROM submission WHERE label_id = ?",
-                (label["id"],)
-            ).fetchall()
-            
-            for row in subs:
-                for path_field in (row["original_path"], row["mp3_path"]):
-                    if path_field and os.path.exists(path_field):
+            subs = session.exec(select(Submission).where(Submission.label_id == label.id)).all()
+            for sub in subs:
+                for path_field in (sub.original_path, sub.mp3_path):
+                    if path_field:
                         try:
-                            os.remove(path_field)
-                            deleted_files += 1
-                        except OSError:
-                            pass
-                conn.execute("DELETE FROM submission WHERE id = ?", (row["id"],))
+                            await delete_file_from_r2(path_field)
+                        except Exception as e:
+                            logger.error(f"Failed to delete {path_field} from R2 during purge: {e}")
+                session.delete(sub)
             
-            # Reset churn_warning_sent so if they ever unfreeze and freeze again it starts over
-            # Actually, the user rule says: "limpia sus registros de tracks". 
-            conn.execute(
-                "UPDATE label SET churn_warning_sent = 0 WHERE id = ?",
-                (label["id"],)
-            )
-            print(f"[PURGE] Purged all tracks for dead account: {label['id']}")
+            # Reset flags in case they somehow reactivate (though really the account is purged)
+            label.churn_warning_sent = False
+            label.final_warning_sent = False
+            session.add(label)
             purged_accounts += 1
+            logger.info(f"[PURGE] Purged all tracks for dead account: {label.id}")
 
         if purged_accounts > 0:
-            conn.commit()
-            print(f"[PURGE] Purged {purged_accounts} dead accounts")
-    except sqlite3.OperationalError:
-        pass # Migration not run yet
+            session.commit()
+            logger.info(f"[PURGE] Purged {purged_accounts} dead accounts")
 
-    conn.close()
-    print("[DONE] Cleanup complete")
+    logger.info("[DONE] Cleanup complete")
+
+def cleanup():
+    asyncio.run(cleanup_async())
 
 if __name__ == "__main__":
     cleanup()
