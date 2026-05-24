@@ -333,7 +333,8 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
             setPlan(newPlan);
             if (currentStoredPlan !== newPlan) {
               localStorage.setItem("plan", newPlan);
-              window.dispatchEvent(new Event("plan_updated"));
+              // Do NOT dispatch "plan_updated" here, because layout.tsx listens to it
+              // and would call fetchLabel() again, causing a double-load.
             }
           }
           

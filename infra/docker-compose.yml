@@ -1,8 +1,10 @@
 services:
   backend:
     build:
-      context: ./backend
+      context: ../backend
       dockerfile: Dockerfile
+    volumes:
+      - ../data:/app/data
     ports:
       - "8000:8000"
     environment:
@@ -17,7 +19,7 @@ services:
       - CLOUDFLARE_R2_BUCKET_NAME=${CLOUDFLARE_R2_BUCKET_NAME:-}
       - CLOUDFLARE_R2_PUBLIC_URL=${CLOUDFLARE_R2_PUBLIC_URL:-}
     env_file:
-      - .env
+      - ../.env
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/"]
       interval: 30s

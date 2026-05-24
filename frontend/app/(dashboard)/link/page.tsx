@@ -78,7 +78,9 @@ export default function LinkPage() {
         if (data.max_tracks_month) setMaxTracks(data.max_tracks_month);
         if (data.submission_title) setEditTitle(data.submission_title);
         if (data.submission_description) setEditDescription(data.submission_description);
-        if (data.logo_path) setLogoUrl(`/logos/${data.logo_path}`);
+        if (data.logo_path) {
+          setLogoUrl(data.logo_path.startsWith("http") || data.logo_path.startsWith("/") ? data.logo_path : `/logos/${data.logo_path}`);
+        }
         setAskInstagram(!!data.ask_instagram);
         setAskSoundcloud(!!data.ask_soundcloud);
         if (data.sonic_signature) {

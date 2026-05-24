@@ -29,7 +29,10 @@ export default function SubmissionPage() {
           const data = await res.json();
           setLabelName(data.name);
           if (data.logo_path) {
-            setLabelLogo(`/logos/${data.logo_path}`);
+            // Support both absolute URLs (R2) and legacy relative paths
+            setLabelLogo(data.logo_path.startsWith("http") || data.logo_path.startsWith("/") 
+              ? data.logo_path 
+              : `/logos/${data.logo_path}`);
           }
           if (data.submission_title) setSubmissionTitle(data.submission_title);
           if (data.submission_description) setSubmissionDescription(data.submission_description);

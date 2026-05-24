@@ -17,15 +17,15 @@ fi
 
 # Stop existing containers
 echo "⏹️  Stopping existing containers..."
-docker compose down
+docker compose -f infra/docker-compose.yml down
 
 # Rebuild with new dependencies (libsndfile1, Pillow, resend)
 echo "🔨 Rebuilding Docker image..."
-docker compose build --no-cache
+docker compose -f infra/docker-compose.yml build --no-cache
 
 # Start containers
 echo "▶️  Starting containers..."
-docker compose up -d
+docker compose -f infra/docker-compose.yml up -d
 
 # Wait for health check
 echo "⏳ Waiting for backend to be ready..."

@@ -115,18 +115,20 @@ def _provision_default_templates(session: Session, label: Label) -> None:
 # --- Auth helper (header + cookie) ---
 
 def _get_label_from_token(request: Request) -> dict[str, str]:
-    """Extract and verify JWT from cookie, Authorization header, or X-Label-Token."""
-    token = request.cookies.get("token")
-
-    if not token:
-        authorization = request.headers.get("authorization")
-        if authorization and authorization.startswith("Bearer "):
-            token = authorization.split(" ", 1)[1]
+    """Extract and verify JWT from Authorization header, X-Label-Token, or cookie."""
+    token = None
+    
+    authorization = request.headers.get("authorization")
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ", 1)[1]
 
     if not token:
         x_label_token = request.headers.get("x-label-token")
         if x_label_token:
             token = x_label_token
+            
+    if not token:
+        token = request.cookies.get("token")
 
     if not token:
         raise HTTPException(status_code=401, detail="Authentication required.")
