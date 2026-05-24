@@ -120,12 +120,12 @@ export default function SettingsPage() {
     setLoadingAction(actionId);
     try {
       await cancelSubscription(labelSlug);
-      setPlan("free");
-      localStorage.setItem("plan", "free");
-      window.dispatchEvent(new Event("plan_updated"));
+      window.dispatchEvent(new Event("plan_updated")); // To trigger refetch in layout
       addToast({
-        title: lang === "es" ? "Éxito" : "Success",
-        description: lang === "es" ? "Suscripción cancelada correctamente." : "Subscription cancelled successfully.",
+        title: lang === "es" ? "Suscripción Cancelada" : "Subscription Cancelled",
+        description: lang === "es" 
+          ? "Tu plan se canceló. Mantendrás los beneficios Pro hasta el final de tu ciclo de facturación actual." 
+          : "Your plan was cancelled. You will keep Pro benefits until the end of your current billing cycle.",
       });
       fetchBilling(labelSlug);
     } catch (err) {

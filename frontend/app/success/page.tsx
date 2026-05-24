@@ -8,7 +8,6 @@ function SuccessContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const checkoutId = searchParams.get("checkout_id");
-  const [countdown, setCountdown] = useState(8);
   const [planUpdated, setPlanUpdated] = useState(false);
   const [detectedPlan, setDetectedPlan] = useState<string | null>(null);
 
@@ -25,46 +24,11 @@ function SuccessContent() {
 
     if (slug) {
       let attempts = 0;
-      const maxAttempts = 10; // 10 * 2s = 20s max
+      const maxAttempts = 20; // 20 * 2s = 40s max wait for webhook
       
-      const syncCheckout = async () => {
-        if (checkoutId) {
-          try {
-            const res = await fetch("/vercel-api/sync", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ checkout_id: checkoutId })
-            });
-            if (res.ok) {
-              const data = await res.json();
-              if (data.plan && data.plan !== "free") {
-                setPlanUpdated(true);
-                setDetectedPlan(data.plan);
-                localStorage.setItem("plan", data.plan);
-                window.dispatchEvent(new Event("plan_updated"));
-                return true;
-              }
-            }
-          } catch (e) {
-            console.error("Sync failed:", e);
-          }
-        }
-        return false;
-      };
-
       const pollInterval = setInterval(async () => {
         attempts++;
         try {
-          // First try to sync checkout explicitly
-          if (attempts === 1 && checkoutId) {
-            const synced = await syncCheckout();
-            if (synced) {
-              clearInterval(pollInterval);
-              return;
-            }
-          }
-
-          // Then fallback to checking the backend
           const res = await fetch(`/api/labels/${slug}`);
           if (res.ok) {
             const data = await res.json();
@@ -89,18 +53,14 @@ function SuccessContent() {
   }, [checkoutId]);
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          router.push("/inbox");
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [router]);
+    if (planUpdated) {
+      // Auto-redirect 3 seconds after confirming the plan was upgraded
+      const timer = setTimeout(() => {
+        router.push("/settings");
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [planUpdated, router]);
 
   const planLabel = detectedPlan
     ? detectedPlan.charAt(0).toUpperCase() + detectedPlan.slice(1)
@@ -112,54 +72,50 @@ function SuccessContent() {
         {/* Success icon */}
         <div
           className="w-16 h-16 rounded-full mx-auto mb-6 flex items-center justify-center"
-          style={{ background: "rgba(16,185,129,0.12)" }}
+          style={{ background: planUpdated ? "rgba(16,185,129,0.12)" : "rgba(161,161,170,0.1)" }}
         >
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="20 6 9 17 4 12" />
-          </svg>
+          {planUpdated ? (
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          ) : (
+            <div className="w-8 h-8 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin" />
+          )}
         </div>
 
         <h1 className="font-display font-bold text-2xl tracking-tight mb-2" style={{ color: "#fafafa" }}>
-          ¡Pago exitoso!
+          {planUpdated ? "¡Pago confirmado!" : "Procesando tu pago..."}
         </h1>
 
         {planUpdated && planLabel ? (
-          <p className="text-sm mb-2" style={{ color: "#10b981" }}>
-            Tu plan se actualizó a <strong>{planLabel}</strong>. ¡Bienvenido a True Peak AI!
-          </p>
-        ) : (
-          <div className="mb-2">
-            <p className="text-sm" style={{ color: "#a1a1aa" }}>
-              Tu cuenta está siendo actualizada...
+          <div>
+            <p className="text-sm mb-6" style={{ color: "#10b981" }}>
+              Tu plan se actualizó a <strong>{planLabel}</strong>. ¡Bienvenido a True Peak AI!
             </p>
-            <div className="flex items-center justify-center gap-2 mt-2">
+            <p className="text-xs" style={{ color: "#52525b" }}>
+              Redirigiendo a tu cuenta en unos segundos...
+            </p>
+          </div>
+        ) : (
+          <div className="mb-6">
+            <p className="text-sm mb-4" style={{ color: "#a1a1aa" }}>
+              Estamos esperando la confirmación del servidor. Por favor no cierres esta ventana.
+            </p>
+            <div className="flex items-center justify-center gap-2">
               <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-xs" style={{ color: "#52525b" }}>Esperando confirmación del webhook</span>
+              <span className="text-xs" style={{ color: "#52525b" }}>Aguardando webhook...</span>
             </div>
           </div>
         )}
 
         {checkoutId && (
           <div
-            className="inline-block px-3 py-1.5 rounded text-[10px] font-mono mb-6"
-            style={{ background: "rgba(16,185,129,0.06)", color: "#10b981", border: "1px solid rgba(16,185,129,0.2)" }}
+            className="inline-block px-3 py-1.5 rounded text-[10px] font-mono mt-8"
+            style={{ background: "rgba(161,161,170,0.06)", color: "#71717a", border: "1px solid rgba(161,161,170,0.1)" }}
           >
-            Checkout ID: {checkoutId}
+            Ref: {checkoutId}
           </div>
         )}
-
-        {/* CTA */}
-        <Link
-          href="/inbox"
-          className="inline-block w-full py-3 text-sm font-medium rounded transition-all hover:opacity-90"
-          style={{ background: "#10b981", color: "#09090b" }}
-        >
-          Ir al Dashboard
-        </Link>
-
-        <p className="text-xs mt-4" style={{ color: "#52525b" }}>
-          Redirigiendo automáticamente en {countdown}s...
-        </p>
       </div>
     </div>
   );

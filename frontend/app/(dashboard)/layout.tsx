@@ -260,6 +260,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
   const [monthlyUsed, setMonthlyUsed] = useState<number>(0);
   const [maxTracksMonth, setMaxTracksMonth] = useState<number>(10);
   const [mounted, setMounted] = useState(false);
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [currentRole, setCurrentRole] = useState<string>("label");
   const { queueTracks } = usePlayer();
 
@@ -364,7 +365,8 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
         } catch { /* silent */ }
       };
       
-      fetchTracks();
+      await fetchTracks();
+      setIsDataLoaded(true);
     };
 
     initData();
@@ -513,7 +515,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
-        {plan === "free" && (
+        {isDataLoaded && plan === "free" && (
           <div className="px-4 mb-2 space-y-1">
             {monthlyUsed >= maxTracksMonth ? (
               <div className="px-3 py-1.5 rounded text-xs font-mono" style={{ background: "rgba(239,68,68,0.06)", color: "#ef4444" }}>
@@ -736,7 +738,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
           )}
 
           {/* Upgrade banner for Free users */}
-          {plan === "free" && subscriptionStatus !== "frozen" && (
+          {isDataLoaded && plan === "free" && subscriptionStatus !== "frozen" && (
             <div
               className="mb-4 px-4 py-3 rounded border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
               style={{
@@ -763,11 +765,17 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
               </Link>
             </div>
           )}
-          {children}
+          {isDataLoaded ? children : (
+            <div className="animate-pulse flex flex-col gap-4 mt-2">
+              <div className="h-8 bg-zinc-800/50 rounded w-1/3 mb-4"></div>
+              <div className="h-32 bg-zinc-800/30 rounded w-full border border-zinc-800/50"></div>
+              <div className="h-64 bg-zinc-800/20 rounded w-full border border-zinc-800/50"></div>
+            </div>
+          )}
         </div>
       </main>
 
-      {subscriptionStatus !== "frozen" && <PlayerBar />}
+      {isDataLoaded && subscriptionStatus !== "frozen" && <PlayerBar />}
       <WhatsAppBubble />
     </div>
   );

@@ -179,8 +179,8 @@ export async function POST(
       });
       if (!delRes.ok && delRes.status !== 204) throw new Error("Polar cancellation failed");
 
-      // Update backend DB to free
-      await updateLocalPlan(user.email, user.slug, "free");
+      // We let the Polar webhook handle the backend DB update to respect deferred cancellations
+      // await updateLocalPlan(user.email, user.slug, "free");
       
       return NextResponse.json({ status: "success", message: "Subscription cancelled successfully." });
     }
@@ -207,8 +207,8 @@ export async function POST(
       });
       if (!upRes.ok) throw new Error("Polar update failed");
 
-      // Update backend DB
-      await updateLocalPlan(user.email, user.slug, newPlan.toLowerCase());
+      // We let the Polar webhook handle the backend DB update to respect deferred downgrades
+      // await updateLocalPlan(user.email, user.slug, newPlan.toLowerCase());
 
       return NextResponse.json({ status: "success", message: `Subscription updated to ${newPlan} successfully.` });
     }
