@@ -11,7 +11,7 @@ import { useLanguage } from "@/lib/i18n";
 import { useTheme } from "@/lib/theme";
 import { Music, Clock, AlertTriangle, Sliders, Link2, Inbox, Mail, BookOpen, Settings, LogOut } from "lucide-react";
 import WaveSurfer from "wavesurfer.js";
-import { supabase } from "@/lib/supabase";
+
 
 function PlayerBar() {
   const { currentTrack, isPlaying, progress, duration, volume, hasTracks, togglePlay, prevTrack, nextTrack, setVolume, seekTo, formatTime, audioRef } = usePlayer();
@@ -50,8 +50,7 @@ function PlayerBar() {
       let trackDuration: number | undefined = undefined;
       
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const token = session?.access_token || "";
+        const token = localStorage.getItem("token") || "";
         
         const res = await fetch(`/api/submissions/${trackId}/peaks`, {
           credentials: "include",
@@ -269,8 +268,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
     const slug = localStorage.getItem("slug");
 
     const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
+      const token = localStorage.getItem("token");
       
       if (!slug || !token) {
         router.push("/login");
@@ -286,12 +284,12 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
     const originalFetch = window.fetch;
     window.fetch = async (...args) => {
       if (typeof args[0] === "string" && args[0].startsWith("/api/")) {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.access_token) {
+        const token = localStorage.getItem("token");
+        if (token) {
           const options: RequestInit = args[1] || {};
           options.headers = {
             ...options.headers,
-            Authorization: `Bearer ${session.access_token}`
+            Authorization: `Bearer ${token}`
           };
           args[1] = options;
         }
@@ -693,7 +691,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
                 localStorage.removeItem("label_id");
                 localStorage.removeItem("plan");
                 localStorage.removeItem("token");
-                supabase.auth.signOut().catch(() => {});
+                fetch(`/api/labels/logout`, { method: "POST", credentials: "include" }).catch(() => {});
                 router.push("/");
               }}
               className="w-full flex items-center gap-2.5 text-left text-[13px] px-3.5 py-1.5 rounded transition-colors hover:bg-white/5"

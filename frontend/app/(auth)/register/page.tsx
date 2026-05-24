@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useLanguage } from "@/lib/i18n";
-import { supabase } from "@/lib/supabase";
+
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -26,33 +26,24 @@ export default function RegisterPage() {
     if (password !== confirmPassword) { setError(t("register.error_match")); return; }
     setLoading(true);
     try {
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
-      });
 
-      if (authError) throw new Error(authError.message);
-      
-      const session = authData.session;
-      if (!session) throw new Error("No session created. Check email confirmation settings.");
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ""}/api/labels/register-profile`, {
+      const res = await fetch("/api/labels/register", {
         method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${session.access_token}`
-        },
-        credentials: "include",
-        body: JSON.stringify({ name, slug: name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, ""), role }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, slug: name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, ""), owner_email: email, password }),
       });
+
       if (!res.ok) {
-        const data = await res.json().catch(() => ({ detail: t("register.error_create") }));
-        throw new Error(data.detail || t("register.error_create"));
+        const errorData = await res.json();
+        throw new Error(errorData.detail || "Error al registrarse");
       }
+
       const data = await res.json();
       localStorage.setItem("slug", data.slug);
       localStorage.setItem("label_id", data.id);
       localStorage.setItem("plan", data.plan || "free");
+      if (data.token) localStorage.setItem("token", data.token);
       localStorage.setItem("role", data.role || "label");
       
       router.push("/inbox");
