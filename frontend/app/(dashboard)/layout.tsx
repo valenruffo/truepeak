@@ -11,7 +11,7 @@ import { useLanguage } from "@/lib/i18n";
 import { useTheme } from "@/lib/theme";
 import { Music, Clock, AlertTriangle, Sliders, Link2, Inbox, Mail, BookOpen, Settings, LogOut } from "lucide-react";
 import WaveSurfer from "wavesurfer.js";
-
+import { supabase } from "@/lib/supabase";
 
 function PlayerBar() {
   const { currentTrack, isPlaying, progress, duration, volume, hasTracks, togglePlay, prevTrack, nextTrack, setVolume, seekTo, formatTime, audioRef } = usePlayer();
@@ -50,7 +50,8 @@ function PlayerBar() {
       let trackDuration: number | undefined = undefined;
       
       try {
-        const token = localStorage.getItem("token") || "";
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token || "";
         
         const res = await fetch(`/api/submissions/${trackId}/peaks`, {
           credentials: "include",
@@ -259,7 +260,6 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
   const [monthlyUsed, setMonthlyUsed] = useState<number>(0);
   const [maxTracksMonth, setMaxTracksMonth] = useState<number>(10);
   const [mounted, setMounted] = useState(false);
-  const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [currentRole, setCurrentRole] = useState<string>("label");
   const { queueTracks } = usePlayer();
 
@@ -268,7 +268,8 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
     const slug = localStorage.getItem("slug");
 
     const checkAuth = async () => {
-      const token = localStorage.getItem("token");
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
       
       if (!slug || !token) {
         router.push("/login");
@@ -284,12 +285,12 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
     const originalFetch = window.fetch;
     window.fetch = async (...args) => {
       if (typeof args[0] === "string" && args[0].startsWith("/api/")) {
-        const token = localStorage.getItem("token");
-        if (token) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
           const options: RequestInit = args[1] || {};
           options.headers = {
             ...options.headers,
-            Authorization: `Bearer ${token}`
+            Authorization: `Bearer ${session.access_token}`
           };
           args[1] = options;
         }
@@ -331,8 +332,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
             setPlan(newPlan);
             if (currentStoredPlan !== newPlan) {
               localStorage.setItem("plan", newPlan);
-              // Do NOT dispatch "plan_updated" here, because layout.tsx listens to it
-              // and would call fetchLabel() again, causing a double-load.
+              window.dispatchEvent(new Event("plan_updated"));
             }
           }
           
@@ -364,8 +364,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
         } catch { /* silent */ }
       };
       
-      await fetchTracks();
-      setIsDataLoaded(true);
+      fetchTracks();
     };
 
     initData();
@@ -514,7 +513,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
-        {isDataLoaded && plan === "free" && (
+        {plan === "free" && (
           <div className="px-4 mb-2 space-y-1">
             {monthlyUsed >= maxTracksMonth ? (
               <div className="px-3 py-1.5 rounded text-xs font-mono" style={{ background: "rgba(239,68,68,0.06)", color: "#ef4444" }}>
@@ -691,7 +690,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
                 localStorage.removeItem("label_id");
                 localStorage.removeItem("plan");
                 localStorage.removeItem("token");
-                fetch(`/api/labels/logout`, { method: "POST", credentials: "include" }).catch(() => {});
+                supabase.auth.signOut().catch(() => {});
                 router.push("/");
               }}
               className="w-full flex items-center gap-2.5 text-left text-[13px] px-3.5 py-1.5 rounded transition-colors hover:bg-white/5"
@@ -737,7 +736,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
           )}
 
           {/* Upgrade banner for Free users */}
-          {isDataLoaded && plan === "free" && subscriptionStatus !== "frozen" && (
+          {plan === "free" && subscriptionStatus !== "frozen" && (
             <div
               className="mb-4 px-4 py-3 rounded border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
               style={{
@@ -764,17 +763,11 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
               </Link>
             </div>
           )}
-          {isDataLoaded ? children : (
-            <div className="animate-pulse flex flex-col gap-4 mt-2">
-              <div className="h-8 bg-zinc-800/50 rounded w-1/3 mb-4"></div>
-              <div className="h-32 bg-zinc-800/30 rounded w-full border border-zinc-800/50"></div>
-              <div className="h-64 bg-zinc-800/20 rounded w-full border border-zinc-800/50"></div>
-            </div>
-          )}
+          {children}
         </div>
       </main>
 
-      {isDataLoaded && subscriptionStatus !== "frozen" && <PlayerBar />}
+      {subscriptionStatus !== "frozen" && <PlayerBar />}
       <WhatsAppBubble />
     </div>
   );

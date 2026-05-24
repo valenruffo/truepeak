@@ -277,25 +277,14 @@ async def delete_submission(
     _verify_label_ownership(session, auth["label_id"], submission)
 
     if force:
-        # Hard delete: remove files from R2
-        from app.services.r2 import delete_file_from_r2
-        import urllib.parse
-
-        async def _delete_r2_path(path: str):
-            if not path: return
-            try:
-                if path.startswith("http"):
-                    # Extract key from URL
-                    parsed = urllib.parse.urlparse(path)
-                    key = parsed.path.lstrip("/")
-                    await delete_file_from_r2(key)
-                else:
-                    await delete_file_from_r2(path)
-            except Exception:
-                pass
-
-        await _delete_r2_path(submission.mp3_path)
-        await _delete_r2_path(submission.original_path)
+        # Hard delete: remove files from disk
+        for path_attr in ("mp3_path", "original_path"):
+            path = getattr(submission, path_attr)
+            if path and os.path.exists(path):
+                try:
+                    os.remove(path)
+                except OSError:
+                    pass  # Best effort
         
         session.delete(submission)
         session.commit()
@@ -366,18 +355,11 @@ async def delete_submission_file(
     if not submission.mp3_path:
         raise HTTPException(status_code=400, detail="No MP3 file associated with this submission.")
 
-    # Delete the MP3 file from R2
-    if submission.mp3_path:
-        from app.services.r2 import delete_file_from_r2
-        import urllib.parse
+    # Delete the MP3 file from disk
+    if os.path.exists(submission.mp3_path):
         try:
-            if submission.mp3_path.startswith("http"):
-                parsed = urllib.parse.urlparse(submission.mp3_path)
-                key = parsed.path.lstrip("/")
-                await delete_file_from_r2(key)
-            else:
-                await delete_file_from_r2(submission.mp3_path)
-        except Exception:
+            os.remove(submission.mp3_path)
+        except OSError:
             pass  # Best-effort
 
     submission.mp3_path = None

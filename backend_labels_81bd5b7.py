@@ -1,4 +1,4 @@
-"""Label management API — register, config, login, stats."""
+﻿"""Label management API — register, config, login, stats."""
 
 import os
 import httpx
@@ -16,8 +16,7 @@ from sqlmodel import Session, select, func
 
 from app.database import get_session
 from app.models import Label, Submission, EmailTemplate
-from app.services.auth import verify_token
-from app.services.r2 import upload_bytes_to_r2
+from app.services.auth import create_token, get_password_hash, verify_password, verify_token
 
 router = APIRouter(prefix="/api/labels", tags=["labels"])
 
@@ -116,17 +115,19 @@ def _provision_default_templates(session: Session, label: Label) -> None:
 
 def _get_label_from_token(request: Request) -> dict[str, str]:
     """Extract and verify JWT from cookie, Authorization header, or X-Label-Token."""
-    token = request.cookies.get("token")
-
-    if not token:
-        authorization = request.headers.get("authorization")
-        if authorization and authorization.startswith("Bearer "):
-            token = authorization.split(" ", 1)[1]
+    token = None
+    
+    authorization = request.headers.get("authorization")
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ", 1)[1]
 
     if not token:
         x_label_token = request.headers.get("x-label-token")
         if x_label_token:
             token = x_label_token
+            
+    if not token:
+        token = request.cookies.get("token")
 
     if not token:
         raise HTTPException(status_code=401, detail="Authentication required.")
@@ -139,10 +140,19 @@ def _get_label_from_token(request: Request) -> dict[str, str]:
 
 # --- Request / Response schemas ---
 
-class RegisterProfileRequest(BaseModel):
+class RegisterRequest(BaseModel):
+    owner_email: EmailStr
+    password: str
     name: str
     slug: str
     role: str = "label"
+
+    @field_validator("password")
+    @classmethod
+    def password_min_length(cls, v: str) -> str:
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters")
+        return v
 
     @field_validator("role")
     @classmethod
@@ -160,6 +170,42 @@ class RegisterResponse(BaseModel):
     plan: str
     role: str
     created_at: str
+    token: str | None = None  # Included for localStorage auth
+
+
+class LoginRequest(BaseModel):
+    owner_email: EmailStr
+    password: str
+
+    @field_validator("password")
+    @classmethod
+    def password_min_length(cls, v: str) -> str:
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters")
+        return v
+
+
+class LoginByEmailRequest(BaseModel):
+    """Login by email or slug — no slug in path."""
+    identifier: str  # email or slug
+    password: str
+
+    @field_validator("password")
+    @classmethod
+    def password_min_length(cls, v: str) -> str:
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters")
+        return v
+
+
+class LoginResponse(BaseModel):
+    id: str
+    name: str
+    slug: str
+    owner_email: str
+    plan: str
+    role: str
+    token: str | None = None  # Included for clients that can't rely on cookie forwarding
 
 
 class LabelConfig(BaseModel):
@@ -169,7 +215,6 @@ class LabelConfig(BaseModel):
     owner_email: str
     plan: str = "free"
     subscription_status: str = "active"
-    frozen_at: str | None = None
     max_tracks_month: int = 10
     max_emails_month: int = 0
     hq_retention_days: int = 0
@@ -222,30 +267,26 @@ class HQCountResponse(BaseModel):
 
 # --- Endpoints ---
 
-@router.post("/register-profile", response_model=RegisterResponse, status_code=201)
+@router.post("/register", response_model=RegisterResponse, status_code=201)
 @limiter.limit("3/minute")
-async def register_label_profile(
+async def register_label(
     request: Request,
-    body: RegisterProfileRequest,
-    auth: dict = Depends(_get_label_from_token),
+    body: RegisterRequest,
+    response: Response,
     session: Session = Depends(get_session),
 ):
-    """Create a Label profile after successful Supabase Auth signup."""
-    label_id = auth.get("label_id")
-    owner_email = auth.get("email")
-
-    if not label_id or not owner_email:
-        raise HTTPException(status_code=400, detail="Invalid auth payload")
-
-    # Check if profile already exists
-    existing_profile = session.exec(select(Label).where(Label.id == label_id)).first()
-    if existing_profile:
-        raise HTTPException(status_code=409, detail="Profile already exists for this user.")
-
+    """Register a new label with email and password."""
     # Check slug uniqueness
     existing_slug = session.exec(select(Label).where(Label.slug == body.slug)).first()
     if existing_slug:
         raise HTTPException(status_code=409, detail="Ese nombre ya está en uso. Elegí otro slug.")
+
+    # Check email uniqueness
+    existing_email = session.exec(select(Label).where(Label.owner_email == body.owner_email)).first()
+    if existing_email:
+        raise HTTPException(status_code=409, detail="Ya existe una cuenta con ese email.")
+
+    password_hash = get_password_hash(body.password)
 
     sonic_signature = {
         "bpm_min": 70,
@@ -263,10 +304,10 @@ async def register_label_profile(
     }
 
     label = Label(
-        id=label_id,
         name=body.name,
         slug=body.slug,
-        owner_email=owner_email,
+        owner_email=body.owner_email,
+        password_hash=password_hash,
         sonic_signature=sonic_signature,
         role=body.role,
     )
@@ -275,7 +316,17 @@ async def register_label_profile(
     session.commit()
     session.refresh(label)
 
-    _provision_default_templates(session, label)
+    # Set JWT as HTTPOnly cookie
+    token = create_token(label_id=label.id, slug=label.slug)
+    response.set_cookie(
+        key="token",
+        value=token,
+        httponly=True,
+        secure=False,  # Set True in production with HTTPS
+        samesite="lax",
+        max_age=86400,
+        path="/",
+    )
 
     return RegisterResponse(
         id=label.id,
@@ -285,6 +336,7 @@ async def register_label_profile(
         plan=label.plan or "free",
         role=label.role,
         created_at=label.created_at.isoformat(),
+        token=token,
     )
 
 
@@ -305,7 +357,6 @@ async def get_label_config(
         owner_email=label.owner_email,
         plan=label.plan or "free",
         subscription_status=label.subscription_status or "active",
-        frozen_at=label.frozen_at.isoformat() if label.frozen_at else None,
         max_tracks_month=label.max_tracks_month,
         max_emails_month=label.max_emails_month,
         hq_retention_days=label.hq_retention_days,
@@ -357,7 +408,6 @@ async def update_label_config(
         owner_email=label.owner_email,
         plan=label.plan or "free",
         subscription_status=label.subscription_status or "active",
-        frozen_at=label.frozen_at.isoformat() if label.frozen_at else None,
         max_tracks_month=label.max_tracks_month,
         max_emails_month=label.max_emails_month,
         hq_retention_days=label.hq_retention_days,
@@ -371,6 +421,107 @@ async def update_label_config(
     )
 
 
+@router.post("/login", response_model=LoginResponse)
+@limiter.limit("5/minute")
+async def label_login_by_identifier(
+    request: Request,
+    body: LoginByEmailRequest,
+    response: Response,
+    session: Session = Depends(get_session),
+):
+    """Login by email, name, or slug. Sets JWT as HTTPOnly cookie."""
+    # Try email first
+    label = session.exec(select(Label).where(Label.owner_email == body.identifier)).first()
+
+    # Fall back to name (case-insensitive)
+    if not label:
+        label = session.exec(select(Label).where(Label.name.ilike(body.identifier))).first()
+
+    # Fall back to slug
+    if not label:
+        label = session.exec(select(Label).where(Label.slug == body.identifier)).first()
+
+    if not label:
+        raise HTTPException(status_code=404, detail="Sello no encontrado.")
+
+    if not verify_password(body.password, label.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid password.")
+
+    token = create_token(label_id=label.id, slug=label.slug)
+
+    response.set_cookie(
+        key="token",
+        value=token,
+        httponly=True,
+        secure=False,  # Set True in production with HTTPS
+        samesite="lax",
+        max_age=86400,
+        path="/",
+    )
+
+    _provision_default_templates(session, label)
+
+    return LoginResponse(
+        id=label.id,
+        name=label.name,
+        slug=label.slug,
+        owner_email=label.owner_email,
+        plan=label.plan or "free",
+        role=label.role,
+        token=token,
+    )
+
+
+@router.post("/{slug}/login", response_model=LoginResponse)
+@limiter.limit("5/minute")
+async def label_login(
+    slug: str,
+    request: Request,
+    body: LoginRequest,
+    response: Response,
+    session: Session = Depends(get_session),
+):
+    """Login with email and password. Sets JWT as HTTPOnly cookie."""
+    label = session.exec(select(Label).where(Label.slug == slug)).first()
+    if not label:
+        raise HTTPException(status_code=404, detail="Sello no encontrado.")
+
+    if label.owner_email != body.owner_email:
+        raise HTTPException(status_code=401, detail="Email does not match label owner.")
+
+    if not verify_password(body.password, label.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid password.")
+
+    token = create_token(label_id=label.id, slug=label.slug)
+
+    response.set_cookie(
+        key="token",
+        value=token,
+        httponly=True,
+        secure=False,  # Set True in production with HTTPS
+        samesite="lax",
+        max_age=86400,
+        path="/",
+    )
+
+    _provision_default_templates(session, label)
+
+    return LoginResponse(
+        id=label.id,
+        name=label.name,
+        slug=label.slug,
+        owner_email=label.owner_email,
+        plan=label.plan or "free",
+        role=label.role,
+        token=token,
+    )
+
+
+@router.post("/logout")
+async def label_logout(response: Response):
+    """Clear the authentication cookie."""
+    response.delete_cookie(key="token", httponly=True, samesite="lax")
+    return {"message": "Logged out"}
 
 
 @router.get("/{slug}/stats", response_model=LabelStats)
@@ -477,26 +628,24 @@ async def upload_label_logo(
         img.save(output, format="PNG", optimize=True)
         output.seek(0)
         processed_content = output.getvalue()
-        content_type = "image/png"
     except ImportError:
         # Pillow not available — save raw file (add pillow to dependencies)
         processed_content = content
-        content_type = file.content_type or "application/octet-stream"
 
-    # Upload to Cloudflare R2
-    logo_filename = f"logos/{label.id}.png"
+    # Upload to R2
+    from app.services.r2 import upload_bytes_to_r2
+    logo_filename = f"{label.id}.png"
+    r2_logo_key = f"logos/{logo_filename}"
     
-    await upload_bytes_to_r2(
-        data=processed_content,
-        r2_key=logo_filename,
-        content_type=content_type
-    )
+    try:
+        await upload_bytes_to_r2(processed_content, r2_logo_key, "image/png")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to upload logo to R2: {e}")
 
+    # Set R2 public URL
+    import os
     public_url_base = os.getenv("CLOUDFLARE_R2_PUBLIC_URL", "").rstrip("/")
-    if public_url_base:
-        logo_url = f"{public_url_base}/{logo_filename}"
-    else:
-        logo_url = f"/{logo_filename}"
+    logo_url = f"{public_url_base}/{r2_logo_key}"
 
     # Update label
     label.logo_path = logo_url
@@ -589,7 +738,6 @@ async def update_label_plan(
         owner_email=label.owner_email,
         plan=label.plan or "free",
         subscription_status=label.subscription_status or "active",
-        frozen_at=label.frozen_at.isoformat() if label.frozen_at else None,
         max_tracks_month=label.max_tracks_month,
         max_emails_month=label.max_emails_month,
         hq_retention_days=label.hq_retention_days,
@@ -1106,8 +1254,6 @@ async def admin_update_label_plan(
         slug=label.slug,
         owner_email=label.owner_email,
         plan=label.plan or "free",
-        subscription_status=label.subscription_status or "active",
-        frozen_at=label.frozen_at.isoformat() if label.frozen_at else None,
         max_tracks_month=label.max_tracks_month,
         max_emails_month=label.max_emails_month,
         hq_retention_days=label.hq_retention_days,

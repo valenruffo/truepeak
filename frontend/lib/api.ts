@@ -1,5 +1,5 @@
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
-
+import { supabase } from "./supabase";
 
 // --- Helpers ---
 
@@ -17,9 +17,10 @@ async function request<T>(
     ...options.headers,
   };
 
-  // Inject JWT token from localStorage if available
+  // Inject JWT token from Supabase if available
   if (typeof window !== "undefined") {
-    const token = localStorage.getItem("token");
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
     if (token && !headers["Authorization"]) {
       headers["Authorization"] = `Bearer ${token}`;
     }

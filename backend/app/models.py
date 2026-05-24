@@ -20,7 +20,7 @@ class Label(SQLModel, table=True):
     name: str
     slug: str = Field(unique=True, index=True)
     owner_email: str = Field(unique=True, index=True)
-    password_hash: str
+    password_hash: str | None = None
     sonic_signature: dict[str, Any] = Field(
         sa_type=JSON,
         default_factory=lambda: {
@@ -43,6 +43,7 @@ class Label(SQLModel, table=True):
     subscription_status: str = Field(default="active")  # "active" | "frozen" | "canceled"
     frozen_at: datetime | None = Field(default=None)
     churn_warning_sent: bool = Field(default=False)
+    final_warning_sent: bool = Field(default=False)
     max_tracks_month: int = Field(default=10)
     max_emails_month: int = Field(default=0)
     hq_retention_days: int = Field(default=0)
