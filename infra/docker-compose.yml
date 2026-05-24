@@ -12,7 +12,7 @@ services:
       - RESEND_API_KEY=${RESEND_API_KEY:-}
       - DATA_DIR=/app/data
     env_file:
-      - .env
+      - ../.env
     volumes:
       - ./data:/app/data
     healthcheck:
