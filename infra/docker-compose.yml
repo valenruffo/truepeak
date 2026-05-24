@@ -4,9 +4,8 @@ services:
       context: ../backend
       dockerfile: Dockerfile
     volumes:
-      - ../data:/app/data
-    ports:
-      - "8000:8000"
+      - ./data:/app/data
+    network_mode: host
 
     env_file:
       - ../.env
