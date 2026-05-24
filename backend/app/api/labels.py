@@ -115,18 +115,20 @@ def _provision_default_templates(session: Session, label: Label) -> None:
 # --- Auth helper (header + cookie) ---
 
 def _get_label_from_token(request: Request) -> dict[str, str]:
-    """Extract and verify JWT from cookie, Authorization header, or X-Label-Token."""
-    token = request.cookies.get("token")
-
-    if not token:
-        authorization = request.headers.get("authorization")
-        if authorization and authorization.startswith("Bearer "):
-            token = authorization.split(" ", 1)[1]
+    """Extract and verify JWT from Authorization header, X-Label-Token, or cookie."""
+    token = None
+    
+    authorization = request.headers.get("authorization")
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ", 1)[1]
 
     if not token:
         x_label_token = request.headers.get("x-label-token")
         if x_label_token:
             token = x_label_token
+
+    if not token:
+        token = request.cookies.get("token")
 
     if not token:
         raise HTTPException(status_code=401, detail="Authentication required.")
@@ -229,19 +231,37 @@ async def register_label_profile(
     auth: dict = Depends(_get_label_from_token),
     session: Session = Depends(get_session),
 ):
-    """Create a Label profile after successful Supabase Auth signup."""
+    """Create a Label profile after successful Supabase Auth signup, or recover orphaned profiles."""
     label_id = auth.get("label_id")
     owner_email = auth.get("email")
 
     if not label_id or not owner_email:
         raise HTTPException(status_code=400, detail="Invalid auth payload")
 
-    # Check if profile already exists
+    # Check if profile already exists by ID
     existing_profile = session.exec(select(Label).where(Label.id == label_id)).first()
     if existing_profile:
         raise HTTPException(status_code=409, detail="Profile already exists for this user.")
 
-    # Check slug uniqueness
+    # Check if an orphaned profile exists by email (migration from SQLite auth to Supabase auth)
+    orphaned_profile = session.exec(select(Label).where(Label.owner_email == owner_email)).first()
+    if orphaned_profile:
+        # Update the orphaned profile with the new Supabase ID
+        orphaned_profile.id = label_id
+        session.add(orphaned_profile)
+        session.commit()
+        session.refresh(orphaned_profile)
+        return RegisterResponse(
+            id=orphaned_profile.id,
+            name=orphaned_profile.name,
+            slug=orphaned_profile.slug,
+            owner_email=orphaned_profile.owner_email,
+            plan=orphaned_profile.plan or "free",
+            role=orphaned_profile.role,
+            created_at=orphaned_profile.created_at.isoformat(),
+        )
+
+    # Check slug uniqueness for brand new profiles
     existing_slug = session.exec(select(Label).where(Label.slug == body.slug)).first()
     if existing_slug:
         raise HTTPException(status_code=409, detail="Ese nombre ya está en uso. Elegí otro slug.")
