@@ -17,13 +17,11 @@ import logging
 import os
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException, Request, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Request
 from sqlmodel import Session, select
-from datetime import timedelta
 
 from app.database import get_session, engine
-from app.models import Label, Submission
-from app.services.r2 import delete_file_from_r2
+from app.models import Label
 
 router = APIRouter(prefix="/api", tags=["polar-webhook"])
 
@@ -108,38 +106,8 @@ def _apply_plan_limits(label: Label, plan: str) -> None:
     label.hq_retention_days = limits["hq_retention_days"]
 
 
-async def _enforce_retention_limits_bg(label_id: str, new_retention_days: int) -> None:
-    """Background task to delete R2 originals that exceed the new retention limit."""
-    if new_retention_days < 0:
-        return
-        
-    cutoff_date = datetime.now(timezone.utc) - timedelta(days=new_retention_days)
-    
-    with Session(engine) as session:
-        submissions = session.exec(
-            select(Submission).where(
-                Submission.label_id == label_id,
-                Submission.original_path.isnot(None),
-                Submission.created_at < cutoff_date
-            )
-        ).all()
-        
-        for sub in submissions:
-            if sub.original_path:
-                try:
-                    # original_path in DB is just the filename/key like "originals/UUID.wav"
-                    await delete_file_from_r2(sub.original_path)
-                    sub.original_path = None
-                    session.add(sub)
-                except Exception as e:
-                    logger.error(f"Failed to retroactively delete R2 file {sub.original_path}: {e}")
-        
-        session.commit()
-        logger.info(f"Enforced retention limits for label {label_id}. Deleted {len(submissions)} HQ files.")
-
-
 @router.post("/webhooks/polar")
-async def polar_webhook(request: Request, bg_tasks: BackgroundTasks):
+async def polar_webhook(request: Request):
     """Handle incoming Polar webhook events.
 
     Polar sends events for:
@@ -297,10 +265,6 @@ async def polar_webhook(request: Request, bg_tasks: BackgroundTasks):
                 if subscription_id := payload_data.get("subscription_id"):
                     label.polar_subscription_id = subscription_id
 
-                # Trigger retroactive deletion if it was a completed downgrade
-                if new_level < current_level:
-                    bg_tasks.add_task(_enforce_retention_limits_bg, str(label.id), limits["hq_retention_days"])
-
                 label.updated_at = datetime.now(timezone.utc)
                 session.add(label)
                 session.commit()
@@ -326,18 +290,11 @@ async def polar_webhook(request: Request, bg_tasks: BackgroundTasks):
             label.max_emails_month = 0
             label.hq_retention_days = 0
             
-            # Set frozen state
-            label.subscription_status = "frozen"
-            label.frozen_at = datetime.now(timezone.utc)
-            
-            # Retroactively delete all HQ files (limit 0)
-            bg_tasks.add_task(_enforce_retention_limits_bg, str(label.id), 0)
-            
             label.updated_at = datetime.now(timezone.utc)
             session.add(label)
             session.commit()
-            logger.info("Label %s (%s) downgraded to free and frozen via webhook", label.slug, customer_email)
-            return {"received": True, "action": "downgraded_and_frozen", "plan": "free", "label": label.slug}
+            logger.info("Label %s (%s) downgraded to free via webhook", label.slug, customer_email)
+            return {"received": True, "action": "downgraded", "plan": "free", "label": label.slug}
 
         else:
             logger.info("Polar webhook: unhandled event type %s", event_type)

@@ -79,4 +79,12 @@ from app.api.polar_webhook import router as polar_webhook_router
 
 app.include_router(polar_webhook_router)
 
+# Serve label logos
+LOGOS_DIR = Path("/app/data/logos")
+LOGOS_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/logos", StaticFiles(directory=str(LOGOS_DIR)), name="logos")
 
+# Serve approved MP3 files
+MP3S_DIR = Path("/app/data/mp3s")
+MP3S_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/mp3s", StaticFiles(directory=str(MP3S_DIR)), name="mp3s")

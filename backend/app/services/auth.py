@@ -1,40 +1,65 @@
-"""Supabase JWT-based authentication for backend."""
+"""JWT-based authentication and password hashing for label owners."""
 
 import os
-import httpx
-from jose import JWTError
+from datetime import datetime, timedelta, timezone
 
-SUPABASE_URL = "https://dhnxyumxznhvpofujzwq.supabase.co"
-SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRobnh5dW14em5odnBvZnVqendxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1NjE5NDYsImV4cCI6MjA5NTEzNzk0Nn0.jmVNxrvMMiy7Z-GeUsH-T152U7m7OgbDJepkKuvGb-w"
+import bcrypt
+from jose import JWTError, jwt
+
+# --- Password hashing ---
+
+JWT_SECRET = os.getenv("JWT_SECRET", "dev-secret-change-in-production")
+JWT_ALGORITHM = "HS256"
+JWT_EXPIRY_HOURS = 24
+
+
+def get_password_hash(password: str) -> str:
+    """Hash a password using bcrypt."""
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Verify a plain password against a bcrypt hash."""
+    return bcrypt.checkpw(plain_password.encode(), hashed_password.encode())
+
+
+# --- JWT token management ---
+
+
+def create_token(label_id: str, slug: str) -> str:
+    """Create a JWT token for a label owner.
+
+    Args:
+        label_id: The unique identifier of the label.
+        slug: The URL-friendly slug of the label.
+
+    Returns:
+        Encoded JWT token string.
+    """
+    now = datetime.now(timezone.utc)
+    payload = {
+        "label_id": label_id,
+        "slug": slug,
+        "iat": now,
+        "exp": now + timedelta(hours=JWT_EXPIRY_HOURS),
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
 
 def verify_token(token: str) -> dict[str, str]:
-    """Verify a Supabase JWT token by calling the Supabase Auth API.
-    
+    """Verify and decode a JWT token.
+
     Args:
         token: The JWT token string to verify.
-        
+
     Returns:
-        Dictionary containing label_id (from sub) and email.
-        
+        Dictionary containing label_id and slug.
+
     Raises:
         JWTError: If the token is invalid or expired.
     """
-    try:
-        response = httpx.get(
-            f"{SUPABASE_URL}/auth/v1/user",
-            headers={
-                "apikey": SUPABASE_ANON_KEY,
-                "Authorization": f"Bearer {token}"
-            },
-            timeout=5.0
-        )
-        if response.status_code != 200:
-            raise JWTError("Invalid or expired token.")
-            
-        user_data = response.json()
-        return {
-            "label_id": user_data.get("id"),
-            "email": user_data.get("email"),
-        }
-    except httpx.RequestError as e:
-        raise JWTError(f"Error connecting to Auth provider: {str(e)}")
+    payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+    return {
+        "label_id": payload["label_id"],
+        "slug": payload["slug"],
+    }
