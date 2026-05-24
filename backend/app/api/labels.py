@@ -223,7 +223,6 @@ class HQCountResponse(BaseModel):
 # --- Endpoints ---
 
 @router.post("/register-profile", response_model=RegisterResponse, status_code=201)
-@limiter.limit("3/minute")
 async def register_label_profile(
     request: Request,
     body: RegisterProfileRequest,
