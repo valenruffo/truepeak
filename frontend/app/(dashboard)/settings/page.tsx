@@ -208,9 +208,6 @@ export default function SettingsPage() {
     const origin = window.location.origin;
     url.searchParams.append("success_url", `${origin}/success?checkout_id={CHECKOUT_ID}`);
     
-    // Signal to dashboard/success page that a payment is in progress
-    localStorage.setItem("payment_completed", "true");
-    
     return url.toString();
   };
 
@@ -324,6 +321,7 @@ export default function SettingsPage() {
                   {plan === "free" ? (
                     <a
                       href={getCheckoutUrl(POLAR_CHECKOUT_INDIE)}
+                      onClick={() => localStorage.setItem("payment_completed", "true")}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-block px-4 py-2 rounded text-xs font-medium transition-all hover:opacity-90"
@@ -335,6 +333,7 @@ export default function SettingsPage() {
                     subscriptionStatus === "frozen" ? (
                       <a
                         href={getCheckoutUrl(POLAR_CHECKOUT_INDIE)}
+                        onClick={() => localStorage.setItem("payment_completed", "true")}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-block px-4 py-2 rounded text-xs font-medium transition-all hover:opacity-90"
@@ -393,6 +392,7 @@ export default function SettingsPage() {
                     subscriptionStatus === "frozen" ? (
                       <a
                         href={getCheckoutUrl(POLAR_CHECKOUT_PRO)}
+                        onClick={() => localStorage.setItem("payment_completed", "true")}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-block px-4 py-2 rounded text-xs font-medium transition-all hover:opacity-90"
@@ -445,6 +445,7 @@ export default function SettingsPage() {
                         if (plan === "indie" && billing?.status !== "canceled") {
                           handleUpdatePlan("upgrade_pro", "pro");
                         } else {
+                          localStorage.setItem("payment_completed", "true");
                           window.open(getCheckoutUrl(POLAR_CHECKOUT_PRO), "_blank");
                         }
                       }}
