@@ -18,6 +18,34 @@ function SuccessContent() {
       localStorage.setItem("payment_checkout_id", checkoutId);
     }
 
+    // Trigger immediate manual sync via Vercel proxy
+    const syncPlan = async () => {
+      if (!checkoutId) return;
+      try {
+        const token = localStorage.getItem("token");
+        const res = await fetch("/vercel-api/sync", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ checkout_id: checkoutId })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.plan) {
+            setPlanUpdated(true);
+            setDetectedPlan(data.plan);
+            localStorage.setItem("plan", data.plan);
+            window.dispatchEvent(new Event("plan_updated"));
+          }
+        }
+      } catch (err) {
+        console.error("Manual sync failed:", err);
+      }
+    };
+    if (checkoutId) syncPlan();
+
     // Poll backend for plan update (webhook may take a few seconds)
     const slug = localStorage.getItem("slug");
     const currentPlan = localStorage.getItem("plan") || "free";
