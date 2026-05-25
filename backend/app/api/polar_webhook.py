@@ -338,7 +338,23 @@ async def polar_webhook(request: Request, bg_tasks: BackgroundTasks):
             session.commit()
             logger.info("Label %s (%s) downgraded to free and frozen via webhook", label.slug, customer_email)
             return {"received": True, "action": "downgraded_and_frozen", "plan": "free", "label": label.slug}
-
         else:
             logger.info("Polar webhook: unhandled event type %s", event_type)
             return {"received": True, "skipped": True, "reason": f"unhandled event: {event_type}"}
+@router.get("/debug/webhook-log")
+async def get_webhook_log():
+    """Debug endpoint to read webhook.log contents."""
+    log_path = "/app/data/webhook.log"
+    if not os.path.exists(log_path):
+        # Fallback to local data dir if not running in docker
+        log_path = os.path.join(os.getenv("DATA_DIR", "data"), "webhook.log")
+        
+    if not os.path.exists(log_path):
+        return {"status": "not_found", "path": log_path}
+        
+    try:
+        with open(log_path, "r") as f:
+            lines = f.readlines()
+        return {"status": "ok", "path": log_path, "lines": lines[-100:]} # Return last 100 lines
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
