@@ -144,15 +144,33 @@ export default function SettingsPage() {
     setLoadingAction(actionId);
     try {
       await updateSubscription(labelSlug, newPlan);
-      setPlan(newPlan);
-      localStorage.setItem("plan", newPlan);
-      window.dispatchEvent(new Event("plan_updated"));
-      addToast({
-        title: lang === "es" ? "Éxito" : "Success",
-        description: lang === "es" 
-          ? `Plan actualizado a ${newPlan.toUpperCase()} correctamente.` 
-          : `Plan updated to ${newPlan.toUpperCase()} successfully.`,
-      });
+      
+      const PLAN_LEVELS: Record<string, number> = { free: 0, indie: 1, pro: 2 };
+      const currentLevel = PLAN_LEVELS[plan.toLowerCase()] || 0;
+      const newLevel = PLAN_LEVELS[newPlan.toLowerCase()] || 0;
+      const isDowngrade = newLevel < currentLevel;
+
+      if (isDowngrade) {
+        // For downgrades, Polar defers the change until the end of the billing period.
+        // We keep the current plan on the UI and show a clarifying toast.
+        addToast({
+          title: lang === "es" ? "Cambio de plan programado" : "Plan downgrade scheduled",
+          description: lang === "es" 
+            ? `Tu plan cambiará a ${newPlan.toUpperCase()} al finalizar tu período de facturación actual. Mientras tanto, conservás tus beneficios ${plan.toUpperCase()}.` 
+            : `Your plan will update to ${newPlan.toUpperCase()} at the end of your current billing cycle. You will keep your ${plan.toUpperCase()} benefits until then.`,
+        });
+      } else {
+        // For upgrades, we update the plan immediately.
+        setPlan(newPlan);
+        localStorage.setItem("plan", newPlan);
+        window.dispatchEvent(new Event("plan_updated"));
+        addToast({
+          title: lang === "es" ? "Éxito" : "Success",
+          description: lang === "es" 
+            ? `Plan actualizado a ${newPlan.toUpperCase()} correctamente.` 
+            : `Plan updated to ${newPlan.toUpperCase()} successfully.`,
+        });
+      }
       fetchBilling(labelSlug);
     } catch (err) {
       addToast({

@@ -651,7 +651,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
               <div className="flex items-center gap-2.5">
                 {logoPath ? (
                   <img
-                    src={`/logos/${logoPath}`}
+                    src={logoPath.startsWith("http") || logoPath.startsWith("/") ? logoPath : `/logos/${logoPath}`}
                     alt={labelName}
                     className="w-8 h-8 rounded-full object-cover flex-shrink-0"
                     style={{ border: "1px solid var(--border)" }}
