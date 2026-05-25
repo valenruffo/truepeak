@@ -353,7 +353,7 @@ export default function InboxPage() {
 }
 
 function InboxContent() {
-  const { t } = useLanguage();
+  const { lang, t } = useLanguage();
   const filters = useKanbanFilters();
   const { playTrack, togglePlay, isPlaying, currentTrack } = usePlayer();
   const { addToast } = useToast();
@@ -362,6 +362,7 @@ function InboxContent() {
 
   const [activeTab, setActiveTab] = useState<TabKey>("kanban");
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const [viewMode, setViewMode] = useState<"kanban" | "list">(() => {
     if (typeof window !== "undefined") {
@@ -923,6 +924,31 @@ useEffect(() => {
     },
     [trashOffset]
   );
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.all([
+        fetchColumn("inbox"),
+        fetchColumn("shortlist"),
+        fetchColumn("rejected"),
+        fetchSystem(),
+        fetchTrash()
+      ]);
+      addToast({
+        title: lang === "es" ? "Inbox actualizado" : "Inbox refreshed",
+        description: lang === "es" ? "Los tracks se cargaron correctamente." : "Tracks have been successfully loaded.",
+      });
+    } catch (e) {
+      addToast({
+        title: "Error",
+        description: lang === "es" ? "No se pudieron actualizar los tracks." : "Failed to refresh tracks.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   // ─── Initial load ─────────────────────────────────────────────────────────
 
@@ -2264,10 +2290,53 @@ useEffect(() => {
   return (
     <div className="w-full max-w-[1700px] mx-auto px-4 sm:px-6 py-6 sm:py-8">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-5">
-        <h1 className="font-display font-semibold text-xl">
-          {role === "dj" ? t("inbox.title_promos") : t("inbox.title_demos")}
-        </h1>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
+        <div className="flex items-center gap-3">
+          <h1 className="font-display font-semibold text-xl">
+            {role === "dj" ? t("inbox.title_promos") : t("inbox.title_demos")}
+          </h1>
+        </div>
+
+        {activeTab === "kanban" && (
+          <div className="flex items-center gap-2">
+            {/* View Toggle */}
+            <div className="flex items-center rounded p-0.5 border" style={{ borderColor: "var(--border)", background: "var(--bg-card-alt)" }}>
+              <button
+                onClick={() => setViewMode("kanban")}
+                className="px-3 py-1 text-xs font-medium rounded transition-all"
+                style={{
+                  background: viewMode === "kanban" ? "var(--bg-secondary)" : "transparent",
+                  color: viewMode === "kanban" ? "var(--text-primary)" : "var(--text-muted)",
+                  boxShadow: viewMode === "kanban" ? "0 1px 2px rgba(0,0,0,0.2)" : "none",
+                }}
+              >
+                {t("inbox.view.kanban")}
+              </button>
+              <button
+                onClick={() => setViewMode("list")}
+                className="px-3 py-1 text-xs font-medium rounded transition-all"
+                style={{
+                  background: viewMode === "list" ? "var(--bg-secondary)" : "transparent",
+                  color: viewMode === "list" ? "var(--text-primary)" : "var(--text-muted)",
+                  boxShadow: viewMode === "list" ? "0 1px 2px rgba(0,0,0,0.2)" : "none",
+                }}
+              >
+                {t("inbox.view.list")}
+              </button>
+            </div>
+
+            {/* Refresh Button */}
+            <button
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="p-1.5 rounded border flex items-center justify-center hover:bg-white/5 disabled:opacity-50 transition-colors cursor-pointer"
+              style={{ borderColor: "var(--border)", background: "var(--bg-card-alt)" }}
+              title={lang === "es" ? "Actualizar" : "Refresh"}
+            >
+              <RotateCcw className={cn("w-4 h-4 text-muted hover:text-white transition-colors", isRefreshing && "animate-spin")} />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Fetch error banner */}
@@ -2324,32 +2393,7 @@ useEffect(() => {
               </span>
             </button>
           ))}
-          {activeTab === "kanban" && (
-            <div className="ml-2 sm:ml-4 flex items-center rounded p-0.5 border" style={{ borderColor: "var(--border)", background: "var(--bg-card-alt)" }}>
-              <button
-                onClick={() => setViewMode("kanban")}
-                className="px-3 py-1 text-xs font-medium rounded transition-all"
-                style={{
-                  background: viewMode === "kanban" ? "var(--bg-secondary)" : "transparent",
-                  color: viewMode === "kanban" ? "var(--text-primary)" : "var(--text-muted)",
-                  boxShadow: viewMode === "kanban" ? "0 1px 2px rgba(0,0,0,0.2)" : "none",
-                }}
-              >
-                {t("inbox.view.kanban")}
-              </button>
-              <button
-                onClick={() => setViewMode("list")}
-                className="px-3 py-1 text-xs font-medium rounded transition-all"
-                style={{
-                  background: viewMode === "list" ? "var(--bg-secondary)" : "transparent",
-                  color: viewMode === "list" ? "var(--text-primary)" : "var(--text-muted)",
-                  boxShadow: viewMode === "list" ? "0 1px 2px rgba(0,0,0,0.2)" : "none",
-                }}
-              >
-                {t("inbox.view.list")}
-              </button>
-            </div>
-          )}
+
         </div>
 
         {/* Right Side: Filters */}

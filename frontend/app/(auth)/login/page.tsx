@@ -20,8 +20,26 @@ export default function LoginPage() {
     e.preventDefault();
     setError(""); setLoading(true);
     try {
+      let loginEmail = identifier;
+      if (!identifier.includes("@")) {
+        try {
+          const lookupUrl = `${process.env.NEXT_PUBLIC_API_URL || ""}/api/labels/lookup-email?identifier=${encodeURIComponent(identifier.trim())}`;
+          const lookupRes = await fetch(lookupUrl);
+          if (!lookupRes.ok) {
+            if (lookupRes.status === 404) {
+              throw new Error("Label identifier not found");
+            }
+            throw new Error("Error resolving identifier to email");
+          }
+          const lookupData = await lookupRes.json();
+          loginEmail = lookupData.email;
+        } catch (lookupErr) {
+          throw new Error(lookupErr instanceof Error ? lookupErr.message : "Error resolving identifier");
+        }
+      }
+
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: identifier,
+        email: loginEmail,
         password: password,
       });
 
@@ -41,7 +59,7 @@ export default function LoginPage() {
             "Authorization": `Bearer ${authData.session.access_token}`
           },
           credentials: "include",
-          body: JSON.stringify({ name: baseName, slug, role: "label" }),
+          body: JSON.stringify({ name: baseName, slug, role: "label_owner" }),
         });
         if (!res.ok) {
           throw new Error("No se pudo auto-crear tu perfil. Por favor, registrate de nuevo.");
@@ -52,7 +70,7 @@ export default function LoginPage() {
       localStorage.setItem("slug", me.slug);
       localStorage.setItem("label_id", authData.session?.user.id || me.id || "");
       localStorage.setItem("plan", me.plan || "free");
-      localStorage.setItem("role", me.role || "label");
+      localStorage.setItem("role", me.role || "label_owner");
       if (authData.session?.access_token) {
         localStorage.setItem("token", authData.session.access_token);
       }

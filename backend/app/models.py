@@ -51,7 +51,7 @@ class Label(SQLModel, table=True):
     emails_sent_month: int = Field(default=1)
     submission_title: str | None = None
     submission_description: str | None = None
-    role: str = Field(default="label")  # "label" | "dj"
+    role: str = Field(default="label_owner")  # "label_owner" | "dj"
     polar_customer_id: str | None = None
     polar_subscription_id: str | None = None
     ask_instagram: bool = Field(default=False)

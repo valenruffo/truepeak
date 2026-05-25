@@ -144,13 +144,13 @@ def _get_label_from_token(request: Request) -> dict[str, str]:
 class RegisterProfileRequest(BaseModel):
     name: str
     slug: str
-    role: str = "label"
+    role: str = "label_owner"
 
     @field_validator("role")
     @classmethod
     def validate_role(cls, v: str) -> str:
-        if v not in ("label", "dj"):
-            raise ValueError("Role must be 'label' or 'dj'")
+        if v not in ("label_owner", "label", "dj"):
+            raise ValueError("Role must be 'label_owner', 'label' or 'dj'")
         return v
 
 
@@ -182,6 +182,7 @@ class LabelConfig(BaseModel):
     submission_description: str | None = None
     ask_instagram: bool = False
     ask_soundcloud: bool = False
+    role: str = "label_owner"
 
 
 class SonicSignatureUpdate(BaseModel):
@@ -369,6 +370,27 @@ async def register_label_profile(
     )
 
 
+@router.get("/lookup-email")
+async def lookup_email(
+    identifier: str,
+    session: Session = Depends(get_session),
+):
+    """Resolve a label's email address by name or slug."""
+    if not identifier or not identifier.strip():
+        raise HTTPException(status_code=400, detail="Identifier query parameter is required.")
+    
+    label = session.exec(
+        select(Label).where(
+            (Label.slug == identifier) | (Label.name == identifier)
+        )
+    ).first()
+    
+    if not label:
+        raise HTTPException(status_code=404, detail="Sello no encontrado.")
+        
+    return {"email": label.owner_email}
+
+
 @router.get("/{slug}", response_model=LabelConfig)
 async def get_label_config(
     slug: str,
@@ -379,6 +401,7 @@ async def get_label_config(
     if not label:
         raise HTTPException(status_code=404, detail="Sello no encontrado.")
 
+    role = label.role if label.role != "label" else "label_owner"
     return LabelConfig(
         id=label.id,
         name=label.name,
@@ -397,6 +420,7 @@ async def get_label_config(
         submission_description=label.submission_description,
         ask_instagram=label.ask_instagram,
         ask_soundcloud=label.ask_soundcloud,
+        role=role,
     )
 
 
@@ -431,6 +455,7 @@ async def update_label_config(
     session.commit()
     session.refresh(label)
 
+    role = label.role if label.role != "label" else "label_owner"
     return LabelConfig(
         id=label.id,
         name=label.name,
@@ -449,6 +474,7 @@ async def update_label_config(
         submission_description=label.submission_description,
         ask_instagram=label.ask_instagram,
         ask_soundcloud=label.ask_soundcloud,
+        role=role,
     )
 
 
@@ -663,6 +689,7 @@ async def update_label_plan(
     session.commit()
     session.refresh(label)
 
+    role = label.role if label.role != "label" else "label_owner"
     return LabelConfig(
         id=label.id,
         name=label.name,
@@ -679,6 +706,7 @@ async def update_label_plan(
         logo_path=label.logo_path,
         submission_title=label.submission_title,
         submission_description=label.submission_description,
+        role=role,
     )
 
 
@@ -1181,6 +1209,7 @@ async def admin_update_label_plan(
     session.commit()
     session.refresh(label)
 
+    role = label.role if label.role != "label" else "label_owner"
     return LabelConfig(
         id=label.id,
         name=label.name,
@@ -1197,6 +1226,7 @@ async def admin_update_label_plan(
         logo_path=label.logo_path,
         submission_title=label.submission_title,
         submission_description=label.submission_description,
+        role=role,
     )
 
 
@@ -1300,7 +1330,7 @@ async def debug_webhook_payload(body: dict, session: Session = Depends(get_sessi
 
 
 class RoleUpdate(BaseModel):
-    role: str  # "label" | "dj"
+    role: str  # "label_owner" | "label" | "dj"
 
 
 @router.post("/admin/{slug}/role")
@@ -1314,8 +1344,8 @@ async def admin_update_label_role(
     if not label:
         raise HTTPException(status_code=404, detail="Sello no encontrado.")
 
-    if body.role.lower() not in ("label", "dj"):
-        raise HTTPException(status_code=400, detail="Role must be 'label' or 'dj'.")
+    if body.role.lower() not in ("label_owner", "label", "dj"):
+        raise HTTPException(status_code=400, detail="Role must be 'label_owner', 'label' or 'dj'.")
 
     label.role = body.role.lower()
     label.updated_at = datetime.now(timezone.utc)

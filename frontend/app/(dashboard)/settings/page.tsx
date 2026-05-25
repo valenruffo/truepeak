@@ -20,6 +20,7 @@ export default function SettingsPage() {
   const [logoutLoading, setLogoutLoading] = useState(false);
   const [labelSlug, setLabelSlug] = useState<string>("");
   const [labelEmail, setLabelEmail] = useState<string>("");
+  const [role, setRole] = useState<string>("label_owner");
   const [subscriptionStatus, setSubscriptionStatus] = useState<string>("active");
   const [frozenAt, setFrozenAt] = useState<string | null>(null);
   const [billing, setBilling] = useState<BillingDetails | null>(null);
@@ -35,6 +36,8 @@ export default function SettingsPage() {
   useEffect(() => {
     const storedPlan = localStorage.getItem("plan") || "free";
     setPlan(storedPlan);
+    const storedRole = localStorage.getItem("role") || "label_owner";
+    setRole(storedRole);
 
     const slug = localStorage.getItem("slug");
     if (slug) {
@@ -45,6 +48,10 @@ export default function SettingsPage() {
         .then((data) => {
           if (data?.name) setLabelName(data.name);
           if (data?.owner_email) setLabelEmail(data.owner_email);
+          if (data?.role) {
+            setRole(data.role);
+            localStorage.setItem("role", data.role);
+          }
           if (data?.plan) {
             const currentStoredPlan = localStorage.getItem("plan");
             setPlan(data.plan);
@@ -82,6 +89,10 @@ export default function SettingsPage() {
           const res = await fetch(`/api/labels/${slug}`);
           if (res.ok) {
             const data = await res.json();
+            if (data?.role) {
+              setRole(data.role);
+              localStorage.setItem("role", data.role);
+            }
             if (data?.plan && data.plan !== currentPlan) {
               // Plan updated!
               clearInterval(pollInterval);
@@ -188,6 +199,7 @@ export default function SettingsPage() {
     localStorage.removeItem("slug");
     localStorage.removeItem("label_id");
     localStorage.removeItem("plan");
+    localStorage.removeItem("role");
     localStorage.removeItem("token");
     fetch(`/api/labels/logout`, { method: "POST", credentials: "include" })
       .catch(() => {})
@@ -466,6 +478,39 @@ export default function SettingsPage() {
               </tr>
             </tfoot>
           </table>
+        </div>
+      </div>
+
+      {/* Profile Details Section */}
+      <div className="rounded border p-6 mb-6" style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}>
+        <div className="text-xs font-mono uppercase tracking-wider text-muted mb-4">
+          {lang === "es" ? "Detalles del Perfil" : "Profile Details"}
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <span className="text-xs text-muted block mb-1">{lang === "es" ? "Nombre del sello" : "Label Name"}</span>
+            <div className="px-3 py-2 rounded border bg-transparent opacity-80 select-all text-sm" style={{ borderColor: "var(--border)" }}>
+              {labelName || "-"}
+            </div>
+          </div>
+          <div>
+            <span className="text-xs text-muted block mb-1">{lang === "es" ? "Correo Electrónico" : "Email"}</span>
+            <div className="px-3 py-2 rounded border bg-transparent opacity-80 select-all text-sm" style={{ borderColor: "var(--border)" }}>
+              {labelEmail || "-"}
+            </div>
+          </div>
+          <div>
+            <span className="text-xs text-muted block mb-1">{lang === "es" ? "Slug / Identificador" : "Slug / Identifier"}</span>
+            <div className="px-3 py-2 rounded border bg-transparent opacity-80 select-all text-sm" style={{ borderColor: "var(--border)" }}>
+              {labelSlug || "-"}
+            </div>
+          </div>
+          <div>
+            <span className="text-xs text-muted block mb-1">{lang === "es" ? "Rol" : "Role"}</span>
+            <div className="px-3 py-2 rounded border bg-transparent opacity-80 font-mono text-emerald-400 select-all text-sm" style={{ borderColor: "var(--border)" }}>
+              {role}
+            </div>
+          </div>
         </div>
       </div>
 
