@@ -345,11 +345,13 @@ export default function SettingsPage() {
                     ) : (
                       <button
                         onClick={() => handleCancel("cancel_indie")}
-                        disabled={!!loadingAction}
+                        disabled={!!loadingAction || billing?.status === "canceled"}
                         className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded text-xs font-medium transition-all border border-red-500/30 text-red-500 hover:bg-red-500/5 disabled:opacity-50 min-w-[140px]"
                       >
                         {loadingAction === "cancel_indie" ? (
                           <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : billing?.status === "canceled" ? (
+                          lang === "es" ? "Cancelada" : "Cancelled"
                         ) : (
                           lang === "es" ? "Cancelar suscripción" : "Cancel subscription"
                         )}
@@ -358,7 +360,7 @@ export default function SettingsPage() {
                   ) : (
                     <button
                       onClick={() => handleUpdatePlan("downgrade_indie", "indie")}
-                      disabled={!!loadingAction}
+                      disabled={!!loadingAction || billing?.status === "canceled"}
                       className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded text-xs font-medium transition-all border border-[#10b981]/30 text-[#10b981] hover:bg-[#10b981]/5 disabled:opacity-50 min-w-[140px]"
                     >
                       {loadingAction === "downgrade_indie" ? (
@@ -384,11 +386,13 @@ export default function SettingsPage() {
                     ) : (
                       <button
                         onClick={() => handleCancel("cancel_pro")}
-                        disabled={!!loadingAction}
+                        disabled={!!loadingAction || billing?.status === "canceled"}
                         className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded text-xs font-medium transition-all border border-red-500/30 text-red-500 hover:bg-red-500/5 disabled:opacity-50 min-w-[140px]"
                       >
                         {loadingAction === "cancel_pro" ? (
                           <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : billing?.status === "canceled" ? (
+                          lang === "es" ? "Cancelada" : "Cancelled"
                         ) : (
                           lang === "es" ? "Cancelar suscripción" : "Cancel subscription"
                         )}
@@ -403,9 +407,9 @@ export default function SettingsPage() {
                           window.open(getCheckoutUrl(POLAR_CHECKOUT_PRO), "_blank");
                         }
                       }}
-                      disabled={!!loadingAction}
+                      disabled={!!loadingAction || billing?.status === "canceled"}
                       className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded text-xs font-medium transition-all hover:opacity-90 disabled:opacity-50 min-w-[140px]"
-                      style={{ background: "#10b981", color: "#09090b" }}
+                      style={{ background: billing?.status === "canceled" ? "rgba(16,185,129,0.2)" : "#10b981", color: billing?.status === "canceled" ? "var(--text-secondary)" : "#09090b" }}
                     >
                       {loadingAction === "upgrade_pro" ? (
                         <Loader2 className="w-3 h-3 animate-spin" />
