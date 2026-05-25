@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/lib/i18n";
+import { getCache, setCache } from "@/lib/cache";
 
 type LabelStats = { 
   total: number; 
@@ -64,6 +65,35 @@ export default function LinkPage() {
     const storedRole = localStorage.getItem("role");
     if (storedRole === "dj" || storedRole === "label") setRole(storedRole);
 
+    // Initial cache load to prevent layout shifts and enable instant interaction
+    const cachedLabel = getCache<LabelInfo | null>("tp_link_label_info", null);
+    const cachedStats = getCache<LabelStats | null>("tp_link_stats", null);
+
+    if (cachedLabel) {
+      setLabelName(cachedLabel.name);
+      setLabelId(cachedLabel.id);
+      if (cachedLabel.plan) setPlan(cachedLabel.plan);
+      if (cachedLabel.max_tracks_month) setMaxTracks(cachedLabel.max_tracks_month);
+      if (cachedLabel.submission_title) setEditTitle(cachedLabel.submission_title);
+      if (cachedLabel.submission_description) setEditDescription(cachedLabel.submission_description);
+      if (cachedLabel.logo_path) {
+        setLogoUrl(cachedLabel.logo_path.startsWith("http") || cachedLabel.logo_path.startsWith("/") ? cachedLabel.logo_path : `/logos/${cachedLabel.logo_path}`);
+      }
+      setAskInstagram(!!cachedLabel.ask_instagram);
+      setAskSoundcloud(!!cachedLabel.ask_soundcloud);
+      if (cachedLabel.sonic_signature) {
+        const sig = typeof cachedLabel.sonic_signature === "string" ? JSON.parse(cachedLabel.sonic_signature) : cachedLabel.sonic_signature;
+        if (sig.allowed_formats) setAllowedFormats(sig.allowed_formats);
+        if (sig.max_upload_size_mb) setMaxUploadSizeMb(sig.max_upload_size_mb);
+      }
+      setLoading(false);
+    }
+
+    if (cachedStats) {
+      setStats(cachedStats);
+      if (cachedStats.max_tracks_month) setMaxTracks(cachedStats.max_tracks_month);
+    }
+
     const fetchLabel = async () => {
       try {
         const res = await fetch(`/api/labels/${storedSlug}?t=${Date.now()}`);
@@ -88,6 +118,7 @@ export default function LinkPage() {
           if (sig.allowed_formats) setAllowedFormats(sig.allowed_formats);
           if (sig.max_upload_size_mb) setMaxUploadSizeMb(sig.max_upload_size_mb);
         }
+        setCache("tp_link_label_info", data);
       } catch {
         setLabelName(storedSlug);
       }
@@ -103,6 +134,7 @@ export default function LinkPage() {
         const data: LabelStats = await res.json();
         setStats(data);
         if (data.max_tracks_month) setMaxTracks(data.max_tracks_month);
+        setCache("tp_link_stats", data);
       } catch {
         setStats({ total: 0, inbox: 0, shortlist: 0, rejected: 0, auto_rejected: 0, max_tracks_month: 0, emails_sent_this_month: 0 });
       }
@@ -126,6 +158,7 @@ export default function LinkPage() {
     setTextsError(null);
     setLogoError(null);
     try {
+      let finalLogoUrl = logoUrl;
       if (logoFile) {
         setLogoUploading(true);
         const formData = new FormData();
@@ -137,6 +170,7 @@ export default function LinkPage() {
         }
         const data = await res.json();
         setLogoUrl(data.logo_url);
+        finalLogoUrl = data.logo_url;
         setLogoSaved(true);
         setLogoFile(null);
         setLogoPreview(null);
@@ -160,6 +194,20 @@ export default function LinkPage() {
       if (!resText.ok) {
         const err = await resText.json();
         throw new Error(err.detail || t("link.edit.save_error"));
+      }
+
+      // Update cache
+      const cachedLabel = getCache<LabelInfo | null>("tp_link_label_info", null);
+      if (cachedLabel) {
+        const nextLabel = {
+          ...cachedLabel,
+          submission_title: editTitle,
+          submission_description: editDescription,
+          logo_path: finalLogoUrl,
+          ask_instagram: askInstagram,
+          ask_soundcloud: askSoundcloud,
+        };
+        setCache("tp_link_label_info", nextLabel);
       }
 
       setTextsSaved(true);
@@ -197,16 +245,69 @@ export default function LinkPage() {
 
   if (loading) {
     return (
-      <div className="max-w-3xl mx-auto px-6 py-12">
-        <div className="text-xs font-mono uppercase tracking-wider text-muted mb-1">{t("link.section_label")}</div>
-        <h1 className="font-display font-semibold text-2xl mb-6">{t("link.loading")}</h1>
-        <div className="animate-pulse space-y-4">
-          <div className="h-12 rounded" style={{ background: "var(--bg-card)" }} />
-          <div className="h-40 rounded" style={{ background: "var(--bg-card)" }} />
-          <div className="grid grid-cols-4 gap-4">
-            {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="h-20 rounded" style={{ background: "var(--bg-card)" }} />
-            ))}
+      <div className="w-full max-w-[1700px] mx-auto px-6 py-12 space-y-8 animate-pulse">
+        <div>
+          <div className="h-3 bg-zinc-800 rounded w-24 mb-2" />
+          <div className="h-8 bg-zinc-800 rounded w-48" />
+        </div>
+        
+        {/* Layout skeleton */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          {/* Left Panel */}
+          <div className="lg:col-span-7 space-y-6">
+            {/* Share link card skeleton */}
+            <div className="rounded-lg border p-6 bg-[var(--bg-card)] border-[var(--border)] space-y-4 opacity-75">
+              <div className="h-4 bg-zinc-800 rounded w-1/3" />
+              <div className="h-3 bg-zinc-900 rounded w-2/3" />
+              <div className="flex gap-2">
+                <div className="h-9 bg-zinc-950 rounded flex-1" />
+                <div className="h-9 bg-zinc-800 rounded w-20" />
+              </div>
+            </div>
+
+            {/* Config panel skeleton */}
+            <div className="rounded-lg border p-6 bg-[var(--bg-card)] border-[var(--border)] space-y-6 opacity-75">
+              <div className="h-3 bg-zinc-800 rounded w-20" />
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+                <div className="md:col-span-4 flex flex-col items-center space-y-3">
+                  <div className="h-3 bg-zinc-800 rounded w-16" />
+                  <div className="w-32 h-32 rounded-xl bg-zinc-900 border border-dashed border-zinc-800 flex items-center justify-center animate-pulse" />
+                </div>
+                <div className="md:col-span-8 space-y-4">
+                  <div className="space-y-2">
+                    <div className="h-3 bg-zinc-800 rounded w-1/4" />
+                    <div className="h-8 bg-zinc-900 rounded w-full" />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="h-3 bg-zinc-800 rounded w-1/4" />
+                    <div className="h-20 bg-zinc-900 rounded w-full" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Panel (Preview) */}
+          <div className="lg:col-span-5 space-y-4">
+            <div className="flex justify-between items-center pb-3 border-b border-[var(--border)]">
+              <div className="h-3 bg-zinc-800 rounded w-16 animate-pulse" />
+              <div className="h-5 bg-zinc-900 rounded w-24 animate-pulse" />
+            </div>
+            <div className="rounded-xl border p-6 bg-[#09090b] border-[var(--border)] space-y-6 opacity-50">
+              <div className="flex flex-col items-center space-y-3 pb-4 border-b border-[var(--border)]">
+                <div className="w-16 h-16 rounded-full bg-zinc-900" />
+                <div className="h-4 bg-zinc-800 rounded w-1/3" />
+                <div className="h-3 bg-zinc-900 rounded w-2/3" />
+              </div>
+              <div className="space-y-4">
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="space-y-2" style={{ animationDelay: `${i * 150}ms` }}>
+                    <div className="h-3 bg-zinc-800 rounded w-16" />
+                    <div className="h-8 bg-zinc-900 rounded w-full" />
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </div>

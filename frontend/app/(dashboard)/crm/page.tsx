@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { usePlayer } from "@/lib/PlayerContext";
 import { useLanguage } from "@/lib/i18n";
 import { useUndoableState, useUndoRedoKey } from "@/lib/useUndoableState";
+import { getCache, setCache } from "@/lib/cache";
 
 interface Submission {
   id: string;
@@ -242,14 +243,28 @@ function CRMContent() {
     const fetchData = async () => {
       const slug = localStorage.getItem("slug");
       if (slug) {
-        try {
-          const res = await fetch(`/api/labels/${slug}`, { credentials: "include" });
-          if (res.ok) {
-            const data = await res.json();
-            setLabelName(data.name);
-          }
-        } catch { setLabelName(slug); }
+        // Load cached label name from our main label cache key first
+        const cachedLabel = getCache<any>("tp_link_label_info", null);
+        if (cachedLabel?.name) {
+          setLabelName(cachedLabel.name);
+        } else {
+          try {
+            const res = await fetch(`/api/labels/${slug}`, { credentials: "include" });
+            if (res.ok) {
+              const data = await res.json();
+              setLabelName(data.name);
+            }
+          } catch { setLabelName(slug); }
+        }
       }
+
+      // Load cached contacts to enable instant page interactivity
+      const cachedContacts = getCache<Contact[]>("tp_crm_contacts", []);
+      if (cachedContacts.length > 0) {
+        setContacts(cachedContacts);
+        setLoading(false);
+      }
+
       try {
         const res = await fetch(`/api/submissions`, { credentials: "include" });
         if (!res.ok) throw new Error(`Error ${res.status}`);
@@ -263,8 +278,14 @@ function CRMContent() {
           producer_soundcloud: s.producer_soundcloud || null,
         }));
         setContacts(mapped);
-      } catch (e) { setError(e instanceof Error ? e.message : t("inbox.error_unknown")); }
-      finally { setLoading(false); }
+        setCache("tp_crm_contacts", mapped);
+      } catch (e) { 
+        if (cachedContacts.length === 0) {
+          setError(e instanceof Error ? e.message : t("inbox.error_unknown")); 
+        }
+      } finally { 
+        setLoading(false); 
+      }
     };
     fetchData();
   }, []);
@@ -411,7 +432,11 @@ function CRMContent() {
       });
       if (!res.ok) { const err = await res.json().catch(() => null); throw new Error(err?.detail || `Error ${res.status}`); }
       setSent(true);
-      setContacts((prev) => prev.map((c, i) => (i === selectedContact ? { ...c, sent: true } : c)));
+      setContacts((prev) => {
+        const next = prev.map((c, i) => (i === selectedContact ? { ...c, sent: true } : c));
+        setCache("tp_crm_contacts", next);
+        return next;
+      });
     } catch (e) { setSendError(e instanceof Error ? e.message : t("crm.send_error")); }
     finally { setSending(false); }
   };
@@ -781,28 +806,79 @@ function CRMContent() {
 
   if (loading) {
     return (
-      <div className="w-full max-w-[1700px] mx-auto px-6 py-8">
-        <h1 className="font-display font-semibold text-xl mb-6">{t("crm.title")}</h1>
-        <div className="rounded border overflow-hidden animate-pulse" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
-          <div className="grid grid-cols-5" style={{ minHeight: "500px" }}>
-            <div className="col-span-2 border-r" style={{ borderColor: "var(--border)" }}>
-              <div className="px-4 py-3 border-b" style={{ borderColor: "var(--border)" }}>
-                <div className="h-3 w-24 rounded mb-2" style={{ background: "var(--border-light)" }} />
-                <div className="flex gap-2"><div className="h-4 w-16 rounded" style={{ background: "var(--border-light)" }} /><div className="h-4 w-16 rounded" style={{ background: "var(--border-light)" }} /></div>
-              </div>
-              {[0, 1, 2].map((i) => (
-                <div key={i} className="px-4 py-3 border-b" style={{ borderColor: "var(--border-light)" }}>
-                  <div className="flex items-center justify-between mb-1"><div className="h-3 w-20 rounded" style={{ background: "var(--border-light)" }} /><div className="h-3 w-14 rounded" style={{ background: "var(--border-light)" }} /></div>
-                  <div className="h-2 w-32 rounded" style={{ background: "var(--border-light)" }} />
+      <div className="w-full max-w-[1700px] mx-auto px-6 py-8 animate-pulse">
+        <div className="h-6 bg-zinc-800 rounded w-32 mb-6 animate-pulse" />
+        
+        {/* Main split-screen box matching the actual design */}
+        <div className="rounded border border-[var(--border)] overflow-hidden bg-[var(--bg-secondary)]">
+          <div className="grid grid-cols-5" style={{ minHeight: "650px" }}>
+            
+            {/* Left side list skeleton (2 cols) */}
+            <div className="col-span-2 border-r border-[var(--border)] space-y-4">
+              <div className="px-4 py-3 border-b border-[var(--border)] space-y-3">
+                {/* Search / Tab bar skeletons */}
+                <div className="h-4 bg-zinc-800 rounded w-24 mb-1" />
+                <div className="flex gap-2">
+                  <div className="h-6 bg-zinc-900 rounded w-16" />
+                  <div className="h-6 bg-zinc-900 rounded w-20" />
                 </div>
-              ))}
+              </div>
+              
+              {/* Contact list item skeletons */}
+              <div className="divide-y divide-[var(--border-light)] px-1">
+                {[0, 1, 2, 3, 4].map((i) => (
+                  <div key={i} className="px-4 py-4 space-y-2 opacity-75" style={{ animationDelay: `${i * 100}ms` }}>
+                    <div className="flex justify-between items-center">
+                      <div className="h-4 bg-zinc-800 rounded w-1/3 animate-pulse" />
+                      <div className="h-4 bg-zinc-900 rounded w-12 animate-pulse" />
+                    </div>
+                    <div className="h-3 bg-zinc-900 rounded w-2/3" />
+                  </div>
+                ))}
+              </div>
             </div>
-            <div className="col-span-3 p-4">
-              <div className="h-3 w-16 rounded mb-3" style={{ background: "var(--border-light)" }} />
-              <div className="h-8 w-full rounded mb-3" style={{ background: "var(--border-light)" }} />
-              <div className="h-8 w-full rounded mb-3" style={{ background: "var(--border-light)" }} />
-              <div className="h-40 w-full rounded" style={{ background: "var(--border-light)" }} />
+
+            {/* Right side detail pane skeleton (3 cols) */}
+            <div className="col-span-3 p-6 space-y-6">
+              {/* Contact header skeleton */}
+              <div className="pb-5 border-b border-[var(--border)] space-y-3">
+                <div className="flex justify-between items-start">
+                  <div className="space-y-2 w-1/2">
+                    <div className="h-5 bg-zinc-800 rounded w-2/3" />
+                    <div className="h-3 bg-zinc-900 rounded w-full" />
+                  </div>
+                  <div className="h-8 bg-zinc-900 rounded w-24" />
+                </div>
+              </div>
+
+              {/* Email composer skeleton */}
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <div className="h-3 bg-zinc-800 rounded w-20 animate-pulse" />
+                  <div className="h-6 bg-zinc-900 rounded-lg w-full flex items-center gap-1.5 px-3">
+                    <div className="h-2 w-2 rounded bg-emerald-500 animate-pulse" />
+                    <div className="h-3 bg-zinc-900 rounded w-32" />
+                  </div>
+                </div>
+                
+                {/* Email inputs */}
+                <div className="space-y-2">
+                  <div className="h-3 bg-zinc-800 rounded w-16" />
+                  <div className="h-9 bg-zinc-950 rounded border border-zinc-900 w-full animate-pulse" />
+                </div>
+                <div className="space-y-2">
+                  <div className="h-3 bg-zinc-800 rounded w-16" />
+                  <div className="h-48 bg-zinc-950 rounded border border-zinc-900 w-full animate-pulse" />
+                </div>
+
+                {/* Send button block skeleton */}
+                <div className="flex justify-end gap-3 pt-4 border-t border-[var(--border-light)] animate-pulse">
+                  <div className="h-9 bg-zinc-900 rounded w-24" />
+                  <div className="h-9 bg-zinc-800 rounded w-32" />
+                </div>
+              </div>
             </div>
+            
           </div>
         </div>
       </div>

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/lib/i18n";
+import { getCache, setCache } from "@/lib/cache";
 
 interface SonicSignature {
   bpm_min: number;
@@ -58,10 +59,38 @@ export default function ConfigPage() {
     const fetchConfig = async () => {
       const slug = localStorage.getItem("slug");
       if (!slug) { setNoSlug(true); setFetching(false); return; }
+
+      // Load from cache first to avoid initial layout shifts and loading flashes
+      const cached = getCache<any>("tp_link_label_info", null);
+      if (cached && cached.sonic_signature) {
+        const sig: SonicSignature = typeof cached.sonic_signature === "string" 
+          ? JSON.parse(cached.sonic_signature) 
+          : cached.sonic_signature;
+        setBpmRange([sig.bpm_min, sig.bpm_max]);
+        setLufsTarget(sig.lufs_target);
+        setLufsTolerance(sig.lufs_tolerance);
+        setSelectedCamelotKeys(sig.target_camelot_keys ?? []);
+        setAutoReject({ 
+          phase: sig.auto_reject_rules?.phase ?? true, 
+          tempo: sig.auto_reject_rules?.tempo ?? true,
+          clipping: sig.auto_reject_rules?.reject_clipping ?? sig.auto_reject_rules?.clipping ?? true, 
+          dynamics: sig.auto_reject_rules?.reject_low_dynamic_range ?? sig.auto_reject_rules?.dynamics ?? true
+        });
+        setDurationEnabled(sig.duration_enabled ?? false);
+        if (sig.duration_max) setDurationMax(sig.duration_max);
+        setAllowedFormats(sig.allowed_formats ?? ["wav", "flac", "aiff"]);
+        setMaxUploadSizeMb(sig.max_upload_size_mb ?? 100);
+        setFetching(false);
+      }
+
       try {
         const res = await fetch(`${API}/api/labels/${slug}`, { headers: getAuthHeaders(), credentials: "include" });
         if (!res.ok) throw new Error(`Error ${res.status}`);
         const data = await res.json();
+        
+        // Save to cache
+        setCache("tp_link_label_info", data);
+        
         const sig: SonicSignature | null = data.sonic_signature;
         if (sig) {
           setBpmRange([sig.bpm_min, sig.bpm_max]);
@@ -79,8 +108,13 @@ export default function ConfigPage() {
           setAllowedFormats(sig.allowed_formats ?? ["wav", "flac", "aiff"]);
           setMaxUploadSizeMb(sig.max_upload_size_mb ?? 100);
         }
-      } catch (e) { setFetchError(e instanceof Error ? e.message : t("inbox.error_unknown")); }
-      finally { setFetching(false); }
+      } catch (e) { 
+        if (!cached) {
+          setFetchError(e instanceof Error ? e.message : t("inbox.error_unknown")); 
+        }
+      } finally { 
+        setFetching(false); 
+      }
     };
     fetchConfig();
   }, [API, getAuthHeaders]);
@@ -110,6 +144,34 @@ export default function ConfigPage() {
         body: JSON.stringify({ sonic_signature: { bpm_min: bpmRange[0], bpm_max: bpmRange[1], lufs_target: lufsTarget, lufs_tolerance: lufsTolerance, target_camelot_keys: selectedCamelotKeys, preferred_scales: selectedCamelotKeys, duration_enabled: durationEnabled, duration_max: durationEnabled ? durationMax : null, auto_reject_rules: { phase: autoReject.phase, tempo: autoReject.tempo, reject_clipping: autoReject.clipping, reject_low_dynamic_range: autoReject.dynamics }, allowed_formats: allowedFormats, max_upload_size_mb: maxUploadSizeMb } }),
       });
       if (!res.ok) throw new Error(`Error ${res.status}`);
+      
+      // Update cache
+      const cachedLabel = getCache<any>("tp_link_label_info", null);
+      if (cachedLabel) {
+        const nextLabel = {
+          ...cachedLabel,
+          sonic_signature: {
+            bpm_min: bpmRange[0],
+            bpm_max: bpmRange[1],
+            lufs_target: lufsTarget,
+            lufs_tolerance: lufsTolerance,
+            target_camelot_keys: selectedCamelotKeys,
+            preferred_scales: selectedCamelotKeys,
+            duration_enabled: durationEnabled,
+            duration_max: durationEnabled ? durationMax : null,
+            auto_reject_rules: {
+              phase: autoReject.phase,
+              tempo: autoReject.tempo,
+              reject_clipping: autoReject.clipping,
+              reject_low_dynamic_range: autoReject.dynamics
+            },
+            allowed_formats: allowedFormats,
+            max_upload_size_mb: maxUploadSizeMb
+          }
+        };
+        setCache("tp_link_label_info", nextLabel);
+      }
+
       setSaved(true);
     } catch (e) { setSaveError(e instanceof Error ? e.message : t("inbox.error_unknown")); }
     finally { setSaving(false); }
@@ -144,11 +206,76 @@ export default function ConfigPage() {
 
   if (fetching) {
     return (
-      <div className="max-w-3xl mx-auto px-6 py-12">
-        <div className="text-xs font-mono uppercase tracking-wider text-muted mb-1">{t("config.section_label")}</div>
-        <h1 className="font-display font-semibold text-2xl mb-8">{t("config.title")}</h1>
-        <div className="rounded border p-8 text-center animate-pulse" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
-          <p className="text-sm text-muted">{t("config.loading")}</p>
+      <div className="max-w-6xl mx-auto px-4 md:px-6 py-8 md:py-12 space-y-6 animate-pulse">
+        <div>
+          <div className="h-3 bg-zinc-800 rounded w-24 mb-2" />
+          <div className="h-8 bg-zinc-800 rounded w-48" />
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-2 space-y-6">
+            {/* Presets skeleton */}
+            <div className="space-y-3">
+              <div className="h-4 bg-zinc-800 rounded w-32" />
+              <div className="flex gap-2 flex-wrap">
+                {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
+                  <div key={i} className="h-7 bg-zinc-900 rounded-lg w-20 opacity-70" style={{ animationDelay: `${i * 100}ms` }} />
+                ))}
+              </div>
+            </div>
+
+            {/* Stat box skeletons (BPM, LUFS, Duration) */}
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="rounded border p-5 bg-[var(--bg-secondary)] border-[var(--border)] space-y-4 opacity-75" style={{ animationDelay: `${i * 150}ms` }}>
+                <div className="flex items-center justify-between">
+                  <div className="h-4 bg-zinc-800 rounded w-1/4" />
+                  <div className="h-6 bg-zinc-900 rounded w-24" />
+                </div>
+                <div className="h-2 bg-zinc-900 rounded w-full" />
+              </div>
+            ))}
+
+            {/* Allowed Formats & Max Upload size skeleton */}
+            <div className="rounded border p-5 bg-[var(--bg-secondary)] border-[var(--border)] grid grid-cols-1 md:grid-cols-2 gap-6 opacity-75">
+              <div className="space-y-3">
+                <div className="h-4 bg-zinc-800 rounded w-1/3" />
+                <div className="flex gap-2">
+                  {[0, 1, 2].map((i) => (
+                    <div key={i} className="h-8 bg-zinc-900 rounded-lg flex-1" />
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-3">
+                <div className="h-4 bg-zinc-800 rounded w-1/3" />
+                <div className="h-2 bg-zinc-900 rounded w-full" />
+              </div>
+            </div>
+
+            {/* Camelot Wheel grid skeleton */}
+            <div className="rounded border p-5 bg-[var(--bg-secondary)] border-[var(--border)] space-y-4 opacity-60">
+              <div className="h-4 bg-zinc-800 rounded w-1/4" />
+              <div className="grid grid-cols-6 sm:grid-cols-12 gap-1.5">
+                {Array.from({ length: 24 }).map((_, i) => (
+                  <div key={i} className="aspect-square rounded-md bg-zinc-900 border border-zinc-800/80" style={{ animationDelay: `${(i % 12) * 50}ms` }} />
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Sidebar skeleton */}
+          <div className="lg:col-span-1">
+            <div className="rounded border p-6 bg-[var(--bg-secondary)] border-[var(--border)] space-y-6 opacity-50">
+              <div className="h-5 bg-zinc-800 rounded w-1/2 pb-2" />
+              <div className="space-y-4">
+                {[0, 1, 2, 3].map((i) => (
+                  <div key={i} className="space-y-2">
+                    <div className="h-3 bg-zinc-800 rounded w-1/3" />
+                    <div className="h-10 bg-zinc-900 rounded w-full" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );

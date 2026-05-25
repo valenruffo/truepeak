@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { getCache, setCache } from "@/lib/cache";
 import { usePlayer } from "@/lib/PlayerContext";
 import TwoClickDelete from "@/components/TwoClickDelete";
 import { useLanguage } from "@/lib/i18n";
@@ -641,23 +642,29 @@ function InboxContent() {
   );
 
   // Kanban board state
-  const [board, setBoard] = useState<BoardState>({
-    inbox: [],
-    shortlist: [],
-    rejected: [],
+  const [board, setBoard] = useState<BoardState>(() => {
+    return getCache<BoardState>("tp_inbox_board", {
+      inbox: [],
+      shortlist: [],
+      rejected: [],
+    });
   });
   const [boardOffsets, setBoardOffsets] = useState({ inbox: 0, shortlist: 0, rejected: 0 });
   const [boardHasMore, setBoardHasMore] = useState({ inbox: true, shortlist: true, rejected: true });
   const [boardLoading, setBoardLoading] = useState<Record<string, boolean>>({});
 
   // System filtered (auto_rejected)
-  const [systemItems, setSystemItems] = useState<SubmissionSummary[]>([]);
+  const [systemItems, setSystemItems] = useState<SubmissionSummary[]>(() => {
+    return getCache<SubmissionSummary[]>("tp_inbox_system", []);
+  });
   const [systemOffset, setSystemOffset] = useState(0);
   const [systemHasMore, setSystemHasMore] = useState(true);
   const [systemLoading, setSystemLoading] = useState(false);
 
   // Trash (soft deleted)
-  const [trashItems, setTrashItems] = useState<SubmissionSummary[]>([]);
+  const [trashItems, setTrashItems] = useState<SubmissionSummary[]>(() => {
+    return getCache<SubmissionSummary[]>("tp_inbox_trash", []);
+  });
   const [trashOffset, setTrashOffset] = useState(0);
   const [trashHasMore, setTrashHasMore] = useState(true);
   const [trashLoading, setTrashLoading] = useState(false);
@@ -849,10 +856,12 @@ useEffect(() => {
         }
         const data: SubmissionSummary[] = await res.json();
         setFetchError(null);
-        setBoard((prev) => ({
-          ...prev,
-          [column]: append ? [...prev[column], ...data] : data,
-        }));
+        setBoard((prev) => {
+          const updated = append ? [...prev[column], ...data] : data;
+          const next = { ...prev, [column]: updated };
+          setCache("tp_inbox_board", next);
+          return next;
+        });
         setBoardOffsets((prev) => ({
           ...prev,
           [column]: append ? prev[column] + data.length : data.length,
@@ -885,7 +894,11 @@ useEffect(() => {
         }
         const data: SubmissionSummary[] = await res.json();
         setFetchError(null);
-        setSystemItems((prev) => (append ? [...prev, ...data] : data));
+        setSystemItems((prev) => {
+          const next = append ? [...prev, ...data] : data;
+          setCache("tp_inbox_system", next);
+          return next;
+        });
         setSystemOffset(append ? offset + data.length : data.length);
         setSystemHasMore(data.length === PAGE_SIZE);
       } catch (e) {
@@ -913,7 +926,11 @@ useEffect(() => {
         const data: SubmissionSummary[] = await res.json();
         // Keep only soft-deleted items
         const deleted = data.filter((d) => d.deleted_at);
-        setTrashItems((prev) => (append ? [...prev, ...deleted] : deleted));
+        setTrashItems((prev) => {
+          const next = append ? [...prev, ...deleted] : deleted;
+          setCache("tp_inbox_trash", next);
+          return next;
+        });
         setTrashOffset(append ? offset + deleted.length : deleted.length);
         setTrashHasMore(deleted.length === PAGE_SIZE);
       } catch (e) {
@@ -1109,6 +1126,7 @@ useEffect(() => {
         } else if (status === "inbox") {
           next.inbox = [updated, ...next.inbox];
         }
+        setCache("tp_inbox_board", next);
         return next;
       });
       // NOTE: email modal is now decoupled — user triggers it manually from the card
@@ -1320,7 +1338,11 @@ useEffect(() => {
       
       if (isHardDelete) {
         // Remove permanently from trash
-        setTrashItems((prev) => prev.filter((s) => s.id !== sub.id));
+        setTrashItems((prev) => {
+          const next = prev.filter((s) => s.id !== sub.id);
+          setCache("tp_inbox_trash", next);
+          return next;
+        });
       } else {
         // Soft delete: remove from board/system and move to trash locally
         setBoard((prev) => {
@@ -1328,10 +1350,19 @@ useEffect(() => {
           for (const col of ["inbox", "shortlist", "rejected"] as const) {
             next[col] = next[col].filter((s) => s.id !== sub.id);
           }
+          setCache("tp_inbox_board", next);
           return next;
         });
-        setSystemItems((prev) => prev.filter((s) => s.id !== sub.id));
-        setTrashItems((prev) => [{ ...sub, deleted_at: new Date().toISOString() }, ...prev]);
+        setSystemItems((prev) => {
+          const next = prev.filter((s) => s.id !== sub.id);
+          setCache("tp_inbox_system", next);
+          return next;
+        });
+        setTrashItems((prev) => {
+          const next = [{ ...sub, deleted_at: new Date().toISOString() }, ...prev];
+          setCache("tp_inbox_trash", next);
+          return next;
+        });
         addToast({ title: t("inbox.kanban.sent_to_trash"), variant: "default" });
       }
     } catch (e) {
@@ -1366,14 +1397,22 @@ useEffect(() => {
         );
       }
       // Remove from trash
-      setTrashItems((prev) => prev.filter((s) => s.id !== sub.id));
+      setTrashItems((prev) => {
+        const next = prev.filter((s) => s.id !== sub.id);
+        setCache("tp_inbox_trash", next);
+        return next;
+      });
       
       // Move back to its original status column
       const targetCol = (["inbox", "shortlist", "rejected"].includes(sub.status) ? sub.status : "inbox") as "inbox" | "shortlist" | "rejected";
-      setBoard((prev) => ({
-        ...prev,
-        [targetCol]: [{ ...sub, deleted_at: null }, ...prev[targetCol]].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
-      }));
+      setBoard((prev) => {
+        const next = {
+          ...prev,
+          [targetCol]: [{ ...sub, deleted_at: null }, ...prev[targetCol]].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
+        };
+        setCache("tp_inbox_board", next);
+        return next;
+      });
       addToast({ title: "Demo restaurado correctamente", variant: "success" });
     } catch (e) {
       addToast({
@@ -1409,7 +1448,11 @@ useEffect(() => {
         throw new Error(err.detail || "Error al eliminar");
       }
       
-      setTrashItems((prev) => prev.filter((item) => item.id !== sub.id));
+      setTrashItems((prev) => {
+        const next = prev.filter((item) => item.id !== sub.id);
+        setCache("tp_inbox_trash", next);
+        return next;
+      });
       addToast({ title: "Eliminado permanentemente", variant: "success" });
       setConfirmModal({ open: false, submission: null, loading: false });
     } catch (e) {
@@ -1726,8 +1769,22 @@ useEffect(() => {
               {provided.placeholder}
 
               {loading && items.length === 0 && (
-                <div className="py-8 text-center text-muted text-xs animate-pulse">
-                  {t("inbox.modal.loading")}
+                <div className="space-y-3 py-2 animate-pulse">
+                  {[0, 1, 2].map((i) => (
+                    <div
+                      key={i}
+                      className="rounded border p-4 bg-[var(--bg-card)] border-[var(--border)] space-y-3 opacity-60"
+                      style={{ animationDelay: `${i * 150}ms` }}
+                    >
+                      <div className="h-4 bg-zinc-800 rounded w-3/4" />
+                      <div className="h-3 bg-zinc-900 rounded w-1/2" />
+                      <div className="flex gap-2 pt-1">
+                        <div className="h-3 bg-zinc-800 rounded w-12" />
+                        <div className="h-3 bg-zinc-800 rounded w-12" />
+                        <div className="h-3 bg-zinc-800 rounded w-10" />
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
 
@@ -1738,8 +1795,9 @@ useEffect(() => {
               )}
 
               {loading && items.length > 0 && (
-                <div className="py-3 text-center text-muted text-[10px]">
-                  {t("inbox.kanban.loading_more")}
+                <div className="py-4 flex justify-center items-center gap-2 text-muted text-xs">
+                  <div className="w-4 h-4 border-2 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
+                  <span>{lang === "es" ? "Cargando más..." : "Loading more..."}</span>
                 </div>
               )}
               {hasMore && !loading && (
@@ -2009,8 +2067,9 @@ useEffect(() => {
 
         {/* Load more indicator */}
         {(boardLoading.inbox || boardLoading.shortlist || boardLoading.rejected) && (
-          <div className="py-3 text-center text-muted text-[10px]">
-            {t("inbox.kanban.loading_more")}
+          <div className="py-4 flex justify-center items-center gap-2 text-muted text-xs border-t border-[var(--border)]">
+            <div className="w-4 h-4 border-2 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
+            <span>{lang === "es" ? "Cargando más..." : "Loading more..."}</span>
           </div>
         )}
 
@@ -2123,9 +2182,18 @@ useEffect(() => {
         </div>
       )}
 
+      {systemLoading && filteredSystemItems.length === 0 && (
+        <div className="space-y-3 p-4 animate-pulse">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="h-12 rounded border bg-[var(--bg-secondary)] border-[var(--border)] flex items-center justify-between px-4 opacity-50" />
+          ))}
+        </div>
+      )}
+
       {systemLoading && filteredSystemItems.length > 0 && (
-        <div className="py-3 text-center text-muted text-[10px]">
-          {t("inbox.kanban.loading_more")}
+        <div className="py-4 flex justify-center items-center gap-2 text-muted text-xs">
+          <div className="w-4 h-4 border-2 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
+          <span>{lang === "es" ? "Cargando más..." : "Loading more..."}</span>
         </div>
       )}
 
@@ -2259,9 +2327,18 @@ useEffect(() => {
         </div>
       )}
 
+      {trashLoading && filteredTrashItems.length === 0 && (
+        <div className="space-y-3 p-4 animate-pulse">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="h-12 rounded border bg-[var(--bg-secondary)] border-[var(--border)] flex items-center justify-between px-4 opacity-50" />
+          ))}
+        </div>
+      )}
+
       {trashLoading && filteredTrashItems.length > 0 && (
-        <div className="py-3 text-center text-muted text-[10px]">
-          {t("inbox.kanban.loading_more")}
+        <div className="py-4 flex justify-center items-center gap-2 text-muted text-xs">
+          <div className="w-4 h-4 border-2 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
+          <span>{lang === "es" ? "Cargando más..." : "Loading more..."}</span>
         </div>
       )}
 
@@ -2357,42 +2434,52 @@ useEffect(() => {
       <div className="mb-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         {/* Left Side: Tabs */}
         <div className="flex gap-1 items-center flex-wrap">
-          {tabs.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className="px-4 py-1.5 text-sm font-medium rounded transition-colors"
-              style={{
-                background:
-                  activeTab === tab.key
-                    ? "var(--bg-card-alt)"
-                    : "transparent",
-                color:
-                  activeTab === tab.key
-                    ? "var(--text-primary)"
-                    : "var(--text-muted)",
-                border:
-                  activeTab === tab.key
-                    ? "1px solid var(--border)"
-                    : "1px solid transparent",
-              }}
-            >
-              <span className="flex items-center gap-2">
-                {tab.label}
-                {tab.key === "kanban" && (
-                  (() => {
-                    const unreadCount = board.inbox.filter(s => !interactedIds.has(s.id)).length;
-                    if (unreadCount === 0) return null;
-                    return (
-                      <span className="w-4 h-4 flex items-center justify-center rounded-full text-[9px] bg-emerald-500/80 text-black font-bold">
-                        {unreadCount}
-                      </span>
-                    );
-                  })()
-                )}
-              </span>
-            </button>
-          ))}
+          {(() => {
+            const isTabLoading =
+              (activeTab === "kanban" && (boardLoading.inbox || boardLoading.shortlist || boardLoading.rejected)) ||
+              (activeTab === "system" && systemLoading) ||
+              (activeTab === "trash" && trashLoading);
+
+            return tabs.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className="px-4 py-1.5 text-sm font-medium rounded transition-colors"
+                style={{
+                  background:
+                    activeTab === tab.key
+                      ? "var(--bg-card-alt)"
+                      : "transparent",
+                  color:
+                    activeTab === tab.key
+                      ? "var(--text-primary)"
+                      : "var(--text-muted)",
+                  border:
+                    activeTab === tab.key
+                      ? "1px solid var(--border)"
+                      : "1px solid transparent",
+                }}
+              >
+                <span className="flex items-center gap-2">
+                  {tab.label}
+                  {activeTab === tab.key && isTabLoading && (
+                    <div className="w-3.5 h-3.5 border border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
+                  )}
+                  {tab.key === "kanban" && (
+                    (() => {
+                      const unreadCount = board.inbox.filter(s => !interactedIds.has(s.id)).length;
+                      if (unreadCount === 0) return null;
+                      return (
+                        <span className="w-4 h-4 flex items-center justify-center rounded-full text-[9px] bg-emerald-500/80 text-black font-bold">
+                          {unreadCount}
+                        </span>
+                      );
+                    })()
+                  )}
+                </span>
+              </button>
+            ));
+          })()}
 
         </div>
 
