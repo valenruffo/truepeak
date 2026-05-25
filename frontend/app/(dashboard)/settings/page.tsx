@@ -342,33 +342,50 @@ export default function SettingsPage() {
                       >
                         {lang === "es" ? "Renovar plan — $25/mes" : "Renew plan — $25/mo"}
                       </a>
+                    ) : billing?.status === "canceled" ? (
+                      <button
+                        onClick={() => handleUpdatePlan("reactivate_indie", "indie")}
+                        disabled={!!loadingAction}
+                        className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded text-xs font-medium transition-all hover:opacity-90 disabled:opacity-50 min-w-[140px]"
+                        style={{ background: "#10b981", color: "#09090b" }}
+                      >
+                        {loadingAction === "reactivate_indie" ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          lang === "es" ? "Reactivar plan — $25/mes" : "Reactivate plan — $25/mo"
+                        )}
+                      </button>
                     ) : (
                       <button
                         onClick={() => handleCancel("cancel_indie")}
-                        disabled={!!loadingAction || billing?.status === "canceled"}
+                        disabled={!!loadingAction}
                         className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded text-xs font-medium transition-all border border-red-500/30 text-red-500 hover:bg-red-500/5 disabled:opacity-50 min-w-[140px]"
                       >
                         {loadingAction === "cancel_indie" ? (
                           <Loader2 className="w-3 h-3 animate-spin" />
-                        ) : billing?.status === "canceled" ? (
-                          lang === "es" ? "Cancelada" : "Cancelled"
                         ) : (
                           lang === "es" ? "Cancelar suscripción" : "Cancel subscription"
                         )}
                       </button>
                     )
                   ) : (
-                    <button
-                      onClick={() => handleUpdatePlan("downgrade_indie", "indie")}
-                      disabled={!!loadingAction || billing?.status === "canceled"}
-                      className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded text-xs font-medium transition-all border border-[#10b981]/30 text-[#10b981] hover:bg-[#10b981]/5 disabled:opacity-50 min-w-[140px]"
-                    >
-                      {loadingAction === "downgrade_indie" ? (
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                      ) : (
-                        lang === "es" ? "Bajar plan — $25/mes" : "Downgrade — $25/mo"
-                      )}
-                    </button>
+                    billing?.plan?.toLowerCase() === "indie" ? (
+                      <span className="inline-block px-4 py-2 rounded text-xs font-semibold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 min-w-[140px]">
+                        {lang === "es" ? "Siguiente plan" : "Next plan"}
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => handleUpdatePlan("downgrade_indie", "indie")}
+                        disabled={!!loadingAction || billing?.status === "canceled"}
+                        className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded text-xs font-medium transition-all border border-[#10b981]/30 text-[#10b981] hover:bg-[#10b981]/5 disabled:opacity-50 min-w-[140px]"
+                      >
+                        {loadingAction === "downgrade_indie" ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          lang === "es" ? "Bajar plan — $25/mes" : "Downgrade — $25/mo"
+                        )}
+                      </button>
+                    )
                   )}
                 </td>
                 <td className="px-4 py-3 text-center">
@@ -383,16 +400,40 @@ export default function SettingsPage() {
                       >
                         {lang === "es" ? "Renovar plan — $49/mes" : "Renew plan — $49/mo"}
                       </a>
+                    ) : billing?.status === "canceled" ? (
+                      <button
+                        onClick={() => handleUpdatePlan("reactivate_pro", "pro")}
+                        disabled={!!loadingAction}
+                        className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded text-xs font-medium transition-all hover:opacity-90 disabled:opacity-50 min-w-[140px]"
+                        style={{ background: "#10b981", color: "#09090b" }}
+                      >
+                        {loadingAction === "reactivate_pro" ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          lang === "es" ? "Reactivar plan — $49/mes" : "Reactivate plan — $49/mo"
+                        )}
+                      </button>
+                    ) : billing?.plan?.toLowerCase() === "indie" ? (
+                      <button
+                        onClick={() => handleUpdatePlan("upgrade_pro", "pro")}
+                        disabled={!!loadingAction}
+                        className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded text-xs font-medium transition-all hover:opacity-90 disabled:opacity-50 min-w-[140px]"
+                        style={{ background: "#10b981", color: "#09090b" }}
+                      >
+                        {loadingAction === "upgrade_pro" ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          lang === "es" ? "Volver a Pro — $49/mes" : "Back to Pro — $49/mo"
+                        )}
+                      </button>
                     ) : (
                       <button
                         onClick={() => handleCancel("cancel_pro")}
-                        disabled={!!loadingAction || billing?.status === "canceled"}
+                        disabled={!!loadingAction}
                         className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded text-xs font-medium transition-all border border-red-500/30 text-red-500 hover:bg-red-500/5 disabled:opacity-50 min-w-[140px]"
                       >
                         {loadingAction === "cancel_pro" ? (
                           <Loader2 className="w-3 h-3 animate-spin" />
-                        ) : billing?.status === "canceled" ? (
-                          lang === "es" ? "Cancelada" : "Cancelled"
                         ) : (
                           lang === "es" ? "Cancelar suscripción" : "Cancel subscription"
                         )}
@@ -401,15 +442,15 @@ export default function SettingsPage() {
                   ) : (
                     <button
                       onClick={(e) => {
-                        if (plan === "indie") {
+                        if (plan === "indie" && billing?.status !== "canceled") {
                           handleUpdatePlan("upgrade_pro", "pro");
                         } else {
                           window.open(getCheckoutUrl(POLAR_CHECKOUT_PRO), "_blank");
                         }
                       }}
-                      disabled={!!loadingAction || billing?.status === "canceled"}
+                      disabled={!!loadingAction}
                       className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded text-xs font-medium transition-all hover:opacity-90 disabled:opacity-50 min-w-[140px]"
-                      style={{ background: billing?.status === "canceled" ? "rgba(16,185,129,0.2)" : "#10b981", color: billing?.status === "canceled" ? "var(--text-secondary)" : "#09090b" }}
+                      style={{ background: "#10b981", color: "#09090b" }}
                     >
                       {loadingAction === "upgrade_pro" ? (
                         <Loader2 className="w-3 h-3 animate-spin" />

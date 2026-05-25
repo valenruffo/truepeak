@@ -68,6 +68,9 @@ export default function RegisterPage() {
       localStorage.setItem("label_id", data.id);
       localStorage.setItem("plan", data.plan || "free");
       localStorage.setItem("role", data.role || "label");
+      if (session?.access_token) {
+        localStorage.setItem("token", session.access_token);
+      }
       
       router.push("/inbox");
     } catch (err) {

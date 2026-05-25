@@ -275,6 +275,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
         router.push("/login");
         return null;
       }
+      localStorage.setItem("token", token);
       return token;
     };
 
@@ -287,6 +288,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
       if (typeof args[0] === "string" && args[0].startsWith("/api/")) {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.access_token) {
+          localStorage.setItem("token", session.access_token);
           const options: RequestInit = args[1] || {};
           options.headers = {
             ...options.headers,

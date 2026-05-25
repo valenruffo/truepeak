@@ -53,6 +53,9 @@ export default function LoginPage() {
       localStorage.setItem("label_id", authData.session?.user.id || me.id || "");
       localStorage.setItem("plan", me.plan || "free");
       localStorage.setItem("role", me.role || "label");
+      if (authData.session?.access_token) {
+        localStorage.setItem("token", authData.session.access_token);
+      }
       
       router.push("/inbox");
     } catch (err) {
