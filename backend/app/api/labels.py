@@ -247,13 +247,22 @@ async def register_label_profile(
     orphaned_profile = session.exec(select(Label).where(Label.owner_email == owner_email)).first()
     if orphaned_profile:
         old_label_id = orphaned_profile.id
+        original_slug = orphaned_profile.slug
+        original_email = orphaned_profile.owner_email
         
-        # 1. Create a new Label with the new Supabase label_id, copying all attributes
+        # 1. Temporarily modify the orphaned profile's slug and email to avoid unique violations.
+        # This frees up the unique constraints in Postgres so we can insert the new Label first.
+        orphaned_profile.slug = f"temp-{old_label_id}"
+        orphaned_profile.owner_email = f"temp-{old_label_id}@temp.com"
+        session.add(orphaned_profile)
+        session.flush()
+        
+        # 2. Create a new Label with the new Supabase label_id, copying all attributes
         new_label = Label(
             id=label_id,
             name=orphaned_profile.name,
-            slug=orphaned_profile.slug,
-            owner_email=orphaned_profile.owner_email,
+            slug=original_slug,
+            owner_email=original_email,
             password_hash=orphaned_profile.password_hash,
             sonic_signature=orphaned_profile.sonic_signature,
             created_at=orphaned_profile.created_at,
@@ -280,7 +289,7 @@ async def register_label_profile(
         session.add(new_label)
         session.flush()  # Make sure new_label exists in Postgres before referencing it in other tables
         
-        # 2. Update Submission and EmailTemplate references
+        # 3. Update Submission and EmailTemplate references
         from sqlmodel import update
         
         # Update Submissions
@@ -300,7 +309,7 @@ async def register_label_profile(
         session.exec(templates_stmt)
         session.flush()
         
-        # 3. Delete the old label
+        # 4. Delete the old label
         session.delete(orphaned_profile)
         session.commit()
         
