@@ -235,8 +235,11 @@ export default function SettingsPage() {
           </span>
           {billing?.next_billing_date && subscriptionStatus !== "frozen" && (
             <span className="text-xs text-muted">
-              {t("settings.plan_renew")} {new Date(billing.next_billing_date).toLocaleDateString()}
-              {billing.amount && (lang === "es" ? ` por $${(billing.amount / 100).toFixed(0)}` : ` for $${(billing.amount / 100).toFixed(0)}`)}
+              {billing.status === "canceled" ? t("settings.plan_ends") : t("settings.plan_renew")}{" "}
+              {new Date(billing.next_billing_date).toLocaleDateString()}
+              {billing.status !== "canceled" && billing.amount && (
+                lang === "es" ? ` por $${(billing.amount / 100).toFixed(0)}` : ` for $${(billing.amount / 100).toFixed(0)}`
+              )}
             </span>
           )}
           {subscriptionStatus === "frozen" && (
