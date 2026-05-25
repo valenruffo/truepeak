@@ -216,11 +216,13 @@ async def upload_audio(
             )
             session.add(submission)
             session.commit()
-        except Exception:
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
             session.rollback()
             raise HTTPException(
                 status_code=500,
-                detail="Failed to save submission record.",
+                detail=f"Failed to save submission record. Error: {str(e)}",
             )
         finally:
             session.close()
