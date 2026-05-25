@@ -235,11 +235,29 @@ export default function SettingsPage() {
           </span>
           {billing?.next_billing_date && subscriptionStatus !== "frozen" && (
             <span className="text-xs text-muted">
-              {billing.status === "canceled" ? t("settings.plan_ends") : t("settings.plan_renew")}{" "}
-              {new Date(billing.next_billing_date).toLocaleDateString()}
-              {billing.status !== "canceled" && billing.amount && (
-                lang === "es" ? ` por $${(billing.amount / 100).toFixed(0)}` : ` for $${(billing.amount / 100).toFixed(0)}`
-              )}
+              {(() => {
+                const dateStr = new Date(billing.next_billing_date).toLocaleDateString();
+                const amountStr = billing.amount ? `$${(billing.amount / 100).toFixed(0)}` : "";
+                
+                if (billing.status === "canceled") {
+                  return lang === "es"
+                    ? `El plan finaliza el ${dateStr} y pasarás al Plan Gratuito (sin costo).`
+                    : `Plan ends on ${dateStr} and will change to Free Plan (no cost).`;
+                }
+                
+                const dbPlanLower = plan.toLowerCase();
+                const billingPlanLower = billing.plan.toLowerCase();
+                
+                if (billingPlanLower !== dbPlanLower) {
+                  return lang === "es"
+                    ? `El plan cambiará a ${billingPlanLower.toUpperCase()} el ${dateStr} (próxima facturación: ${amountStr}).`
+                    : `Plan will change to ${billingPlanLower.toUpperCase()} on ${dateStr} (next billing: ${amountStr}).`;
+                }
+                
+                return lang === "es"
+                  ? `Próxima renovación el ${dateStr} por ${amountStr}`
+                  : `Next billing on ${dateStr} for ${amountStr}`;
+              })()}
             </span>
           )}
           {subscriptionStatus === "frozen" && (

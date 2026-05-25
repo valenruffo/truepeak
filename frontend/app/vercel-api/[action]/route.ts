@@ -38,6 +38,7 @@ async function updateLocalPlan(email: string, slug: string, plan: string) {
 
 // Helper: Find Active Subscription by Slug or ID
 async function getPolarSubscription(slug: string, subscriptionId?: string) {
+  const allowedStatuses = ["active", "canceled", "past_due"];
   if (subscriptionId) {
     const res = await fetch(
       `https://api.polar.sh/v1/subscriptions/${subscriptionId}`,
@@ -45,13 +46,13 @@ async function getPolarSubscription(slug: string, subscriptionId?: string) {
     );
     if (res.ok) {
       const sub = await res.json();
-      if (sub.status === "active") return sub;
+      if (allowedStatuses.includes(sub.status)) return sub;
     }
   }
 
   // Fallback: search by metadata slug
   const res = await fetch(
-    `https://api.polar.sh/v1/subscriptions/?organization_id=${POLAR_ORGANIZATION_ID}&active=true&limit=100`,
+    `https://api.polar.sh/v1/subscriptions/?organization_id=${POLAR_ORGANIZATION_ID}&limit=100`,
     { headers: { Authorization: `Bearer ${POLAR_ACCESS_TOKEN}` } }
   );
   if (!res.ok) throw new Error(`Polar Sub Error: ${res.statusText}`);
@@ -59,7 +60,7 @@ async function getPolarSubscription(slug: string, subscriptionId?: string) {
   
   if (data.items) {
     const sub = data.items.find((item: any) => 
-      item.metadata && item.metadata.slug === slug
+      item.metadata && item.metadata.slug === slug && allowedStatuses.includes(item.status)
     );
     if (sub) return sub;
   }

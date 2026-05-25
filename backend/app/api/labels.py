@@ -786,7 +786,7 @@ async def get_label_billing(
             user_sub = None
             for s in subs:
                 email = s.get("customer", {}).get("email") or s.get("customer_email")
-                if email and email.lower() == label.owner_email.lower() and s.get("status") == "active":
+                if email and email.lower() == label.owner_email.lower() and s.get("status") in ("active", "canceled", "past_due"):
                     user_sub = s
                     break
             
