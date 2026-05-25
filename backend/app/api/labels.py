@@ -246,19 +246,72 @@ async def register_label_profile(
     # Check if an orphaned profile exists by email (migration from SQLite auth to Supabase auth)
     orphaned_profile = session.exec(select(Label).where(Label.owner_email == owner_email)).first()
     if orphaned_profile:
-        # Update the orphaned profile with the new Supabase ID
-        orphaned_profile.id = label_id
-        session.add(orphaned_profile)
-        session.commit()
-        session.refresh(orphaned_profile)
-        return RegisterResponse(
-            id=orphaned_profile.id,
+        old_label_id = orphaned_profile.id
+        
+        # 1. Create a new Label with the new Supabase label_id, copying all attributes
+        new_label = Label(
+            id=label_id,
             name=orphaned_profile.name,
             slug=orphaned_profile.slug,
             owner_email=orphaned_profile.owner_email,
+            password_hash=orphaned_profile.password_hash,
+            sonic_signature=orphaned_profile.sonic_signature,
+            created_at=orphaned_profile.created_at,
+            updated_at=datetime.now(timezone.utc),
+            logo_path=orphaned_profile.logo_path,
             plan=orphaned_profile.plan or "free",
+            subscription_status=orphaned_profile.subscription_status or "active",
+            frozen_at=orphaned_profile.frozen_at,
+            churn_warning_sent=orphaned_profile.churn_warning_sent,
+            final_warning_sent=orphaned_profile.final_warning_sent,
+            max_tracks_month=orphaned_profile.max_tracks_month,
+            max_emails_month=orphaned_profile.max_emails_month,
+            hq_retention_days=orphaned_profile.hq_retention_days,
+            emails_sent_this_month=orphaned_profile.emails_sent_this_month,
+            emails_sent_month=orphaned_profile.emails_sent_month,
+            submission_title=orphaned_profile.submission_title,
+            submission_description=orphaned_profile.submission_description,
             role=orphaned_profile.role,
-            created_at=orphaned_profile.created_at.isoformat(),
+            polar_customer_id=orphaned_profile.polar_customer_id,
+            polar_subscription_id=orphaned_profile.polar_subscription_id,
+            ask_instagram=orphaned_profile.ask_instagram,
+            ask_soundcloud=orphaned_profile.ask_soundcloud,
+        )
+        session.add(new_label)
+        session.flush()  # Make sure new_label exists in Postgres before referencing it in other tables
+        
+        # 2. Update Submission and EmailTemplate references
+        from sqlmodel import update
+        
+        # Update Submissions
+        submissions_stmt = (
+            update(Submission)
+            .where(Submission.label_id == old_label_id)
+            .values(label_id=label_id)
+        )
+        session.exec(submissions_stmt)
+        
+        # Update EmailTemplates
+        templates_stmt = (
+            update(EmailTemplate)
+            .where(EmailTemplate.label_id == old_label_id)
+            .values(label_id=label_id)
+        )
+        session.exec(templates_stmt)
+        session.flush()
+        
+        # 3. Delete the old label
+        session.delete(orphaned_profile)
+        session.commit()
+        
+        return RegisterResponse(
+            id=new_label.id,
+            name=new_label.name,
+            slug=new_label.slug,
+            owner_email=new_label.owner_email,
+            plan=new_label.plan or "free",
+            role=new_label.role,
+            created_at=new_label.created_at.isoformat(),
         )
 
     # Check slug uniqueness for brand new profiles
