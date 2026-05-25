@@ -156,13 +156,13 @@ def _analyze_audio_sync(file_path: str) -> dict[str, Any]:
         crest_factor = float(20 * np.log10(true_peak / (rms + 1e-10))) if rms > 0 else 0.0
 
         return {
-            "bpm": round(bpm, 2),
-            "lufs": round(lufs, 2),
-            "true_peak": round(true_peak, 4),
-            "crest_factor": round(crest_factor, 2),
-            "phase_correlation": round(phase_correlation, 4),
+            "bpm": float(round(bpm, 2)),
+            "lufs": float(round(lufs, 2)),
+            "true_peak": float(round(true_peak, 4)),
+            "crest_factor": float(round(crest_factor, 2)),
+            "phase_correlation": float(round(phase_correlation, 4)),
             "musical_key": musical_key,
-            "duration": round(duration, 1),
+            "duration": float(round(duration, 1)),
             "peaks": peaks,
         }
 
