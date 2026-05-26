@@ -1809,9 +1809,16 @@ useEffect(() => {
               )}
 
               {loading && items.length > 0 && (
-                <div className="py-4 flex justify-center items-center gap-2 text-muted text-xs">
-                  <div className="w-4 h-4 border-2 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
-                  <span>{lang === "es" ? "Cargando más..." : "Loading more..."}</span>
+                <div className="space-y-3 py-2 animate-pulse">
+                  <div className="rounded border p-4 bg-[var(--bg-card)] border-[var(--border)] space-y-3 opacity-60">
+                    <div className="h-4 bg-zinc-800 rounded w-3/4" />
+                    <div className="h-3 bg-zinc-900 rounded w-1/2" />
+                    <div className="flex gap-2 pt-1">
+                      <div className="h-3 bg-zinc-800 rounded w-12" />
+                      <div className="h-3 bg-zinc-800 rounded w-12" />
+                      <div className="h-3 bg-zinc-800 rounded w-10" />
+                    </div>
+                  </div>
                 </div>
               )}
               {hasMore && !loading && (
