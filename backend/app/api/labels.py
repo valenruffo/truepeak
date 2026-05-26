@@ -183,6 +183,7 @@ class LabelConfig(BaseModel):
     ask_instagram: bool = False
     ask_soundcloud: bool = False
     role: str = "label_owner"
+    reply_to_email: str | None = None  # Custom Reply-To address for outbound emails
 
 
 class SonicSignatureUpdate(BaseModel):
@@ -421,6 +422,7 @@ async def get_label_config(
         ask_instagram=label.ask_instagram,
         ask_soundcloud=label.ask_soundcloud,
         role=role,
+        reply_to_email=label.reply_to_email,
     )
 
 
@@ -475,9 +477,43 @@ async def update_label_config(
         ask_instagram=label.ask_instagram,
         ask_soundcloud=label.ask_soundcloud,
         role=role,
+        reply_to_email=label.reply_to_email,
     )
 
 
+class EmailConfigUpdate(BaseModel):
+    reply_to_email: str | None = None  # None clears it, string sets it
+
+
+class EmailConfigResponse(BaseModel):
+    reply_to_email: str | None
+
+
+@router.put("/{slug}/email-config", response_model=EmailConfigResponse)
+async def update_email_config(
+    slug: str,
+    body: EmailConfigUpdate,
+    auth: dict = Depends(_get_label_from_token),
+    session: Session = Depends(get_session),
+):
+    """Update the custom Reply-To email for outbound emails. Requires label owner auth.
+
+    Set to None to revert to owner_email as reply-to.
+    """
+    label = session.exec(select(Label).where(Label.slug == slug)).first()
+    if not label:
+        raise HTTPException(status_code=404, detail="Sello no encontrado.")
+
+    if label.id != auth["label_id"]:
+        raise HTTPException(status_code=403, detail="Access denied to this label.")
+
+    label.reply_to_email = body.reply_to_email
+    label.updated_at = datetime.now(timezone.utc)
+
+    session.add(label)
+    session.commit()
+
+    return EmailConfigResponse(reply_to_email=label.reply_to_email)
 
 
 @router.get("/{slug}/stats", response_model=LabelStats)

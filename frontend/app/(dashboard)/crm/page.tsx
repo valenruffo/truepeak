@@ -212,6 +212,13 @@ function CRMContent() {
   const [sent, setSent] = useState(false);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [labelName, setLabelName] = useState<string>("");
+  const [labelSlug, setLabelSlug] = useState<string>("");
+  const [ownerEmail, setOwnerEmail] = useState<string>("");
+  const [replyToEmail, setReplyToEmail] = useState<string>("");
+  const [replyToInput, setReplyToInput] = useState<string>("");
+  const [replyToEditing, setReplyToEditing] = useState(false);
+  const [replyToSaving, setReplyToSaving] = useState(false);
+  const [replyToSaved, setReplyToSaved] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -243,19 +250,24 @@ function CRMContent() {
     const fetchData = async () => {
       const slug = localStorage.getItem("slug");
       if (slug) {
+        setLabelSlug(slug);
         // Load cached label name from our main label cache key first
         const cachedLabel = getCache<any>("tp_link_label_info", null);
         if (cachedLabel?.name) {
           setLabelName(cachedLabel.name);
-        } else {
-          try {
-            const res = await fetch(`/api/labels/${slug}`, { credentials: "include" });
-            if (res.ok) {
-              const data = await res.json();
-              setLabelName(data.name);
-            }
-          } catch { setLabelName(slug); }
         }
+        // Always fetch fresh label config to get reply_to_email
+        try {
+          const res = await fetch(`/api/labels/${slug}`, { credentials: "include" });
+          if (res.ok) {
+            const data = await res.json();
+            setLabelName(data.name);
+            setOwnerEmail(data.owner_email || "");
+            const rt = data.reply_to_email || "";
+            setReplyToEmail(rt);
+            setReplyToInput(rt);
+          }
+        } catch { if (!cachedLabel?.name) setLabelName(slug); }
       }
 
       // Load cached contacts to enable instant page interactivity
@@ -439,6 +451,26 @@ function CRMContent() {
       });
     } catch (e) { setSendError(e instanceof Error ? e.message : t("crm.send_error")); }
     finally { setSending(false); }
+  };
+
+  const handleSaveReplyTo = async () => {
+    if (!labelSlug) return;
+    setReplyToSaving(true);
+    try {
+      const payload = { reply_to_email: replyToInput.trim() || null };
+      const res = await fetch(`/api/labels/${labelSlug}/email-config`, {
+        method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error(`Error ${res.status}`);
+      const data = await res.json();
+      setReplyToEmail(data.reply_to_email || "");
+      setReplyToInput(data.reply_to_email || "");
+      setReplyToEditing(false);
+      setReplyToSaved(true);
+      setTimeout(() => setReplyToSaved(false), 2500);
+    } catch { /* ignore, user can retry */ }
+    finally { setReplyToSaving(false); }
   };
 
   /** Get character offset in a textarea/input from mouse event coordinates */
@@ -926,7 +958,7 @@ function CRMContent() {
           100% { box-shadow: inset 0 0 0 rgba(16,185,129,0); }
         }
       `}</style>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <h1 className="font-display font-semibold text-xl">{t("crm.title")}</h1>
         <div className="flex gap-1 p-1 rounded-lg border" style={{ background: "var(--bg-secondary)", borderColor: "var(--border)" }}>
           <button 
@@ -945,6 +977,83 @@ function CRMContent() {
           </button>
         </div>
       </div>
+
+      {/* ── Reply-To Email Config Card ─────────────────────────── */}
+      <div className="mb-5 rounded-xl border px-5 py-4 flex items-center gap-4" style={{ background: "var(--bg-secondary)", borderColor: "var(--border)" }}>
+        {/* Icon */}
+        <div className="flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: "rgba(16,185,129,0.12)" }}>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+        </div>
+        {/* Label + input */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-[10px] font-mono uppercase tracking-widest" style={{ color: "#10b981" }}>Reply-To</span>
+            {replyToSaved && (
+              <span className="text-[10px] font-medium flex items-center gap-1" style={{ color: "#10b981" }}>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                Guardado
+              </span>
+            )}
+          </div>
+          {replyToEditing ? (
+            <div className="flex items-center gap-2">
+              <input
+                id="crm-reply-to-input"
+                type="email"
+                autoFocus
+                value={replyToInput}
+                onChange={(e) => setReplyToInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") handleSaveReplyTo(); if (e.key === "Escape") { setReplyToEditing(false); setReplyToInput(replyToEmail); } }}
+                placeholder={ownerEmail || "ej. booking@tusello.com"}
+                className="flex-1 bg-transparent outline-none text-sm font-mono border-b pb-0.5 transition-colors min-w-0"
+                style={{ borderColor: "#10b981", color: "var(--text-primary)" }}
+              />
+              <button
+                onClick={handleSaveReplyTo}
+                disabled={replyToSaving}
+                className="px-3 py-1 rounded-md text-xs font-medium transition-all disabled:opacity-50"
+                style={{ background: "#10b981", color: "#09090b" }}
+              >
+                {replyToSaving ? "..." : "Guardar"}
+              </button>
+              <button
+                onClick={() => { setReplyToEditing(false); setReplyToInput(replyToEmail); }}
+                className="px-2 py-1 rounded-md text-xs font-medium text-muted hover:text-primary transition-colors"
+                style={{ background: "var(--bg-tertiary)" }}
+              >
+                Cancelar
+              </button>
+            </div>
+          ) : (
+            <button
+              id="crm-reply-to-edit-btn"
+              onClick={() => { setReplyToEditing(true); setReplyToInput(replyToEmail); }}
+              className="flex items-center gap-2 group text-left w-full"
+            >
+              <span className={cn("text-sm font-mono truncate", replyToEmail ? "" : "text-muted italic")} style={{ color: replyToEmail ? "var(--text-primary)" : undefined }}>
+                {replyToEmail || (ownerEmail ? ownerEmail : "Sin configurar")}
+              </span>
+              {!replyToEmail && ownerEmail && (
+                <span className="text-[10px] text-muted">(usando email de registro)</span>
+              )}
+              <svg className="opacity-0 group-hover:opacity-60 transition-opacity flex-shrink-0" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </button>
+          )}
+        </div>
+        {!replyToEditing && (
+          <button
+            onClick={() => { setReplyToEditing(true); setReplyToInput(replyToEmail); }}
+            className="flex-shrink-0 text-[11px] font-medium px-3 py-1.5 rounded-lg border transition-all hover:opacity-80"
+            style={{ borderColor: "var(--border)", color: "var(--text-secondary)", background: "var(--bg-tertiary)" }}
+          >
+            Editar
+          </button>
+        )}
+      </div>
+      {/* ── End Reply-To Card ──────────────────────────────────── */}
+
 
       {activeTab === "bandeja" ? (
         <div className="rounded border overflow-hidden" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>

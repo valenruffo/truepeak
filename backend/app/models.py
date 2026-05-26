@@ -56,6 +56,7 @@ class Label(SQLModel, table=True):
     polar_subscription_id: str | None = None
     ask_instagram: bool = Field(default=False)
     ask_soundcloud: bool = Field(default=False)
+    reply_to_email: str | None = Field(default=None)  # Custom Reply-To for outbound emails
 
     submissions: list["Submission"] = Relationship(back_populates="label")
     email_templates: list["EmailTemplate"] = Relationship(back_populates="label")

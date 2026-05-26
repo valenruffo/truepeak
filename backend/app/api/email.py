@@ -126,9 +126,9 @@ async def send_email_endpoint(
                     detail=f"Monthly email quota exceeded ({label.emails_sent_this_month}/{label.max_emails_month}).",
                 )
     try:
-        # Get label owner email for reply-to
+        # Get label owner email for reply-to — prefer custom reply_to_email if set
         label = session.get(Label, auth["label_id"])
-        reply_to = label.owner_email if label else None
+        reply_to = (label.reply_to_email or label.owner_email) if label else None
 
         result = await send_email(
             to=body.to,
