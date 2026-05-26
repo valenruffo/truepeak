@@ -1,6 +1,7 @@
 """Submission management API — list, detail, status updates, delete."""
 
 import os
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -12,6 +13,8 @@ from sqlmodel import Session, select, func
 from app.database import get_session
 from app.models import Label, Submission
 from app.services.auth import verify_token
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/submissions", tags=["submissions"])
 
@@ -286,6 +289,13 @@ async def delete_submission(
                 except OSError:
                     pass  # Best effort
         
+        # Hard delete: remove folder from R2
+        from app.services.r2 import delete_folder_from_r2
+        try:
+            await delete_folder_from_r2(f"tracks/{submission_id}/")
+        except Exception as e:
+            logger.error(f"Failed to delete R2 folder prefix tracks/{submission_id}/ during hard delete: {e}")
+        
         session.delete(submission)
         session.commit()
     else:
@@ -314,8 +324,12 @@ async def restore_submission(
         raise HTTPException(status_code=400, detail="Submission is not deleted.")
 
     # Check 24h window
+    deleted_at = submission.deleted_at
+    if deleted_at.tzinfo is None:
+        deleted_at = deleted_at.replace(tzinfo=timezone.utc)
+
     now = datetime.now(timezone.utc)
-    elapsed = (now - submission.deleted_at).total_seconds()
+    elapsed = (now - deleted_at).total_seconds()
     if elapsed > 86400:  # 24 hours
         raise HTTPException(
             status_code=400,

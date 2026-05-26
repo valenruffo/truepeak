@@ -1403,16 +1403,30 @@ useEffect(() => {
         return next;
       });
       
-      // Move back to its original status column
-      const targetCol = (["inbox", "shortlist", "rejected"].includes(sub.status) ? sub.status : "inbox") as "inbox" | "shortlist" | "rejected";
-      setBoard((prev) => {
-        const next = {
-          ...prev,
-          [targetCol]: [{ ...sub, deleted_at: null }, ...prev[targetCol]].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
-        };
-        setCache("tp_inbox_board", next);
-        return next;
-      });
+      // Move back to its original status column or system tab
+      if (sub.status === "auto_rejected") {
+        setSystemItems((prev) => {
+          const next = [{ ...sub, deleted_at: null }, ...prev].sort(
+            (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          );
+          setCache("tp_inbox_system", next);
+          return next;
+        });
+      } else {
+        const targetCol = (["inbox", "shortlist", "rejected"].includes(sub.status)
+          ? sub.status
+          : "inbox") as "inbox" | "shortlist" | "rejected";
+        setBoard((prev) => {
+          const next = {
+            ...prev,
+            [targetCol]: [{ ...sub, deleted_at: null }, ...prev[targetCol]].sort(
+              (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+            ),
+          };
+          setCache("tp_inbox_board", next);
+          return next;
+        });
+      }
       addToast({ title: "Demo restaurado correctamente", variant: "success" });
     } catch (e) {
       addToast({

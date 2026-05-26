@@ -19,7 +19,7 @@ from sqlmodel import Session, select
 from app.database import engine
 from app.models import Label, Submission
 from app.services.email_service import send_email
-from app.services.r2 import delete_file_from_r2
+from app.services.r2 import delete_file_from_r2, delete_folder_from_r2
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -40,14 +40,12 @@ async def cleanup_async():
         old_deleted = session.exec(statement).all()
 
         for sub in old_deleted:
-            # Delete files from R2
-            for path_field in (sub.original_path, sub.mp3_path):
-                if path_field:
-                    try:
-                        await delete_file_from_r2(path_field)
-                        deleted_files += 1
-                    except Exception as e:
-                        logger.error(f"Failed to delete {path_field} from R2: {e}")
+            # Delete folder from R2
+            try:
+                await delete_folder_from_r2(f"tracks/{sub.id}/")
+                deleted_files += 1
+            except Exception as e:
+                logger.error(f"Failed to delete folder tracks/{sub.id}/ from R2: {e}")
 
             session.delete(sub)
             deleted_rows += 1
@@ -160,12 +158,10 @@ async def cleanup_async():
         for label in dead_labels:
             subs = session.exec(select(Submission).where(Submission.label_id == label.id)).all()
             for sub in subs:
-                for path_field in (sub.original_path, sub.mp3_path):
-                    if path_field:
-                        try:
-                            await delete_file_from_r2(path_field)
-                        except Exception as e:
-                            logger.error(f"Failed to delete {path_field} from R2 during purge: {e}")
+                try:
+                    await delete_folder_from_r2(f"tracks/{sub.id}/")
+                except Exception as e:
+                    logger.error(f"Failed to delete folder tracks/{sub.id}/ from R2 during purge: {e}")
                 session.delete(sub)
             
             # Reset flags in case they somehow reactivate (though really the account is purged)

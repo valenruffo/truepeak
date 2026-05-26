@@ -87,6 +87,27 @@ def _download_file_sync(r2_key: str, local_path: str) -> None:
         raise RuntimeError(f"Cloudflare R2 download_file error: {e}") from e
 
 
+def _delete_folder_sync(prefix: str) -> None:
+    s3_client = _get_s3_client()
+    try:
+        paginator = s3_client.get_paginator("list_objects_v2")
+        pages = paginator.paginate(Bucket=BUCKET_NAME, Prefix=prefix)
+        delete_keys = []
+        for page in pages:
+            if "Contents" in page:
+                for obj in page["Contents"]:
+                    delete_keys.append({"Key": obj["Key"]})
+        if delete_keys:
+            # delete_objects takes a max of 1000 keys per request
+            for i in range(0, len(delete_keys), 1000):
+                chunk = delete_keys[i : i + 1000]
+                s3_client.delete_objects(Bucket=BUCKET_NAME, Delete={"Objects": chunk})
+            logger.info(f"Deleted R2 folder prefix: {prefix} ({len(delete_keys)} objects)")
+    except (BotoCoreError, ClientError) as e:
+        logger.error(f"Failed to delete folder prefix {prefix} from R2: {e}")
+        raise RuntimeError(f"Cloudflare R2 delete_folder error: {e}") from e
+
+
 # --- Public Asynchronous API ---
 
 async def upload_file_to_r2(local_path: str, r2_key: str, content_type: str) -> None:
@@ -107,3 +128,8 @@ async def delete_file_from_r2(r2_key: str) -> None:
 async def download_file_from_r2(r2_key: str, local_path: str) -> None:
     """Download an object from R2 to a local file path in a thread pool to avoid blocking."""
     await asyncio.to_thread(_download_file_sync, r2_key, local_path)
+
+
+async def delete_folder_from_r2(prefix: str) -> None:
+    """Delete all objects under a folder prefix from R2 in a thread pool to avoid blocking."""
+    await asyncio.to_thread(_delete_folder_sync, prefix)

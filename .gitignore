@@ -56,3 +56,5 @@ htmlcov/
 .playwright-cli/
 # Local Pi runtime state
 .atl/
+scratch/
+.opencode/
