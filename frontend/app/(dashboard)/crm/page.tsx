@@ -153,7 +153,7 @@ const convertHtmlToText = (html: string) => {
   };
   
   temp.childNodes.forEach(walk);
-  return text.replace(/\r\n/g, "\n");
+  return text.replace(/\u200B/g, "").replace(/\r\n/g, "\n");
 };
 
 const updateDragCaret = (e: React.DragEvent, container: HTMLDivElement) => {
@@ -635,8 +635,10 @@ function CRMContent() {
       span.textContent = textToShow;
 
       range.insertNode(span);
-      range.setStartAfter(span);
-      range.setEndAfter(span);
+      const space = document.createTextNode("\u200B");
+      span.after(space);
+      range.setStartAfter(space);
+      range.setEndAfter(space);
       
       if (sel) {
         sel.removeAllRanges();
@@ -713,8 +715,10 @@ function CRMContent() {
         span.textContent = textToShow;
 
         range.insertNode(span);
-        range.setStartAfter(span);
-        range.setEndAfter(span);
+        const space = document.createTextNode("\u200B");
+        span.after(space);
+        range.setStartAfter(space);
+        range.setEndAfter(space);
         
         const sel = window.getSelection();
         if (sel) {
@@ -792,8 +796,10 @@ function CRMContent() {
         span.textContent = textToShow;
 
         range.insertNode(span);
-        range.setStartAfter(span);
-        range.setEndAfter(span);
+        const space = document.createTextNode("\u200B");
+        span.after(space);
+        range.setStartAfter(space);
+        range.setEndAfter(space);
         
         const sel = window.getSelection();
         if (sel) {
