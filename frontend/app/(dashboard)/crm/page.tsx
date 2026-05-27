@@ -246,6 +246,9 @@ function CRMContent() {
   const lastSyncedSubjectContactRef = useRef<Contact | null>(null);
   const lastSyncedSubjectLabelRef = useRef("");
 
+  // Saved selection range captured on chip mousedown (before focus moves away from editor)
+  const savedChipRangeRef = useRef<Range | null>(null);
+
   const [lastActiveField, setLastActiveField] = useState<"body" | "subject">("body");
 
   useEffect(() => {
@@ -618,23 +621,27 @@ function CRMContent() {
   const insertEmailVariable = (variable: string, field: "body" | "subject") => {
     const divRef = field === "subject" ? emailSubjectDivRef : emailBodyDivRef;
     if (divRef.current) {
-      divRef.current.focus();
-      const sel = window.getSelection();
-      let range: Range | null = null;
-      
-      if (sel && sel.rangeCount > 0) {
-        const potentialRange = sel.getRangeAt(0);
-        if (divRef.current.contains(potentialRange.commonAncestorContainer)) {
-          range = potentialRange;
+      // Use the range saved on mousedown (before the click moved focus away from editor).
+      // Fall back to current selection if within editor, or end-of-content.
+      let range: Range | null = savedChipRangeRef.current;
+      savedChipRangeRef.current = null;
+
+      if (!range || !divRef.current.contains(range.commonAncestorContainer)) {
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount > 0) {
+          const potentialRange = sel.getRangeAt(0);
+          if (divRef.current.contains(potentialRange.commonAncestorContainer)) {
+            range = potentialRange.cloneRange();
+          }
         }
       }
-      
+
       if (!range) {
         range = document.createRange();
         range.selectNodeContents(divRef.current);
         range.collapse(false);
       }
-      
+
       const name = contact ? contact.name : "Productor";
       const trackName = contact ? contact.track : "Track";
       const bpmValue = contact ? contact.bpm : "BPM";
@@ -652,26 +659,24 @@ function CRMContent() {
       span.className = "inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20 select-all";
       span.textContent = textToShow;
 
+      range.deleteContents();
       range.insertNode(span);
       const space = document.createTextNode("\u200B");
       span.after(space);
       range.setStartAfter(space);
       range.setEndAfter(space);
-      
-      setTimeout(() => {
-        if (divRef.current) {
-          divRef.current.focus();
-          const currentSel = window.getSelection();
-          if (currentSel && range) {
-            currentSel.removeAllRanges();
-            currentSel.addRange(range);
-          }
-        }
-      }, 0);
-      
+
+      // Restore focus and set caret right after the badge
+      divRef.current.focus();
+      const sel = window.getSelection();
+      if (sel) {
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+
       const html = divRef.current.innerHTML;
       const text = convertHtmlToText(html);
-      
+
       if (field === "subject") {
         pendingSubjectVariableTextRef.current = text;
         setEmailSubject(text);
@@ -856,6 +861,15 @@ function CRMContent() {
                 return;
               }
               handleDragStart(e, v.key);
+            }}
+            onMouseDown={() => {
+              if (disabled) return;
+              // Save the current selection range BEFORE the click steals focus from the editor.
+              // We do NOT call preventDefault() so that HTML5 drag-and-drop still works.
+              const sel = window.getSelection();
+              if (sel && sel.rangeCount > 0) {
+                savedChipRangeRef.current = sel.getRangeAt(0).cloneRange();
+              }
             }}
             onClick={() => {
               if (disabled) return;
