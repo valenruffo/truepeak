@@ -39,6 +39,8 @@ class SubmissionDetail(BaseModel):
     notes: str | None
     producer_instagram: str | None = None
     producer_soundcloud: str | None = None
+    status_tecnico: str = "optimo"
+    alertas: list[str] | None = None
     created_at: str
 
 
@@ -63,6 +65,8 @@ class SubmissionSummary(BaseModel):
     producer_soundcloud: str | None = None
     human_email_sent: bool = False
     hq_downloaded: bool = False
+    status_tecnico: str = "optimo"
+    alertas: list[str] | None = None
     created_at: str
     deleted_at: str | None = None
 
@@ -143,9 +147,12 @@ async def list_submissions(
         query = query.where(Submission.deleted_at.is_(None))
 
     if status:
-        if status not in ("inbox", "shortlist", "rejected", "auto_rejected", "pending", "approved"):
+        if status not in ("inbox", "shortlist", "rejected", "auto_rejected", "pending", "approved", "critico"):
             raise HTTPException(status_code=400, detail=f"Invalid status filter: {status}")
-        query = query.where(Submission.status == status)
+        if status == "inbox":
+            query = query.where((Submission.status == "inbox") | (Submission.status == "critico"))
+        else:
+            query = query.where(Submission.status == status)
 
     query = query.order_by(Submission.created_at.desc()).offset(offset).limit(limit)
     submissions = session.exec(query).all()
@@ -172,6 +179,8 @@ async def list_submissions(
             producer_soundcloud=s.producer_soundcloud,
             human_email_sent=bool(s.human_email_sent),
             hq_downloaded=bool(s.hq_downloaded),
+            status_tecnico=s.status_tecnico or "optimo",
+            alertas=s.alertas,
             created_at=s.created_at.isoformat(),
             deleted_at=s.deleted_at.isoformat() if s.deleted_at else None,
         )
@@ -210,6 +219,8 @@ async def get_submission(
         notes=submission.notes,
         producer_instagram=submission.producer_instagram,
         producer_soundcloud=submission.producer_soundcloud,
+        status_tecnico=submission.status_tecnico or "optimo",
+        alertas=submission.alertas,
         created_at=submission.created_at.isoformat(),
     )
 
@@ -222,10 +233,10 @@ async def update_submission_status(
     session: Session = Depends(get_session),
 ):
     """Update submission status (shortlist/reject/auto_reject manually). Requires label owner auth."""
-    if body.status not in ("inbox", "shortlist", "rejected", "approved", "auto_rejected"):
+    if body.status not in ("inbox", "shortlist", "rejected", "approved", "auto_rejected", "critico"):
         raise HTTPException(
             status_code=400,
-            detail="Status must be 'inbox', 'shortlist', 'rejected', 'approved', or 'auto_rejected'.",
+            detail="Status must be 'inbox', 'shortlist', 'rejected', 'approved', 'auto_rejected', or 'critico'.",
         )
 
     submission = session.get(Submission, submission_id)

@@ -103,10 +103,10 @@ const convertTextToHtml = (text: string, c: Contact | null, labelName: string) =
   const labelVal = labelName || "Sello";
 
   const badges: Record<string, string> = {
-    "{producer}": `<span contenteditable="false" class="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20" data-variable="{producer}">${escapeHtml(name)}</span>\u200B`,
-    "{track}": `<span contenteditable="false" class="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20" data-variable="{track}">${escapeHtml(trackName)}</span>\u200B`,
-    "{bpm}": `<span contenteditable="false" class="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20" data-variable="{bpm}">${escapeHtml(bpmValue)}</span>\u200B`,
-    "{label}": `<span contenteditable="false" class="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20" data-variable="{label}">${escapeHtml(labelVal)}</span>\u200B`
+    "{producer}": `\u200B<span contenteditable="false" class="select-none inline-block align-middle px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20" data-variable="{producer}">${escapeHtml(name)}</span>\u200B `,
+    "{track}": `\u200B<span contenteditable="false" class="select-none inline-block align-middle px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20" data-variable="{track}">${escapeHtml(trackName)}</span>\u200B `,
+    "{bpm}": `\u200B<span contenteditable="false" class="select-none inline-block align-middle px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20" data-variable="{bpm}">${escapeHtml(bpmValue)}</span>\u200B `,
+    "{label}": `\u200B<span contenteditable="false" class="select-none inline-block align-middle px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20" data-variable="{label}">${escapeHtml(labelVal)}</span>\u200B `
   };
 
   Object.entries(badges).forEach(([placeholder, badgeHtml]) => {
@@ -656,15 +656,20 @@ function CRMContent() {
       const span = document.createElement("span");
       span.setAttribute("contenteditable", "false");
       span.setAttribute("data-variable", variable);
-      span.className = "inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20";
+      span.className = "select-none inline-block align-middle px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20";
       span.textContent = textToShow;
 
       range.deleteContents();
       range.insertNode(span);
-      const space = document.createTextNode("\u200B");
-      span.after(space);
-      range.setStartAfter(space);
-      range.setEndAfter(space);
+      
+      const spaceBefore = document.createTextNode("\u200B");
+      span.before(spaceBefore);
+      
+      const spaceAfter = document.createTextNode("\u200B ");
+      span.after(spaceAfter);
+      
+      range.setStartAfter(spaceAfter);
+      range.setEndAfter(spaceAfter);
 
       // Restore focus and set caret right after the badge
       divRef.current.focus();
@@ -740,14 +745,19 @@ function CRMContent() {
         const span = document.createElement("span");
         span.setAttribute("contenteditable", "false");
         span.setAttribute("data-variable", variable);
-        span.className = "inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20 select-all";
+        span.className = "select-none inline-block align-middle px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20";
         span.textContent = textToShow;
 
         range.insertNode(span);
-        const space = document.createTextNode("\u200B");
-        span.after(space);
-        range.setStartAfter(space);
-        range.setEndAfter(space);
+        
+        const spaceBefore = document.createTextNode("\u200B");
+        span.before(spaceBefore);
+        
+        const spaceAfter = document.createTextNode("\u200B ");
+        span.after(spaceAfter);
+        
+        range.setStartAfter(spaceAfter);
+        range.setEndAfter(spaceAfter);
         
         const sel = window.getSelection();
         if (sel) {
@@ -821,14 +831,19 @@ function CRMContent() {
         const span = document.createElement("span");
         span.setAttribute("contenteditable", "false");
         span.setAttribute("data-variable", variable);
-        span.className = "inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20 select-all";
+        span.className = "select-none inline-block align-middle px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20";
         span.textContent = textToShow;
 
         range.insertNode(span);
-        const space = document.createTextNode("\u200B");
-        span.after(space);
-        range.setStartAfter(space);
-        range.setEndAfter(space);
+        
+        const spaceBefore = document.createTextNode("\u200B");
+        span.before(spaceBefore);
+        
+        const spaceAfter = document.createTextNode("\u200B ");
+        span.after(spaceAfter);
+        
+        range.setStartAfter(spaceAfter);
+        range.setEndAfter(spaceAfter);
         
         const sel = window.getSelection();
         if (sel) {

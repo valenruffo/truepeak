@@ -17,6 +17,7 @@ interface SonicSignature {
   auto_reject_rules: { phase: boolean; tempo: boolean; clipping?: boolean; dynamics?: boolean; reject_clipping?: boolean; reject_low_dynamic_range?: boolean };
   allowed_formats?: string[];
   max_upload_size_mb?: number;
+  auto_reject_enabled?: boolean;
 }
 
 const GENRE_PRESETS: Record<string, { bpm: [number, number]; lufs: number; durMax?: number; color: string }> = {
@@ -39,6 +40,7 @@ export default function ConfigPage() {
   const [selectedCamelotKeys, setSelectedCamelotKeys] = useState<string[]>([]);
   const [activePreset, setActivePreset] = useState<string | null>(null);
   const [autoReject, setAutoReject] = useState({ phase: true, tempo: true, clipping: false, dynamics: false });
+  const [autoRejectEnabled, setAutoRejectEnabled] = useState(true);
   const [durationEnabled, setDurationEnabled] = useState(false);
   const [durationMax, setDurationMax] = useState(600);
   const [allowedFormats, setAllowedFormats] = useState<string[]>(["wav", "flac", "aiff"]);
@@ -76,6 +78,7 @@ export default function ConfigPage() {
           clipping: sig.auto_reject_rules?.reject_clipping ?? sig.auto_reject_rules?.clipping ?? true, 
           dynamics: sig.auto_reject_rules?.reject_low_dynamic_range ?? sig.auto_reject_rules?.dynamics ?? true
         });
+        setAutoRejectEnabled(sig.auto_reject_enabled ?? true);
         setDurationEnabled(sig.duration_enabled ?? false);
         if (sig.duration_max) setDurationMax(sig.duration_max);
         setAllowedFormats(sig.allowed_formats ?? ["wav", "flac", "aiff"]);
@@ -103,6 +106,7 @@ export default function ConfigPage() {
             clipping: sig.auto_reject_rules?.reject_clipping ?? true, 
             dynamics: sig.auto_reject_rules?.reject_low_dynamic_range ?? true
           });
+          setAutoRejectEnabled(sig.auto_reject_enabled ?? true);
           setDurationEnabled(sig.duration_enabled ?? false);
           if (sig.duration_max) setDurationMax(sig.duration_max);
           setAllowedFormats(sig.allowed_formats ?? ["wav", "flac", "aiff"]);
@@ -141,7 +145,7 @@ export default function ConfigPage() {
     try {
       const res = await fetch(`${API}/api/labels/${slug}/config`, {
         method: "PUT", headers: getAuthHeaders(), credentials: "include",
-        body: JSON.stringify({ sonic_signature: { bpm_min: bpmRange[0], bpm_max: bpmRange[1], lufs_target: lufsTarget, lufs_tolerance: lufsTolerance, target_camelot_keys: selectedCamelotKeys, preferred_scales: selectedCamelotKeys, duration_enabled: durationEnabled, duration_max: durationEnabled ? durationMax : null, auto_reject_rules: { phase: autoReject.phase, tempo: autoReject.tempo, reject_clipping: autoReject.clipping, reject_low_dynamic_range: autoReject.dynamics }, allowed_formats: allowedFormats, max_upload_size_mb: maxUploadSizeMb } }),
+        body: JSON.stringify({ sonic_signature: { bpm_min: bpmRange[0], bpm_max: bpmRange[1], lufs_target: lufsTarget, lufs_tolerance: lufsTolerance, target_camelot_keys: selectedCamelotKeys, preferred_scales: selectedCamelotKeys, duration_enabled: durationEnabled, duration_max: durationEnabled ? durationMax : null, auto_reject_rules: { phase: autoReject.phase, tempo: autoReject.tempo, reject_clipping: autoReject.clipping, reject_low_dynamic_range: autoReject.dynamics }, allowed_formats: allowedFormats, max_upload_size_mb: maxUploadSizeMb, auto_reject_enabled: autoRejectEnabled } }),
       });
       if (!res.ok) throw new Error(`Error ${res.status}`);
       
@@ -166,7 +170,8 @@ export default function ConfigPage() {
               reject_low_dynamic_range: autoReject.dynamics
             },
             allowed_formats: allowedFormats,
-            max_upload_size_mb: maxUploadSizeMb
+            max_upload_size_mb: maxUploadSizeMb,
+            auto_reject_enabled: autoRejectEnabled
           }
         };
         setCache("tp_link_label_info", nextLabel);
@@ -464,17 +469,30 @@ export default function ConfigPage() {
 
         {/* Auto-Reject Rules */}
         <div className="rounded border p-5" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
-          <label className="text-sm font-medium mb-3 block">{t("config.auto_reject_label")}</label>
-          <div className="flex gap-2 flex-wrap">
-            {[
-              { key: "phase" as const, label: t("config.auto_reject.phase") }, 
-              { key: "tempo" as const, label: t("config.auto_reject.tempo") },
-              { key: "clipping" as const, label: t("config.auto_reject.clipping") },
-              { key: "dynamics" as const, label: t("config.auto_reject.dynamics") }
-            ].map((rule) => (
-              <button key={rule.key} onClick={() => setAutoReject((prev) => ({ ...prev, [rule.key]: !prev[rule.key] }))} className="text-xs px-3 py-1.5 rounded-lg border transition-all active:scale-95" style={{ borderColor: autoReject[rule.key] ? "#ef4444" : "var(--border)", color: autoReject[rule.key] ? "#ef4444" : "var(--text-muted)", background: autoReject[rule.key] ? "rgba(239,68,68,0.1)" : "transparent" }}>{rule.label}</button>
-            ))}
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-3">
+              <label className="text-sm font-medium">{t("config.auto_reject_label")}</label>
+              <button onClick={() => setAutoRejectEnabled((p) => !p)} className="relative w-9 h-5 rounded-full transition-colors cursor-pointer" style={{ background: autoRejectEnabled ? "#10b981" : "var(--border)" }}>
+                <div className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform" style={{ left: autoRejectEnabled ? "calc(100% - 18px)" : "2px" }} />
+              </button>
+            </div>
           </div>
+          <p className="text-xs text-muted mb-4">
+            {t("config.auto_reject.enabled_desc")}
+          </p>
+          
+          {autoRejectEnabled && (
+            <div className="flex gap-2 flex-wrap">
+              {[
+                { key: "phase" as const, label: t("config.auto_reject.phase") }, 
+                { key: "tempo" as const, label: t("config.auto_reject.tempo") },
+                { key: "clipping" as const, label: t("config.auto_reject.clipping") },
+                { key: "dynamics" as const, label: t("config.auto_reject.dynamics") }
+              ].map((rule) => (
+                <button key={rule.key} onClick={() => setAutoReject((prev) => ({ ...prev, [rule.key]: !prev[rule.key] }))} className="text-xs px-3 py-1.5 rounded-lg border transition-all active:scale-95" style={{ borderColor: autoReject[rule.key] ? "#ef4444" : "var(--border)", color: autoReject[rule.key] ? "#ef4444" : "var(--text-muted)", background: autoReject[rule.key] ? "rgba(239,68,68,0.1)" : "transparent" }}>{rule.label}</button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Save Button */}

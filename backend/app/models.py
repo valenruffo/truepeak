@@ -30,6 +30,7 @@ class Label(SQLModel, table=True):
             "lufs_tolerance": 1.0,
             "target_camelot_keys": [],
             "auto_reject_rules": {},
+            "auto_reject_enabled": True,
         },
     )
     created_at: datetime = Field(
@@ -79,6 +80,8 @@ class Submission(SQLModel, table=True):
     musical_key: str | None = None
     true_peak: float | None = None
     crest_factor: float | None = None
+    status_tecnico: str = Field(default="optimo", index=True)  # optimo | warning | critico
+    alertas: list[str] | None = Field(sa_type=JSON, default=None)  # JSON list of diagnostic alerts
     status: str = Field(default="inbox", index=True)  # inbox | shortlist | rejected | auto_rejected
     deleted_at: datetime | None = Field(default=None)
     human_email_sent: bool = Field(default=False)

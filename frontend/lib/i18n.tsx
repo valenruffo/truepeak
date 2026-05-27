@@ -244,6 +244,8 @@ const translations = {
     "inbox.kanban_dj.shortlist_col": "Favoritas",
     "inbox.kanban_dj.rejected_col": "Descartadas",
     "inbox.kanban_dj.auto_rejected_col": "Auto-filtradas",
+    "inbox.kanban.critico_col": "Crítico",
+    "inbox.kanban_dj.critico_col": "Crítico",
     "inbox.kanban.email_sent": "Enviado",
     "inbox.kanban.approve": "Aprobar",
     "inbox.kanban.reject": "Rechazar",
@@ -408,6 +410,8 @@ const translations = {
     "config.auto_reject.tempo": "Fuera de tempo",
     "config.auto_reject.clipping": "Clipping digital",
     "config.auto_reject.dynamics": "Crest Factor < 5dB",
+    "config.auto_reject.enabled": "Habilitar Rechazo Automático",
+    "config.auto_reject.enabled_desc": "Desactívalo para permitir que los tracks críticos se guarden y procesen normalmente en lugar de ser rechazados automáticamente.",
     "config.save": "Guardar firma sónica",
     "config.saving": "Guardando...",
     "config.saved": "✓ Guardado",
@@ -502,9 +506,12 @@ const translations = {
     // Inbox auto-rejected
     "inbox.auto_rejected_badge": "Auto-rechazado",
     "inbox.auto_rejected_reason": "Este track fue auto-rechazado automáticamente por no cumplir con los requisitos técnicos configurados en tu Firma Sónica.",
+    "inbox.diagnostico_tecnico": "Diagnóstico Técnico",
 
     // Settings cancel modal
     "settings.cancel_modal.feature_loss": "Si cancelas, pierdes acceso a tracks ilimitados, almacenamiento HQ extendido y soporte por WhatsApp. Vuelves al plan gratuito.",
+    "validation.alert_singular": "alerta",
+    "validation.alert_plural": "alertas",
   },
   en: {
     // Nav
@@ -745,6 +752,8 @@ const translations = {
     "inbox.kanban_dj.shortlist_col": "Favorites",
     "inbox.kanban_dj.rejected_col": "Discarded",
     "inbox.kanban_dj.auto_rejected_col": "Auto-filtered",
+    "inbox.kanban.critico_col": "Critical",
+    "inbox.kanban_dj.critico_col": "Critical",
     "inbox.kanban.email_sent": "Sent",
     "inbox.kanban.approve": "Approve",
     "inbox.kanban.reject": "Reject",
@@ -909,6 +918,8 @@ const translations = {
     "config.auto_reject.tempo": "Off tempo",
     "config.auto_reject.clipping": "Digital clipping",
     "config.auto_reject.dynamics": "Crest Factor",
+    "config.auto_reject.enabled": "Enable Auto-Rejection",
+    "config.auto_reject.enabled_desc": "Disable to allow critical tracks to be saved and processed normally instead of being automatically rejected.",
     "config.save": "Save sonic signature",
     "config.saving": "Saving...",
     "config.saved": "✓ Saved",
@@ -1003,9 +1014,12 @@ const translations = {
     // Inbox auto-rejected
     "inbox.auto_rejected_badge": "Auto-rejected",
     "inbox.auto_rejected_reason": "This track was auto-rejected for not meeting the technical requirements configured in your Sonic Signature.",
+    "inbox.diagnostico_tecnico": "Technical Diagnosis",
 
     // Settings cancel modal
     "settings.cancel_modal.feature_loss": "If you cancel, you lose access to unlimited tracks, extended HQ storage and WhatsApp support. You'll go back to the free plan.",
+    "validation.alert_singular": "alert",
+    "validation.alert_plural": "alerts",
   },
 };
 

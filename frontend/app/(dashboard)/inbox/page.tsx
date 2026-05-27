@@ -45,6 +45,8 @@ interface SubmissionSummary {
   notes?: string | null;
   producer_instagram?: string | null;
   producer_soundcloud?: string | null;
+  status_tecnico?: string;
+  alertas?: string[] | null;
   created_at: string;
   deleted_at?: string | null;
 }
@@ -170,6 +172,7 @@ function statusBadgeColor(status: string): { bg: string; color: string } {
       return { bg: "rgba(16,185,129,0.15)", color: "#10b981" };
     case "rejected":
     case "auto_rejected":
+    case "critico":
       return { bg: "rgba(239,68,68,0.15)", color: "#ef4444" };
     default:
       return { bg: "rgba(161,161,170,0.15)", color: "#a1a1aa" };
@@ -203,10 +206,10 @@ const convertTextToHtml = (text: string, sub: SubmissionSummary | null, labelNam
   const labelVal = labelName || "Sello";
 
   const badges: Record<string, string> = {
-    "{producer}": `<span contenteditable="false" class="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20" data-variable="{producer}">${escapeHtml(name)}</span>\u200B`,
-    "{track}": `<span contenteditable="false" class="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20" data-variable="{track}">${escapeHtml(trackName)}</span>\u200B`,
-    "{bpm}": `<span contenteditable="false" class="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20" data-variable="{bpm}">${escapeHtml(bpmValue)}</span>\u200B`,
-    "{label}": `<span contenteditable="false" class="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20" data-variable="{label}">${escapeHtml(labelVal)}</span>\u200B`
+    "{producer}": `\u200B<span contenteditable="false" class="select-none inline-block align-middle px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20" data-variable="{producer}">${escapeHtml(name)}</span>\u200B `,
+    "{track}": `\u200B<span contenteditable="false" class="select-none inline-block align-middle px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20" data-variable="{track}">${escapeHtml(trackName)}</span>\u200B `,
+    "{bpm}": `\u200B<span contenteditable="false" class="select-none inline-block align-middle px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20" data-variable="{bpm}">${escapeHtml(bpmValue)}</span>\u200B `,
+    "{label}": `\u200B<span contenteditable="false" class="select-none inline-block align-middle px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20" data-variable="{label}">${escapeHtml(labelVal)}</span>\u200B `
   };
 
   Object.entries(badges).forEach(([placeholder, badgeHtml]) => {
@@ -316,6 +319,8 @@ function statusLabel(status: string, role: "label" | "dj", t: (key: any) => stri
       return t(`${prefix}.rejected_col`);
     case "auto_rejected":
       return t(`${prefix}.auto_rejected_col`);
+    case "critico":
+      return t(`${prefix}.critico_col`);
     default:
       return status;
   }
@@ -447,15 +452,20 @@ function InboxContent() {
       const span = document.createElement("span");
       span.setAttribute("contenteditable", "false");
       span.setAttribute("data-variable", variable);
-      span.className = "inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20";
+      span.className = "select-none inline-block align-middle px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20";
       span.textContent = textToShow;
 
       range.deleteContents();
       range.insertNode(span);
-      const space = document.createTextNode("\u200B");
-      span.after(space);
-      range.setStartAfter(space);
-      range.setEndAfter(space);
+      
+      const spaceBefore = document.createTextNode("\u200B");
+      span.before(spaceBefore);
+      
+      const spaceAfter = document.createTextNode("\u200B ");
+      span.after(spaceAfter);
+      
+      range.setStartAfter(spaceAfter);
+      range.setEndAfter(spaceAfter);
 
       // Restore focus and set caret to position right after the badge
       divRef.current.focus();
@@ -535,14 +545,19 @@ function InboxContent() {
         const span = document.createElement("span");
         span.setAttribute("contenteditable", "false");
         span.setAttribute("data-variable", variable);
-        span.className = "inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20 select-all";
+        span.className = "select-none inline-block align-middle px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20";
         span.textContent = textToShow;
 
         range.insertNode(span);
-        const space = document.createTextNode("\u200B");
-        span.after(space);
-        range.setStartAfter(space);
-        range.setEndAfter(space);
+        
+        const spaceBefore = document.createTextNode("\u200B");
+        span.before(spaceBefore);
+        
+        const spaceAfter = document.createTextNode("\u200B ");
+        span.after(spaceAfter);
+        
+        range.setStartAfter(spaceAfter);
+        range.setEndAfter(spaceAfter);
         
         const sel = window.getSelection();
         if (sel) {
@@ -616,14 +631,19 @@ function InboxContent() {
         const span = document.createElement("span");
         span.setAttribute("contenteditable", "false");
         span.setAttribute("data-variable", variable);
-        span.className = "inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20 select-all";
+        span.className = "select-none inline-block align-middle px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20";
         span.textContent = textToShow;
 
         range.insertNode(span);
-        const space = document.createTextNode("\u200B");
-        span.after(space);
-        range.setStartAfter(space);
-        range.setEndAfter(space);
+        
+        const spaceBefore = document.createTextNode("\u200B");
+        span.before(spaceBefore);
+        
+        const spaceAfter = document.createTextNode("\u200B ");
+        span.after(spaceAfter);
+        
+        range.setStartAfter(spaceAfter);
+        range.setEndAfter(spaceAfter);
         
         const sel = window.getSelection();
         if (sel) {
@@ -1639,6 +1659,24 @@ useEffect(() => {
                 >
                   {statusLabel(sub.status, role, t)}
                 </span>
+                {sub.status_tecnico === "warning" && sub.alertas && sub.alertas.length > 0 && (
+                  <span
+                    className="font-mono text-[10px] px-1.5 py-0.5 rounded flex items-center gap-1 bg-amber-500/10 text-amber-500 border border-amber-500/20 font-semibold"
+                    title={sub.alertas.join(", ")}
+                  >
+                    <AlertTriangle className="w-3 h-3" />
+                    {sub.alertas.length} {sub.alertas.length === 1 ? t("validation.alert_singular") : t("validation.alert_plural")}
+                  </span>
+                )}
+                {sub.status_tecnico === "critico" && sub.alertas && sub.alertas.length > 0 && (
+                  <span
+                    className="font-mono text-[10px] px-1.5 py-0.5 rounded flex items-center gap-1 bg-red-500/10 text-red-500 border border-red-500/20 font-semibold"
+                    title={sub.alertas.join(", ")}
+                  >
+                    <AlertTriangle className="w-3 h-3" />
+                    {sub.alertas.length} {sub.alertas.length === 1 ? t("validation.alert_singular") : t("validation.alert_plural")}
+                  </span>
+                )}
                 <div className="text-[10px]">
                   <ExpirationCountdown createdAt={sub.created_at} retentionDays={retentionDays} />
                 </div>
@@ -2769,27 +2807,59 @@ useEffect(() => {
                     </div>
                   </div>
 
-                  {/* Rejection reason (if any) */}
-                  {(displayReason || sub.status === "auto_rejected") && (
-                    <div className="p-4 rounded-lg bg-red-500/5 border border-red-500/20 shadow-[inset_0_0_20px_rgba(239,68,68,0.05)]">
-                      <div className="flex items-center gap-2 mb-2">
-                        <AlertTriangle className="w-4 h-4 text-red-500" />
-                        <h3 className="text-[10px] font-mono uppercase tracking-widest text-red-400">
-                          {t("inbox.auto_rejected_title")}
-                        </h3>
+                  {/* Technical Diagnosis / Rejection Reasons */}
+                  {sub.alertas && sub.alertas.length > 0 ? (
+                    sub.status_tecnico === "warning" ? (
+                      <div className="p-4 rounded-lg bg-amber-500/5 border border-amber-500/20 shadow-[inset_0_0_20px_rgba(245,158,11,0.05)]">
+                        <div className="flex items-center gap-2 mb-2">
+                          <AlertTriangle className="w-4 h-4 text-amber-500" />
+                          <h3 className="text-[10px] font-mono uppercase tracking-widest text-amber-400 font-bold">
+                            {t("inbox.diagnostico_tecnico")}
+                          </h3>
+                        </div>
+                        <ul className="list-disc list-inside space-y-1 text-sm text-amber-200/90 leading-relaxed font-medium">
+                          {sub.alertas.map((alerta, idx) => (
+                            <li key={idx}>{alerta}</li>
+                          ))}
+                        </ul>
                       </div>
-                      <p className="text-sm text-red-200/90 leading-relaxed font-medium">
-                        {(() => {
-                          if (displayReason === "out_of_tempo") return `BPM fuera de rango. El track tiene ${sub.bpm} BPM y tu firma requiere entre ${bpmMin} y ${bpmMax} BPM.`;
-                          if (displayReason === "excessive_loudness") return `Volumen excesivo. El track mide ${sub.lufs} LUFS y tu límite máximo es ${lufsLimit} LUFS.`;
-                          if (displayReason === "inverted_phase") return `Falla de fase. La correlación es de ${sub.phase_correlation?.toFixed(2)}, por debajo del mínimo de ${phaseMin}.`;
-                          if (displayReason === "wrong_musical_key") return `Tonalidad incorrecta. El track está en ${formatKey(sub.musical_key)} y no coincide con tus escalas preferidas.`;
-                          if (displayReason === "digital_clipping") return `Clipping digital. El True Peak alcanzó ${sub.true_peak} dB (máximo permitido: < 0 dB).`;
-                          if (displayReason === "low_dynamic_range") return `Rango dinámico insuficiente. El Crest Factor es de ${sub.crest_factor} dB (mínimo: ${sonicSignature?.crest_factor_min ?? 5.0} dB).`;
-                          return displayReason || t("inbox.auto_rejected_reason");
-                        })()}
-                      </p>
-                    </div>
+                    ) : (
+                      <div className="p-4 rounded-lg bg-red-500/5 border border-red-500/20 shadow-[inset_0_0_20px_rgba(239,68,68,0.05)]">
+                        <div className="flex items-center gap-2 mb-2">
+                          <AlertTriangle className="w-4 h-4 text-red-500" />
+                          <h3 className="text-[10px] font-mono uppercase tracking-widest text-red-400 font-bold">
+                            {t("inbox.diagnostico_tecnico")}
+                          </h3>
+                        </div>
+                        <ul className="list-disc list-inside space-y-1 text-sm text-red-200/90 leading-relaxed font-medium">
+                          {sub.alertas.map((alerta, idx) => (
+                            <li key={idx}>{alerta}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )
+                  ) : (
+                    (displayReason || sub.status === "auto_rejected") && (
+                      <div className="p-4 rounded-lg bg-red-500/5 border border-red-500/20 shadow-[inset_0_0_20px_rgba(239,68,68,0.05)]">
+                        <div className="flex items-center gap-2 mb-2">
+                          <AlertTriangle className="w-4 h-4 text-red-500" />
+                          <h3 className="text-[10px] font-mono uppercase tracking-widest text-red-400">
+                            {t("inbox.auto_rejected_title")}
+                          </h3>
+                        </div>
+                        <p className="text-sm text-red-200/90 leading-relaxed font-medium">
+                          {(() => {
+                            if (displayReason === "out_of_tempo") return `BPM fuera de rango. El track tiene ${sub.bpm} BPM y tu firma requiere entre ${bpmMin} y ${bpmMax} BPM.`;
+                            if (displayReason === "excessive_loudness") return `Volumen excesivo. El track mide ${sub.lufs} LUFS y tu límite máximo es ${lufsLimit} LUFS.`;
+                            if (displayReason === "inverted_phase") return `Falla de fase. La correlación es de ${sub.phase_correlation?.toFixed(2)}, por debajo del mínimo de ${phaseMin}.`;
+                            if (displayReason === "wrong_musical_key") return `Tonalidad incorrecta. El track está en ${formatKey(sub.musical_key)} y no coincide con tus escalas preferidas.`;
+                            if (displayReason === "digital_clipping") return `Clipping digital. El True Peak alcanzó ${sub.true_peak} dB (máximo permitido: < 0 dB).`;
+                            if (displayReason === "low_dynamic_range") return `Rango dinámico insuficiente. El Crest Factor es de ${sub.crest_factor} dB (mínimo: ${sonicSignature?.crest_factor_min ?? 5.0} dB).`;
+                            return displayReason || t("inbox.auto_rejected_reason");
+                          })()}
+                        </p>
+                      </div>
+                    )
                   )}
                 </div>
               );

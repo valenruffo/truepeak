@@ -31,6 +31,8 @@ class UploadResponse(BaseModel):
     rejection_reason: str | None = None
     mp3_path: str | None = None
     has_original: bool = False
+    status_tecnico: str = "optimo"
+    alertas: list[str] | None = None
 
 
 ORIGINALS_DIR = Path("/app/data/originals")
@@ -205,7 +207,9 @@ async def upload_audio(
                 musical_key=result["metrics"].get("musical_key") if result["metrics"] else None,
                 true_peak=result["metrics"].get("true_peak") if result["metrics"] else None,
                 crest_factor=result["metrics"].get("crest_factor") if result["metrics"] else None,
-                status="inbox" if result["status"] == "approved" else "auto_rejected",
+                status=result["status"],
+                status_tecnico=result.get("status_tecnico", "optimo"),
+                alertas=result.get("alertas"),
                 rejection_reason=result["rejection_reason"],
                 mp3_path=result["mp3_path"],
                 original_path=original_path,
@@ -234,6 +238,8 @@ async def upload_audio(
             rejection_reason=result["rejection_reason"],
             mp3_path=result["mp3_path"],
             has_original=original_path is not None,
+            status_tecnico=result.get("status_tecnico", "optimo"),
+            alertas=result.get("alertas"),
         )
 
     except HTTPException:

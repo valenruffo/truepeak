@@ -16,9 +16,26 @@ engine = create_engine(
     max_overflow=20
 )
 
+migrations = [
+    "ALTER TABLE submission ADD COLUMN status_tecnico VARCHAR(50) DEFAULT 'optimo'",
+    "ALTER TABLE submission ADD COLUMN alertas JSON DEFAULT '[]'"
+]
+
 def init_db() -> None:
     """Create all database tables."""
     SQLModel.metadata.create_all(engine)
+    
+    # Run idempotent raw SQL migrations for existing database columns
+    from sqlalchemy import inspect, text
+    inspector = inspect(engine)
+    if inspector.has_table("submission"):
+        columns = {col["name"] for col in inspector.get_columns("submission")}
+        with Session(engine) as session:
+            if "status_tecnico" not in columns:
+                session.execute(text("ALTER TABLE submission ADD COLUMN status_tecnico VARCHAR(50) DEFAULT 'optimo'"))
+            if "alertas" not in columns:
+                session.execute(text("ALTER TABLE submission ADD COLUMN alertas JSON DEFAULT '[]'"))
+            session.commit()
 
 def get_session() -> Generator[Session, None, None]:
     """Yield a database session, ensuring proper cleanup."""

@@ -4,13 +4,56 @@ Pipeline: analyze → compare against sonic signature → convert/delete → cle
 Every WAV file is guaranteed to be cleaned up — never leaves orphan files.
 """
 
+import math
 import os
+import json
 from pathlib import Path
 from typing import Any
 
 from app.audio.analyzer import analyze_audio
 from app.audio.converter import convert_to_mp3
 from app.audio.exceptions import AudioAnalysisError, ConversionError, FileCleanupError
+from app.services.r2 import upload_file_to_r2, upload_bytes_to_r2
+
+
+def calculate_technical_status(metrics: dict[str, Any]) -> tuple[str, list[str]]:
+    """Calculate the technical validation severity status and alerts.
+    
+    Returns:
+        (status, alertas) - status is "optimo", "warning", or "critico".
+    """
+    alertas = []
+    status = "optimo"
+    
+    # 1. Phase Correlation (REQ-003)
+    phase = metrics.get("phase_correlation")
+    if phase is not None and phase < 0.0:
+        status = "critico"
+        alertas.append(f"Falla de fase: correlación negativa ({phase:.2f})")
+        
+    # 2. True Peak (REQ-002, REQ-003)
+    tp = metrics.get("true_peak", 0.0)
+    tp_db = 20 * math.log10(tp) if tp > 0 else -99.0
+    if tp_db > 2.0:
+        status = "critico"
+        alertas.append(f"True Peak crítico: {tp_db:.2f} dB (límite máximo: +2.0 dB)")
+    elif 0.0 <= tp_db <= 1.5:
+        if status != "critico":
+            status = "warning"
+        alertas.append(f"True Peak alto: {tp_db:.2f} dB (recomendado: < 0.0 dB)")
+
+    # 3. Crest Factor (REQ-002)
+    cf = metrics.get("crest_factor")
+    if cf is not None:
+        if 3.8 <= cf <= 5.0:
+            if status != "critico":
+                status = "warning"
+            alertas.append(f"Rango dinámico bajo (Crest Factor): {cf:.2f} dB")
+        elif cf < 3.8:
+            status = "critico"
+            alertas.append(f"Rango dinámico crítico (Crest Factor): {cf:.2f} dB")
+
+    return status, alertas
 
 
 def _check_sonic_signature(
@@ -23,12 +66,6 @@ def _check_sonic_signature(
         (status, rejection_reason) — status is "approved" or "rejected".
     """
     rules = sonic_signature.get("auto_reject_rules", {})
-
-    # Phase correlation check (strict rejection)
-    if rules.get("phase", False) or rules.get("reject_inverted_phase", False):
-        phase_min = sonic_signature.get("phase_correlation_min", 0.0)
-        if metrics["phase_correlation"] <= phase_min:
-            return "rejected", "inverted_phase"
 
     # LUFS loudness check (Volume control exclusively from slider, unconditional)
     lufs_target = sonic_signature.get("lufs_target", -14.0)
@@ -44,18 +81,6 @@ def _check_sonic_signature(
         track_bpm = round(metrics["bpm"])
         if track_bpm < bpm_min or track_bpm > bpm_max:
             return "rejected", "out_of_tempo"
-
-    # Clipping check
-    if rules.get("reject_clipping", False):
-        if metrics.get("true_peak", 0) >= 0.99:
-            return "rejected", "digital_clipping"
-
-    # Dynamic range / Crest Factor check
-    if rules.get("reject_low_dynamic_range", False):
-        # A default threshold of 5.0 dB represents a very squashed brickwall track
-        cf_threshold = sonic_signature.get("crest_factor_min", 5.0)
-        if metrics.get("crest_factor", 10.0) < cf_threshold:
-            return "rejected", "low_dynamic_range"
 
     # Musical key check (Camelot Wheel)
     if rules.get("reject_wrong_key", False):
@@ -87,38 +112,12 @@ async def process_submission(
 
     Steps:
         1. Analyze audio file (BPM, LUFS, phase correlation, musical key).
-        2. Compare results against sonic signature rules.
-        3. Convert WAV to MP3 preview locally.
-        4. Upload WAV original, MP3 preview, and waveform peaks JSON in combo to R2.
+        2. Compare results against sonic signature rules and severity logic.
+        3. Convert WAV to MP3 preview locally (bypassed if auto_rejected).
+        4. Upload WAV original, MP3 preview, and waveform peaks JSON to R2 (bypassed if auto_rejected).
         5. Clean up all local files (WAV, MP3) from the server immediately.
-
-    Args:
-        file_path: Path to the temporary original audio file.
-        submission_id: UUID of the submission record.
-        label_id: UUID of the label (for logging).
-        sonic_signature: Label's sonic signature configuration.
-
-    Returns:
-        {
-            "status": "approved" | "rejected",
-            "metrics": {"bpm": ..., "lufs": ..., ...},
-            "rejection_reason": str | None,
-            "mp3_path": str | None,
-            "original_path": str | None,
-            "peaks": list[float] | None,
-        }
-
-    Raises:
-        AudioAnalysisError: If analysis fails (caller must handle).
     """
-    import json
-    import os
-    from pathlib import Path
-    from app.services.r2 import upload_file_to_r2, upload_bytes_to_r2
-
     metrics: dict[str, Any] = {}
-    status = "rejected"
-    rejection_reason: str | None = None
     mp3_temp_path: str | None = None
     r2_mp3_url: str | None = None
     r2_original_path: str | None = None
@@ -127,8 +126,40 @@ async def process_submission(
         # Step 1: Analyze audio
         metrics = await analyze_audio(file_path)
 
-        # Step 2: Compare against sonic signature
-        status, rejection_reason = _check_sonic_signature(metrics, sonic_signature)
+        # Step 2: Compare against sonic signature and compute technical status
+        status_tecnico, alertas = calculate_technical_status(metrics)
+        auto_reject_enabled = sonic_signature.get("auto_reject_enabled", True)
+
+        # Check binary rules (LUFS, BPM, Key)
+        binary_status, rejection_reason = _check_sonic_signature(metrics, sonic_signature)
+
+        if binary_status == "rejected":
+            status = "auto_rejected"
+        elif status_tecnico == "critico":
+            if auto_reject_enabled:
+                status = "auto_rejected"
+                rejection_reason = "critical_audio_validation"
+            else:
+                status = "critico"
+                rejection_reason = None
+        else:
+            status = "inbox"
+            rejection_reason = None
+
+        # Check if auto rejected to bypass uploads and mp3 conversion
+        if status == "auto_rejected":
+            # Bypass R2 storage and conversion, clean up local WAV file and return
+            _safe_remove(file_path)
+            return {
+                "status": status,
+                "status_tecnico": status_tecnico,
+                "alertas": alertas,
+                "metrics": metrics,
+                "rejection_reason": rejection_reason,
+                "mp3_path": None,
+                "original_path": None,
+                "peaks": metrics.get("peaks"),
+            }
 
         # Step 3: Convert to MP3 locally in /tmp
         ext = Path(file_path).suffix.lower()
@@ -138,7 +169,7 @@ async def process_submission(
             convert_to_mp3(file_path, mp3_temp_path, bitrate="320k")
         except ConversionError as e:
             # Conversion failed — treat as rejected and raise
-            status = "rejected"
+            status = "auto_rejected"
             rejection_reason = f"conversion_failed: {e}"
             raise AudioAnalysisError(f"Audio conversion failed: {e}") from e
 
@@ -170,13 +201,16 @@ async def process_submission(
         r2_original_path = r2_original_key
 
     finally:
-        # Step 5: ALWAYS clean up local files from Oracle server immediately
-        _safe_remove(file_path)
-        if mp3_temp_path:
+        # Step 5: ALWAYS clean up local files
+        if os.path.exists(file_path):
+            _safe_remove(file_path)
+        if mp3_temp_path and os.path.exists(mp3_temp_path):
             _safe_remove(mp3_temp_path)
 
     return {
         "status": status,
+        "status_tecnico": status_tecnico,
+        "alertas": alertas,
         "metrics": metrics,
         "rejection_reason": rejection_reason,
         "mp3_path": r2_mp3_url,
