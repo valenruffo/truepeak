@@ -1,6 +1,6 @@
 """SQLModel database models for True Peak AI."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
@@ -33,10 +33,10 @@ class Label(SQLModel, table=True):
         },
     )
     created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: datetime.now(UTC),
     )
     updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: datetime.now(UTC),
     )
     logo_path: str | None = None
     plan: str = Field(default="free")  # "free" | "indie" | "pro"
@@ -85,17 +85,21 @@ class Submission(SQLModel, table=True):
     rejection_reason: str | None = None
     mp3_path: str | None = None
     original_path: str | None = None  # WAV/FLAC/AIFF original for download
-    peaks: list[float] | None = Field(sa_type=JSON, default=None)  # Waveform peaks for WaveSurfer.js
+    peaks: list[float] | None = Field(
+        sa_type=JSON, default=None
+    )  # Waveform peaks for WaveSurfer.js
     notes: str | None = None
     producer_instagram: str | None = Field(default=None)
     producer_soundcloud: str | None = Field(default=None)
     hq_downloaded: bool = Field(default=False)  # True once original file has been downloaded
     created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: datetime.now(UTC),
     )
 
     label: Label = Relationship(back_populates="submissions")
-    email_logs: list["EmailLog"] = Relationship(back_populates="submission")
+    email_logs: list["EmailLog"] = Relationship(
+        back_populates="submission", sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
 
 
 class EmailTemplate(SQLModel, table=True):
@@ -123,10 +127,12 @@ class EmailLog(SQLModel, table=True):
     submission_id: str = Field(foreign_key="submission.id", index=True)
     template_id: str | None = Field(foreign_key="email_template.id", nullable=True)
     sent_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: datetime.now(UTC),
     )
     status: str  # sent | failed
     error: str | None = None
+    subject: str | None = Field(default=None, nullable=True)
+    body: str | None = Field(default=None, nullable=True)
 
     submission: Submission = Relationship(back_populates="email_logs")
     template: EmailTemplate | None = Relationship(back_populates="email_logs")

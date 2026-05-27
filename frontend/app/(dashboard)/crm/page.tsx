@@ -350,11 +350,53 @@ function CRMContent() {
   };
 
   useEffect(() => {
-    if (template && contacts.length > 0 && !emailBody) {
-      setEmailSubject(template.subject);
-      setEmailBody(template.body); // Keep placeholders!
+    if (!contact) return;
+
+    if (contact.sent) {
+      // Clear inputs first so we don't show stale content while fetching
+      setEmailSubject("");
+      setEmailBody("");
+      
+      const fetchSentEmail = async () => {
+        try {
+          const res = await fetch(`/api/email/logs/${contact.id}`, { credentials: "include" });
+          if (res.ok) {
+            const data = await res.json();
+            setEmailSubject(data.subject || "");
+            setEmailBody(data.body || "");
+          } else {
+            // Fallback: use current template values or defaults
+            if (template) {
+              setEmailSubject(template.subject);
+              setEmailBody(template.body);
+            } else {
+              setEmailSubject("");
+              setEmailBody("");
+            }
+          }
+        } catch (e) {
+          console.error("Error fetching sent email log", e);
+          // Fallback: use current template values or defaults
+          if (template) {
+            setEmailSubject(template.subject);
+            setEmailBody(template.body);
+          } else {
+            setEmailSubject("");
+            setEmailBody("");
+          }
+        }
+      };
+      fetchSentEmail();
+    } else {
+      if (template) {
+        setEmailSubject(template.subject);
+        setEmailBody(template.body);
+      } else {
+        setEmailSubject("");
+        setEmailBody("");
+      }
     }
-  }, [template, contacts, labelName]);
+  }, [contact?.id, contact?.sent, selectedTemplate, labelName]);
 
   // Sync contenteditable HTML when text or contact details change (body)
   useEffect(() => {
@@ -770,30 +812,43 @@ function CRMContent() {
   const handleBodySelect = () => { if (bodyRef && bodyRef.selectionStart != null) setBodyCursor(bodyRef.selectionStart); };
   const handleSubjectSelect = () => { if (subjectRef && subjectRef.selectionStart != null) setSubjectCursor(subjectRef.selectionStart); };
 
-  const VariableChips = ({ target }: { target: "email" | "template" }) => (
-    <div className="flex gap-1.5 flex-wrap mb-2">
-      {variables.map((v) => (
-        <span
-          key={v.key}
-          draggable
-          onDragStart={(e) => handleDragStart(e, v.key)}
-          onClick={() => {
-            if (target === "email") {
-              insertEmailVariable(v.key, lastActiveField);
-            } else {
-              insertVariable(v.key, "body");
-            }
-          }}
-          className="text-[10px] px-2 py-0.5 rounded border cursor-grab active:cursor-grabbing transition-colors hover:border-emerald-500 hover:bg-emerald-500/5 select-none"
-          style={{ borderColor: "var(--border)", color: "var(--text-muted)", background: "transparent" }}
-          title={v.desc}
-        >
-          +{v.label}
-        </span>
-      ))}
-      <span className="text-[9px] text-muted self-center ml-1">{t("crm.drag_hint")}</span>
-    </div>
-  );
+  const VariableChips = ({ target }: { target: "email" | "template" }) => {
+    const disabled = target === "email" && isAlreadySent;
+    return (
+      <div className={cn("flex gap-1.5 flex-wrap mb-2", disabled && "opacity-50 pointer-events-none")}>
+        {variables.map((v) => (
+          <span
+            key={v.key}
+            draggable={!disabled}
+            onDragStart={(e) => {
+              if (disabled) {
+                e.preventDefault();
+                return;
+              }
+              handleDragStart(e, v.key);
+            }}
+            onClick={() => {
+              if (disabled) return;
+              if (target === "email") {
+                insertEmailVariable(v.key, lastActiveField);
+              } else {
+                insertVariable(v.key, "body");
+              }
+            }}
+            className={cn(
+              "text-[10px] px-2 py-0.5 rounded border transition-colors select-none",
+              disabled ? "cursor-not-allowed" : "cursor-grab active:cursor-grabbing hover:border-emerald-500 hover:bg-emerald-500/5"
+            )}
+            style={{ borderColor: "var(--border)", color: "var(--text-muted)", background: "transparent" }}
+            title={v.desc}
+          >
+            +{v.label}
+          </span>
+        ))}
+        {!disabled && <span className="text-[9px] text-muted self-center ml-1">{t("crm.drag_hint")}</span>}
+      </div>
+    );
+  };
 
   const fetchTemplates = async () => {
     try {
@@ -1113,7 +1168,17 @@ function CRMContent() {
                 <div className="text-[10px] font-mono uppercase tracking-wider text-muted mb-2">{t("crm.template_label")}</div>
                 <div className="flex gap-1.5 flex-wrap">
                   {templates.map((tpl) => (
-                    <button key={tpl.id} onClick={() => handleTemplateChange(tpl.id)} className="text-[10px] px-2.5 py-1 rounded border transition-colors" style={{ borderColor: selectedTemplate === tpl.id ? "#10b981" : "var(--border)", color: selectedTemplate === tpl.id ? "#10b981" : "var(--text-muted)", background: selectedTemplate === tpl.id ? "rgba(16,185,129,0.08)" : "transparent" }}>
+                    <button
+                      key={tpl.id}
+                      disabled={isAlreadySent}
+                      onClick={() => handleTemplateChange(tpl.id)}
+                      className="text-[10px] px-2.5 py-1 rounded border transition-colors disabled:opacity-50"
+                      style={{
+                        borderColor: selectedTemplate === tpl.id ? "#10b981" : "var(--border)",
+                        color: selectedTemplate === tpl.id ? "#10b981" : "var(--text-muted)",
+                        background: selectedTemplate === tpl.id ? "rgba(16,185,129,0.08)" : "transparent"
+                      }}
+                    >
                       {tpl.label}
                     </button>
                   ))}
@@ -1165,7 +1230,7 @@ function CRMContent() {
                   <VariableChips target="email" />
                   <div
                     ref={emailSubjectDivRef}
-                    contentEditable
+                    contentEditable={!isAlreadySent}
                     suppressContentEditableWarning
                     onInput={handleEmailSubjectInput}
                     onKeyDown={handleEmailSubjectKeyDown}
@@ -1187,7 +1252,7 @@ function CRMContent() {
                   <VariableChips target="email" />
                   <div
                     ref={emailBodyDivRef}
-                    contentEditable
+                    contentEditable={!isAlreadySent}
                     suppressContentEditableWarning
                     onInput={handleEmailBodyInput}
                     onFocus={() => setLastActiveField("body")}

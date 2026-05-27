@@ -1,6 +1,7 @@
 """Email API — send, generate draft, template CRUD."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlmodel import Session, select
@@ -16,6 +17,7 @@ router = APIRouter(prefix="/api/email", tags=["email"])
 
 # --- Request / Response schemas ---
 
+
 class SendEmailRequest(BaseModel):
     to: str
     subject: str
@@ -27,6 +29,11 @@ class SendEmailRequest(BaseModel):
 class SendEmailResponse(BaseModel):
     id: str
     status: str
+
+
+class EmailLogResponse(BaseModel):
+    subject: str | None = None
+    body: str | None = None
 
 
 class GenerateEmailRequest(BaseModel):
@@ -84,6 +91,7 @@ def _get_label_from_token(request: Request) -> dict[str, str]:
 
 # --- Endpoints ---
 
+
 @router.post("/send", response_model=SendEmailResponse)
 async def send_email_endpoint(
     body: SendEmailRequest,
@@ -114,13 +122,16 @@ async def send_email_endpoint(
         # Check monthly email quota
         label = session.get(Label, auth["label_id"])
         if label:
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             # Reset counter if new month
             if label.emails_sent_month != now.month:
                 label.emails_sent_this_month = 0
                 label.emails_sent_month = now.month
 
-            if label.max_emails_month > 0 and label.emails_sent_this_month >= label.max_emails_month:
+            if (
+                label.max_emails_month > 0
+                and label.emails_sent_this_month >= label.max_emails_month
+            ):
                 raise HTTPException(
                     status_code=429,
                     detail=f"Monthly email quota exceeded ({label.emails_sent_this_month}/{label.max_emails_month}).",
@@ -141,8 +152,10 @@ async def send_email_endpoint(
         # Create EmailLog record
         log = EmailLog(
             submission_id=body.submission_id or "",
-            sent_at=datetime.now(timezone.utc),
+            sent_at=datetime.now(UTC),
             status="sent",
+            subject=body.subject,
+            body=body.body,
         )
         session.add(log)
 
@@ -164,14 +177,44 @@ async def send_email_endpoint(
         # Log the failure
         log = EmailLog(
             submission_id=body.submission_id or "",
-            sent_at=datetime.now(timezone.utc),
+            sent_at=datetime.now(UTC),
             status="failed",
             error=e.message,
+            subject=body.subject,
+            body=body.body,
         )
         session.add(log)
         session.commit()
 
         raise HTTPException(status_code=e.status_code, detail=e.message)
+
+
+@router.get("/logs/{submission_id}", response_model=EmailLogResponse)
+async def get_email_logs(
+    submission_id: str,
+    auth: dict = Depends(_get_label_from_token),
+    session: Session = Depends(get_session),
+):
+    """Fetch the latest email log details (subject and body) for a submission.
+
+    Verifies label ownership of the submission.
+    """
+    submission = session.get(Submission, submission_id)
+    if not submission:
+        raise HTTPException(status_code=404, detail="Submission not found.")
+    if submission.label_id != auth["label_id"]:
+        raise HTTPException(status_code=403, detail="Access denied to this submission.")
+
+    log = session.exec(
+        select(EmailLog)
+        .where(EmailLog.submission_id == submission_id)
+        .order_by(EmailLog.sent_at.desc())
+    ).first()
+
+    if not log:
+        raise HTTPException(status_code=404, detail="No email log found for this submission.")
+
+    return EmailLogResponse(subject=log.subject, body=log.body)
 
 
 @router.post("/generate", response_model=GenerateEmailResponse)
