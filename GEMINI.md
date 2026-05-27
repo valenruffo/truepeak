@@ -93,7 +93,7 @@ name: str
 slug: str (unique, indexed)
 owner_email: str (unique, indexed)
 password_hash: str (bcrypt)
-sonic_signature: JSON {bpm_min, bpm_max, lufs_target, lufs_tolerance, preferred_scales, auto_reject_rules}
+sonic_signature: JSON {bpm_min, bpm_max, lufs_target, lufs_tolerance, preferred_scales, auto_reject_rules, auto_reject_enabled}
 plan: str ("free"|"indie"|"pro")
 max_tracks_month: int (default 10)
 max_emails_month: int (default 0)
@@ -120,6 +120,8 @@ duration: float | None
 phase_correlation: float | None
 musical_key: str | None
 status: str ("inbox"|"shortlist"|"rejected"|"auto_rejected", indexed)
+status_tecnico: str ("optimo"|"warning"|"critico"|"auto_rejected")
+alertas: JSON (list of strings)
 deleted_at: datetime | None (soft delete)
 human_email_sent: bool (default False)
 rejection_reason: str | None
@@ -164,6 +166,8 @@ migrations = [
     "ALTER TABLE label ADD COLUMN emails_sent_month INTEGER DEFAULT 1",
     "ALTER TABLE submission ADD COLUMN deleted_at DATETIME",
     "ALTER TABLE submission ADD COLUMN human_email_sent BOOLEAN DEFAULT 0",
+    "ALTER TABLE submission ADD COLUMN status_tecnico VARCHAR(50) DEFAULT 'optimo'",
+    "ALTER TABLE submission ADD COLUMN alertas JSON DEFAULT '[]'",
 ]
 ```
 

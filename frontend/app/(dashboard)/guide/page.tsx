@@ -74,6 +74,11 @@ export default function GuidePage() {
     simTrackCrest: "Crest Factor del Track:",
     simStatusApproved: "APROBADO",
     simStatusRejected: "AUTO-RECHAZADO",
+    
+    // Severity levels translations
+    ruleSeverityTitle: "6. Niveles de Gravedad (Validación Técnica)",
+    ruleSeverityDesc: "En lugar de un filtro estrictamente binario, las alertas se clasifican en tres niveles de gravedad:",
+    ruleSeverityExample: "• ÓPTIMO: Todo el análisis cumple con los límites exigidos.\n• ADVERTENCIA (Warning): Se activa si el True Peak está entre 0.0dB y +1.5dB, o el Crest Factor está entre 3.8dB y 5.0dB. El track se sube a R2, se genera MP3 y se guarda en el Kanban con un badge amarillo.\n• CRÍTICO: Se activa si la fase correlación es menor a 0.0 o el True Peak supera +2.0dB. Si el Auto-Rechazo está habilitado se descarta automáticamente; de lo contrario, ingresa con advertencia roja.",
   };
 
   const enText = {
@@ -126,6 +131,11 @@ export default function GuidePage() {
     simTrackCrest: "Track Crest Factor:",
     simStatusApproved: "APPROVED",
     simStatusRejected: "AUTO-REJECTED",
+
+    // Severity levels translations
+    ruleSeverityTitle: "6. Severity Levels (Technical Validation)",
+    ruleSeverityDesc: "Instead of a binary pass/fail verification, issues are classified into three severity levels:",
+    ruleSeverityExample: "• OPTIMAL: The entire analysis complies with the required limits.\n• WARNING: Triggered when True Peak is between 0.0dB and +1.5dB, or Crest Factor is between 3.8dB and 5.0dB. The track is uploaded to R2, MP3 generated, and placed in the Kanban with a yellow warning badge.\n• CRITICAL: Triggered when phase correlation is less than 0.0 or True Peak exceeds +2.0dB. If Auto-Rejection is enabled, the track is discarded; otherwise, it is saved in the Kanban with a red critical error status.",
   };
 
   const text = lang === "es" ? esText : enText;
@@ -367,11 +377,20 @@ export default function GuidePage() {
               </div>
 
               {/* Dynamics Rule */}
-              <div>
+              <div className="pb-6 border-b border-zinc-800/80">
                 <h3 className="text-base font-semibold text-zinc-200 mb-2">{text.ruleDynamicsTitle}</h3>
                 <p className="text-sm text-zinc-400 mb-3">{text.ruleDynamicsDesc}</p>
                 <pre className="text-xs p-3 bg-zinc-950 rounded text-zinc-300 border border-zinc-800/40 whitespace-pre-line font-mono">
                   {text.ruleDynamicsExample}
+                </pre>
+              </div>
+
+              {/* Severity Levels Rule */}
+              <div>
+                <h3 className="text-base font-semibold text-zinc-200 mb-2">{text.ruleSeverityTitle}</h3>
+                <p className="text-sm text-zinc-400 mb-3">{text.ruleSeverityDesc}</p>
+                <pre className="text-xs p-3 bg-zinc-950 rounded text-zinc-300 border border-zinc-800/40 whitespace-pre-line font-mono">
+                  {text.ruleSeverityExample}
                 </pre>
               </div>
             </div>
