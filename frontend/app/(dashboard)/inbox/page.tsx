@@ -203,10 +203,10 @@ const convertTextToHtml = (text: string, sub: SubmissionSummary | null, labelNam
   const labelVal = labelName || "Sello";
 
   const badges: Record<string, string> = {
-    "{producer}": `<span contenteditable="false" class="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20 select-all" data-variable="{producer}">${escapeHtml(name)}</span>`,
-    "{track}": `<span contenteditable="false" class="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20 select-all" data-variable="{track}">${escapeHtml(trackName)}</span>`,
-    "{bpm}": `<span contenteditable="false" class="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20 select-all" data-variable="{bpm}">${escapeHtml(bpmValue)}</span>`,
-    "{label}": `<span contenteditable="false" class="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20 select-all" data-variable="{label}">${escapeHtml(labelVal)}</span>`
+    "{producer}": `<span contenteditable="false" class="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20 select-all" data-variable="{producer}">${escapeHtml(name)}</span>\u200B`,
+    "{track}": `<span contenteditable="false" class="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20 select-all" data-variable="{track}">${escapeHtml(trackName)}</span>\u200B`,
+    "{bpm}": `<span contenteditable="false" class="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20 select-all" data-variable="{bpm}">${escapeHtml(bpmValue)}</span>\u200B`,
+    "{label}": `<span contenteditable="false" class="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20 select-all" data-variable="{label}">${escapeHtml(labelVal)}</span>\u200B`
   };
 
   Object.entries(badges).forEach(([placeholder, badgeHtml]) => {
@@ -449,10 +449,16 @@ function InboxContent() {
       range.setStartAfter(space);
       range.setEndAfter(space);
       
-      if (sel) {
-        sel.removeAllRanges();
-        sel.addRange(range);
-      }
+      setTimeout(() => {
+        if (divRef.current) {
+          divRef.current.focus();
+          const currentSel = window.getSelection();
+          if (currentSel && range) {
+            currentSel.removeAllRanges();
+            currentSel.addRange(range);
+          }
+        }
+      }, 0);
       
       const html = divRef.current.innerHTML;
       const text = convertHtmlToText(html);
