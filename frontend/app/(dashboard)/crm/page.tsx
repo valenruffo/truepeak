@@ -236,11 +236,13 @@ function CRMContent() {
 
   const emailBodyDivRef = useRef<HTMLDivElement | null>(null);
   const lastSyncedTextRef = useRef("");
+  const pendingBodyVariableTextRef = useRef<string | null>(null);
   const lastSyncedContactRef = useRef<Contact | null>(null);
   const lastSyncedLabelRef = useRef("");
 
   const emailSubjectDivRef = useRef<HTMLDivElement | null>(null);
   const lastSyncedSubjectTextRef = useRef("");
+  const pendingSubjectVariableTextRef = useRef<string | null>(null);
   const lastSyncedSubjectContactRef = useRef<Contact | null>(null);
   const lastSyncedSubjectLabelRef = useRef("");
 
@@ -400,6 +402,14 @@ function CRMContent() {
 
   // Sync contenteditable HTML when text or contact details change (body)
   useEffect(() => {
+    if (pendingBodyVariableTextRef.current !== null) {
+      if (emailBody === pendingBodyVariableTextRef.current) {
+        pendingBodyVariableTextRef.current = null;
+        lastSyncedTextRef.current = emailBody;
+      }
+      return;
+    }
+
     const contactChanged = contact !== lastSyncedContactRef.current;
     const labelChanged = labelName !== lastSyncedLabelRef.current;
     const textChanged = emailBody !== lastSyncedTextRef.current;
@@ -421,6 +431,14 @@ function CRMContent() {
 
   // Sync contenteditable HTML when text or contact details change (subject)
   useEffect(() => {
+    if (pendingSubjectVariableTextRef.current !== null) {
+      if (emailSubject === pendingSubjectVariableTextRef.current) {
+        pendingSubjectVariableTextRef.current = null;
+        lastSyncedSubjectTextRef.current = emailSubject;
+      }
+      return;
+    }
+
     const contactChanged = contact !== lastSyncedSubjectContactRef.current;
     const labelChanged = labelName !== lastSyncedSubjectLabelRef.current;
     const textChanged = emailSubject !== lastSyncedSubjectTextRef.current;
@@ -649,10 +667,10 @@ function CRMContent() {
       const text = convertHtmlToText(html);
       
       if (field === "subject") {
-        lastSyncedSubjectTextRef.current = text;
+        pendingSubjectVariableTextRef.current = text;
         setEmailSubject(text);
       } else {
-        lastSyncedTextRef.current = text;
+        pendingBodyVariableTextRef.current = text;
         setEmailBody(text);
       }
     }
@@ -728,7 +746,7 @@ function CRMContent() {
 
         const html = e.currentTarget.innerHTML;
         const text = convertHtmlToText(html);
-        lastSyncedTextRef.current = text;
+        pendingBodyVariableTextRef.current = text;
         setEmailBody(text);
       }
     }
@@ -809,7 +827,7 @@ function CRMContent() {
 
         const html = e.currentTarget.innerHTML;
         const text = convertHtmlToText(html);
-        lastSyncedSubjectTextRef.current = text;
+        pendingSubjectVariableTextRef.current = text;
         setEmailSubject(text);
       }
     }
@@ -832,6 +850,11 @@ function CRMContent() {
                 return;
               }
               handleDragStart(e, v.key);
+            }}
+            onMouseDown={(e) => {
+              if (disabled) return;
+              // Prevent editor blur
+              e.preventDefault();
             }}
             onClick={() => {
               if (disabled) return;

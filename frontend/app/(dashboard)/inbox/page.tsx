@@ -391,11 +391,13 @@ function InboxContent() {
 
   const emailBodyDivRef = useRef<HTMLDivElement | null>(null);
   const lastSyncedTextRef = useRef("");
+  const pendingBodyVariableTextRef = useRef<string | null>(null);
   const lastSyncedContactRef = useRef<SubmissionSummary | null>(null);
   const lastSyncedLabelRef = useRef("");
 
   const emailSubjectDivRef = useRef<HTMLDivElement | null>(null);
   const lastSyncedSubjectTextRef = useRef("");
+  const pendingSubjectVariableTextRef = useRef<string | null>(null);
   const lastSyncedSubjectContactRef = useRef<SubmissionSummary | null>(null);
   const lastSyncedSubjectLabelRef = useRef("");
 
@@ -456,10 +458,10 @@ function InboxContent() {
       const text = convertHtmlToText(html);
       
       if (field === "subject") {
-        lastSyncedSubjectTextRef.current = text;
+        pendingSubjectVariableTextRef.current = text;
         setEmailSubject(text);
       } else {
-        lastSyncedTextRef.current = text;
+        pendingBodyVariableTextRef.current = text;
         setEmailBody(text);
       }
     }
@@ -539,7 +541,7 @@ function InboxContent() {
 
         const html = e.currentTarget.innerHTML;
         const text = convertHtmlToText(html);
-        lastSyncedTextRef.current = text;
+        pendingBodyVariableTextRef.current = text;
         setEmailBody(text);
       }
     }
@@ -620,7 +622,7 @@ function InboxContent() {
 
         const html = e.currentTarget.innerHTML;
         const text = convertHtmlToText(html);
-        lastSyncedSubjectTextRef.current = text;
+        pendingSubjectVariableTextRef.current = text;
         setEmailSubject(text);
       }
     }
@@ -633,6 +635,10 @@ function InboxContent() {
           key={v.key}
           draggable
           onDragStart={(e) => handleDragStart(e, v.key)}
+          onMouseDown={(e) => {
+            // Prevent editor blur
+            e.preventDefault();
+          }}
           onClick={() => {
             insertEmailVariable(v.key, lastActiveField);
           }}
@@ -698,6 +704,14 @@ function InboxContent() {
 
   // Sync contenteditable HTML when text or contact details change (body)
   useEffect(() => {
+    if (pendingBodyVariableTextRef.current !== null) {
+      if (emailBody === pendingBodyVariableTextRef.current) {
+        pendingBodyVariableTextRef.current = null;
+        lastSyncedTextRef.current = emailBody;
+      }
+      return;
+    }
+
     const contactChanged = emailModal.submission !== lastSyncedContactRef.current;
     const labelChanged = labelName !== lastSyncedLabelRef.current;
     const textChanged = emailBody !== lastSyncedTextRef.current;
@@ -717,6 +731,14 @@ function InboxContent() {
 
   // Sync contenteditable HTML when text or contact details change (subject)
   useEffect(() => {
+    if (pendingSubjectVariableTextRef.current !== null) {
+      if (emailSubject === pendingSubjectVariableTextRef.current) {
+        pendingSubjectVariableTextRef.current = null;
+        lastSyncedSubjectTextRef.current = emailSubject;
+      }
+      return;
+    }
+
     const contactChanged = emailModal.submission !== lastSyncedSubjectContactRef.current;
     const labelChanged = labelName !== lastSyncedSubjectLabelRef.current;
     const textChanged = emailSubject !== lastSyncedSubjectTextRef.current;
