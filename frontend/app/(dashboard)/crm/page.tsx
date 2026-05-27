@@ -851,11 +851,6 @@ function CRMContent() {
               }
               handleDragStart(e, v.key);
             }}
-            onMouseDown={(e) => {
-              if (disabled) return;
-              // Prevent editor blur
-              e.preventDefault();
-            }}
             onClick={() => {
               if (disabled) return;
               if (target === "email") {

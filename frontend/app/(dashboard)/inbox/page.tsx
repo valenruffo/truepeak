@@ -635,10 +635,6 @@ function InboxContent() {
           key={v.key}
           draggable
           onDragStart={(e) => handleDragStart(e, v.key)}
-          onMouseDown={(e) => {
-            // Prevent editor blur
-            e.preventDefault();
-          }}
           onClick={() => {
             insertEmailVariable(v.key, lastActiveField);
           }}
