@@ -1,3 +1,12 @@
+# True Peak AI — Project Context for Gemini
+
+> **Domain:** `truepeak.space`  
+> **Repo:** `https://github.com/valenruffo/truepeak`  
+> **Backend VPS:** Oracle Cloud ARM64 (Ampere A1, 4 OCPU, 24GB RAM) at `164.152.194.196:8000`  
+> **SSH:*"C:\Users\valen\Desktop\temps\oracle-ssh.key"* 
+> **Frontend:** Vercel (root `vercel.json` builds `frontend/`)  
+> **WhatsApp:** `+5491135167226`
+
 <!-- CODEGRAPH_START -->
 ## CodeGraph
 

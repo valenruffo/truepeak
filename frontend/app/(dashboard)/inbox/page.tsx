@@ -203,10 +203,10 @@ const convertTextToHtml = (text: string, sub: SubmissionSummary | null, labelNam
   const labelVal = labelName || "Sello";
 
   const badges: Record<string, string> = {
-    "{producer}": `<span contenteditable="false" class="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20 select-all" data-variable="{producer}">${escapeHtml(name)}</span>\u200B`,
-    "{track}": `<span contenteditable="false" class="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20 select-all" data-variable="{track}">${escapeHtml(trackName)}</span>\u200B`,
-    "{bpm}": `<span contenteditable="false" class="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20 select-all" data-variable="{bpm}">${escapeHtml(bpmValue)}</span>\u200B`,
-    "{label}": `<span contenteditable="false" class="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20 select-all" data-variable="{label}">${escapeHtml(labelVal)}</span>\u200B`
+    "{producer}": `<span contenteditable="false" class="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20" data-variable="{producer}">${escapeHtml(name)}</span>\u200B`,
+    "{track}": `<span contenteditable="false" class="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20" data-variable="{track}">${escapeHtml(trackName)}</span>\u200B`,
+    "{bpm}": `<span contenteditable="false" class="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20" data-variable="{bpm}">${escapeHtml(bpmValue)}</span>\u200B`,
+    "{label}": `<span contenteditable="false" class="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20" data-variable="{label}">${escapeHtml(labelVal)}</span>\u200B`
   };
 
   Object.entries(badges).forEach(([placeholder, badgeHtml]) => {
@@ -404,7 +404,7 @@ function InboxContent() {
   // Saved selection range captured on chip mousedown (before focus moves away from editor)
   const savedChipRangeRef = useRef<Range | null>(null);
 
-  const [lastActiveField, setLastActiveField] = useState<"body" | "subject">("body");
+  const lastActiveFieldRef = useRef<"body" | "subject">("body");
   const [dragOverField, setDragOverField] = useState<"email-body" | "email-subject" | null>(null);
 
 
@@ -447,7 +447,7 @@ function InboxContent() {
       const span = document.createElement("span");
       span.setAttribute("contenteditable", "false");
       span.setAttribute("data-variable", variable);
-      span.className = "inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20 select-all";
+      span.className = "inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20";
       span.textContent = textToShow;
 
       range.deleteContents();
@@ -655,7 +655,7 @@ function InboxContent() {
             }
           }}
           onClick={() => {
-            insertEmailVariable(v.key, lastActiveField);
+            insertEmailVariable(v.key, lastActiveFieldRef.current);
           }}
           className="text-[10px] px-2 py-0.5 rounded border cursor-grab active:cursor-grabbing transition-colors hover:border-emerald-500 hover:bg-emerald-500/5 select-none"
           style={{ borderColor: "var(--border)", color: "var(--text-muted)", background: "transparent" }}
@@ -2981,7 +2981,7 @@ useEffect(() => {
                       suppressContentEditableWarning
                       onInput={handleEmailSubjectInput}
                       onKeyDown={handleEmailSubjectKeyDown}
-                      onFocus={() => setLastActiveField("subject")}
+                      onFocus={() => { lastActiveFieldRef.current = "subject"; }}
                       onDragOver={handleEmailSubjectDragOver}
                       onDragLeave={handleEmailSubjectDragLeave}
                       onDrop={handleEmailSubjectDrop}
@@ -3008,7 +3008,7 @@ useEffect(() => {
                       contentEditable
                       suppressContentEditableWarning
                       onInput={handleEmailBodyInput}
-                      onFocus={() => setLastActiveField("body")}
+                      onFocus={() => { lastActiveFieldRef.current = "body"; }}
                       onDragOver={handleEmailBodyDragOver}
                       onDragLeave={handleEmailBodyDragLeave}
                       onDrop={handleEmailBodyDrop}

@@ -103,10 +103,10 @@ const convertTextToHtml = (text: string, c: Contact | null, labelName: string) =
   const labelVal = labelName || "Sello";
 
   const badges: Record<string, string> = {
-    "{producer}": `<span contenteditable="false" class="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20 select-all" data-variable="{producer}">${escapeHtml(name)}</span>\u200B`,
-    "{track}": `<span contenteditable="false" class="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20 select-all" data-variable="{track}">${escapeHtml(trackName)}</span>\u200B`,
-    "{bpm}": `<span contenteditable="false" class="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20 select-all" data-variable="{bpm}">${escapeHtml(bpmValue)}</span>\u200B`,
-    "{label}": `<span contenteditable="false" class="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20 select-all" data-variable="{label}">${escapeHtml(labelVal)}</span>\u200B`
+    "{producer}": `<span contenteditable="false" class="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20" data-variable="{producer}">${escapeHtml(name)}</span>\u200B`,
+    "{track}": `<span contenteditable="false" class="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20" data-variable="{track}">${escapeHtml(trackName)}</span>\u200B`,
+    "{bpm}": `<span contenteditable="false" class="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20" data-variable="{bpm}">${escapeHtml(bpmValue)}</span>\u200B`,
+    "{label}": `<span contenteditable="false" class="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20" data-variable="{label}">${escapeHtml(labelVal)}</span>\u200B`
   };
 
   Object.entries(badges).forEach(([placeholder, badgeHtml]) => {
@@ -249,7 +249,7 @@ function CRMContent() {
   // Saved selection range captured on chip mousedown (before focus moves away from editor)
   const savedChipRangeRef = useRef<Range | null>(null);
 
-  const [lastActiveField, setLastActiveField] = useState<"body" | "subject">("body");
+  const lastActiveFieldRef = useRef<"body" | "subject">("body");
 
   useEffect(() => {
     const fetchData = async () => {
@@ -656,7 +656,7 @@ function CRMContent() {
       const span = document.createElement("span");
       span.setAttribute("contenteditable", "false");
       span.setAttribute("data-variable", variable);
-      span.className = "inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20 select-all";
+      span.className = "inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20";
       span.textContent = textToShow;
 
       range.deleteContents();
@@ -874,7 +874,7 @@ function CRMContent() {
             onClick={() => {
               if (disabled) return;
               if (target === "email") {
-                insertEmailVariable(v.key, lastActiveField);
+                insertEmailVariable(v.key, lastActiveFieldRef.current);
               } else {
                 insertVariable(v.key, "body");
               }
@@ -1278,7 +1278,7 @@ function CRMContent() {
                     suppressContentEditableWarning
                     onInput={handleEmailSubjectInput}
                     onKeyDown={handleEmailSubjectKeyDown}
-                    onFocus={() => setLastActiveField("subject")}
+                    onFocus={() => { lastActiveFieldRef.current = "subject"; }}
                     onDragOver={handleEmailSubjectDragOver}
                     onDragLeave={handleEmailSubjectDragLeave}
                     onDrop={handleEmailSubjectDrop}
@@ -1299,7 +1299,7 @@ function CRMContent() {
                     contentEditable={!isAlreadySent}
                     suppressContentEditableWarning
                     onInput={handleEmailBodyInput}
-                    onFocus={() => setLastActiveField("body")}
+                    onFocus={() => { lastActiveFieldRef.current = "body"; }}
                     onDragOver={handleEmailBodyDragOver}
                     onDragLeave={handleEmailBodyDragLeave}
                     onDrop={handleEmailBodyDrop}

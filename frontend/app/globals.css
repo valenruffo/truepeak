@@ -95,6 +95,12 @@
     caret-color: #10b981 !important;
   }
 
+  /* Add focus styling for contenteditable elements */
+  [contenteditable]:focus {
+    outline: none;
+    border-color: #10b981 !important;
+    box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.3);
+  }
 }
 
 @keyframes scan-line {
