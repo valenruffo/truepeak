@@ -87,6 +87,14 @@
     border-color: #10b981 !important;
     box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.3);
   }
+
+  /* Force a visible theme-colored caret/cursor for editable elements on dark backgrounds */
+  [contenteditable],
+  input,
+  textarea {
+    caret-color: #10b981 !important;
+  }
+
 }
 
 @keyframes scan-line {

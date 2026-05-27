@@ -2950,6 +2950,7 @@ useEffect(() => {
                         lineHeight: "1.5",
                         whiteSpace: "pre-wrap",
                         wordBreak: "break-word",
+                        caretColor: "#10b981",
                       }}
                     />
                   </div>
@@ -2978,6 +2979,7 @@ useEffect(() => {
                         wordBreak: "break-word",
                         overflowY: "auto",
                         maxHeight: "260px",
+                        caretColor: "#10b981",
                       }}
                     />
                   </div>

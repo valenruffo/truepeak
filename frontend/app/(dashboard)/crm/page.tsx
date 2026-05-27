@@ -1329,7 +1329,7 @@ function CRMContent() {
                   onClick={handleSubjectSelect}
                   className="w-full px-3 py-2 rounded border text-sm bg-transparent" 
                   placeholder="Asunto del email..."
-                  style={{ borderColor: "var(--border)", caretColor: dragOverField === "template-subject" ? "#10b981" : undefined }} 
+                  style={{ borderColor: "var(--border)", caretColor: "#10b981" }} 
                 />
               </div>
               <div>
@@ -1347,7 +1347,7 @@ function CRMContent() {
                   className="w-full px-3 py-2 rounded border text-sm bg-transparent resize-none" 
                   rows={6}
                   placeholder="Hola {producer}, recibimos {track}..."
-                  style={{ borderColor: "var(--border)", caretColor: dragOverField === "template-body" ? "#10b981" : undefined }} 
+                  style={{ borderColor: "var(--border)", caretColor: "#10b981" }} 
                 />
               </div>
               <button 
