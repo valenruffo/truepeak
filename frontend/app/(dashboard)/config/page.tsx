@@ -394,10 +394,10 @@ export default function ConfigPage() {
                     onClick={() => setActiveTooltip(activeTooltip === "bpm" ? null : "bpm")}
                     className="ml-1.5 text-zinc-500 hover:text-zinc-300 transition-colors p-0.5 rounded-full hover:bg-zinc-800/50"
                   >
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <circle cx="12" cy="12" r="10" />
-                      <line x1="12" y1="16" x2="12" y2="12" />
-                      <line x1="12" y1="8" x2="12.01" y2="8" />
+                      <path d="M12 16v-4" />
+                      <path d="M12 8h.01" />
                     </svg>
                   </button>
                   {activeTooltip === "bpm" && (
@@ -446,10 +446,10 @@ export default function ConfigPage() {
                     onClick={() => setActiveTooltip(activeTooltip === "lufs" ? null : "lufs")}
                     className="ml-1.5 text-zinc-500 hover:text-zinc-300 transition-colors p-0.5 rounded-full hover:bg-zinc-800/50"
                   >
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <circle cx="12" cy="12" r="10" />
-                      <line x1="12" y1="16" x2="12" y2="12" />
-                      <line x1="12" y1="8" x2="12.01" y2="8" />
+                      <path d="M12 16v-4" />
+                      <path d="M12 8h.01" />
                     </svg>
                   </button>
                   {activeTooltip === "lufs" && (
@@ -500,10 +500,10 @@ export default function ConfigPage() {
                         onClick={() => setActiveTooltip(activeTooltip === "duration" ? null : "duration")}
                         className="ml-1.5 text-zinc-500 hover:text-zinc-300 transition-colors p-0.5 rounded-full hover:bg-zinc-800/50"
                       >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <circle cx="12" cy="12" r="10" />
-                          <line x1="12" y1="16" x2="12" y2="12" />
-                          <line x1="12" y1="8" x2="12.01" y2="8" />
+                          <path d="M12 16v-4" />
+                          <path d="M12 8h.01" />
                         </svg>
                       </button>
                       {activeTooltip === "duration" && (
@@ -666,10 +666,10 @@ export default function ConfigPage() {
                         onClick={() => setActiveTooltip(activeTooltip === "peak" ? null : "peak")}
                         className="ml-1.5 text-zinc-500 hover:text-zinc-300 transition-colors p-0.5 rounded-full hover:bg-zinc-800/50"
                       >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <circle cx="12" cy="12" r="10" />
-                          <line x1="12" y1="16" x2="12" y2="12" />
-                          <line x1="12" y1="8" x2="12.01" y2="8" />
+                          <path d="M12 16v-4" />
+                          <path d="M12 8h.01" />
                         </svg>
                       </button>
                       {activeTooltip === "peak" && (
@@ -724,10 +724,10 @@ export default function ConfigPage() {
                         onClick={() => setActiveTooltip(activeTooltip === "crest" ? null : "crest")}
                         className="ml-1.5 text-zinc-500 hover:text-zinc-300 transition-colors p-0.5 rounded-full hover:bg-zinc-800/50"
                       >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <circle cx="12" cy="12" r="10" />
-                          <line x1="12" y1="16" x2="12" y2="12" />
-                          <line x1="12" y1="8" x2="12.01" y2="8" />
+                          <path d="M12 16v-4" />
+                          <path d="M12 8h.01" />
                         </svg>
                       </button>
                       {activeTooltip === "crest" && (
@@ -782,10 +782,10 @@ export default function ConfigPage() {
                         onClick={() => setActiveTooltip(activeTooltip === "phase" ? null : "phase")}
                         className="ml-1.5 text-zinc-500 hover:text-zinc-300 transition-colors p-0.5 rounded-full hover:bg-zinc-800/50"
                       >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <circle cx="12" cy="12" r="10" />
-                          <line x1="12" y1="16" x2="12" y2="12" />
-                          <line x1="12" y1="8" x2="12.01" y2="8" />
+                          <path d="M12 16v-4" />
+                          <path d="M12 8h.01" />
                         </svg>
                       </button>
                       {activeTooltip === "phase" && (
