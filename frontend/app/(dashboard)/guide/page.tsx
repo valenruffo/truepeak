@@ -14,22 +14,22 @@ export default function GuidePage() {
   const [bpmMax, setBpmMax] = useState(126);
   const [lufsTarget, setLufsTarget] = useState(-14);
   const [lufsTolerance, setLufsTolerance] = useState(2.0);
-  const [rejectPhase, setRejectPhase] = useState(true);
-  const [rejectClipping, setRejectClipping] = useState(true);
-  const [rejectLowDynamics, setRejectLowDynamics] = useState(true);
+  const [autoRejectEnabled, setAutoRejectEnabled] = useState(true);
 
   const [peakLimitMax, setPeakLimitMax] = useState(0.0);
-  const [peakLimitCritical, setPeakLimitCritical] = useState(1.5);
   const [crestFactorMin, setCrestFactorMin] = useState(5.0);
-  const [crestFactorCritical, setCrestFactorCritical] = useState(3.5);
   const [phaseCorrelationMin, setPhaseCorrelationMin] = useState(0.3);
-  const [phaseCorrelationCritical, setPhaseCorrelationCritical] = useState(0.0);
 
   const [trackBpm, setTrackBpm] = useState(126.5);
   const [trackLufs, setTrackLufs] = useState(-11.5);
   const [trackPhase, setTrackPhase] = useState(0.8);
   const [trackPeak, setTrackPeak] = useState(0.2); // DBFS peak
   const [trackCrestFactor, setTrackCrestFactor] = useState(6.5);
+
+  // Auto-calculated technical critical limits (derived state)
+  const peakLimitCritical = peakLimitMax + 1.5;
+  const crestFactorCritical = Math.max(crestFactorMin - 1.5, 2.0);
+  const phaseCorrelationCritical = Math.max(phaseCorrelationMin - 0.3, -0.2);
 
   const [fetching, setFetching] = useState(true);
 
@@ -65,17 +65,10 @@ export default function GuidePage() {
     if (sig.bpm_max !== undefined) setBpmMax(sig.bpm_max);
     if (sig.lufs_target !== undefined) setLufsTarget(sig.lufs_target);
     if (sig.lufs_tolerance !== undefined) setLufsTolerance(sig.lufs_tolerance);
-    if (sig.auto_reject_rules) {
-      if (sig.auto_reject_rules.phase !== undefined) setRejectPhase(sig.auto_reject_rules.phase);
-      if (sig.auto_reject_rules.reject_clipping !== undefined) setRejectClipping(sig.auto_reject_rules.reject_clipping);
-      if (sig.auto_reject_rules.reject_low_dynamic_range !== undefined) setRejectLowDynamics(sig.auto_reject_rules.reject_low_dynamic_range);
-    }
+    if (sig.auto_reject_enabled !== undefined) setAutoRejectEnabled(sig.auto_reject_enabled);
     if (sig.peak_limit_max !== undefined) setPeakLimitMax(sig.peak_limit_max);
-    if (sig.peak_limit_critical !== undefined) setPeakLimitCritical(sig.peak_limit_critical);
     if (sig.crest_factor_min !== undefined) setCrestFactorMin(sig.crest_factor_min);
-    if (sig.crest_factor_critical !== undefined) setCrestFactorCritical(sig.crest_factor_critical);
     if (sig.phase_correlation_min !== undefined) setPhaseCorrelationMin(sig.phase_correlation_min);
-    if (sig.phase_correlation_critical !== undefined) setPhaseCorrelationCritical(sig.phase_correlation_critical);
   };
 
   // Translation Helpers
@@ -98,17 +91,17 @@ export default function GuidePage() {
     ruleLufsDesc: "El volumen máximo permitido se calcula sumando la Tolerancia al Objetivo (Loudness Max = Target + Tolerance).",
     ruleLufsExample: "Si tu Target es -14 LUFS y la Tolerancia es 2.0 dB:\n• El volumen máximo permitido es -12 LUFS (ej. -13 LUFS es APROBADO).\n• Si el track mide -11.5 LUFS, suena demasiado fuerte (AUTO-RECHAZADO por volumen excesivo).",
     
-    rulePhaseTitle: "3. Correlación de Fase",
+    rulePhaseTitle: "3. Compatibilidad Mono (Fase)",
     rulePhaseDesc: "Mide la compatibilidad estéreo de la mezcla (valores entre 1.0 y -1.0).",
-    rulePhaseExample: "Si el filtro de Fase está activo:\n• Un track con correlación menor o igual a 0.0 se AUTO-RECHAZA.\n• ¿Por qué? Valores negativos indican fase invertida, lo que causará que la música desaparezca en sistemas de sonido mono (clubs, teléfonos).",
+    rulePhaseExample: "• Tu límite recomendado es editable. La tolerancia crítica se calcula a -0.3 por debajo del valor recomendado (con piso en -0.2).\n• Si el valor cae por debajo de la advertencia pero por encima del límite crítico, entra como warning.\n• Si es menor al límite crítico (ej: Fase invertida < -0.2), se considera error crítico y se auto-rechaza si el rechazo automático está activo.",
     
-    ruleClippingTitle: "4. Clipping Digital",
-    ruleClippingDesc: "Busca picos que saturen digitalmente (True Peak >= 0.99 dBFS).",
-    ruleClippingExample: "Si está activo, detecta si el máster fue mal limitado y tiene distorsión digital. Si supera 0.99, se AUTO-RECHAZA.",
+    ruleClippingTitle: "4. Techo de Saturación (Clipping)",
+    ruleClippingDesc: "Busca picos que saturen digitalmente (True Peak).",
+    ruleClippingExample: "• Tu límite recomendado es de 0.0 dBFS por defecto.\n• El límite crítico se auto-calcula sumando +1.5 dB (es decir, +1.5 dBFS).\n• Si el True Peak del track supera tu límite recomendado pero está por debajo de +1.5 dB, ingresa con advertencia amarilla.\n• Si supera +1.5 dBFS, se clasifica como crítico y se auto-descarta si el rechazo automático está activo.",
     
-    ruleDynamicsTitle: "5. Crest Factor (Rango Dinámico)",
-    ruleDynamicsDesc: "Mide la diferencia (en dB) entre los picos de volumen y la energía promedio del tema.",
-    ruleDynamicsExample: "Si está activo y el Crest Factor es menor a 5.0 dB, el track se AUTO-RECHAZA por estar hipercomprimido (efecto 'brickwall' o 'ladrillo' sin dinámica).",
+    ruleDynamicsTitle: "5. Dinámica Mínima",
+    ruleDynamicsDesc: "Mide el Crest Factor (rango dinámico) o la diferencia (en dB) entre los picos de volumen y la energía promedio del tema.",
+    ruleDynamicsExample: "• Tu límite recomendado es de 5.0 dB por defecto.\n• El límite crítico de rechazo se calcula restando -1.5 dB (piso en 2.0 dB).\n• Si el Crest Factor del track está por debajo del recomendado pero por encima del crítico, ingresa con advertencia amarilla.\n• Si cae por debajo del crítico (ej: < 3.5 dB), se clasifica como crítico y se auto-descarta si el rechazo automático está activo.",
 
     // Simulator Section
     simTitle: "Simulador Interactivo de Firma Sónica",
@@ -119,9 +112,9 @@ export default function GuidePage() {
     simBpmRange: "Rango de BPM permitido:",
     simLufsTarget: "LUFS Objetivo:",
     simLufsTol: "Tolerancia LUFS:",
-    simFilterPhase: "Filtro de Fase Activo",
-    simFilterClipping: "Filtro de Clipping Activo",
-    simFilterDynamics: "Filtro de Rango Dinámico Activo",
+    simFilterPhase: "Rechazo Automático",
+    simFilterClipping: "Clipping digital",
+    simFilterDynamics: "Dinámica",
     simTrackBpm: "BPM del Track:",
     simTrackLufs: "LUFS del Track:",
     simTrackPhase: "Correlación de Fase del Track:",
@@ -133,7 +126,7 @@ export default function GuidePage() {
     // Severity levels translations
     ruleSeverityTitle: "6. Niveles de Gravedad (Validación Técnica)",
     ruleSeverityDesc: "En lugar de un filtro estrictamente binario, las alertas se clasifican en tres niveles de gravedad:",
-    ruleSeverityExample: "• ÓPTIMO: Todo el análisis cumple con los límites exigidos.\n• ADVERTENCIA (Warning): Se activa si el True Peak está entre 0.0dB y +1.5dB, o el Crest Factor está entre 3.8dB y 5.0dB. El track se sube a R2, se genera MP3 y se guarda en el Kanban con un badge amarillo.\n• CRÍTICO: Se activa si la fase correlación es menor a 0.0 o el True Peak supera +2.0dB. Si el Auto-Rechazo está habilitado se descarta automáticamente; de lo contrario, ingresa con advertencia roja.",
+    ruleSeverityExample: "• ÓPTIMO: Todo el análisis cumple con los límites recomendados.\n• ADVERTENCIA (Warning): Se activa si el True Peak está entre tu recomendado y +1.5dB, o el Crest Factor está entre tu recomendado y -1.5dB (piso 2.0). El track se sube a R2, se genera MP3 y se guarda en el Kanban con un badge amarillo.\n• CRÍTICO: Se activa si la fase correlación es menor a recomendado - 0.3 (piso -0.2) o el True Peak supera recomendado + 1.5dB. Si el Auto-Rechazo está habilitado se descarta automáticamente; de lo contrario, ingresa con advertencia roja.",
   };
 
   const enText = {
@@ -155,17 +148,17 @@ export default function GuidePage() {
     ruleLufsDesc: "The maximum allowed volume is calculated by adding the Tolerance to the Target (Loudness Max = Target + Tolerance).",
     ruleLufsExample: "If your Target is -14 LUFS and Tolerance is 2.0 dB:\n• The maximum allowed volume is -12 LUFS (e.g. -13 LUFS is APPROVED).\n• If the track measures -11.5 LUFS, it is too loud (AUTO-REJECTED for excessive loudness).",
     
-    rulePhaseTitle: "3. Phase Correlation",
+    rulePhaseTitle: "3. Mono Compatibility (Phase)",
     rulePhaseDesc: "Measures the stereo compatibility of the mix (values between 1.0 and -1.0).",
-    rulePhaseExample: "If the Phase filter is active:\n• A track with correlation less than or equal to 0.0 is AUTO-REJECTED.\n• Why? Negative values indicate inverted phase, causing audio cancellation on mono sound systems (clubs, phones).",
+    rulePhaseExample: "• Your recommended limit is editable. The critical tolerance is calculated at -0.3 below the recommended value (with a floor at -0.2).\n• If the value falls below the recommendation but above the critical limit, it triggers a warning.\n• If it falls below the critical limit (e.g. Inverted Phase < -0.2), it is considered a critical error and is auto-rejected if auto-rejection is active.",
     
-    ruleClippingTitle: "4. Digital Clipping",
-    ruleClippingDesc: "Looks for peaks that digitally saturate (True Peak >= 0.99 dBFS).",
-    ruleClippingExample: "If active, it detects if the master was poorly limited and contains digital distortion. If it exceeds 0.99, it is AUTO-REJECTED.",
+    ruleClippingTitle: "4. Saturation Ceiling (Clipping)",
+    ruleClippingDesc: "Looks for peaks that digitally saturate (True Peak).",
+    ruleClippingExample: "• Your recommended limit is 0.0 dBFS by default.\n• The critical limit is auto-calculated by adding +1.5 dB (i.e. +1.5 dBFS).\n• If the track's True Peak exceeds your recommended limit but is below +1.5 dB, it enters with a yellow warning.\n• If it exceeds +1.5 dBFS, it is classified as critical and is auto-discarded if auto-rejection is active.",
     
-    ruleDynamicsTitle: "5. Crest Factor (Dynamic Range)",
-    ruleDynamicsDesc: "Measures the difference (in dB) between peak levels and average energy.",
-    ruleDynamicsExample: "If active and the Crest Factor is less than 5.0 dB, the track is AUTO-REJECTED for being hyper-compressed ('brickwall' effect with no dynamics).",
+    ruleDynamicsTitle: "5. Minimum Dynamics",
+    ruleDynamicsDesc: "Measures the Crest Factor (dynamic range) or the difference (in dB) between peak levels and average energy.",
+    ruleDynamicsExample: "• Your recommended limit is 5.0 dB by default.\n• The critical rejection limit is calculated by subtracting -1.5 dB (floor at 2.0 dB).\n• If the track's Crest Factor is below recommended but above critical, it enters with a yellow warning.\n• If it drops below critical (e.g. < 3.5 dB), it is classified as critical and is auto-discarded if auto-rejection is active.",
 
     // Simulator Section
     simTitle: "Interactive Sonic Signature Simulator",
@@ -176,9 +169,9 @@ export default function GuidePage() {
     simBpmRange: "Allowed BPM Range:",
     simLufsTarget: "LUFS Target:",
     simLufsTol: "LUFS Tolerance:",
-    simFilterPhase: "Phase Filter Active",
-    simFilterClipping: "Clipping Filter Active",
-    simFilterDynamics: "Dynamic Range Filter Active",
+    simFilterPhase: "Auto-Rejection",
+    simFilterClipping: "Clipping filter",
+    simFilterDynamics: "Dynamics filter",
     simTrackBpm: "Track BPM:",
     simTrackLufs: "Track LUFS:",
     simTrackPhase: "Track Phase Correlation:",
@@ -186,11 +179,11 @@ export default function GuidePage() {
     simTrackCrest: "Track Crest Factor:",
     simStatusApproved: "APPROVED",
     simStatusRejected: "AUTO-REJECTED",
-
+    
     // Severity levels translations
     ruleSeverityTitle: "6. Severity Levels (Technical Validation)",
     ruleSeverityDesc: "Instead of a binary pass/fail verification, issues are classified into three severity levels:",
-    ruleSeverityExample: "• OPTIMAL: The entire analysis complies with the required limits.\n• WARNING: Triggered when True Peak is between 0.0dB and +1.5dB, or Crest Factor is between 3.8dB and 5.0dB. The track is uploaded to R2, MP3 generated, and placed in the Kanban with a yellow warning badge.\n• CRITICAL: Triggered when phase correlation is less than 0.0 or True Peak exceeds +2.0dB. If Auto-Rejection is enabled, the track is discarded; otherwise, it is saved in the Kanban with a red critical error status.",
+    ruleSeverityExample: "• OPTIMAL: The entire analysis complies with the recommended limits.\n• WARNING: Triggered when True Peak is between your recommended limit and +1.5dB, or Crest Factor is between your recommended limit and -1.5dB (floor 2.0). The track is uploaded to R2, MP3 generated, and placed in the Kanban with a yellow warning badge.\n• CRITICAL: Triggered when phase correlation is less than your recommended limit - 0.3 (floor -0.2) or True Peak exceeds your recommended limit + 1.5dB. If Auto-Rejection is enabled, the track is discarded; otherwise, it is saved in the Kanban with a red critical error status.",
   };
 
   const text = lang === "es" ? esText : enText;
@@ -200,82 +193,82 @@ export default function GuidePage() {
     const criticals: string[] = [];
     const warnings: string[] = [];
 
-    // 1. BPM check (Critical)
+    // 1. BPM check (Warning vs Critical)
     const roundedBpm = Math.round(trackBpm);
     if (roundedBpm < bpmMin || roundedBpm > bpmMax) {
-      criticals.push(lang === "es"
-        ? `BPM fuera de rango (${roundedBpm} BPM vs límite [${bpmMin} - ${bpmMax}])`
-        : `BPM out of range (${roundedBpm} BPM vs limit [${bpmMin} - ${bpmMax}])`
-      );
+      if ((bpmMin - 3) <= roundedBpm && roundedBpm <= (bpmMax + 3)) {
+        warnings.push(lang === "es"
+          ? `Tempo fuera de rango recomendado (BPM): ${roundedBpm}`
+          : `Tempo out of recommended range (BPM): ${roundedBpm}`
+        );
+      } else {
+        criticals.push(lang === "es"
+          ? `Tempo fuera de rango (BPM): ${roundedBpm}`
+          : `Tempo out of range (BPM): ${roundedBpm}`
+        );
+      }
     }
 
-    // 2. LUFS check (Critical)
+    // 2. LUFS check (Warning vs Critical)
     const lufsMax = lufsTarget + lufsTolerance;
-    if (trackLufs > lufsMax) {
-      criticals.push(lang === "es"
-        ? `LUFS excesivo (${trackLufs} LUFS vs límite ${lufsMax.toFixed(1)} LUFS)`
-        : `LUFS excessive (${trackLufs} LUFS vs limit ${lufsMax.toFixed(1)} LUFS)`
-      );
+    const lufsMin = lufsTarget - lufsTolerance;
+    if (trackLufs > lufsMax || trackLufs < lufsMin) {
+      if (trackLufs <= (lufsMax + 1.5) && trackLufs >= (lufsMin - 1.5)) {
+        warnings.push(lang === "es"
+          ? `Sonoridad fuera de tolerancia (LUFS): ${trackLufs.toFixed(1)}`
+          : `Loudness out of tolerance (LUFS): ${trackLufs.toFixed(1)}`
+        );
+      } else {
+        criticals.push(lang === "es"
+          ? `Sonoridad crítica (LUFS): ${trackLufs.toFixed(1)}`
+          : `Critical loudness (LUFS): ${trackLufs.toFixed(1)}`
+        );
+      }
     }
 
     // 3. Phase check (Warning vs Critical)
-    if (trackPhase < phaseCorrelationCritical) {
-      if (rejectPhase) {
+    if (trackPhase < phaseCorrelationMin) {
+      if (trackPhase < phaseCorrelationCritical) {
         criticals.push(lang === "es"
-          ? `Correlación de fase crítica (${trackPhase.toFixed(2)} vs límite crítico ${phaseCorrelationCritical.toFixed(2)})`
-          : `Critical phase correlation (${trackPhase.toFixed(2)} vs critical limit ${phaseCorrelationCritical.toFixed(2)})`
+          ? `Compatibilidad Mono crítica (Fase): ${trackPhase.toFixed(2)} (límite crítico: ${phaseCorrelationCritical.toFixed(2)})`
+          : `Critical Mono Compatibility (Phase): ${trackPhase.toFixed(2)} (critical limit: ${phaseCorrelationCritical.toFixed(2)})`
         );
       } else {
         warnings.push(lang === "es"
-          ? `Correlación de fase crítica bajo modo manual (${trackPhase.toFixed(2)} vs límite crítico ${phaseCorrelationCritical.toFixed(2)})`
-          : `Critical phase correlation under manual mode (${trackPhase.toFixed(2)} vs critical limit ${phaseCorrelationCritical.toFixed(2)})`
+          ? `Compatibilidad Mono baja (Fase): ${trackPhase.toFixed(2)} (límite recomendado: ${phaseCorrelationMin.toFixed(2)})`
+          : `Low Mono Compatibility (Phase): ${trackPhase.toFixed(2)} (recommended limit: ${phaseCorrelationMin.toFixed(2)})`
         );
       }
-    } else if (trackPhase < phaseCorrelationMin) {
-      warnings.push(lang === "es"
-        ? `Correlación de fase baja (${trackPhase.toFixed(2)} vs límite recomendado ${phaseCorrelationMin.toFixed(2)})`
-        : `Low phase correlation (${trackPhase.toFixed(2)} vs recommended limit ${phaseCorrelationMin.toFixed(2)})`
-      );
     }
 
     // 4. Clipping check (Warning vs Critical)
-    if (trackPeak > peakLimitCritical) {
-      if (rejectClipping) {
+    if (trackPeak > peakLimitMax) {
+      if (trackPeak > peakLimitCritical) {
         criticals.push(lang === "es"
-          ? `True Peak crítico (${trackPeak.toFixed(1)} dB vs límite crítico ${peakLimitCritical.toFixed(1)} dB)`
-          : `Critical True Peak (${trackPeak.toFixed(1)} dB vs critical limit ${peakLimitCritical.toFixed(1)} dB)`
+          ? `Techo de Saturación crítico (True Peak): ${trackPeak.toFixed(1)} dB (límite crítico: ${peakLimitCritical.toFixed(1)} dB)`
+          : `Critical Saturation Ceiling (True Peak): ${trackPeak.toFixed(1)} dB (critical limit: ${peakLimitCritical.toFixed(1)} dB)`
         );
       } else {
         warnings.push(lang === "es"
-          ? `True Peak crítico bajo modo manual (${trackPeak.toFixed(1)} dB vs límite crítico ${peakLimitCritical.toFixed(1)} dB)`
-          : `Critical True Peak under manual mode (${trackPeak.toFixed(1)} dB vs critical limit ${peakLimitCritical.toFixed(1)} dB)`
+          ? `Techo de Saturación elevado (True Peak): ${trackPeak.toFixed(1)} dB (límite recomendado: ${peakLimitMax.toFixed(1)} dB)`
+          : `Elevated Saturation Ceiling (True Peak): ${trackPeak.toFixed(1)} dB (recommended limit: ${peakLimitMax.toFixed(1)} dB)`
         );
       }
-    } else if (trackPeak > peakLimitMax) {
-      warnings.push(lang === "es"
-        ? `True Peak elevado (${trackPeak.toFixed(1)} dB vs límite recomendado ${peakLimitMax.toFixed(1)} dB)`
-        : `Elevated True Peak (${trackPeak.toFixed(1)} dB vs recommended limit ${peakLimitMax.toFixed(1)} dB)`
-      );
     }
 
     // 5. Dynamics check (Warning vs Critical)
-    if (trackCrestFactor < crestFactorCritical) {
-      if (rejectLowDynamics) {
+    if (trackCrestFactor < crestFactorMin) {
+      if (trackCrestFactor < crestFactorCritical) {
         criticals.push(lang === "es"
-          ? `Crest Factor crítico (${trackCrestFactor.toFixed(1)} dB vs límite crítico ${crestFactorCritical.toFixed(1)} dB)`
-          : `Critical Crest Factor (${trackCrestFactor.toFixed(1)} dB vs critical limit ${crestFactorCritical.toFixed(1)} dB)`
+          ? `Dinámica Mínima crítica (Crest Factor): ${trackCrestFactor.toFixed(1)} dB (límite crítico: ${crestFactorCritical.toFixed(1)} dB)`
+          : `Critical Dynamic Range (Crest Factor): ${trackCrestFactor.toFixed(1)} dB (critical limit: ${crestFactorCritical.toFixed(1)} dB)`
         );
       } else {
         warnings.push(lang === "es"
-          ? `Crest Factor crítico bajo modo manual (${trackCrestFactor.toFixed(1)} dB vs límite crítico ${crestFactorCritical.toFixed(1)} dB)`
-          : `Critical Crest Factor under manual mode (${trackCrestFactor.toFixed(1)} dB vs critical limit ${crestFactorCritical.toFixed(1)} dB)`
+          ? `Dinámica Mínima baja (Crest Factor): ${trackCrestFactor.toFixed(1)} dB (límite recomendado: ${crestFactorMin.toFixed(1)} dB)`
+          : `Low Dynamic Range (Crest Factor): ${trackCrestFactor.toFixed(1)} dB (recommended limit: ${crestFactorMin.toFixed(1)} dB)`
         );
       }
-    } else if (trackCrestFactor < crestFactorMin) {
-      warnings.push(lang === "es"
-        ? `Crest Factor bajo (${trackCrestFactor.toFixed(1)} dB vs límite recomendado ${crestFactorMin.toFixed(1)} dB)`
-        : `Low Crest Factor (${trackCrestFactor.toFixed(1)} dB vs recommended limit ${crestFactorMin.toFixed(1)} dB)`
-      );
     }
 
     return { criticals, warnings };
@@ -548,130 +541,92 @@ export default function GuidePage() {
                   </div>
                 </div>
 
-                {/* True Peak thresholds slider */}
-                <div className="grid grid-cols-2 gap-4 pt-2 border-t border-zinc-800/40">
-                  <div>
-                    <label className="text-xs text-zinc-400 block mb-1">
-                      {lang === "es" ? "Peak Max (Adv.):" : "Peak Max (Warn.):"} <span className="text-zinc-200 font-mono font-semibold">{peakLimitMax.toFixed(1)} dB</span>
+                {/* 1. Techo de Saturación / Clipping (True Peak) */}
+                <div className="pt-2 border-t border-zinc-800/40">
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-xs text-zinc-400 font-medium">
+                      {lang === "es" ? "Techo de Saturación / Clipping" : "Saturation Ceiling / Clipping"}
                     </label>
-                    <input
-                      type="range"
-                      min="-2.0"
-                      max="0.0"
-                      step="0.1"
-                      value={peakLimitMax}
-                      onChange={(e) => setPeakLimitMax(Math.min(+e.target.value, peakLimitCritical - 0.1))}
-                      className="w-full accent-emerald-500"
-                    />
+                    <span className="text-xs font-mono font-semibold text-zinc-200">{peakLimitMax.toFixed(1)} dB</span>
                   </div>
-                  <div>
-                    <label className="text-xs text-zinc-400 block mb-1">
-                      {lang === "es" ? "Peak Crítico (Rechazo):" : "Peak Critical (Reject):"} <span className="text-rose-400 font-mono font-semibold">{peakLimitCritical.toFixed(1)} dB</span>
-                    </label>
-                    <input
-                      type="range"
-                      min="0.0"
-                      max="3.0"
-                      step="0.1"
-                      value={peakLimitCritical}
-                      onChange={(e) => setPeakLimitCritical(Math.max(+e.target.value, peakLimitMax + 0.1))}
-                      className="w-full accent-rose-500"
-                    />
+                  <input
+                    type="range"
+                    min="-2.0"
+                    max="0.0"
+                    step="0.1"
+                    value={peakLimitMax}
+                    onChange={(e) => setPeakLimitMax(parseFloat(e.target.value))}
+                    className="w-full accent-emerald-500"
+                  />
+                  <div className="flex justify-between text-[10px] text-zinc-500 mt-0.5">
+                    <span>{lang === "es" ? "Recomendado" : "Recommended"}</span>
+                    <span>{lang === "es" ? `Límite crítico: > ${peakLimitCritical.toFixed(1)} dB` : `Critical limit: > ${peakLimitCritical.toFixed(1)} dB`}</span>
                   </div>
                 </div>
 
-                {/* Crest Factor thresholds slider */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs text-zinc-400 block mb-1">
-                      {lang === "es" ? "Crest Min (Adv.):" : "Crest Min (Warn.):"} <span className="text-zinc-200 font-mono font-semibold">{crestFactorMin.toFixed(1)} dB</span>
+                {/* 2. Dinámica Mínima (Crest Factor) */}
+                <div className="pt-2">
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-xs text-zinc-400 font-medium">
+                      {lang === "es" ? "Dinámica Mínima (Crest Factor)" : "Minimum Dynamics (Crest Factor)"}
                     </label>
-                    <input
-                      type="range"
-                      min="4.0"
-                      max="10.0"
-                      step="0.1"
-                      value={crestFactorMin}
-                      onChange={(e) => setCrestFactorMin(Math.max(+e.target.value, crestFactorCritical + 0.1))}
-                      className="w-full accent-emerald-500"
-                    />
+                    <span className="text-xs font-mono font-semibold text-zinc-200">{crestFactorMin.toFixed(1)} dB</span>
                   </div>
-                  <div>
-                    <label className="text-xs text-zinc-400 block mb-1">
-                      {lang === "es" ? "Crest Crítico (Rechazo):" : "Crest Critical (Reject):"} <span className="text-rose-400 font-mono font-semibold">{crestFactorCritical.toFixed(1)} dB</span>
-                    </label>
-                    <input
-                      type="range"
-                      min="3.0"
-                      max="6.0"
-                      step="0.1"
-                      value={crestFactorCritical}
-                      onChange={(e) => setCrestFactorCritical(Math.min(+e.target.value, crestFactorMin - 0.1))}
-                      className="w-full accent-rose-500"
-                    />
+                  <input
+                    type="range"
+                    min="4.0"
+                    max="10.0"
+                    step="0.1"
+                    value={crestFactorMin}
+                    onChange={(e) => setCrestFactorMin(parseFloat(e.target.value))}
+                    className="w-full accent-emerald-500"
+                  />
+                  <div className="flex justify-between text-[10px] text-zinc-500 mt-0.5">
+                    <span>{lang === "es" ? "Recomendado" : "Recommended"}</span>
+                    <span>{lang === "es" ? `Límite crítico: < ${crestFactorCritical.toFixed(1)} dB` : `Critical limit: < ${crestFactorCritical.toFixed(1)} dB`}</span>
                   </div>
                 </div>
 
-                {/* Phase Correlation thresholds slider */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs text-zinc-400 block mb-1">
-                      {lang === "es" ? "Fase Min (Adv.):" : "Phase Min (Warn.):"} <span className="text-zinc-200 font-mono font-semibold">{phaseCorrelationMin.toFixed(2)}</span>
+                {/* 3. Compatibilidad Mono (Fase) */}
+                <div className="pt-2">
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-xs text-zinc-400 font-medium">
+                      {lang === "es" ? "Compatibilidad Mono (Fase)" : "Mono Compatibility (Phase)"}
                     </label>
-                    <input
-                      type="range"
-                      min="0.0"
-                      max="0.5"
-                      step="0.05"
-                      value={phaseCorrelationMin}
-                      onChange={(e) => setPhaseCorrelationMin(Math.max(+e.target.value, phaseCorrelationCritical + 0.01))}
-                      className="w-full accent-emerald-500"
-                    />
+                    <span className="text-xs font-mono font-semibold text-zinc-200">{phaseCorrelationMin.toFixed(2)}</span>
                   </div>
-                  <div>
-                    <label className="text-xs text-zinc-400 block mb-1">
-                      {lang === "es" ? "Fase Crítica (Rechazo):" : "Phase Critical (Reject):"} <span className="text-rose-400 font-mono font-semibold">{phaseCorrelationCritical.toFixed(2)}</span>
-                    </label>
-                    <input
-                      type="range"
-                      min="-0.2"
-                      max="0.2"
-                      step="0.05"
-                      value={phaseCorrelationCritical}
-                      onChange={(e) => setPhaseCorrelationCritical(Math.min(+e.target.value, phaseCorrelationMin - 0.01))}
-                      className="w-full accent-rose-500"
-                    />
+                  <input
+                    type="range"
+                    min="0.0"
+                    max="0.5"
+                    step="0.05"
+                    value={phaseCorrelationMin}
+                    onChange={(e) => setPhaseCorrelationMin(parseFloat(e.target.value))}
+                    className="w-full accent-emerald-500"
+                  />
+                  <div className="flex justify-between text-[10px] text-zinc-500 mt-0.5">
+                    <span>{lang === "es" ? "Recomendado" : "Recommended"}</span>
+                    <span>{lang === "es" ? `Límite crítico: < ${phaseCorrelationCritical.toFixed(2)}` : `Critical limit: < ${phaseCorrelationCritical.toFixed(2)}`}</span>
                   </div>
                 </div>
 
-                {/* Filters checkbox toggles */}
-                <div className="grid grid-cols-3 gap-2 pt-2 border-t border-zinc-800/60">
-                  <label className="flex items-center gap-2 text-xs text-zinc-400 cursor-pointer">
+                {/* Master Auto-Reject Toggle */}
+                <div className="pt-3 border-t border-zinc-800/60">
+                  <label className="flex items-center gap-2.5 text-xs text-zinc-300 cursor-pointer select-none">
                     <input
                       type="checkbox"
-                      checked={rejectPhase}
-                      onChange={(e) => setRejectPhase(e.target.checked)}
-                      className="rounded accent-emerald-500"
+                      checked={autoRejectEnabled}
+                      onChange={(e) => setAutoRejectEnabled(e.target.checked)}
+                      className="rounded accent-emerald-500 w-4 h-4 bg-zinc-950 border-zinc-800"
                     />
-                    <span>Fase</span>
-                  </label>
-                  <label className="flex items-center gap-2 text-xs text-zinc-400 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={rejectClipping}
-                      onChange={(e) => setRejectClipping(e.target.checked)}
-                      className="rounded accent-emerald-500"
-                    />
-                    <span>Clipping</span>
-                  </label>
-                  <label className="flex items-center gap-2 text-xs text-zinc-400 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={rejectLowDynamics}
-                      onChange={(e) => setRejectLowDynamics(e.target.checked)}
-                      className="rounded accent-emerald-500"
-                    />
-                    <span>Dinámica</span>
+                    <div>
+                      <span className="font-semibold block">{lang === "es" ? "Habilitar Rechazo Automático" : "Enable Auto-Rejection"}</span>
+                      <span className="text-[10px] text-zinc-500 block leading-tight mt-0.5">
+                        {lang === "es" 
+                          ? "Si el track tiene problemas críticos, se rechaza automáticamente. De lo contrario, entra con warning."
+                          : "If the track has critical issues, it is auto-rejected. Otherwise, it enters with a warning."}
+                      </span>
+                    </div>
                   </label>
                 </div>
               </div>
@@ -780,20 +735,20 @@ export default function GuidePage() {
           <div className="md:col-span-2">
             <div className="sticky top-6 p-5 rounded-lg border flex flex-col h-full justify-between gap-6" style={{
               background: "var(--bg-secondary)",
-              borderColor: criticals.length > 0 ? "rgba(239,68,68,0.25)" : warnings.length > 0 ? "rgba(245,158,11,0.25)" : "rgba(16,185,129,0.25)"
+              borderColor: (criticals.length > 0 && autoRejectEnabled) ? "rgba(239,68,68,0.25)" : (criticals.length > 0 || warnings.length > 0) ? "rgba(245,158,11,0.25)" : "rgba(16,185,129,0.25)"
             }}>
               <div>
                 <h3 className="text-sm font-semibold text-zinc-400 mb-4">{text.simResultSection}</h3>
                 
                 {/* Visual state badge */}
                 <div className={`py-4 px-6 rounded-md text-center font-bold text-lg mb-4 flex flex-col gap-1 items-center justify-center transition-all ${
-                  criticals.length > 0 
+                  (criticals.length > 0 && autoRejectEnabled)
                     ? "bg-rose-500/10 text-rose-400 border border-rose-500/20" 
-                    : warnings.length > 0
+                    : (criticals.length > 0 || warnings.length > 0)
                     ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
                     : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
                 }`}>
-                  {criticals.length > 0 ? (
+                  {criticals.length > 0 && autoRejectEnabled ? (
                     <>
                       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="mb-1 animate-bounce">
                         <circle cx="12" cy="12" r="10" />
@@ -802,14 +757,14 @@ export default function GuidePage() {
                       </svg>
                       {text.simStatusRejected} ({criticals.length} {criticals.length === 1 ? (lang === "es" ? "crítico" : "critical") : (lang === "es" ? "críticos" : "criticals")})
                     </>
-                  ) : warnings.length > 0 ? (
+                  ) : (criticals.length > 0 && !autoRejectEnabled) || warnings.length > 0 ? (
                     <>
                       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="mb-1">
                         <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
                         <line x1="12" y1="9" x2="12" y2="13" />
                         <line x1="12" y1="17" x2="12.01" y2="17" />
                       </svg>
-                      {lang === "es" ? "APROBADO CON ALERTAS" : "APPROVED WITH ALERTS"} ({warnings.length} {warnings.length === 1 ? (lang === "es" ? "alerta" : "alert") : (lang === "es" ? "alertas" : "alerts")})
+                      {lang === "es" ? "APROBADO CON ALERTAS" : "APPROVED WITH ALERTS"} ({criticals.length + warnings.length} {criticals.length + warnings.length === 1 ? (lang === "es" ? "alerta" : "alert") : (lang === "es" ? "alertas" : "alerts")})
                     </>
                   ) : (
                     <>
