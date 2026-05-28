@@ -504,8 +504,21 @@ export default function ConfigPage() {
           <>
             <div className="rounded border p-5" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
               <div className="flex items-center justify-between mb-4 pb-2 border-b border-[var(--border)]">
-                <label className="text-sm font-semibold">{t("config.tech_limits_label")}</label>
-                <span className="text-[10px] text-muted">{t("config.tech_limits_desc")}</span>
+                <div className="flex flex-col">
+                  <label className="text-sm font-semibold">{t("config.tech_limits_label")}</label>
+                  <span className="text-[10px] text-muted mt-0.5">{t("config.tech_limits_desc")}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPeakLimitMax(0.0);
+                    setCrestFactorMin(5.0);
+                    setPhaseCorrelationMin(0.30);
+                  }}
+                  className="px-3 py-1.5 text-xs font-medium rounded-md border border-emerald-500/30 hover:border-emerald-500/60 bg-emerald-950/20 hover:bg-emerald-500/10 text-emerald-400 transition-all hover:shadow-[0_0_12px_rgba(16,185,129,0.1)] active:scale-95 duration-200"
+                >
+                  {t("config.reset_recommended")}
+                </button>
               </div>
 
               <div className="space-y-6">
