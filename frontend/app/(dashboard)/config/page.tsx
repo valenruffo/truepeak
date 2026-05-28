@@ -38,6 +38,7 @@ const GENRE_PRESETS: Record<string, { bpm: [number, number]; lufs: number; durMa
 export default function ConfigPage() {
   const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState<"catalog" | "sonic_signature" | "glossary">("catalog");
+  const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
   const [bpmRange, setBpmRange] = useState([120, 128]);
   const [lufsTarget, setLufsTarget] = useState(-14);
   const [lufsTolerance, setLufsTolerance] = useState(2);
@@ -384,9 +385,31 @@ export default function ConfigPage() {
                 <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in" style={{ background: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.2)" }}>
                   {t("config.badge.warning")}: {bpmRange[0] - 3}–{bpmRange[0] - 1} / {bpmRange[1] + 1}–{bpmRange[1] + 3} BPM
                 </span>
-                <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in cursor-help" title={t("config.tooltip.no_reject_critico")} style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
+                <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in" style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
                   {t("config.badge.critico")}: &lt; {bpmRange[0] - 3} o &gt; {bpmRange[1] + 3} BPM {t("config.badge.no_auto_reject")}
                 </span>
+                <div className="relative inline-flex items-center">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTooltip(activeTooltip === "bpm" ? null : "bpm")}
+                    className="ml-1.5 text-zinc-500 hover:text-zinc-300 transition-colors p-0.5 rounded-full hover:bg-zinc-800/50"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="12" y1="16" x2="12" y2="12" />
+                      <line x1="12" y1="8" x2="12.01" y2="8" />
+                    </svg>
+                  </button>
+                  {activeTooltip === "bpm" && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setActiveTooltip(null)} />
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 rounded-lg border border-zinc-700 bg-zinc-950 text-zinc-200 text-xs shadow-xl z-50 animate-fade-in leading-relaxed text-center font-sans">
+                        {t("config.tooltip.no_reject_critico")}
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 w-2 h-2 bg-zinc-950 border-r border-b border-zinc-700 rotate-45 -mt-1" />
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -414,9 +437,31 @@ export default function ConfigPage() {
                 <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in" style={{ background: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.2)" }}>
                   {t("config.badge.warning")}: {(lufsTarget - lufsTolerance - 1.5).toFixed(1)} a {(lufsTarget - lufsTolerance).toFixed(1)} / {(lufsTarget + lufsTolerance).toFixed(1)} a {(lufsTarget + lufsTolerance + 1.5).toFixed(1)} LUFS
                 </span>
-                <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in cursor-help" title={t("config.tooltip.no_reject_critico")} style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
+                <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in" style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
                   {t("config.badge.critico")}: &lt; {(lufsTarget - lufsTolerance - 1.5).toFixed(1)} o &gt; {(lufsTarget + lufsTolerance + 1.5).toFixed(1)} LUFS {t("config.badge.no_auto_reject")}
                 </span>
+                <div className="relative inline-flex items-center">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTooltip(activeTooltip === "lufs" ? null : "lufs")}
+                    className="ml-1.5 text-zinc-500 hover:text-zinc-300 transition-colors p-0.5 rounded-full hover:bg-zinc-800/50"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="12" y1="16" x2="12" y2="12" />
+                      <line x1="12" y1="8" x2="12.01" y2="8" />
+                    </svg>
+                  </button>
+                  {activeTooltip === "lufs" && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setActiveTooltip(null)} />
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 rounded-lg border border-zinc-700 bg-zinc-950 text-zinc-200 text-xs shadow-xl z-50 animate-fade-in leading-relaxed text-center font-sans">
+                        {t("config.tooltip.no_reject_critico")}
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 w-2 h-2 bg-zinc-950 border-r border-b border-zinc-700 rotate-45 -mt-1" />
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -446,9 +491,31 @@ export default function ConfigPage() {
                     <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in" style={{ background: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.2)" }}>
                       {t("config.badge.warning")}: {Math.floor(durationMax / 60)}:{String(durationMax % 60).padStart(2, "0")} — {Math.floor((durationMax + 120) / 60)}:{String((durationMax + 120) % 60).padStart(2, "0")}
                     </span>
-                    <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in cursor-help" title={t("config.tooltip.no_reject_critico")} style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
+                    <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in" style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
                       {t("config.badge.critico")}: &gt; {Math.floor((durationMax + 120) / 60)}:{String((durationMax + 120) % 60).padStart(2, "0")} {t("config.badge.no_auto_reject")}
                     </span>
+                    <div className="relative inline-flex items-center">
+                      <button
+                        type="button"
+                        onClick={() => setActiveTooltip(activeTooltip === "duration" ? null : "duration")}
+                        className="ml-1.5 text-zinc-500 hover:text-zinc-300 transition-colors p-0.5 rounded-full hover:bg-zinc-800/50"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                          <circle cx="12" cy="12" r="10" />
+                          <line x1="12" y1="16" x2="12" y2="12" />
+                          <line x1="12" y1="8" x2="12.01" y2="8" />
+                        </svg>
+                      </button>
+                      {activeTooltip === "duration" && (
+                        <>
+                          <div className="fixed inset-0 z-40" onClick={() => setActiveTooltip(null)} />
+                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 rounded-lg border border-zinc-700 bg-zinc-950 text-zinc-200 text-xs shadow-xl z-50 animate-fade-in leading-relaxed text-center font-sans">
+                            {t("config.tooltip.no_reject_critico")}
+                            <div className="absolute top-full left-1/2 -translate-x-1/2 w-2 h-2 bg-zinc-950 border-r border-b border-zinc-700 rotate-45 -mt-1" />
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </>
               )}
@@ -590,9 +657,31 @@ export default function ConfigPage() {
                     <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in" style={{ background: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.2)" }}>
                       {t("config.badge.warning")}: {peakLimitMax.toFixed(1)} — {(peakLimitMax + 1.5).toFixed(1)} dB
                     </span>
-                    <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in cursor-help" title={autoRejectEnabled ? t("config.tooltip.reject_critico") : t("config.tooltip.reject_disabled")} style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
+                    <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in" style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
                       {t("config.badge.critico")}: &gt; {(peakLimitMax + 1.5).toFixed(1)} dB
                     </span>
+                    <div className="relative inline-flex items-center">
+                      <button
+                        type="button"
+                        onClick={() => setActiveTooltip(activeTooltip === "peak" ? null : "peak")}
+                        className="ml-1.5 text-zinc-500 hover:text-zinc-300 transition-colors p-0.5 rounded-full hover:bg-zinc-800/50"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                          <circle cx="12" cy="12" r="10" />
+                          <line x1="12" y1="16" x2="12" y2="12" />
+                          <line x1="12" y1="8" x2="12.01" y2="8" />
+                        </svg>
+                      </button>
+                      {activeTooltip === "peak" && (
+                        <>
+                          <div className="fixed inset-0 z-40" onClick={() => setActiveTooltip(null)} />
+                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 rounded-lg border border-zinc-700 bg-zinc-950 text-zinc-200 text-xs shadow-xl z-50 animate-fade-in leading-relaxed text-center font-sans">
+                            {autoRejectEnabled ? t("config.tooltip.reject_critico") : t("config.tooltip.reject_disabled")}
+                            <div className="absolute top-full left-1/2 -translate-x-1/2 w-2 h-2 bg-zinc-950 border-r border-b border-zinc-700 rotate-45 -mt-1" />
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -626,9 +715,31 @@ export default function ConfigPage() {
                     <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in" style={{ background: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.2)" }}>
                       {t("config.badge.warning")}: {Math.max(crestFactorMin - 1.5, 2.0).toFixed(1)} — {crestFactorMin.toFixed(1)} dB
                     </span>
-                    <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in cursor-help" title={autoRejectEnabled ? t("config.tooltip.reject_critico") : t("config.tooltip.reject_disabled")} style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
+                    <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in" style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
                       {t("config.badge.critico")}: &lt; {Math.max(crestFactorMin - 1.5, 2.0).toFixed(1)} dB
                     </span>
+                    <div className="relative inline-flex items-center">
+                      <button
+                        type="button"
+                        onClick={() => setActiveTooltip(activeTooltip === "crest" ? null : "crest")}
+                        className="ml-1.5 text-zinc-500 hover:text-zinc-300 transition-colors p-0.5 rounded-full hover:bg-zinc-800/50"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                          <circle cx="12" cy="12" r="10" />
+                          <line x1="12" y1="16" x2="12" y2="12" />
+                          <line x1="12" y1="8" x2="12.01" y2="8" />
+                        </svg>
+                      </button>
+                      {activeTooltip === "crest" && (
+                        <>
+                          <div className="fixed inset-0 z-40" onClick={() => setActiveTooltip(null)} />
+                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 rounded-lg border border-zinc-700 bg-zinc-950 text-zinc-200 text-xs shadow-xl z-50 animate-fade-in leading-relaxed text-center font-sans">
+                            {autoRejectEnabled ? t("config.tooltip.reject_critico") : t("config.tooltip.reject_disabled")}
+                            <div className="absolute top-full left-1/2 -translate-x-1/2 w-2 h-2 bg-zinc-950 border-r border-b border-zinc-700 rotate-45 -mt-1" />
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -662,9 +773,31 @@ export default function ConfigPage() {
                     <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in" style={{ background: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.2)" }}>
                       {t("config.badge.warning")}: {Math.max(phaseCorrelationMin - 0.3, -0.2).toFixed(2)} — {phaseCorrelationMin.toFixed(2)}
                     </span>
-                    <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in cursor-help" title={autoRejectEnabled ? t("config.tooltip.reject_critico") : t("config.tooltip.reject_disabled")} style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
+                    <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in" style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
                       {t("config.badge.critico")}: &lt; {Math.max(phaseCorrelationMin - 0.3, -0.2).toFixed(2)}
                     </span>
+                    <div className="relative inline-flex items-center">
+                      <button
+                        type="button"
+                        onClick={() => setActiveTooltip(activeTooltip === "phase" ? null : "phase")}
+                        className="ml-1.5 text-zinc-500 hover:text-zinc-300 transition-colors p-0.5 rounded-full hover:bg-zinc-800/50"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                          <circle cx="12" cy="12" r="10" />
+                          <line x1="12" y1="16" x2="12" y2="12" />
+                          <line x1="12" y1="8" x2="12.01" y2="8" />
+                        </svg>
+                      </button>
+                      {activeTooltip === "phase" && (
+                        <>
+                          <div className="fixed inset-0 z-40" onClick={() => setActiveTooltip(null)} />
+                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 rounded-lg border border-zinc-700 bg-zinc-950 text-zinc-200 text-xs shadow-xl z-50 animate-fade-in leading-relaxed text-center font-sans">
+                            {autoRejectEnabled ? t("config.tooltip.reject_critico") : t("config.tooltip.reject_disabled")}
+                            <div className="absolute top-full left-1/2 -translate-x-1/2 w-2 h-2 bg-zinc-950 border-r border-b border-zinc-700 rotate-45 -mt-1" />
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
