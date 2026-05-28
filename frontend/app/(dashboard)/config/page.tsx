@@ -384,7 +384,7 @@ export default function ConfigPage() {
                 <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in" style={{ background: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.2)" }}>
                   {t("config.badge.warning")}: {bpmRange[0] - 3}–{bpmRange[0] - 1} / {bpmRange[1] + 1}–{bpmRange[1] + 3} BPM
                 </span>
-                <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in" style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
+                <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in cursor-help" title={t("config.tooltip.no_reject_critico")} style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
                   {t("config.badge.critico")}: &lt; {bpmRange[0] - 3} o &gt; {bpmRange[1] + 3} BPM {t("config.badge.no_auto_reject")}
                 </span>
               </div>
@@ -414,7 +414,7 @@ export default function ConfigPage() {
                 <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in" style={{ background: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.2)" }}>
                   {t("config.badge.warning")}: {(lufsTarget - lufsTolerance - 1.5).toFixed(1)} a {(lufsTarget - lufsTolerance).toFixed(1)} / {(lufsTarget + lufsTolerance).toFixed(1)} a {(lufsTarget + lufsTolerance + 1.5).toFixed(1)} LUFS
                 </span>
-                <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in" style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
+                <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in cursor-help" title={t("config.tooltip.no_reject_critico")} style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
                   {t("config.badge.critico")}: &lt; {(lufsTarget - lufsTolerance - 1.5).toFixed(1)} o &gt; {(lufsTarget + lufsTolerance + 1.5).toFixed(1)} LUFS {t("config.badge.no_auto_reject")}
                 </span>
               </div>
@@ -446,7 +446,7 @@ export default function ConfigPage() {
                     <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in" style={{ background: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.2)" }}>
                       {t("config.badge.warning")}: {Math.floor(durationMax / 60)}:{String(durationMax % 60).padStart(2, "0")} — {Math.floor((durationMax + 120) / 60)}:{String((durationMax + 120) % 60).padStart(2, "0")}
                     </span>
-                    <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in" style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
+                    <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in cursor-help" title={t("config.tooltip.no_reject_critico")} style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
                       {t("config.badge.critico")}: &gt; {Math.floor((durationMax + 120) / 60)}:{String((durationMax + 120) % 60).padStart(2, "0")} {t("config.badge.no_auto_reject")}
                     </span>
                   </div>
@@ -590,7 +590,7 @@ export default function ConfigPage() {
                     <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in" style={{ background: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.2)" }}>
                       {t("config.badge.warning")}: {peakLimitMax.toFixed(1)} — {(peakLimitMax + 1.5).toFixed(1)} dB
                     </span>
-                    <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in" style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
+                    <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in cursor-help" title={autoRejectEnabled ? t("config.tooltip.reject_critico") : t("config.tooltip.reject_disabled")} style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
                       {t("config.badge.critico")}: &gt; {(peakLimitMax + 1.5).toFixed(1)} dB
                     </span>
                   </div>
@@ -626,7 +626,7 @@ export default function ConfigPage() {
                     <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in" style={{ background: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.2)" }}>
                       {t("config.badge.warning")}: {Math.max(crestFactorMin - 1.5, 2.0).toFixed(1)} — {crestFactorMin.toFixed(1)} dB
                     </span>
-                    <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in" style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
+                    <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in cursor-help" title={autoRejectEnabled ? t("config.tooltip.reject_critico") : t("config.tooltip.reject_disabled")} style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
                       {t("config.badge.critico")}: &lt; {Math.max(crestFactorMin - 1.5, 2.0).toFixed(1)} dB
                     </span>
                   </div>
@@ -662,7 +662,7 @@ export default function ConfigPage() {
                     <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in" style={{ background: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.2)" }}>
                       {t("config.badge.warning")}: {Math.max(phaseCorrelationMin - 0.3, -0.2).toFixed(2)} — {phaseCorrelationMin.toFixed(2)}
                     </span>
-                    <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in" style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
+                    <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in cursor-help" title={autoRejectEnabled ? t("config.tooltip.reject_critico") : t("config.tooltip.reject_disabled")} style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
                       {t("config.badge.critico")}: &lt; {Math.max(phaseCorrelationMin - 0.3, -0.2).toFixed(2)}
                     </span>
                   </div>
