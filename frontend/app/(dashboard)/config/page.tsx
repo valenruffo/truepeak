@@ -37,6 +37,7 @@ const GENRE_PRESETS: Record<string, { bpm: [number, number]; lufs: number; durMa
 
 export default function ConfigPage() {
   const { t } = useLanguage();
+  const [activeTab, setActiveTab] = useState<"catalog" | "sonic_signature" | "glossary">("catalog");
   const [bpmRange, setBpmRange] = useState([120, 128]);
   const [lufsTarget, setLufsTarget] = useState(-14);
   const [lufsTolerance, setLufsTolerance] = useState(2);
@@ -302,322 +303,350 @@ export default function ConfigPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 md:px-6 py-8 md:py-12">
+    <div className="max-w-3xl mx-auto px-4 md:px-6 py-8 md:py-12">
       <div className="text-xs font-mono uppercase tracking-wider text-muted mb-1">{t("config.section_label")}</div>
       <h1 className="font-display font-semibold text-2xl mb-6">{t("config.title")}</h1>
 
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-6">
-          {/* Genre Preset Selector */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium">{t("config.preset_label")}</label>
-              <span className="text-[10px] text-muted">{t("config.preset_hint")}</span>
-            </div>
-            <div className="flex gap-2 flex-wrap">
-              {Object.keys(GENRE_PRESETS).map((g) => (
-                <button 
-                  key={g} 
-                  onClick={() => togglePreset(g)} 
-                  className="px-4 py-1.5 rounded-lg text-xs font-semibold border transition-all active:scale-95" 
-                  style={{ 
-                    borderColor: activePreset === g ? "#10b981" : "var(--border)", 
-                    background: activePreset === g ? "rgba(16,185,129,0.1)" : "transparent", 
-                    color: activePreset === g ? "#10b981" : "var(--text-muted)" 
-                  }}
-                >
-                  {g}
-                </button>
-              ))}
-            </div>
-          </div>
+      {/* Tabs Selector */}
+      <div className="flex border-b border-zinc-800 gap-2 mb-8 overflow-x-auto pb-px">
+        {(["catalog", "sonic_signature", "glossary"] as const).map((tab) => {
+          const tabLabel = {
+            catalog: t("config.tab.catalog") || "Catálogo y Formatos",
+            sonic_signature: t("config.tab.sonic_signature") || "Firma Sónica",
+            glossary: t("config.tab.glossary") || "Glosario Técnico",
+          }[tab];
+          const active = activeTab === tab;
+          return (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 whitespace-nowrap -mb-px ${
+                active
+                  ? "border-emerald-500 text-emerald-400"
+                  : "border-transparent text-zinc-400 hover:text-zinc-200"
+              }`}
+            >
+              {tabLabel}
+            </button>
+          );
+        })}
+      </div>
 
-        {/* BPM Range */}
-        <div className="rounded border p-5" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
-          <div className="flex items-center justify-between mb-4">
-            <label className="text-sm font-medium">{t("config.bpm_label")}</label>
-            <span className="font-mono text-sm px-3 py-1 rounded-lg" style={{ background: "var(--bg-card)" }}>{bpmRange[0]} — {bpmRange[1]}</span>
-          </div>
-          <div className="grid grid-cols-2 gap-6">
-            <div>
-              <div className="flex items-center justify-between mb-1"><span className="text-xs text-muted">{t("config.bpm_min")}</span><span className="font-mono text-xs" style={{ color: "#10b981" }}>{bpmRange[0]}</span></div>
-              <input type="range" min={60} max={200} value={bpmRange[0]} onChange={(e) => { setBpmRange([Math.min(+e.target.value, bpmRange[1] - 5), bpmRange[1]]); setActivePreset(null); }} className="w-full cursor-pointer accent-emerald-500" />
-            </div>
-            <div>
-              <div className="flex items-center justify-between mb-1"><span className="text-xs text-muted">{t("config.bpm_max")}</span><span className="font-mono text-xs" style={{ color: "#10b981" }}>{bpmRange[1]}</span></div>
-              <input type="range" min={60} max={200} value={bpmRange[1]} onChange={(e) => { setBpmRange([bpmRange[0], Math.max(+e.target.value, bpmRange[0] + 5)]); setActivePreset(null); }} className="w-full cursor-pointer accent-emerald-500" />
-            </div>
-          </div>
-        </div>
-
-        {/* LUFS Target */}
-        <div className="rounded border p-5" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
-          <div className="flex items-center justify-between mb-4">
-            <label className="text-sm font-medium">{t("config.lufs_label")}</label>
-            <span className="font-mono text-sm px-3 py-1 rounded-lg" style={{ background: "var(--bg-card)" }}>{lufsTarget} LUFS ± {lufsTolerance}</span>
-          </div>
-          <div className="grid grid-cols-2 gap-6">
-            <div>
-              <div className="flex items-center justify-between mb-1"><span className="text-xs text-muted">{t("config.lufs_target")}</span><span className="font-mono text-xs" style={{ color: "#10b981" }}>{lufsTarget}</span></div>
-              <input type="range" min={-20} max={-6} value={lufsTarget} onChange={(e) => { setLufsTarget(+e.target.value); setActivePreset(null); }} className="w-full cursor-pointer accent-emerald-500" />
-            </div>
-            <div>
-              <div className="flex items-center justify-between mb-1"><span className="text-xs text-muted">{t("config.lufs_tolerance")}</span><span className="font-mono text-xs" style={{ color: "#10b981" }}>± {lufsTolerance}</span></div>
-              <input type="range" min={0.5} max={4} step={0.5} value={lufsTolerance} onChange={(e) => { setLufsTolerance(+e.target.value); setActivePreset(null); }} className="w-full cursor-pointer accent-emerald-500" />
-            </div>
-          </div>
-        </div>
-
-        {/* Duration Range */}
-        <div className="rounded border p-5" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <label className="text-sm font-medium">{t("config.duration_label")}</label>
-              <button onClick={() => setDurationEnabled((p) => !p)} className="relative w-9 h-5 rounded-full transition-colors cursor-pointer" style={{ background: durationEnabled ? "#10b981" : "var(--border)" }}>
-                <div className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform" style={{ left: durationEnabled ? "calc(100% - 18px)" : "2px" }} />
-              </button>
-            </div>
-            {durationEnabled && <span className="font-mono text-xs px-2 py-1 rounded-lg" style={{ background: "var(--bg-card)" }}>{Math.floor(durationMax / 60)}:{String(durationMax % 60).padStart(2, "0")}</span>}
-          </div>
-          {durationEnabled && (
-            <div>
-              <div className="flex items-center justify-between mb-1"><span className="text-xs text-muted">{t("config.bpm_max")}</span><span className="font-mono text-xs" style={{ color: "#10b981" }}>{Math.floor(durationMax / 60)}:{String(durationMax % 60).padStart(2, "0")}</span></div>
-              <input type="range" min={0} max={1200} step={30} value={durationMax} onChange={(e) => setDurationMax(+e.target.value)} className="w-full cursor-pointer accent-emerald-500" />
-              <div className="flex justify-between text-[10px] font-mono text-muted mt-1"><span>0:00</span><span>20:00</span></div>
-            </div>
-          )}
-        </div>
-
-        {/* Technical Validation Thresholds — One slider per metric */}
-        <div className="rounded border p-5" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
-          <div className="flex items-center justify-between mb-4 pb-2 border-b border-[var(--border)]">
-            <label className="text-sm font-semibold">{t("config.tech_limits_label")}</label>
-            <span className="text-[10px] text-muted">{t("config.tech_limits_desc")}</span>
-          </div>
-
-          <div className="space-y-6">
-            {/* True Peak / Clipping */}
+      <div className="space-y-6">
+        {/* Tab 1: Catalog & Formats */}
+        {activeTab === "catalog" && (
+          <>
+            {/* Genre Preset Selector */}
             <div className="space-y-3">
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-emerald-500">{t("config.slider_clipping_title")}</h4>
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs text-muted">{t("config.peak_limit_max")}</span>
-                  <span className="font-mono text-xs font-semibold animate-fade-in" style={{ color: "#10b981" }}>{peakLimitMax.toFixed(1)} dB</span>
-                </div>
-                <input 
-                  type="range" 
-                  min={-2.0} 
-                  max={0.0} 
-                  step={0.1} 
-                  value={peakLimitMax} 
-                  onChange={(e) => setPeakLimitMax(+e.target.value)} 
-                  className="w-full cursor-pointer accent-emerald-500" 
-                />
-                <div className="flex justify-between text-[10px] font-mono text-muted mt-0.5">
-                  <span>-2.0 dB</span>
-                  <span>0.0 dB</span>
-                </div>
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium">{t("config.preset_label")}</label>
+                <span className="text-[10px] text-muted">{t("config.preset_hint")}</span>
               </div>
-              {/* Dynamic zone indicators */}
-              <div className="flex gap-2 flex-wrap mt-1">
-                <span className="text-[10px] px-2 py-0.5 rounded-full font-mono" style={{ background: "rgba(16,185,129,0.1)", color: "#10b981", border: "1px solid rgba(16,185,129,0.2)" }}>
-                  ✓ Óptimo: ≤ {peakLimitMax.toFixed(1)} dB
-                </span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full font-mono" style={{ background: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.2)" }}>
-                  ⚠ Warning: {peakLimitMax.toFixed(1)} — {(peakLimitMax + 1.5).toFixed(1)} dB
-                </span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full font-mono" style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
-                  ✕ Crítico: &gt; {(peakLimitMax + 1.5).toFixed(1)} dB
-                </span>
+              <div className="flex gap-2 flex-wrap">
+                {Object.keys(GENRE_PRESETS).map((g) => (
+                  <button 
+                    key={g} 
+                    onClick={() => togglePreset(g)} 
+                    className="px-4 py-1.5 rounded-lg text-xs font-semibold border transition-all active:scale-95" 
+                    style={{ 
+                      borderColor: activePreset === g ? "#10b981" : "var(--border)", 
+                      background: activePreset === g ? "rgba(16,185,129,0.1)" : "transparent", 
+                      color: activePreset === g ? "#10b981" : "var(--text-muted)" 
+                    }}
+                  >
+                    {g}
+                  </button>
+                ))}
               </div>
             </div>
 
-            {/* Crest Factor / Dynamics */}
-            <div className="space-y-3 pt-4 border-t border-[var(--border)]">
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-emerald-500">{t("config.slider_dynamics_title")}</h4>
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs text-muted">{t("config.crest_factor_min")}</span>
-                  <span className="font-mono text-xs font-semibold animate-fade-in" style={{ color: "#10b981" }}>{crestFactorMin.toFixed(1)} dB</span>
+            {/* BPM Range */}
+            <div className="rounded border p-5" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
+              <div className="flex items-center justify-between mb-4">
+                <label className="text-sm font-medium">{t("config.bpm_label")}</label>
+                <span className="font-mono text-sm px-3 py-1 rounded-lg" style={{ background: "var(--bg-card)" }}>{bpmRange[0]} — {bpmRange[1]}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-6">
+                <div>
+                  <div className="flex items-center justify-between mb-1"><span className="text-xs text-muted">{t("config.bpm_min")}</span><span className="font-mono text-xs" style={{ color: "#10b981" }}>{bpmRange[0]}</span></div>
+                  <input type="range" min={60} max={200} value={bpmRange[0]} onChange={(e) => { setBpmRange([Math.min(+e.target.value, bpmRange[1] - 5), bpmRange[1]]); setActivePreset(null); }} className="w-full cursor-pointer accent-emerald-500" />
                 </div>
-                <input 
-                  type="range" 
-                  min={4.0} 
-                  max={10.0} 
-                  step={0.1} 
-                  value={crestFactorMin} 
-                  onChange={(e) => setCrestFactorMin(+e.target.value)} 
-                  className="w-full cursor-pointer accent-emerald-500" 
-                />
-                <div className="flex justify-between text-[10px] font-mono text-muted mt-0.5">
-                  <span>4.0 dB</span>
-                  <span>10.0 dB</span>
+                <div>
+                  <div className="flex items-center justify-between mb-1"><span className="text-xs text-muted">{t("config.bpm_max")}</span><span className="font-mono text-xs" style={{ color: "#10b981" }}>{bpmRange[1]}</span></div>
+                  <input type="range" min={60} max={200} value={bpmRange[1]} onChange={(e) => { setBpmRange([bpmRange[0], Math.max(+e.target.value, bpmRange[0] + 5)]); setActivePreset(null); }} className="w-full cursor-pointer accent-emerald-500" />
                 </div>
               </div>
-              <div className="flex gap-2 flex-wrap mt-1">
-                <span className="text-[10px] px-2 py-0.5 rounded-full font-mono" style={{ background: "rgba(16,185,129,0.1)", color: "#10b981", border: "1px solid rgba(16,185,129,0.2)" }}>
-                  ✓ Óptimo: ≥ {crestFactorMin.toFixed(1)} dB
-                </span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full font-mono" style={{ background: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.2)" }}>
-                  ⚠ Warning: {Math.max(crestFactorMin - 1.5, 2.0).toFixed(1)} — {crestFactorMin.toFixed(1)} dB
-                </span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full font-mono" style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
-                  ✕ Crítico: &lt; {Math.max(crestFactorMin - 1.5, 2.0).toFixed(1)} dB
-                </span>
-              </div>
             </div>
 
-            {/* Phase Correlation / Mono Compatibility */}
-            <div className="space-y-3 pt-4 border-t border-[var(--border)]">
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-emerald-500">{t("config.slider_phase_title")}</h4>
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs text-muted">{t("config.phase_correlation_min")}</span>
-                  <span className="font-mono text-xs font-semibold animate-fade-in" style={{ color: "#10b981" }}>{phaseCorrelationMin.toFixed(2)}</span>
+            {/* LUFS Target */}
+            <div className="rounded border p-5" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
+              <div className="flex items-center justify-between mb-4">
+                <label className="text-sm font-medium">{t("config.lufs_label")}</label>
+                <span className="font-mono text-sm px-3 py-1 rounded-lg" style={{ background: "var(--bg-card)" }}>{lufsTarget} LUFS ± {lufsTolerance}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-6">
+                <div>
+                  <div className="flex items-center justify-between mb-1"><span className="text-xs text-muted">{t("config.lufs_target")}</span><span className="font-mono text-xs" style={{ color: "#10b981" }}>{lufsTarget}</span></div>
+                  <input type="range" min={-20} max={-6} value={lufsTarget} onChange={(e) => { setLufsTarget(+e.target.value); setActivePreset(null); }} className="w-full cursor-pointer accent-emerald-500" />
                 </div>
-                <input 
-                  type="range" 
-                  min={0.0} 
-                  max={0.5} 
-                  step={0.05} 
-                  value={phaseCorrelationMin} 
-                  onChange={(e) => setPhaseCorrelationMin(+e.target.value)} 
-                  className="w-full cursor-pointer accent-emerald-500" 
-                />
-                <div className="flex justify-between text-[10px] font-mono text-muted mt-0.5">
-                  <span>0.0</span>
-                  <span>0.5</span>
+                <div>
+                  <div className="flex items-center justify-between mb-1"><span className="text-xs text-muted">{t("config.lufs_tolerance")}</span><span className="font-mono text-xs" style={{ color: "#10b981" }}>± {lufsTolerance}</span></div>
+                  <input type="range" min={0.5} max={4} step={0.5} value={lufsTolerance} onChange={(e) => { setLufsTolerance(+e.target.value); setActivePreset(null); }} className="w-full cursor-pointer accent-emerald-500" />
                 </div>
               </div>
-              <div className="flex gap-2 flex-wrap mt-1">
-                <span className="text-[10px] px-2 py-0.5 rounded-full font-mono" style={{ background: "rgba(16,185,129,0.1)", color: "#10b981", border: "1px solid rgba(16,185,129,0.2)" }}>
-                  ✓ Óptimo: ≥ {phaseCorrelationMin.toFixed(2)}
-                </span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full font-mono" style={{ background: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.2)" }}>
-                  ⚠ Warning: {Math.max(phaseCorrelationMin - 0.3, -0.2).toFixed(2)} — {phaseCorrelationMin.toFixed(2)}
-                </span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full font-mono" style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
-                  ✕ Crítico: &lt; {Math.max(phaseCorrelationMin - 0.3, -0.2).toFixed(2)}
-                </span>
+            </div>
+
+            {/* Duration Range */}
+            <div className="rounded border p-5" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <label className="text-sm font-medium">{t("config.duration_label")}</label>
+                  <button onClick={() => setDurationEnabled((p) => !p)} className="relative w-9 h-5 rounded-full transition-colors cursor-pointer" style={{ background: durationEnabled ? "#10b981" : "var(--border)" }}>
+                    <div className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform" style={{ left: durationEnabled ? "calc(100% - 18px)" : "2px" }} />
+                  </button>
+                </div>
+                {durationEnabled && <span className="font-mono text-xs px-2 py-1 rounded-lg" style={{ background: "var(--bg-card)" }}>{Math.floor(durationMax / 60)}:{String(durationMax % 60).padStart(2, "0")}</span>}
+              </div>
+              {durationEnabled && (
+                <div>
+                  <div className="flex items-center justify-between mb-1"><span className="text-xs text-muted">{t("config.bpm_max")}</span><span className="font-mono text-xs" style={{ color: "#10b981" }}>{Math.floor(durationMax / 60)}:{String(durationMax % 60).padStart(2, "0")}</span></div>
+                  <input type="range" min={0} max={1200} step={30} value={durationMax} onChange={(e) => setDurationMax(+e.target.value)} className="w-full cursor-pointer accent-emerald-500" />
+                  <div className="flex justify-between text-[10px] font-mono text-muted mt-1"><span>0:00</span><span>20:00</span></div>
+                </div>
+              )}
+            </div>
+
+            {/* Upload Limits (Formats and Size) */}
+            <div className="rounded border p-5" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Allowed Formats */}
+                <div>
+                  <label className="text-sm font-medium mb-3 block">{t("config.formats_label")}</label>
+                  <div className="flex gap-2">
+                    {["wav", "flac", "aiff"].map((fmt) => {
+                      const isActive = allowedFormats.includes(fmt);
+                      return (
+                        <button
+                          key={fmt}
+                          onClick={() => {
+                            setAllowedFormats((prev) => {
+                              if (prev.includes(fmt)) {
+                                if (prev.length === 1) return prev;
+                                return prev.filter((f) => f !== fmt);
+                              }
+                              return [...prev, fmt];
+                            });
+                          }}
+                          className="px-4 py-2 rounded-lg text-xs font-semibold border transition-all active:scale-95 flex-1 text-center"
+                          style={{
+                            borderColor: isActive ? "#10b981" : "var(--border)",
+                            background: isActive ? "rgba(16,185,129,0.1)" : "transparent",
+                            color: isActive ? "#10b981" : "var(--text-muted)"
+                          }}
+                        >
+                          {fmt.toUpperCase()}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Max Upload Size */}
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="text-sm font-medium">{t("config.max_size_label")}</label>
+                    <span className="font-mono text-xs px-2.5 py-0.5 rounded-lg" style={{ background: "var(--bg-card)", color: "#10b981" }}>{maxUploadSizeMb} MB</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={50}
+                    max={200}
+                    step={10}
+                    value={maxUploadSizeMb}
+                    onChange={(e) => setMaxUploadSizeMb(+e.target.value)}
+                    className="w-full cursor-pointer accent-emerald-500"
+                  />
+                  <div className="flex justify-between text-[10px] font-mono text-muted mt-1">
+                    <span>50 MB</span>
+                    <span>200 MB</span>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
 
-        {/* Upload Limits (Formats and Size) */}
-        <div className="rounded border p-5" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Allowed Formats */}
-            <div>
-              <label className="text-sm font-medium mb-3 block">{t("config.formats_label")}</label>
-              <div className="flex gap-2">
-                {["wav", "flac", "aiff"].map((fmt) => {
-                  const isActive = allowedFormats.includes(fmt);
-                  return (
-                    <button
-                      key={fmt}
-                      onClick={() => {
-                        setAllowedFormats((prev) => {
-                          if (prev.includes(fmt)) {
-                            if (prev.length === 1) return prev;
-                            return prev.filter((f) => f !== fmt);
-                          }
-                          return [...prev, fmt];
-                        });
-                      }}
-                      className="px-4 py-2 rounded-lg text-xs font-semibold border transition-all active:scale-95 flex-1 text-center"
-                      style={{
-                        borderColor: isActive ? "#10b981" : "var(--border)",
-                        background: isActive ? "rgba(16,185,129,0.1)" : "transparent",
-                        color: isActive ? "#10b981" : "var(--text-muted)"
-                      }}
-                    >
-                      {fmt.toUpperCase()}
-                    </button>
-                  );
-                })}
+            {/* Camelot Wheel Selection */}
+            <div className="rounded border p-5" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
+              <label className="text-sm font-medium mb-4 block">{t("config.scales_label")}</label>
+              <div className="grid grid-cols-6 sm:grid-cols-12 gap-1.5">
+                {camelotKeys.map((k) => (
+                  <button 
+                    key={k} 
+                    onClick={() => toggleCamelotKey(k)} 
+                    className="aspect-square flex items-center justify-center text-[10px] font-bold rounded-md border transition-all active:scale-95" 
+                    style={{ 
+                      borderColor: selectedCamelotKeys.includes(k) ? "#10b981" : "var(--border)", 
+                      color: selectedCamelotKeys.includes(k) ? "#09090b" : "var(--text-muted)", 
+                      background: selectedCamelotKeys.includes(k) ? "#10b981" : "transparent",
+                      opacity: selectedCamelotKeys.includes(k) ? 1 : 0.6
+                    }}
+                  >
+                    {k}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-muted mt-3 italic">Sistema Camelot: Fila superior (B) para tonos Mayores, fila inferior (A) para tonos Menores.</p>
+            </div>
+          </>
+        )}
+
+        {/* Tab 2: Audio Limits (Sonic Signature) */}
+        {activeTab === "sonic_signature" && (
+          <>
+            <div className="rounded border p-5" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
+              <div className="flex items-center justify-between mb-4 pb-2 border-b border-[var(--border)]">
+                <label className="text-sm font-semibold">{t("config.tech_limits_label")}</label>
+                <span className="text-[10px] text-muted">{t("config.tech_limits_desc")}</span>
+              </div>
+
+              <div className="space-y-6">
+                {/* True Peak / Clipping */}
+                <div className="space-y-3">
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-emerald-500">{t("config.slider_clipping_title")}</h4>
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs text-muted">{t("config.peak_limit_max")}</span>
+                      <span className="font-mono text-xs font-semibold animate-fade-in" style={{ color: "#10b981" }}>{peakLimitMax.toFixed(1)} dB</span>
+                    </div>
+                    <input 
+                      type="range" 
+                      min={-2.0} 
+                      max={0.0} 
+                      step={0.1} 
+                      value={peakLimitMax} 
+                      onChange={(e) => setPeakLimitMax(+e.target.value)} 
+                      className="w-full cursor-pointer accent-emerald-500" 
+                    />
+                    <div className="flex justify-between text-[10px] font-mono text-muted mt-0.5">
+                      <span>-2.0 dB</span>
+                      <span>0.0 dB</span>
+                    </div>
+                  </div>
+                  {/* Dynamic visual range bar */}
+                  <div className="space-y-1.5 mt-2">
+                    <div className="h-1.5 w-full rounded-full flex overflow-hidden bg-zinc-800">
+                      <div className="bg-emerald-500/80 h-full" style={{ width: "50%" }} />
+                      <div className="bg-amber-500/80 h-full" style={{ width: "30%" }} />
+                      <div className="bg-rose-500/80 h-full" style={{ width: "20%" }} />
+                    </div>
+                    <div className="flex justify-between text-[10px] font-mono text-zinc-400">
+                      <span className="text-emerald-400 font-semibold">Óptimo (≤ {peakLimitMax.toFixed(1)} dB)</span>
+                      <span className="text-amber-400 font-semibold">Warning (&lt; {(peakLimitMax + 1.5).toFixed(1)} dB)</span>
+                      <span className="text-rose-400 font-semibold">Auto-Rechazo (&gt; {(peakLimitMax + 1.5).toFixed(1)} dB)</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Crest Factor / Dynamics */}
+                <div className="space-y-3 pt-4 border-t border-[var(--border)]">
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-emerald-500">{t("config.slider_dynamics_title")}</h4>
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs text-muted">{t("config.crest_factor_min")}</span>
+                      <span className="font-mono text-xs font-semibold animate-fade-in" style={{ color: "#10b981" }}>{crestFactorMin.toFixed(1)} dB</span>
+                    </div>
+                    <input 
+                      type="range" 
+                      min={4.0} 
+                      max={10.0} 
+                      step={0.1} 
+                      value={crestFactorMin} 
+                      onChange={(e) => setCrestFactorMin(+e.target.value)} 
+                      className="w-full cursor-pointer accent-emerald-500" 
+                    />
+                    <div className="flex justify-between text-[10px] font-mono text-muted mt-0.5">
+                      <span>4.0 dB</span>
+                      <span>10.0 dB</span>
+                    </div>
+                  </div>
+                  {/* Dynamic visual range bar */}
+                  <div className="space-y-1.5 mt-2">
+                    <div className="h-1.5 w-full rounded-full flex overflow-hidden bg-zinc-800">
+                      <div className="bg-rose-500/80 h-full" style={{ width: "20%" }} />
+                      <div className="bg-amber-500/80 h-full" style={{ width: "30%" }} />
+                      <div className="bg-emerald-500/80 h-full" style={{ width: "50%" }} />
+                    </div>
+                    <div className="flex justify-between text-[10px] font-mono text-zinc-400">
+                      <span className="text-rose-400 font-semibold">Auto-Rechazo (&lt; {Math.max(crestFactorMin - 1.5, 2.0).toFixed(1)} dB)</span>
+                      <span className="text-amber-400 font-semibold">Warning (≤ {crestFactorMin.toFixed(1)} dB)</span>
+                      <span className="text-emerald-400 font-semibold">Óptimo (≥ {crestFactorMin.toFixed(1)} dB)</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Phase Correlation / Mono Compatibility */}
+                <div className="space-y-3 pt-4 border-t border-[var(--border)]">
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-emerald-500">{t("config.slider_phase_title")}</h4>
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs text-muted">{t("config.phase_correlation_min")}</span>
+                      <span className="font-mono text-xs font-semibold animate-fade-in" style={{ color: "#10b981" }}>{phaseCorrelationMin.toFixed(2)}</span>
+                    </div>
+                    <input 
+                      type="range" 
+                      min={0.0} 
+                      max={0.5} 
+                      step={0.05} 
+                      value={phaseCorrelationMin} 
+                      onChange={(e) => setPhaseCorrelationMin(+e.target.value)} 
+                      className="w-full cursor-pointer accent-emerald-500" 
+                    />
+                    <div className="flex justify-between text-[10px] font-mono text-muted mt-0.5">
+                      <span>0.0</span>
+                      <span>0.5</span>
+                    </div>
+                  </div>
+                  {/* Dynamic visual range bar */}
+                  <div className="space-y-1.5 mt-2">
+                    <div className="h-1.5 w-full rounded-full flex overflow-hidden bg-zinc-800">
+                      <div className="bg-rose-500/80 h-full" style={{ width: "20%" }} />
+                      <div className="bg-amber-500/80 h-full" style={{ width: "30%" }} />
+                      <div className="bg-emerald-500/80 h-full" style={{ width: "50%" }} />
+                    </div>
+                    <div className="flex justify-between text-[10px] font-mono text-zinc-400">
+                      <span className="text-rose-400 font-semibold">Auto-Rechazo (&lt; {Math.max(phaseCorrelationMin - 0.3, -0.2).toFixed(2)})</span>
+                      <span className="text-amber-400 font-semibold">Warning (≤ {phaseCorrelationMin.toFixed(2)})</span>
+                      <span className="text-emerald-400 font-semibold">Óptimo (≥ {phaseCorrelationMin.toFixed(2)})</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Max Upload Size */}
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <label className="text-sm font-medium">{t("config.max_size_label")}</label>
-                <span className="font-mono text-xs px-2.5 py-0.5 rounded-lg" style={{ background: "var(--bg-card)", color: "#10b981" }}>{maxUploadSizeMb} MB</span>
+            {/* Auto-Reject — Master Switch Only */}
+            <div className="rounded border p-5" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-3">
+                  <label className="text-sm font-medium">{t("config.auto_reject_label")}</label>
+                  <button onClick={() => setAutoRejectEnabled((p) => !p)} className="relative w-9 h-5 rounded-full transition-colors cursor-pointer" style={{ background: autoRejectEnabled ? "#ef4444" : "var(--border)" }}>
+                    <div className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform" style={{ left: autoRejectEnabled ? "calc(100% - 18px)" : "2px" }} />
+                  </button>
+                </div>
               </div>
-              <input
-                type="range"
-                min={50}
-                max={200}
-                step={10}
-                value={maxUploadSizeMb}
-                onChange={(e) => setMaxUploadSizeMb(+e.target.value)}
-                className="w-full cursor-pointer accent-emerald-500"
-              />
-              <div className="flex justify-between text-[10px] font-mono text-muted mt-1">
-                <span>50 MB</span>
-                <span>200 MB</span>
-              </div>
+              <p className="text-xs text-muted">
+                {t("config.auto_reject.enabled_desc")}
+              </p>
+              {autoRejectEnabled && (
+                <div className="mt-3 px-3 py-2 rounded-lg text-xs font-mono" style={{ background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.15)", color: "#f87171" }}>
+                  {t("config.auto_reject.active_info")}
+                </div>
+              )}
             </div>
-          </div>
-        </div>
+          </>
+        )}
 
-        {/* Camelot Wheel Selection */}
-        <div className="rounded border p-5" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
-          <label className="text-sm font-medium mb-4 block">{t("config.scales_label")}</label>
-          <div className="grid grid-cols-6 sm:grid-cols-12 gap-1.5">
-            {camelotKeys.map((k) => (
-              <button 
-                key={k} 
-                onClick={() => toggleCamelotKey(k)} 
-                className="aspect-square flex items-center justify-center text-[10px] font-bold rounded-md border transition-all active:scale-95" 
-                style={{ 
-                  borderColor: selectedCamelotKeys.includes(k) ? "#10b981" : "var(--border)", 
-                  color: selectedCamelotKeys.includes(k) ? "#09090b" : "var(--text-muted)", 
-                  background: selectedCamelotKeys.includes(k) ? "#10b981" : "transparent",
-                  opacity: selectedCamelotKeys.includes(k) ? 1 : 0.6
-                }}
-              >
-                {k}
-              </button>
-            ))}
-          </div>
-          <p className="text-[10px] text-muted mt-3 italic">Sistema Camelot: Fila superior (B) para tonos Mayores, fila inferior (A) para tonos Menores.</p>
-        </div>
-
-        {/* Auto-Reject — Master Switch Only */}
-        <div className="rounded border p-5" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-3">
-              <label className="text-sm font-medium">{t("config.auto_reject_label")}</label>
-              <button onClick={() => setAutoRejectEnabled((p) => !p)} className="relative w-9 h-5 rounded-full transition-colors cursor-pointer" style={{ background: autoRejectEnabled ? "#ef4444" : "var(--border)" }}>
-                <div className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform" style={{ left: autoRejectEnabled ? "calc(100% - 18px)" : "2px" }} />
-              </button>
-            </div>
-          </div>
-          <p className="text-xs text-muted">
-            {t("config.auto_reject.enabled_desc")}
-          </p>
-          {autoRejectEnabled && (
-            <div className="mt-3 px-3 py-2 rounded-lg text-xs" style={{ background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.15)", color: "#f87171" }}>
-              {t("config.auto_reject.active_info")}
-            </div>
-          )}
-        </div>
-
-        {/* Save Button */}
-        <div className="pt-6 border-t" style={{ borderColor: "var(--border)" }}>
-          <div className="flex items-center gap-3">
-            <button onClick={handleSave} disabled={saving} className="px-6 py-2.5 text-sm font-medium rounded transition-all hover:opacity-90 disabled:opacity-50" style={{ background: "#10b981", color: "#09090b" }}>{saving ? t("config.saving") : t("config.save")}</button>
-            {saved && (<span className="text-sm font-mono" style={{ color: "#10b981" }}>{t("config.saved")}</span>)}
-            {saveError && (<span className="text-sm" style={{ color: "#ef4444" }}>{t("config.save_error")}: {saveError}</span>)}
-          </div>
-        </div>
-        </div>
-
-        {/* Info Sidebar */}
-        <div className="lg:col-span-1">
-          <div className="rounded border p-6 sticky top-24" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
+        {/* Tab 3: Glossary */}
+        {activeTab === "glossary" && (
+          <div className="rounded border p-6" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
             <h3 className="font-display font-semibold text-base mb-6 pb-4 border-b" style={{ borderColor: "var(--border)" }}>
               {t("config.glossary.title")}
             </h3>
@@ -646,21 +675,27 @@ export default function ConfigPage() {
               <div>
                 <h4 className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "#fbbf24" }}>{t("config.glossary.clipping.title")}</h4>
                 <p className="text-sm text-muted">{t("config.glossary.clipping.desc")}</p>
-                <p className="text-[10px] font-mono mt-1" style={{ color: "#fbbf24" }}>Tu límite: {peakLimitMax.toFixed(1)} dB · Auto-rechazo: &gt; {(peakLimitMax + 1.5).toFixed(1)} dB</p>
               </div>
 
               <div>
                 <h4 className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "#fbbf24" }}>{t("config.glossary.dynamics.title")}</h4>
                 <p className="text-sm text-muted">{t("config.glossary.dynamics.desc")}</p>
-                <p className="text-[10px] font-mono mt-1" style={{ color: "#fbbf24" }}>Tu límite: {crestFactorMin.toFixed(1)} dB · Auto-rechazo: &lt; {Math.max(crestFactorMin - 1.5, 2.0).toFixed(1)} dB</p>
               </div>
 
               <div>
                 <h4 className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "#fbbf24" }}>{t("config.glossary.phase.title")}</h4>
                 <p className="text-sm text-muted">{t("config.glossary.phase.desc")}</p>
-                <p className="text-[10px] font-mono mt-1" style={{ color: "#fbbf24" }}>Tu límite: {phaseCorrelationMin.toFixed(2)} · Auto-rechazo: &lt; {Math.max(phaseCorrelationMin - 0.3, -0.2).toFixed(2)}</p>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Save Button (Persistent outside the tabs content, but within the single column) */}
+        <div className="pt-6 border-t" style={{ borderColor: "var(--border)" }}>
+          <div className="flex items-center gap-3">
+            <button onClick={handleSave} disabled={saving} className="px-6 py-2.5 text-sm font-medium rounded transition-all hover:opacity-90 disabled:opacity-50" style={{ background: "#10b981", color: "#09090b" }}>{saving ? t("config.saving") : t("config.save")}</button>
+            {saved && (<span className="text-sm font-mono" style={{ color: "#10b981" }}>{t("config.saved")}</span>)}
+            {saveError && (<span className="text-sm" style={{ color: "#ef4444" }}>{t("config.save_error")}: {saveError}</span>)}
           </div>
         </div>
       </div>
