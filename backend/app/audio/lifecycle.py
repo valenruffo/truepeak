@@ -74,7 +74,7 @@ def calculate_technical_status(
     if cf is not None:
         if cf >= crest_factor_min:
             cf_status = "optimo"
-        elif crest_factor_critical <= cf < crest_factor_min:
+        elif crest_factor_critical < cf < crest_factor_min:
             cf_status = "warning"
             alertas.append(f"Rango dinámico bajo (Crest Factor): {cf:.2f} dB")
         else:
