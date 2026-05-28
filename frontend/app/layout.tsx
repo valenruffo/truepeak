@@ -27,7 +27,9 @@ export const metadata: Metadata = {
   description:
     "Automated demo filtering for electronic music labels. Configure your sonic signature, get a unique submission link, and receive only technically-compliant demos.",
   icons: {
-    icon: "/favicon.png",
+    icon: "/favicon.ico",
+    shortcut: "/favicon.ico",
+    apple: "/favicon.png",
   },
 };
 
