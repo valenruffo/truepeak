@@ -19,11 +19,8 @@ interface SonicSignature {
   max_upload_size_mb?: number;
   auto_reject_enabled?: boolean;
   peak_limit_max?: number;
-  peak_limit_critical?: number;
   crest_factor_min?: number;
-  crest_factor_critical?: number;
   phase_correlation_min?: number;
-  phase_correlation_critical?: number;
 }
 
 const GENRE_PRESETS: Record<string, { bpm: [number, number]; lufs: number; durMax?: number; color: string }> = {
@@ -45,18 +42,14 @@ export default function ConfigPage() {
   const [lufsTolerance, setLufsTolerance] = useState(2);
   const [selectedCamelotKeys, setSelectedCamelotKeys] = useState<string[]>([]);
   const [activePreset, setActivePreset] = useState<string | null>(null);
-  const [autoReject, setAutoReject] = useState({ phase: true, tempo: true, clipping: false, dynamics: false });
   const [autoRejectEnabled, setAutoRejectEnabled] = useState(true);
   const [durationEnabled, setDurationEnabled] = useState(false);
   const [durationMax, setDurationMax] = useState(600);
   const [allowedFormats, setAllowedFormats] = useState<string[]>(["wav", "flac", "aiff"]);
   const [maxUploadSizeMb, setMaxUploadSizeMb] = useState<number>(100);
   const [peakLimitMax, setPeakLimitMax] = useState(0.0);
-  const [peakLimitCritical, setPeakLimitCritical] = useState(1.5);
   const [crestFactorMin, setCrestFactorMin] = useState(5.0);
-  const [crestFactorCritical, setCrestFactorCritical] = useState(3.5);
   const [phaseCorrelationMin, setPhaseCorrelationMin] = useState(0.3);
-  const [phaseCorrelationCritical, setPhaseCorrelationCritical] = useState(0.0);
 
   const [fetching, setFetching] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -84,23 +77,14 @@ export default function ConfigPage() {
         setLufsTarget(sig.lufs_target);
         setLufsTolerance(sig.lufs_tolerance);
         setSelectedCamelotKeys(sig.target_camelot_keys ?? []);
-        setAutoReject({ 
-          phase: sig.auto_reject_rules?.phase ?? true, 
-          tempo: sig.auto_reject_rules?.tempo ?? true,
-          clipping: sig.auto_reject_rules?.reject_clipping ?? sig.auto_reject_rules?.clipping ?? true, 
-          dynamics: sig.auto_reject_rules?.reject_low_dynamic_range ?? sig.auto_reject_rules?.dynamics ?? true
-        });
         setAutoRejectEnabled(sig.auto_reject_enabled ?? true);
         setDurationEnabled(sig.duration_enabled ?? false);
         if (sig.duration_max) setDurationMax(sig.duration_max);
         setAllowedFormats(sig.allowed_formats ?? ["wav", "flac", "aiff"]);
         setMaxUploadSizeMb(sig.max_upload_size_mb ?? 100);
         setPeakLimitMax(sig.peak_limit_max ?? 0.0);
-        setPeakLimitCritical(sig.peak_limit_critical ?? 1.5);
         setCrestFactorMin(sig.crest_factor_min ?? 5.0);
-        setCrestFactorCritical(sig.crest_factor_critical ?? 3.5);
         setPhaseCorrelationMin(sig.phase_correlation_min ?? 0.3);
-        setPhaseCorrelationCritical(sig.phase_correlation_critical ?? 0.0);
         setFetching(false);
       }
 
@@ -118,23 +102,14 @@ export default function ConfigPage() {
           setLufsTarget(sig.lufs_target);
           setLufsTolerance(sig.lufs_tolerance);
           setSelectedCamelotKeys(sig.target_camelot_keys ?? []);
-          setAutoReject({ 
-            phase: sig.auto_reject_rules?.phase ?? true, 
-            tempo: sig.auto_reject_rules?.tempo ?? true,
-            clipping: sig.auto_reject_rules?.reject_clipping ?? true, 
-            dynamics: sig.auto_reject_rules?.reject_low_dynamic_range ?? true
-          });
           setAutoRejectEnabled(sig.auto_reject_enabled ?? true);
           setDurationEnabled(sig.duration_enabled ?? false);
           if (sig.duration_max) setDurationMax(sig.duration_max);
           setAllowedFormats(sig.allowed_formats ?? ["wav", "flac", "aiff"]);
           setMaxUploadSizeMb(sig.max_upload_size_mb ?? 100);
           setPeakLimitMax(sig.peak_limit_max ?? 0.0);
-          setPeakLimitCritical(sig.peak_limit_critical ?? 1.5);
           setCrestFactorMin(sig.crest_factor_min ?? 5.0);
-          setCrestFactorCritical(sig.crest_factor_critical ?? 3.5);
           setPhaseCorrelationMin(sig.phase_correlation_min ?? 0.3);
-          setPhaseCorrelationCritical(sig.phase_correlation_critical ?? 0.0);
         }
       } catch (e) { 
         if (!cached) {
@@ -169,7 +144,7 @@ export default function ConfigPage() {
     try {
       const res = await fetch(`${API}/api/labels/${slug}/config`, {
         method: "PUT", headers: getAuthHeaders(), credentials: "include",
-        body: JSON.stringify({ sonic_signature: { bpm_min: bpmRange[0], bpm_max: bpmRange[1], lufs_target: lufsTarget, lufs_tolerance: lufsTolerance, target_camelot_keys: selectedCamelotKeys, preferred_scales: selectedCamelotKeys, duration_enabled: durationEnabled, duration_max: durationEnabled ? durationMax : null, auto_reject_rules: { phase: autoReject.phase, tempo: autoReject.tempo, reject_clipping: autoReject.clipping, reject_low_dynamic_range: autoReject.dynamics }, allowed_formats: allowedFormats, max_upload_size_mb: maxUploadSizeMb, auto_reject_enabled: autoRejectEnabled, peak_limit_max: peakLimitMax, peak_limit_critical: peakLimitCritical, crest_factor_min: crestFactorMin, crest_factor_critical: crestFactorCritical, phase_correlation_min: phaseCorrelationMin, phase_correlation_critical: phaseCorrelationCritical } }),
+        body: JSON.stringify({ sonic_signature: { bpm_min: bpmRange[0], bpm_max: bpmRange[1], lufs_target: lufsTarget, lufs_tolerance: lufsTolerance, target_camelot_keys: selectedCamelotKeys, preferred_scales: selectedCamelotKeys, duration_enabled: durationEnabled, duration_max: durationEnabled ? durationMax : null, auto_reject_rules: { phase: true, tempo: true, reject_clipping: true, reject_low_dynamic_range: true }, allowed_formats: allowedFormats, max_upload_size_mb: maxUploadSizeMb, auto_reject_enabled: autoRejectEnabled, peak_limit_max: peakLimitMax, crest_factor_min: crestFactorMin, phase_correlation_min: phaseCorrelationMin } }),
       });
       if (!res.ok) throw new Error(`Error ${res.status}`);
       
@@ -188,20 +163,17 @@ export default function ConfigPage() {
             duration_enabled: durationEnabled,
             duration_max: durationEnabled ? durationMax : null,
             auto_reject_rules: {
-              phase: autoReject.phase,
-              tempo: autoReject.tempo,
-              reject_clipping: autoReject.clipping,
-              reject_low_dynamic_range: autoReject.dynamics
+              phase: true,
+              tempo: true,
+              reject_clipping: true,
+              reject_low_dynamic_range: true
             },
             allowed_formats: allowedFormats,
             max_upload_size_mb: maxUploadSizeMb,
             auto_reject_enabled: autoRejectEnabled,
             peak_limit_max: peakLimitMax,
-            peak_limit_critical: peakLimitCritical,
             crest_factor_min: crestFactorMin,
-            crest_factor_critical: crestFactorCritical,
-            phase_correlation_min: phaseCorrelationMin,
-            phase_correlation_critical: phaseCorrelationCritical
+            phase_correlation_min: phaseCorrelationMin
           }
         };
         setCache("tp_link_label_info", nextLabel);
@@ -416,7 +388,7 @@ export default function ConfigPage() {
           )}
         </div>
 
-        {/* Technical Validation Thresholds */}
+        {/* Technical Validation Thresholds — One slider per metric */}
         <div className="rounded border p-5" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
           <div className="flex items-center justify-between mb-4 pb-2 border-b border-[var(--border)]">
             <label className="text-sm font-semibold">{t("config.tech_limits_label")}</label>
@@ -424,138 +396,109 @@ export default function ConfigPage() {
           </div>
 
           <div className="space-y-6">
-            {/* True Peak Section */}
+            {/* True Peak / Clipping */}
             <div className="space-y-3">
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-emerald-500">True Peak (dB)</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs text-muted">{t("config.peak_limit_max")}</span>
-                    <span className="font-mono text-xs font-semibold animate-fade-in" style={{ color: "#10b981" }}>{peakLimitMax.toFixed(1)} dB</span>
-                  </div>
-                  <input 
-                    type="range" 
-                    min={-2.0} 
-                    max={0.0} 
-                    step={0.1} 
-                    value={peakLimitMax} 
-                    onChange={(e) => setPeakLimitMax(Math.min(+e.target.value, peakLimitCritical - 0.1))} 
-                    className="w-full cursor-pointer accent-emerald-500" 
-                  />
-                  <div className="flex justify-between text-[10px] font-mono text-muted mt-0.5">
-                    <span>-2.0 dB</span>
-                    <span>0.0 dB</span>
-                  </div>
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-emerald-500">{t("config.slider_clipping_title")}</h4>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs text-muted">{t("config.peak_limit_max")}</span>
+                  <span className="font-mono text-xs font-semibold animate-fade-in" style={{ color: "#10b981" }}>{peakLimitMax.toFixed(1)} dB</span>
                 </div>
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs text-muted">{t("config.peak_limit_critical")}</span>
-                    <span className="font-mono text-xs font-semibold text-rose-500 animate-fade-in">{peakLimitCritical.toFixed(1)} dB</span>
-                  </div>
-                  <input 
-                    type="range" 
-                    min={0.0} 
-                    max={3.0} 
-                    step={0.1} 
-                    value={peakLimitCritical} 
-                    onChange={(e) => setPeakLimitCritical(Math.max(+e.target.value, peakLimitMax + 0.1))} 
-                    className="w-full cursor-pointer accent-rose-500" 
-                  />
-                  <div className="flex justify-between text-[10px] font-mono text-muted mt-0.5">
-                    <span>0.0 dB</span>
-                    <span>3.0 dB</span>
-                  </div>
+                <input 
+                  type="range" 
+                  min={-2.0} 
+                  max={0.0} 
+                  step={0.1} 
+                  value={peakLimitMax} 
+                  onChange={(e) => setPeakLimitMax(+e.target.value)} 
+                  className="w-full cursor-pointer accent-emerald-500" 
+                />
+                <div className="flex justify-between text-[10px] font-mono text-muted mt-0.5">
+                  <span>-2.0 dB</span>
+                  <span>0.0 dB</span>
                 </div>
+              </div>
+              {/* Dynamic zone indicators */}
+              <div className="flex gap-2 flex-wrap mt-1">
+                <span className="text-[10px] px-2 py-0.5 rounded-full font-mono" style={{ background: "rgba(16,185,129,0.1)", color: "#10b981", border: "1px solid rgba(16,185,129,0.2)" }}>
+                  ✓ Óptimo: ≤ {peakLimitMax.toFixed(1)} dB
+                </span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full font-mono" style={{ background: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.2)" }}>
+                  ⚠ Warning: {peakLimitMax.toFixed(1)} — {(peakLimitMax + 1.5).toFixed(1)} dB
+                </span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full font-mono" style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
+                  ✕ Crítico: &gt; {(peakLimitMax + 1.5).toFixed(1)} dB
+                </span>
               </div>
             </div>
 
-            {/* Crest Factor Section */}
+            {/* Crest Factor / Dynamics */}
             <div className="space-y-3 pt-4 border-t border-[var(--border)]">
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-emerald-500">Crest Factor (dB)</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs text-muted">{t("config.crest_factor_min")}</span>
-                    <span className="font-mono text-xs font-semibold animate-fade-in" style={{ color: "#10b981" }}>{crestFactorMin.toFixed(1)} dB</span>
-                  </div>
-                  <input 
-                    type="range" 
-                    min={4.0} 
-                    max={10.0} 
-                    step={0.1} 
-                    value={crestFactorMin} 
-                    onChange={(e) => setCrestFactorMin(Math.max(+e.target.value, crestFactorCritical + 0.1))} 
-                    className="w-full cursor-pointer accent-emerald-500" 
-                  />
-                  <div className="flex justify-between text-[10px] font-mono text-muted mt-0.5">
-                    <span>4.0 dB</span>
-                    <span>10.0 dB</span>
-                  </div>
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-emerald-500">{t("config.slider_dynamics_title")}</h4>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs text-muted">{t("config.crest_factor_min")}</span>
+                  <span className="font-mono text-xs font-semibold animate-fade-in" style={{ color: "#10b981" }}>{crestFactorMin.toFixed(1)} dB</span>
                 </div>
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs text-muted">{t("config.crest_factor_critical")}</span>
-                    <span className="font-mono text-xs font-semibold text-rose-500 animate-fade-in">{crestFactorCritical.toFixed(1)} dB</span>
-                  </div>
-                  <input 
-                    type="range" 
-                    min={3.0} 
-                    max={6.0} 
-                    step={0.1} 
-                    value={crestFactorCritical} 
-                    onChange={(e) => setCrestFactorCritical(Math.min(+e.target.value, crestFactorMin - 0.1))} 
-                    className="w-full cursor-pointer accent-rose-500" 
-                  />
-                  <div className="flex justify-between text-[10px] font-mono text-muted mt-0.5">
-                    <span>3.0 dB</span>
-                    <span>6.0 dB</span>
-                  </div>
+                <input 
+                  type="range" 
+                  min={4.0} 
+                  max={10.0} 
+                  step={0.1} 
+                  value={crestFactorMin} 
+                  onChange={(e) => setCrestFactorMin(+e.target.value)} 
+                  className="w-full cursor-pointer accent-emerald-500" 
+                />
+                <div className="flex justify-between text-[10px] font-mono text-muted mt-0.5">
+                  <span>4.0 dB</span>
+                  <span>10.0 dB</span>
                 </div>
+              </div>
+              <div className="flex gap-2 flex-wrap mt-1">
+                <span className="text-[10px] px-2 py-0.5 rounded-full font-mono" style={{ background: "rgba(16,185,129,0.1)", color: "#10b981", border: "1px solid rgba(16,185,129,0.2)" }}>
+                  ✓ Óptimo: ≥ {crestFactorMin.toFixed(1)} dB
+                </span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full font-mono" style={{ background: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.2)" }}>
+                  ⚠ Warning: {Math.max(crestFactorMin - 1.5, 2.0).toFixed(1)} — {crestFactorMin.toFixed(1)} dB
+                </span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full font-mono" style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
+                  ✕ Crítico: &lt; {Math.max(crestFactorMin - 1.5, 2.0).toFixed(1)} dB
+                </span>
               </div>
             </div>
 
-            {/* Phase Correlation Section */}
+            {/* Phase Correlation / Mono Compatibility */}
             <div className="space-y-3 pt-4 border-t border-[var(--border)]">
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-emerald-500">Correlación de Fase</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs text-muted">{t("config.phase_correlation_min")}</span>
-                    <span className="font-mono text-xs font-semibold animate-fade-in" style={{ color: "#10b981" }}>{phaseCorrelationMin.toFixed(2)}</span>
-                  </div>
-                  <input 
-                    type="range" 
-                    min={0.0} 
-                    max={0.5} 
-                    step={0.05} 
-                    value={phaseCorrelationMin} 
-                    onChange={(e) => setPhaseCorrelationMin(Math.max(+e.target.value, phaseCorrelationCritical + 0.01))} 
-                    className="w-full cursor-pointer accent-emerald-500" 
-                  />
-                  <div className="flex justify-between text-[10px] font-mono text-muted mt-0.5">
-                    <span>0.0</span>
-                    <span>0.5</span>
-                  </div>
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-emerald-500">{t("config.slider_phase_title")}</h4>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs text-muted">{t("config.phase_correlation_min")}</span>
+                  <span className="font-mono text-xs font-semibold animate-fade-in" style={{ color: "#10b981" }}>{phaseCorrelationMin.toFixed(2)}</span>
                 </div>
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs text-muted">{t("config.phase_correlation_critical")}</span>
-                    <span className="font-mono text-xs font-semibold text-rose-500 animate-fade-in">{phaseCorrelationCritical.toFixed(2)}</span>
-                  </div>
-                  <input 
-                    type="range" 
-                    min={-0.2} 
-                    max={0.2} 
-                    step={0.05} 
-                    value={phaseCorrelationCritical} 
-                    onChange={(e) => setPhaseCorrelationCritical(Math.min(+e.target.value, phaseCorrelationMin - 0.01))} 
-                    className="w-full cursor-pointer accent-rose-500" 
-                  />
-                  <div className="flex justify-between text-[10px] font-mono text-muted mt-0.5">
-                    <span>-0.2</span>
-                    <span>0.2</span>
-                  </div>
+                <input 
+                  type="range" 
+                  min={0.0} 
+                  max={0.5} 
+                  step={0.05} 
+                  value={phaseCorrelationMin} 
+                  onChange={(e) => setPhaseCorrelationMin(+e.target.value)} 
+                  className="w-full cursor-pointer accent-emerald-500" 
+                />
+                <div className="flex justify-between text-[10px] font-mono text-muted mt-0.5">
+                  <span>0.0</span>
+                  <span>0.5</span>
                 </div>
+              </div>
+              <div className="flex gap-2 flex-wrap mt-1">
+                <span className="text-[10px] px-2 py-0.5 rounded-full font-mono" style={{ background: "rgba(16,185,129,0.1)", color: "#10b981", border: "1px solid rgba(16,185,129,0.2)" }}>
+                  ✓ Óptimo: ≥ {phaseCorrelationMin.toFixed(2)}
+                </span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full font-mono" style={{ background: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.2)" }}>
+                  ⚠ Warning: {Math.max(phaseCorrelationMin - 0.3, -0.2).toFixed(2)} — {phaseCorrelationMin.toFixed(2)}
+                </span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full font-mono" style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
+                  ✕ Crítico: &lt; {Math.max(phaseCorrelationMin - 0.3, -0.2).toFixed(2)}
+                </span>
               </div>
             </div>
           </div>
@@ -642,30 +585,22 @@ export default function ConfigPage() {
           <p className="text-[10px] text-muted mt-3 italic">Sistema Camelot: Fila superior (B) para tonos Mayores, fila inferior (A) para tonos Menores.</p>
         </div>
 
-        {/* Auto-Reject Rules */}
+        {/* Auto-Reject — Master Switch Only */}
         <div className="rounded border p-5" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-3">
               <label className="text-sm font-medium">{t("config.auto_reject_label")}</label>
-              <button onClick={() => setAutoRejectEnabled((p) => !p)} className="relative w-9 h-5 rounded-full transition-colors cursor-pointer" style={{ background: autoRejectEnabled ? "#10b981" : "var(--border)" }}>
+              <button onClick={() => setAutoRejectEnabled((p) => !p)} className="relative w-9 h-5 rounded-full transition-colors cursor-pointer" style={{ background: autoRejectEnabled ? "#ef4444" : "var(--border)" }}>
                 <div className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform" style={{ left: autoRejectEnabled ? "calc(100% - 18px)" : "2px" }} />
               </button>
             </div>
           </div>
-          <p className="text-xs text-muted mb-4">
+          <p className="text-xs text-muted">
             {t("config.auto_reject.enabled_desc")}
           </p>
-          
           {autoRejectEnabled && (
-            <div className="flex gap-2 flex-wrap">
-              {[
-                { key: "phase" as const, label: t("config.auto_reject.phase") }, 
-                { key: "tempo" as const, label: t("config.auto_reject.tempo") },
-                { key: "clipping" as const, label: t("config.auto_reject.clipping") },
-                { key: "dynamics" as const, label: t("config.auto_reject.dynamics") }
-              ].map((rule) => (
-                <button key={rule.key} onClick={() => setAutoReject((prev) => ({ ...prev, [rule.key]: !prev[rule.key] }))} className="text-xs px-3 py-1.5 rounded-lg border transition-all active:scale-95" style={{ borderColor: autoReject[rule.key] ? "#ef4444" : "var(--border)", color: autoReject[rule.key] ? "#ef4444" : "var(--text-muted)", background: autoReject[rule.key] ? "rgba(239,68,68,0.1)" : "transparent" }}>{rule.label}</button>
-              ))}
+            <div className="mt-3 px-3 py-2 rounded-lg text-xs" style={{ background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.15)", color: "#f87171" }}>
+              {t("config.auto_reject.active_info")}
             </div>
           )}
         </div>
@@ -709,18 +644,21 @@ export default function ConfigPage() {
               </div>
 
               <div>
-                <h4 className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "#ef4444" }}>{t("config.glossary.clipping.title")}</h4>
+                <h4 className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "#fbbf24" }}>{t("config.glossary.clipping.title")}</h4>
                 <p className="text-sm text-muted">{t("config.glossary.clipping.desc")}</p>
+                <p className="text-[10px] font-mono mt-1" style={{ color: "#fbbf24" }}>Tu límite: {peakLimitMax.toFixed(1)} dB · Auto-rechazo: &gt; {(peakLimitMax + 1.5).toFixed(1)} dB</p>
               </div>
 
               <div>
-                <h4 className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "#ef4444" }}>{t("config.glossary.dynamics.title")}</h4>
+                <h4 className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "#fbbf24" }}>{t("config.glossary.dynamics.title")}</h4>
                 <p className="text-sm text-muted">{t("config.glossary.dynamics.desc")}</p>
+                <p className="text-[10px] font-mono mt-1" style={{ color: "#fbbf24" }}>Tu límite: {crestFactorMin.toFixed(1)} dB · Auto-rechazo: &lt; {Math.max(crestFactorMin - 1.5, 2.0).toFixed(1)} dB</p>
               </div>
 
               <div>
-                <h4 className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "#ef4444" }}>{t("config.glossary.phase.title")}</h4>
+                <h4 className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "#fbbf24" }}>{t("config.glossary.phase.title")}</h4>
                 <p className="text-sm text-muted">{t("config.glossary.phase.desc")}</p>
+                <p className="text-[10px] font-mono mt-1" style={{ color: "#fbbf24" }}>Tu límite: {phaseCorrelationMin.toFixed(2)} · Auto-rechazo: &lt; {Math.max(phaseCorrelationMin - 0.3, -0.2).toFixed(2)}</p>
               </div>
             </div>
           </div>

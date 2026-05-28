@@ -31,15 +31,16 @@ def calculate_technical_status(
     if sonic_signature is None:
         sonic_signature = {}
         
-    # Retrieve thresholds with fallback defaults
+    # Retrieve recommended thresholds (user-set via single slider)
+    # Critical thresholds are auto-calculated from fixed margins
     peak_limit_max = sonic_signature.get("peak_limit_max", 0.0)
-    peak_limit_critical = sonic_signature.get("peak_limit_critical", 2.0)
+    peak_limit_critical = peak_limit_max + 1.5  # Fixed margin: +1.5 dB above recommended
     
     crest_factor_min = sonic_signature.get("crest_factor_min", 5.0)
-    crest_factor_critical = sonic_signature.get("crest_factor_critical", 3.8)
+    crest_factor_critical = max(crest_factor_min - 1.5, 2.0)  # Fixed margin: -1.5 dB below recommended, floor at 2.0
     
-    phase_correlation_min = sonic_signature.get("phase_correlation_min", 0.0)
-    phase_correlation_critical = sonic_signature.get("phase_correlation_critical", 0.0)
+    phase_correlation_min = sonic_signature.get("phase_correlation_min", 0.3)
+    phase_correlation_critical = max(phase_correlation_min - 0.3, -0.2)  # Fixed margin: -0.3 below recommended, floor at -0.2
 
     # 1. Phase Correlation
     phase = metrics.get("phase_correlation")
