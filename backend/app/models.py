@@ -31,6 +31,12 @@ class Label(SQLModel, table=True):
             "target_camelot_keys": [],
             "auto_reject_rules": {},
             "auto_reject_enabled": True,
+            "peak_limit_max": 0.0,
+            "peak_limit_critical": 1.5,
+            "crest_factor_min": 5.0,
+            "crest_factor_critical": 3.5,
+            "phase_correlation_min": 0.3,
+            "phase_correlation_critical": 0.0,
         },
     )
     created_at: datetime = Field(

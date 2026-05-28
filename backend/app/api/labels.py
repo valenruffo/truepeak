@@ -343,6 +343,12 @@ async def register_label_profile(
             "reject_clipping": True,
             "reject_low_dynamic_range": True,
         },
+        "peak_limit_max": 0.0,
+        "peak_limit_critical": 1.5,
+        "crest_factor_min": 5.0,
+        "crest_factor_critical": 3.5,
+        "phase_correlation_min": 0.3,
+        "phase_correlation_critical": 0.0,
     }
 
     label = Label(
@@ -442,7 +448,20 @@ async def update_label_config(
         raise HTTPException(status_code=403, detail="Access denied to this label.")
 
     # Validate required keys
-    required_keys = {"bpm_min", "bpm_max", "lufs_target", "lufs_tolerance", "target_camelot_keys", "auto_reject_rules"}
+    required_keys = {
+        "bpm_min",
+        "bpm_max",
+        "lufs_target",
+        "lufs_tolerance",
+        "target_camelot_keys",
+        "auto_reject_rules",
+        "peak_limit_max",
+        "peak_limit_critical",
+        "crest_factor_min",
+        "crest_factor_critical",
+        "phase_correlation_min",
+        "phase_correlation_critical",
+    }
     missing = required_keys - set(body.sonic_signature.keys())
     if missing:
         raise HTTPException(

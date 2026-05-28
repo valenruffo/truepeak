@@ -18,6 +18,12 @@ interface SonicSignature {
   allowed_formats?: string[];
   max_upload_size_mb?: number;
   auto_reject_enabled?: boolean;
+  peak_limit_max?: number;
+  peak_limit_critical?: number;
+  crest_factor_min?: number;
+  crest_factor_critical?: number;
+  phase_correlation_min?: number;
+  phase_correlation_critical?: number;
 }
 
 const GENRE_PRESETS: Record<string, { bpm: [number, number]; lufs: number; durMax?: number; color: string }> = {
@@ -45,6 +51,12 @@ export default function ConfigPage() {
   const [durationMax, setDurationMax] = useState(600);
   const [allowedFormats, setAllowedFormats] = useState<string[]>(["wav", "flac", "aiff"]);
   const [maxUploadSizeMb, setMaxUploadSizeMb] = useState<number>(100);
+  const [peakLimitMax, setPeakLimitMax] = useState(0.0);
+  const [peakLimitCritical, setPeakLimitCritical] = useState(1.5);
+  const [crestFactorMin, setCrestFactorMin] = useState(5.0);
+  const [crestFactorCritical, setCrestFactorCritical] = useState(3.5);
+  const [phaseCorrelationMin, setPhaseCorrelationMin] = useState(0.3);
+  const [phaseCorrelationCritical, setPhaseCorrelationCritical] = useState(0.0);
 
   const [fetching, setFetching] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -83,6 +95,12 @@ export default function ConfigPage() {
         if (sig.duration_max) setDurationMax(sig.duration_max);
         setAllowedFormats(sig.allowed_formats ?? ["wav", "flac", "aiff"]);
         setMaxUploadSizeMb(sig.max_upload_size_mb ?? 100);
+        setPeakLimitMax(sig.peak_limit_max ?? 0.0);
+        setPeakLimitCritical(sig.peak_limit_critical ?? 1.5);
+        setCrestFactorMin(sig.crest_factor_min ?? 5.0);
+        setCrestFactorCritical(sig.crest_factor_critical ?? 3.5);
+        setPhaseCorrelationMin(sig.phase_correlation_min ?? 0.3);
+        setPhaseCorrelationCritical(sig.phase_correlation_critical ?? 0.0);
         setFetching(false);
       }
 
@@ -111,6 +129,12 @@ export default function ConfigPage() {
           if (sig.duration_max) setDurationMax(sig.duration_max);
           setAllowedFormats(sig.allowed_formats ?? ["wav", "flac", "aiff"]);
           setMaxUploadSizeMb(sig.max_upload_size_mb ?? 100);
+          setPeakLimitMax(sig.peak_limit_max ?? 0.0);
+          setPeakLimitCritical(sig.peak_limit_critical ?? 1.5);
+          setCrestFactorMin(sig.crest_factor_min ?? 5.0);
+          setCrestFactorCritical(sig.crest_factor_critical ?? 3.5);
+          setPhaseCorrelationMin(sig.phase_correlation_min ?? 0.3);
+          setPhaseCorrelationCritical(sig.phase_correlation_critical ?? 0.0);
         }
       } catch (e) { 
         if (!cached) {
@@ -145,7 +169,7 @@ export default function ConfigPage() {
     try {
       const res = await fetch(`${API}/api/labels/${slug}/config`, {
         method: "PUT", headers: getAuthHeaders(), credentials: "include",
-        body: JSON.stringify({ sonic_signature: { bpm_min: bpmRange[0], bpm_max: bpmRange[1], lufs_target: lufsTarget, lufs_tolerance: lufsTolerance, target_camelot_keys: selectedCamelotKeys, preferred_scales: selectedCamelotKeys, duration_enabled: durationEnabled, duration_max: durationEnabled ? durationMax : null, auto_reject_rules: { phase: autoReject.phase, tempo: autoReject.tempo, reject_clipping: autoReject.clipping, reject_low_dynamic_range: autoReject.dynamics }, allowed_formats: allowedFormats, max_upload_size_mb: maxUploadSizeMb, auto_reject_enabled: autoRejectEnabled } }),
+        body: JSON.stringify({ sonic_signature: { bpm_min: bpmRange[0], bpm_max: bpmRange[1], lufs_target: lufsTarget, lufs_tolerance: lufsTolerance, target_camelot_keys: selectedCamelotKeys, preferred_scales: selectedCamelotKeys, duration_enabled: durationEnabled, duration_max: durationEnabled ? durationMax : null, auto_reject_rules: { phase: autoReject.phase, tempo: autoReject.tempo, reject_clipping: autoReject.clipping, reject_low_dynamic_range: autoReject.dynamics }, allowed_formats: allowedFormats, max_upload_size_mb: maxUploadSizeMb, auto_reject_enabled: autoRejectEnabled, peak_limit_max: peakLimitMax, peak_limit_critical: peakLimitCritical, crest_factor_min: crestFactorMin, crest_factor_critical: crestFactorCritical, phase_correlation_min: phaseCorrelationMin, phase_correlation_critical: phaseCorrelationCritical } }),
       });
       if (!res.ok) throw new Error(`Error ${res.status}`);
       
@@ -171,7 +195,13 @@ export default function ConfigPage() {
             },
             allowed_formats: allowedFormats,
             max_upload_size_mb: maxUploadSizeMb,
-            auto_reject_enabled: autoRejectEnabled
+            auto_reject_enabled: autoRejectEnabled,
+            peak_limit_max: peakLimitMax,
+            peak_limit_critical: peakLimitCritical,
+            crest_factor_min: crestFactorMin,
+            crest_factor_critical: crestFactorCritical,
+            phase_correlation_min: phaseCorrelationMin,
+            phase_correlation_critical: phaseCorrelationCritical
           }
         };
         setCache("tp_link_label_info", nextLabel);
@@ -384,6 +414,151 @@ export default function ConfigPage() {
               <div className="flex justify-between text-[10px] font-mono text-muted mt-1"><span>0:00</span><span>20:00</span></div>
             </div>
           )}
+        </div>
+
+        {/* Technical Validation Thresholds */}
+        <div className="rounded border p-5" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
+          <div className="flex items-center justify-between mb-4 pb-2 border-b border-[var(--border)]">
+            <label className="text-sm font-semibold">{t("config.tech_limits_label")}</label>
+            <span className="text-[10px] text-muted">{t("config.tech_limits_desc")}</span>
+          </div>
+
+          <div className="space-y-6">
+            {/* True Peak Section */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-emerald-500">True Peak (dB)</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-muted">{t("config.peak_limit_max")}</span>
+                    <span className="font-mono text-xs font-semibold animate-fade-in" style={{ color: "#10b981" }}>{peakLimitMax.toFixed(1)} dB</span>
+                  </div>
+                  <input 
+                    type="range" 
+                    min={-2.0} 
+                    max={0.0} 
+                    step={0.1} 
+                    value={peakLimitMax} 
+                    onChange={(e) => setPeakLimitMax(Math.min(+e.target.value, peakLimitCritical - 0.1))} 
+                    className="w-full cursor-pointer accent-emerald-500" 
+                  />
+                  <div className="flex justify-between text-[10px] font-mono text-muted mt-0.5">
+                    <span>-2.0 dB</span>
+                    <span>0.0 dB</span>
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-muted">{t("config.peak_limit_critical")}</span>
+                    <span className="font-mono text-xs font-semibold text-rose-500 animate-fade-in">{peakLimitCritical.toFixed(1)} dB</span>
+                  </div>
+                  <input 
+                    type="range" 
+                    min={0.0} 
+                    max={3.0} 
+                    step={0.1} 
+                    value={peakLimitCritical} 
+                    onChange={(e) => setPeakLimitCritical(Math.max(+e.target.value, peakLimitMax + 0.1))} 
+                    className="w-full cursor-pointer accent-rose-500" 
+                  />
+                  <div className="flex justify-between text-[10px] font-mono text-muted mt-0.5">
+                    <span>0.0 dB</span>
+                    <span>3.0 dB</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Crest Factor Section */}
+            <div className="space-y-3 pt-4 border-t border-[var(--border)]">
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-emerald-500">Crest Factor (dB)</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-muted">{t("config.crest_factor_min")}</span>
+                    <span className="font-mono text-xs font-semibold animate-fade-in" style={{ color: "#10b981" }}>{crestFactorMin.toFixed(1)} dB</span>
+                  </div>
+                  <input 
+                    type="range" 
+                    min={4.0} 
+                    max={10.0} 
+                    step={0.1} 
+                    value={crestFactorMin} 
+                    onChange={(e) => setCrestFactorMin(Math.max(+e.target.value, crestFactorCritical + 0.1))} 
+                    className="w-full cursor-pointer accent-emerald-500" 
+                  />
+                  <div className="flex justify-between text-[10px] font-mono text-muted mt-0.5">
+                    <span>4.0 dB</span>
+                    <span>10.0 dB</span>
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-muted">{t("config.crest_factor_critical")}</span>
+                    <span className="font-mono text-xs font-semibold text-rose-500 animate-fade-in">{crestFactorCritical.toFixed(1)} dB</span>
+                  </div>
+                  <input 
+                    type="range" 
+                    min={3.0} 
+                    max={6.0} 
+                    step={0.1} 
+                    value={crestFactorCritical} 
+                    onChange={(e) => setCrestFactorCritical(Math.min(+e.target.value, crestFactorMin - 0.1))} 
+                    className="w-full cursor-pointer accent-rose-500" 
+                  />
+                  <div className="flex justify-between text-[10px] font-mono text-muted mt-0.5">
+                    <span>3.0 dB</span>
+                    <span>6.0 dB</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Phase Correlation Section */}
+            <div className="space-y-3 pt-4 border-t border-[var(--border)]">
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-emerald-500">Correlación de Fase</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-muted">{t("config.phase_correlation_min")}</span>
+                    <span className="font-mono text-xs font-semibold animate-fade-in" style={{ color: "#10b981" }}>{phaseCorrelationMin.toFixed(2)}</span>
+                  </div>
+                  <input 
+                    type="range" 
+                    min={0.0} 
+                    max={0.5} 
+                    step={0.05} 
+                    value={phaseCorrelationMin} 
+                    onChange={(e) => setPhaseCorrelationMin(Math.max(+e.target.value, phaseCorrelationCritical + 0.01))} 
+                    className="w-full cursor-pointer accent-emerald-500" 
+                  />
+                  <div className="flex justify-between text-[10px] font-mono text-muted mt-0.5">
+                    <span>0.0</span>
+                    <span>0.5</span>
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-muted">{t("config.phase_correlation_critical")}</span>
+                    <span className="font-mono text-xs font-semibold text-rose-500 animate-fade-in">{phaseCorrelationCritical.toFixed(2)}</span>
+                  </div>
+                  <input 
+                    type="range" 
+                    min={-0.2} 
+                    max={0.2} 
+                    step={0.05} 
+                    value={phaseCorrelationCritical} 
+                    onChange={(e) => setPhaseCorrelationCritical(Math.min(+e.target.value, phaseCorrelationMin - 0.01))} 
+                    className="w-full cursor-pointer accent-rose-500" 
+                  />
+                  <div className="flex justify-between text-[10px] font-mono text-muted mt-0.5">
+                    <span>-0.2</span>
+                    <span>0.2</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Upload Limits (Formats and Size) */}

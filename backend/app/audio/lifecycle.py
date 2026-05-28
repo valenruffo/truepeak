@@ -16,42 +16,135 @@ from app.audio.exceptions import AudioAnalysisError, ConversionError, FileCleanu
 from app.services.r2 import upload_file_to_r2, upload_bytes_to_r2
 
 
-def calculate_technical_status(metrics: dict[str, Any]) -> tuple[str, list[str]]:
+def calculate_technical_status(
+    metrics: dict[str, Any],
+    sonic_signature: dict[str, Any] | None = None,
+) -> tuple[str, list[str]]:
     """Calculate the technical validation severity status and alerts.
     
     Returns:
         (status, alertas) - status is "optimo", "warning", or "critico".
     """
     alertas = []
-    status = "optimo"
+    metric_statuses = []
     
-    # 1. Phase Correlation (REQ-003)
-    phase = metrics.get("phase_correlation")
-    if phase is not None and phase < 0.0:
-        status = "critico"
-        alertas.append(f"Falla de fase: correlación negativa ({phase:.2f})")
+    if sonic_signature is None:
+        sonic_signature = {}
         
-    # 2. True Peak (REQ-002, REQ-003)
-    tp = metrics.get("true_peak", 0.0)
-    tp_db = 20 * math.log10(tp) if tp > 0 else -99.0
-    if tp_db > 2.0:
-        status = "critico"
-        alertas.append(f"True Peak crítico: {tp_db:.2f} dB (límite máximo: +2.0 dB)")
-    elif 0.0 <= tp_db <= 1.5:
-        if status != "critico":
-            status = "warning"
-        alertas.append(f"True Peak alto: {tp_db:.2f} dB (recomendado: < 0.0 dB)")
+    # Retrieve thresholds with fallback defaults
+    peak_limit_max = sonic_signature.get("peak_limit_max", 0.0)
+    peak_limit_critical = sonic_signature.get("peak_limit_critical", 2.0)
+    
+    crest_factor_min = sonic_signature.get("crest_factor_min", 5.0)
+    crest_factor_critical = sonic_signature.get("crest_factor_critical", 3.8)
+    
+    phase_correlation_min = sonic_signature.get("phase_correlation_min", 0.0)
+    phase_correlation_critical = sonic_signature.get("phase_correlation_critical", 0.0)
 
-    # 3. Crest Factor (REQ-002)
+    # 1. Phase Correlation
+    phase = metrics.get("phase_correlation")
+    if phase is not None:
+        if phase >= phase_correlation_min:
+            phase_status = "optimo"
+        elif phase_correlation_critical <= phase < phase_correlation_min:
+            phase_status = "warning"
+            alertas.append(f"Falla de fase: correlación baja ({phase:.2f})")
+        else:
+            phase_status = "critico"
+            alertas.append(f"Falla de fase: correlación negativa ({phase:.2f})")
+        metric_statuses.append(phase_status)
+        
+    # 2. True Peak
+    tp = metrics.get("true_peak")
+    if tp is not None:
+        tp_db = 20 * math.log10(tp) if tp > 0 else -99.0
+        if tp_db <= peak_limit_max:
+            tp_status = "optimo"
+        elif peak_limit_max < tp_db <= peak_limit_critical:
+            tp_status = "warning"
+            alertas.append(f"True Peak alto: {tp_db:.2f} dB (recomendado: < {peak_limit_max:.1f} dB)")
+        else:
+            tp_status = "critico"
+            alertas.append(f"True Peak crítico: {tp_db:.2f} dB (límite máximo: +{peak_limit_critical:.1f} dB)")
+        metric_statuses.append(tp_status)
+
+    # 3. Crest Factor
     cf = metrics.get("crest_factor")
     if cf is not None:
-        if 3.8 <= cf <= 5.0:
-            if status != "critico":
-                status = "warning"
+        if cf >= crest_factor_min:
+            cf_status = "optimo"
+        elif crest_factor_critical <= cf < crest_factor_min:
+            cf_status = "warning"
             alertas.append(f"Rango dinámico bajo (Crest Factor): {cf:.2f} dB")
-        elif cf < 3.8:
-            status = "critico"
+        else:
+            cf_status = "critico"
             alertas.append(f"Rango dinámico crítico (Crest Factor): {cf:.2f} dB")
+        metric_statuses.append(cf_status)
+
+    # 4. BPM Range
+    bpm = metrics.get("bpm")
+    if bpm is not None:
+        track_bpm = round(bpm)
+        bpm_min = sonic_signature.get("bpm_min", 70)
+        bpm_max = sonic_signature.get("bpm_max", 180)
+        if bpm_min <= track_bpm <= bpm_max:
+            bpm_status = "optimo"
+        elif (bpm_min - 3) <= track_bpm < bpm_min or bpm_max < track_bpm <= (bpm_max + 3):
+            bpm_status = "warning"
+            alertas.append(f"Tempo fuera de rango recomendado (BPM): {track_bpm}")
+        else:
+            bpm_status = "critico"
+            alertas.append(f"Tempo fuera de rango (BPM): {track_bpm}")
+        metric_statuses.append(bpm_status)
+
+    # 5. LUFS loudness
+    lufs = metrics.get("lufs")
+    if lufs is not None:
+        lufs_target = sonic_signature.get("lufs_target", -14.0)
+        lufs_tolerance = sonic_signature.get("lufs_tolerance", 1.0)
+        if (lufs_target - lufs_tolerance) <= lufs <= (lufs_target + lufs_tolerance):
+            lufs_status = "optimo"
+        elif (lufs_target - lufs_tolerance - 1.5) <= lufs < (lufs_target - lufs_tolerance) or (lufs_target + lufs_tolerance) < lufs <= (lufs_target + lufs_tolerance + 1.5):
+            lufs_status = "warning"
+            alertas.append(f"Sonoridad fuera de tolerancia (LUFS): {lufs:.2f}")
+        else:
+            lufs_status = "critico"
+            alertas.append(f"Sonoridad crítica (LUFS): {lufs:.2f}")
+        metric_statuses.append(lufs_status)
+
+    # 6. Duration
+    duration_enabled = sonic_signature.get("duration_enabled", False)
+    duration_max = sonic_signature.get("duration_max")
+    dur = metrics.get("duration")
+    if duration_enabled and duration_max is not None and dur is not None:
+        if dur <= duration_max:
+            dur_status = "optimo"
+        elif dur <= (duration_max + 120):
+            dur_status = "warning"
+            alertas.append(f"Duración excedida: {dur:.1f}s")
+        else:
+            dur_status = "critico"
+            alertas.append(f"Duración crítica: {dur:.1f}s")
+        metric_statuses.append(dur_status)
+
+    # 7. Key / Scale mismatch
+    musical_key = metrics.get("musical_key")
+    target_keys = sonic_signature.get("target_camelot_keys", [])
+    if musical_key is not None and target_keys:
+        if musical_key in target_keys:
+            key_status = "optimo"
+        else:
+            key_status = "warning"
+            alertas.append(f"Tonalidad no coincide con las preferidas (Key): {musical_key}")
+        metric_statuses.append(key_status)
+
+    # Calculate worst status
+    if "critico" in metric_statuses:
+        status = "critico"
+    elif "warning" in metric_statuses:
+        status = "warning"
+    else:
+        status = "optimo"
 
     return status, alertas
 
@@ -127,23 +220,21 @@ async def process_submission(
         metrics = await analyze_audio(file_path)
 
         # Step 2: Compare against sonic signature and compute technical status
-        status_tecnico, alertas = calculate_technical_status(metrics)
+        status_tecnico, alertas = calculate_technical_status(metrics, sonic_signature)
         auto_reject_enabled = sonic_signature.get("auto_reject_enabled", True)
 
-        # Check binary rules (LUFS, BPM, Key)
-        binary_status, rejection_reason = _check_sonic_signature(metrics, sonic_signature)
+        is_critical = (status_tecnico == "critico")
+        has_structural_alerts = any(
+            keyword in alert.lower() 
+            for alert in alertas 
+            for keyword in ["peak", "crest", "fase", "phase", "rango dinámico"]
+        )
 
-        if binary_status == "rejected":
+        if is_critical and has_structural_alerts and auto_reject_enabled:
             status = "auto_rejected"
-        elif status_tecnico == "critico":
-            if auto_reject_enabled:
-                status = "auto_rejected"
-                rejection_reason = "critical_audio_validation"
-            else:
-                status = "critico"
-                rejection_reason = None
+            rejection_reason = "critical_audio_validation"
         else:
-            status = "inbox"
+            status = "critico" if is_critical else "inbox"
             rejection_reason = None
 
         # Check if auto rejected to bypass uploads and mp3 conversion

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLanguage } from "@/lib/i18n";
 import Link from "next/link";
+import { getCache, setCache } from "@/lib/cache";
 
 export default function GuidePage() {
   const { lang, t } = useLanguage();
@@ -17,11 +18,65 @@ export default function GuidePage() {
   const [rejectClipping, setRejectClipping] = useState(true);
   const [rejectLowDynamics, setRejectLowDynamics] = useState(true);
 
+  const [peakLimitMax, setPeakLimitMax] = useState(0.0);
+  const [peakLimitCritical, setPeakLimitCritical] = useState(1.5);
+  const [crestFactorMin, setCrestFactorMin] = useState(5.0);
+  const [crestFactorCritical, setCrestFactorCritical] = useState(3.5);
+  const [phaseCorrelationMin, setPhaseCorrelationMin] = useState(0.3);
+  const [phaseCorrelationCritical, setPhaseCorrelationCritical] = useState(0.0);
+
   const [trackBpm, setTrackBpm] = useState(126.5);
   const [trackLufs, setTrackLufs] = useState(-11.5);
   const [trackPhase, setTrackPhase] = useState(0.8);
-  const [trackPeak, setTrackPeak] = useState(0.95);
+  const [trackPeak, setTrackPeak] = useState(0.2); // DBFS peak
   const [trackCrestFactor, setTrackCrestFactor] = useState(6.5);
+
+  const [fetching, setFetching] = useState(true);
+
+  useEffect(() => {
+    const fetchConfig = async () => {
+      const slug = localStorage.getItem("slug");
+      if (!slug) { setFetching(false); return; }
+      
+      const cached = getCache<any>("tp_link_label_info", null);
+      if (cached && cached.sonic_signature) {
+        initializeSimulator(cached.sonic_signature);
+      }
+      
+      try {
+        const res = await fetch(`/api/labels/${slug}`);
+        if (res.ok) {
+          const data = await res.json();
+          initializeSimulator(data.sonic_signature);
+          setCache("tp_link_label_info", data);
+        }
+      } catch (e) {
+        console.error("Error fetching config in guide page:", e);
+      } finally {
+        setFetching(false);
+      }
+    };
+    fetchConfig();
+  }, []);
+
+  const initializeSimulator = (sig: any) => {
+    if (!sig) return;
+    if (sig.bpm_min !== undefined) setBpmMin(sig.bpm_min);
+    if (sig.bpm_max !== undefined) setBpmMax(sig.bpm_max);
+    if (sig.lufs_target !== undefined) setLufsTarget(sig.lufs_target);
+    if (sig.lufs_tolerance !== undefined) setLufsTolerance(sig.lufs_tolerance);
+    if (sig.auto_reject_rules) {
+      if (sig.auto_reject_rules.phase !== undefined) setRejectPhase(sig.auto_reject_rules.phase);
+      if (sig.auto_reject_rules.reject_clipping !== undefined) setRejectClipping(sig.auto_reject_rules.reject_clipping);
+      if (sig.auto_reject_rules.reject_low_dynamic_range !== undefined) setRejectLowDynamics(sig.auto_reject_rules.reject_low_dynamic_range);
+    }
+    if (sig.peak_limit_max !== undefined) setPeakLimitMax(sig.peak_limit_max);
+    if (sig.peak_limit_critical !== undefined) setPeakLimitCritical(sig.peak_limit_critical);
+    if (sig.crest_factor_min !== undefined) setCrestFactorMin(sig.crest_factor_min);
+    if (sig.crest_factor_critical !== undefined) setCrestFactorCritical(sig.crest_factor_critical);
+    if (sig.phase_correlation_min !== undefined) setPhaseCorrelationMin(sig.phase_correlation_min);
+    if (sig.phase_correlation_critical !== undefined) setPhaseCorrelationCritical(sig.phase_correlation_critical);
+  };
 
   // Translation Helpers
   const esText = {
@@ -141,69 +196,92 @@ export default function GuidePage() {
   const text = lang === "es" ? esText : enText;
 
   // Simulator Logic
-  const simulateEvaluation = () => {
+  const getSimulationResult = () => {
+    const criticals: string[] = [];
+    const warnings: string[] = [];
+
+    // 1. BPM check (Critical)
     const roundedBpm = Math.round(trackBpm);
-    
-    // 1. BPM check
     if (roundedBpm < bpmMin || roundedBpm > bpmMax) {
-      return {
-        passed: false,
-        reason: lang === "es" 
-          ? `BPM fuera de rango. El tempo del track (${trackBpm} BPM) se redondea a ${roundedBpm}, el cual supera el límite configurado [${bpmMin} - ${bpmMax}].`
-          : `BPM out of range. The track's tempo (${trackBpm} BPM) is rounded to ${roundedBpm}, which exceeds the configured limit [${bpmMin} - ${bpmMax}].`
-      };
+      criticals.push(lang === "es"
+        ? `BPM fuera de rango (${roundedBpm} BPM vs límite [${bpmMin} - ${bpmMax}])`
+        : `BPM out of range (${roundedBpm} BPM vs limit [${bpmMin} - ${bpmMax}])`
+      );
     }
-    
-    // 2. LUFS check
+
+    // 2. LUFS check (Critical)
     const lufsMax = lufsTarget + lufsTolerance;
     if (trackLufs > lufsMax) {
-      return {
-        passed: false,
-        reason: lang === "es"
-          ? `Volumen (LUFS) excesivo. El track tiene ${trackLufs} LUFS y tu límite máximo permitido es ${lufsMax.toFixed(1)} LUFS (Objetivo: ${lufsTarget} + Tolerancia: ${lufsTolerance}).`
-          : `Excessive Loudness (LUFS). The track has ${trackLufs} LUFS and your maximum allowed limit is ${lufsMax.toFixed(1)} LUFS (Target: ${lufsTarget} + Tolerance: ${lufsTolerance}).`
-      };
+      criticals.push(lang === "es"
+        ? `LUFS excesivo (${trackLufs} LUFS vs límite ${lufsMax.toFixed(1)} LUFS)`
+        : `LUFS excessive (${trackLufs} LUFS vs limit ${lufsMax.toFixed(1)} LUFS)`
+      );
     }
-    
-    // 3. Phase check
-    if (rejectPhase && trackPhase <= 0.0) {
-      return {
-        passed: false,
-        reason: lang === "es"
-          ? `Problemas de Fase graves. La correlación estéreo es de ${trackPhase} (menor o igual a 0.0). Esto causará cancelación en sistemas Mono.`
-          : `Severe Phase Issues. The stereo correlation is ${trackPhase} (less than or equal to 0.0). This will cause audio cancellation on Mono systems.`
-      };
+
+    // 3. Phase check (Warning vs Critical)
+    if (trackPhase < phaseCorrelationCritical) {
+      if (rejectPhase) {
+        criticals.push(lang === "es"
+          ? `Correlación de fase crítica (${trackPhase.toFixed(2)} vs límite crítico ${phaseCorrelationCritical.toFixed(2)})`
+          : `Critical phase correlation (${trackPhase.toFixed(2)} vs critical limit ${phaseCorrelationCritical.toFixed(2)})`
+        );
+      } else {
+        warnings.push(lang === "es"
+          ? `Correlación de fase crítica bajo modo manual (${trackPhase.toFixed(2)} vs límite crítico ${phaseCorrelationCritical.toFixed(2)})`
+          : `Critical phase correlation under manual mode (${trackPhase.toFixed(2)} vs critical limit ${phaseCorrelationCritical.toFixed(2)})`
+        );
+      }
+    } else if (trackPhase < phaseCorrelationMin) {
+      warnings.push(lang === "es"
+        ? `Correlación de fase baja (${trackPhase.toFixed(2)} vs límite recomendado ${phaseCorrelationMin.toFixed(2)})`
+        : `Low phase correlation (${trackPhase.toFixed(2)} vs recommended limit ${phaseCorrelationMin.toFixed(2)})`
+      );
     }
-    
-    // 4. Clipping check
-    if (rejectClipping && trackPeak >= 0.99) {
-      return {
-        passed: false,
-        reason: lang === "es"
-          ? `Saturación (Clipping). El pico máximo es de ${trackPeak} dBFS. Esto indica distorsión digital en el máster.`
-          : `Clipping (Digital Saturation). The peak level is ${trackPeak} dBFS. This indicates digital distortion in the master.`
-      };
+
+    // 4. Clipping check (Warning vs Critical)
+    if (trackPeak > peakLimitCritical) {
+      if (rejectClipping) {
+        criticals.push(lang === "es"
+          ? `True Peak crítico (${trackPeak.toFixed(1)} dB vs límite crítico ${peakLimitCritical.toFixed(1)} dB)`
+          : `Critical True Peak (${trackPeak.toFixed(1)} dB vs critical limit ${peakLimitCritical.toFixed(1)} dB)`
+        );
+      } else {
+        warnings.push(lang === "es"
+          ? `True Peak crítico bajo modo manual (${trackPeak.toFixed(1)} dB vs límite crítico ${peakLimitCritical.toFixed(1)} dB)`
+          : `Critical True Peak under manual mode (${trackPeak.toFixed(1)} dB vs critical limit ${peakLimitCritical.toFixed(1)} dB)`
+        );
+      }
+    } else if (trackPeak > peakLimitMax) {
+      warnings.push(lang === "es"
+        ? `True Peak elevado (${trackPeak.toFixed(1)} dB vs límite recomendado ${peakLimitMax.toFixed(1)} dB)`
+        : `Elevated True Peak (${trackPeak.toFixed(1)} dB vs recommended limit ${peakLimitMax.toFixed(1)} dB)`
+      );
     }
-    
-    // 5. Dynamics check
-    if (rejectLowDynamics && trackCrestFactor < 5.0) {
-      return {
-        passed: false,
-        reason: lang === "es"
-          ? `Falta de Rango Dinámico. El Crest Factor es de ${trackCrestFactor} dB. Un valor menor a 5.0 dB indica que el track está hipercomprimido.`
-          : `Low Dynamic Range. The Crest Factor is ${trackCrestFactor} dB. A value under 5.0 dB indicates that the track is hyper-compressed.`
-      };
+
+    // 5. Dynamics check (Warning vs Critical)
+    if (trackCrestFactor < crestFactorCritical) {
+      if (rejectLowDynamics) {
+        criticals.push(lang === "es"
+          ? `Crest Factor crítico (${trackCrestFactor.toFixed(1)} dB vs límite crítico ${crestFactorCritical.toFixed(1)} dB)`
+          : `Critical Crest Factor (${trackCrestFactor.toFixed(1)} dB vs critical limit ${crestFactorCritical.toFixed(1)} dB)`
+        );
+      } else {
+        warnings.push(lang === "es"
+          ? `Crest Factor crítico bajo modo manual (${trackCrestFactor.toFixed(1)} dB vs límite crítico ${crestFactorCritical.toFixed(1)} dB)`
+          : `Critical Crest Factor under manual mode (${trackCrestFactor.toFixed(1)} dB vs critical limit ${crestFactorCritical.toFixed(1)} dB)`
+        );
+      }
+    } else if (trackCrestFactor < crestFactorMin) {
+      warnings.push(lang === "es"
+        ? `Crest Factor bajo (${trackCrestFactor.toFixed(1)} dB vs límite recomendado ${crestFactorMin.toFixed(1)} dB)`
+        : `Low Crest Factor (${trackCrestFactor.toFixed(1)} dB vs recommended limit ${crestFactorMin.toFixed(1)} dB)`
+      );
     }
-    
-    return {
-      passed: true,
-      reason: lang === "es"
-        ? "¡Firma Sónica Aprobada! El track pasa todos los filtros y llegará directo a tu bandeja de entrada."
-        : "Sonic Signature Approved! The track passes all technical filters and goes straight to your inbox."
-    };
+
+    return { criticals, warnings };
   };
 
-  const simResult = simulateEvaluation();
+  const { criticals, warnings } = getSimulationResult();
 
   return (
     <div className="max-w-5xl mx-auto py-8 px-4 md:px-6" style={{ color: "var(--text-primary)" }}>
@@ -470,6 +548,102 @@ export default function GuidePage() {
                   </div>
                 </div>
 
+                {/* True Peak thresholds slider */}
+                <div className="grid grid-cols-2 gap-4 pt-2 border-t border-zinc-800/40">
+                  <div>
+                    <label className="text-xs text-zinc-400 block mb-1">
+                      {lang === "es" ? "Peak Max (Adv.):" : "Peak Max (Warn.):"} <span className="text-zinc-200 font-mono font-semibold">{peakLimitMax.toFixed(1)} dB</span>
+                    </label>
+                    <input
+                      type="range"
+                      min="-2.0"
+                      max="0.0"
+                      step="0.1"
+                      value={peakLimitMax}
+                      onChange={(e) => setPeakLimitMax(Math.min(+e.target.value, peakLimitCritical - 0.1))}
+                      className="w-full accent-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-zinc-400 block mb-1">
+                      {lang === "es" ? "Peak Crítico (Rechazo):" : "Peak Critical (Reject):"} <span className="text-rose-400 font-mono font-semibold">{peakLimitCritical.toFixed(1)} dB</span>
+                    </label>
+                    <input
+                      type="range"
+                      min="0.0"
+                      max="3.0"
+                      step="0.1"
+                      value={peakLimitCritical}
+                      onChange={(e) => setPeakLimitCritical(Math.max(+e.target.value, peakLimitMax + 0.1))}
+                      className="w-full accent-rose-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Crest Factor thresholds slider */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs text-zinc-400 block mb-1">
+                      {lang === "es" ? "Crest Min (Adv.):" : "Crest Min (Warn.):"} <span className="text-zinc-200 font-mono font-semibold">{crestFactorMin.toFixed(1)} dB</span>
+                    </label>
+                    <input
+                      type="range"
+                      min="4.0"
+                      max="10.0"
+                      step="0.1"
+                      value={crestFactorMin}
+                      onChange={(e) => setCrestFactorMin(Math.max(+e.target.value, crestFactorCritical + 0.1))}
+                      className="w-full accent-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-zinc-400 block mb-1">
+                      {lang === "es" ? "Crest Crítico (Rechazo):" : "Crest Critical (Reject):"} <span className="text-rose-400 font-mono font-semibold">{crestFactorCritical.toFixed(1)} dB</span>
+                    </label>
+                    <input
+                      type="range"
+                      min="3.0"
+                      max="6.0"
+                      step="0.1"
+                      value={crestFactorCritical}
+                      onChange={(e) => setCrestFactorCritical(Math.min(+e.target.value, crestFactorMin - 0.1))}
+                      className="w-full accent-rose-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Phase Correlation thresholds slider */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs text-zinc-400 block mb-1">
+                      {lang === "es" ? "Fase Min (Adv.):" : "Phase Min (Warn.):"} <span className="text-zinc-200 font-mono font-semibold">{phaseCorrelationMin.toFixed(2)}</span>
+                    </label>
+                    <input
+                      type="range"
+                      min="0.0"
+                      max="0.5"
+                      step="0.05"
+                      value={phaseCorrelationMin}
+                      onChange={(e) => setPhaseCorrelationMin(Math.max(+e.target.value, phaseCorrelationCritical + 0.01))}
+                      className="w-full accent-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-zinc-400 block mb-1">
+                      {lang === "es" ? "Fase Crítica (Rechazo):" : "Phase Critical (Reject):"} <span className="text-rose-400 font-mono font-semibold">{phaseCorrelationCritical.toFixed(2)}</span>
+                    </label>
+                    <input
+                      type="range"
+                      min="-0.2"
+                      max="0.2"
+                      step="0.05"
+                      value={phaseCorrelationCritical}
+                      onChange={(e) => setPhaseCorrelationCritical(Math.min(+e.target.value, phaseCorrelationMin - 0.01))}
+                      className="w-full accent-rose-500"
+                    />
+                  </div>
+                </div>
+
                 {/* Filters checkbox toggles */}
                 <div className="grid grid-cols-3 gap-2 pt-2 border-t border-zinc-800/60">
                   <label className="flex items-center gap-2 text-xs text-zinc-400 cursor-pointer">
@@ -543,61 +717,61 @@ export default function GuidePage() {
                 </div>
 
                 {/* Track Phase Correlation */}
-                {rejectPhase && (
-                  <div>
-                    <div className="flex justify-between text-xs text-zinc-400 mb-1">
-                      <span>{text.simTrackPhase}</span>
-                      <span className={`font-mono font-semibold ${trackPhase <= 0 ? "text-rose-400" : "text-zinc-200"}`}>{trackPhase}</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="-1"
-                      max="1"
-                      step="0.05"
-                      value={trackPhase}
-                      onChange={(e) => setTrackPhase(parseFloat(e.target.value))}
-                      className="w-full accent-emerald-500"
-                    />
+                <div>
+                  <div className="flex justify-between text-xs text-zinc-400 mb-1">
+                    <span>{text.simTrackPhase}</span>
+                    <span className={`font-mono font-semibold ${
+                      trackPhase < phaseCorrelationCritical ? "text-rose-400" : trackPhase < phaseCorrelationMin ? "text-amber-400" : "text-emerald-400"
+                    }`}>{trackPhase.toFixed(2)}</span>
                   </div>
-                )}
+                  <input
+                    type="range"
+                    min="-1"
+                    max="1"
+                    step="0.05"
+                    value={trackPhase}
+                    onChange={(e) => setTrackPhase(parseFloat(e.target.value))}
+                    className="w-full accent-emerald-500"
+                  />
+                </div>
 
                 {/* Track True Peak */}
-                {rejectClipping && (
-                  <div>
-                    <div className="flex justify-between text-xs text-zinc-400 mb-1">
-                      <span>{text.simTrackPeak}</span>
-                      <span className={`font-mono font-semibold ${trackPeak >= 0.99 ? "text-rose-400" : "text-zinc-200"}`}>{trackPeak} dBFS</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0.1"
-                      max="1.1"
-                      step="0.01"
-                      value={trackPeak}
-                      onChange={(e) => setTrackPeak(parseFloat(e.target.value))}
-                      className="w-full accent-emerald-500"
-                    />
+                <div>
+                  <div className="flex justify-between text-xs text-zinc-400 mb-1">
+                    <span>{text.simTrackPeak}</span>
+                    <span className={`font-mono font-semibold ${
+                      trackPeak > peakLimitCritical ? "text-rose-400" : trackPeak > peakLimitMax ? "text-amber-400" : "text-emerald-400"
+                    }`}>{trackPeak.toFixed(1)} dBFS</span>
                   </div>
-                )}
+                  <input
+                    type="range"
+                    min="-3.0"
+                    max="4.0"
+                    step="0.1"
+                    value={trackPeak}
+                    onChange={(e) => setTrackPeak(parseFloat(e.target.value))}
+                    className="w-full accent-emerald-500"
+                  />
+                </div>
 
                 {/* Track Crest Factor */}
-                {rejectLowDynamics && (
-                  <div>
-                    <div className="flex justify-between text-xs text-zinc-400 mb-1">
-                      <span>{text.simTrackCrest}</span>
-                      <span className={`font-mono font-semibold ${trackCrestFactor < 5 ? "text-rose-400" : "text-zinc-200"}`}>{trackCrestFactor} dB</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="2"
-                      max="12"
-                      step="0.1"
-                      value={trackCrestFactor}
-                      onChange={(e) => setTrackCrestFactor(parseFloat(e.target.value))}
-                      className="w-full accent-emerald-500"
-                    />
+                <div>
+                  <div className="flex justify-between text-xs text-zinc-400 mb-1">
+                    <span>{text.simTrackCrest}</span>
+                    <span className={`font-mono font-semibold ${
+                      trackCrestFactor < crestFactorCritical ? "text-rose-400" : trackCrestFactor < crestFactorMin ? "text-amber-400" : "text-emerald-400"
+                    }`}>{trackCrestFactor.toFixed(1)} dB</span>
                   </div>
-                )}
+                  <input
+                    type="range"
+                    min="2"
+                    max="12"
+                    step="0.1"
+                    value={trackCrestFactor}
+                    onChange={(e) => setTrackCrestFactor(parseFloat(e.target.value))}
+                    className="w-full accent-emerald-500"
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -606,40 +780,77 @@ export default function GuidePage() {
           <div className="md:col-span-2">
             <div className="sticky top-6 p-5 rounded-lg border flex flex-col h-full justify-between gap-6" style={{
               background: "var(--bg-secondary)",
-              borderColor: simResult.passed ? "rgba(16,185,129,0.25)" : "rgba(239,68,68,0.25)"
+              borderColor: criticals.length > 0 ? "rgba(239,68,68,0.25)" : warnings.length > 0 ? "rgba(245,158,11,0.25)" : "rgba(16,185,129,0.25)"
             }}>
               <div>
                 <h3 className="text-sm font-semibold text-zinc-400 mb-4">{text.simResultSection}</h3>
                 
                 {/* Visual state badge */}
                 <div className={`py-4 px-6 rounded-md text-center font-bold text-lg mb-4 flex flex-col gap-1 items-center justify-center transition-all ${
-                  simResult.passed 
-                    ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" 
-                    : "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                  criticals.length > 0 
+                    ? "bg-rose-500/10 text-rose-400 border border-rose-500/20" 
+                    : warnings.length > 0
+                    ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                    : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
                 }`}>
-                  {simResult.passed ? (
+                  {criticals.length > 0 ? (
                     <>
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="mb-1">
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                      {text.simStatusApproved}
-                    </>
-                  ) : (
-                    <>
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="mb-1">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="mb-1 animate-bounce">
                         <circle cx="12" cy="12" r="10" />
                         <line x1="12" y1="8" x2="12" y2="12" />
                         <line x1="12" y1="16" x2="12.01" y2="16" />
                       </svg>
-                      {text.simStatusRejected}
+                      {text.simStatusRejected} ({criticals.length} {criticals.length === 1 ? (lang === "es" ? "crítico" : "critical") : (lang === "es" ? "críticos" : "criticals")})
+                    </>
+                  ) : warnings.length > 0 ? (
+                    <>
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="mb-1">
+                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                        <line x1="12" y1="9" x2="12" y2="13" />
+                        <line x1="12" y1="17" x2="12.01" y2="17" />
+                      </svg>
+                      {lang === "es" ? "APROBADO CON ALERTAS" : "APPROVED WITH ALERTS"} ({warnings.length} {warnings.length === 1 ? (lang === "es" ? "alerta" : "alert") : (lang === "es" ? "alertas" : "alerts")})
+                    </>
+                  ) : (
+                    <>
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="mb-1">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                      {lang === "es" ? "APROBADO (ÓPTIMO)" : "APPROVED (OPTIMAL)"}
                     </>
                   )}
                 </div>
 
                 {/* Explanation text */}
-                <p className="text-sm text-zinc-300 leading-relaxed bg-zinc-950/40 p-4 rounded border border-zinc-800/40">
-                  {simResult.reason}
-                </p>
+                <div className="text-sm text-zinc-300 leading-relaxed bg-zinc-950/40 p-4 rounded border border-zinc-800/40 space-y-3">
+                  {criticals.length > 0 && (
+                    <div>
+                      <h4 className="text-xs font-semibold text-rose-400 uppercase tracking-wider mb-1">
+                        {lang === "es" ? "Errores Críticos:" : "Critical Errors:"}
+                      </h4>
+                      <ul className="list-disc list-inside space-y-1 text-xs text-rose-300/95 pl-1 font-sans">
+                        {criticals.map((c, i) => <li key={i}>{c}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                  {warnings.length > 0 && (
+                    <div>
+                      <h4 className="text-xs font-semibold text-amber-400 uppercase tracking-wider mb-1">
+                        {lang === "es" ? "Advertencias:" : "Warnings:"}
+                      </h4>
+                      <ul className="list-disc list-inside space-y-1 text-xs text-amber-300/95 pl-1 font-sans">
+                        {warnings.map((w, i) => <li key={i}>{w}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                  {criticals.length === 0 && warnings.length === 0 && (
+                    <p className="text-xs text-emerald-400 font-medium">
+                      {lang === "es" 
+                        ? "¡Excelente! El track cumple con todas las directrices óptimas de tu firma sónica."
+                        : "Excellent! The track complies with all optimal guidelines of your sonic signature."}
+                    </p>
+                  )}
+                </div>
               </div>
 
               {/* Tips for fine tuning */}
