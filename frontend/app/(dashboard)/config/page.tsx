@@ -531,18 +531,17 @@ export default function ConfigPage() {
                       <span>0.0 dB</span>
                     </div>
                   </div>
-                  {/* Dynamic visual range bar */}
-                  <div className="space-y-1.5 mt-2">
-                    <div className="h-1.5 w-full rounded-full flex overflow-hidden bg-zinc-800">
-                      <div className="bg-emerald-500/80 h-full" style={{ width: "50%" }} />
-                      <div className="bg-amber-500/80 h-full" style={{ width: "30%" }} />
-                      <div className="bg-rose-500/80 h-full" style={{ width: "20%" }} />
-                    </div>
-                    <div className="flex justify-between text-[10px] font-mono text-zinc-400">
-                      <span className="text-emerald-400 font-semibold">Óptimo (≤ {peakLimitMax.toFixed(1)} dB)</span>
-                      <span className="text-amber-400 font-semibold">Warning (&lt; {(peakLimitMax + 1.5).toFixed(1)} dB)</span>
-                      <span className="text-rose-400 font-semibold">Auto-Rechazo (&gt; {(peakLimitMax + 1.5).toFixed(1)} dB)</span>
-                    </div>
+                  {/* Dynamic zone indicators */}
+                  <div className="flex gap-2 flex-wrap mt-2.5">
+                    <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in" style={{ background: "rgba(16,185,129,0.1)", color: "#10b981", border: "1px solid rgba(16,185,129,0.2)" }}>
+                      {t("config.badge.optimo")}: ≤ {peakLimitMax.toFixed(1)} dB
+                    </span>
+                    <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in" style={{ background: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.2)" }}>
+                      {t("config.badge.warning")}: {peakLimitMax.toFixed(1)} — {(peakLimitMax + 1.5).toFixed(1)} dB
+                    </span>
+                    <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in" style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
+                      {t("config.badge.critico")}: &gt; {(peakLimitMax + 1.5).toFixed(1)} dB
+                    </span>
                   </div>
                 </div>
 
@@ -568,18 +567,17 @@ export default function ConfigPage() {
                       <span>10.0 dB</span>
                     </div>
                   </div>
-                  {/* Dynamic visual range bar */}
-                  <div className="space-y-1.5 mt-2">
-                    <div className="h-1.5 w-full rounded-full flex overflow-hidden bg-zinc-800">
-                      <div className="bg-rose-500/80 h-full" style={{ width: "20%" }} />
-                      <div className="bg-amber-500/80 h-full" style={{ width: "30%" }} />
-                      <div className="bg-emerald-500/80 h-full" style={{ width: "50%" }} />
-                    </div>
-                    <div className="flex justify-between text-[10px] font-mono text-zinc-400">
-                      <span className="text-rose-400 font-semibold">Auto-Rechazo (&lt; {Math.max(crestFactorMin - 1.5, 2.0).toFixed(1)} dB)</span>
-                      <span className="text-amber-400 font-semibold">Warning (≤ {crestFactorMin.toFixed(1)} dB)</span>
-                      <span className="text-emerald-400 font-semibold">Óptimo (≥ {crestFactorMin.toFixed(1)} dB)</span>
-                    </div>
+                  {/* Dynamic zone indicators */}
+                  <div className="flex gap-2 flex-wrap mt-2.5">
+                    <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in" style={{ background: "rgba(16,185,129,0.1)", color: "#10b981", border: "1px solid rgba(16,185,129,0.2)" }}>
+                      {t("config.badge.optimo")}: ≥ {crestFactorMin.toFixed(1)} dB
+                    </span>
+                    <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in" style={{ background: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.2)" }}>
+                      {t("config.badge.warning")}: {Math.max(crestFactorMin - 1.5, 2.0).toFixed(1)} — {crestFactorMin.toFixed(1)} dB
+                    </span>
+                    <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in" style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
+                      {t("config.badge.critico")}: &lt; {Math.max(crestFactorMin - 1.5, 2.0).toFixed(1)} dB
+                    </span>
                   </div>
                 </div>
 
@@ -605,18 +603,17 @@ export default function ConfigPage() {
                       <span>0.5</span>
                     </div>
                   </div>
-                  {/* Dynamic visual range bar */}
-                  <div className="space-y-1.5 mt-2">
-                    <div className="h-1.5 w-full rounded-full flex overflow-hidden bg-zinc-800">
-                      <div className="bg-rose-500/80 h-full" style={{ width: "20%" }} />
-                      <div className="bg-amber-500/80 h-full" style={{ width: "30%" }} />
-                      <div className="bg-emerald-500/80 h-full" style={{ width: "50%" }} />
-                    </div>
-                    <div className="flex justify-between text-[10px] font-mono text-zinc-400">
-                      <span className="text-rose-400 font-semibold">Auto-Rechazo (&lt; {Math.max(phaseCorrelationMin - 0.3, -0.2).toFixed(2)})</span>
-                      <span className="text-amber-400 font-semibold">Warning (≤ {phaseCorrelationMin.toFixed(2)})</span>
-                      <span className="text-emerald-400 font-semibold">Óptimo (≥ {phaseCorrelationMin.toFixed(2)})</span>
-                    </div>
+                  {/* Dynamic zone indicators */}
+                  <div className="flex gap-2 flex-wrap mt-2.5">
+                    <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in" style={{ background: "rgba(16,185,129,0.1)", color: "#10b981", border: "1px solid rgba(16,185,129,0.2)" }}>
+                      {t("config.badge.optimo")}: ≥ {phaseCorrelationMin.toFixed(2)}
+                    </span>
+                    <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in" style={{ background: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.2)" }}>
+                      {t("config.badge.warning")}: {Math.max(phaseCorrelationMin - 0.3, -0.2).toFixed(2)} — {phaseCorrelationMin.toFixed(2)}
+                    </span>
+                    <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in" style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
+                      {t("config.badge.critico")}: &lt; {Math.max(phaseCorrelationMin - 0.3, -0.2).toFixed(2)}
+                    </span>
                   </div>
                 </div>
               </div>
