@@ -93,7 +93,7 @@ export default function GuidePage() {
     
     rulePhaseTitle: "3. Compatibilidad Mono (Fase)",
     rulePhaseDesc: "Mide la compatibilidad estéreo de la mezcla (valores entre 1.0 y -1.0).",
-    rulePhaseExample: "• Tu límite recomendado es editable. La tolerancia crítica se calcula a -0.3 por debajo del valor recomendado (con piso en -0.2).\n• Si el valor cae por debajo de la advertencia pero por encima del límite crítico, entra como warning.\n• Si es menor al límite crítico (ej: Fase invertida < -0.2), se considera error crítico y se auto-rechaza si el rechazo automático está activo.",
+    rulePhaseExample: "• Tu límite recomendado es editable. La tolerancia crítica se calcula a -0.3 por debajo del valor recomendado (con piso en -0.2).\n• Si el valor cae por debajo de la advertencia pero por encima del límite crítico, entra como warning.\n• Si es menor al límite crítico (ej: menor a 0.00 para un recomendado de 0.30), se considera error crítico y se auto-rechaza si el rechazo automático está activo.",
     
     ruleClippingTitle: "4. Techo de Saturación (Clipping)",
     ruleClippingDesc: "Busca picos que saturen digitalmente (True Peak).",
@@ -150,7 +150,7 @@ export default function GuidePage() {
     
     rulePhaseTitle: "3. Mono Compatibility (Phase)",
     rulePhaseDesc: "Measures the stereo compatibility of the mix (values between 1.0 and -1.0).",
-    rulePhaseExample: "• Your recommended limit is editable. The critical tolerance is calculated at -0.3 below the recommended value (with a floor at -0.2).\n• If the value falls below the recommendation but above the critical limit, it triggers a warning.\n• If it falls below the critical limit (e.g. Inverted Phase < -0.2), it is considered a critical error and is auto-rejected if auto-rejection is active.",
+    rulePhaseExample: "• Your recommended limit is editable. The critical tolerance is calculated at -0.3 below the recommended value (with a floor at -0.2).\n• If the value falls below the recommendation but above the critical limit, it triggers a warning.\n• If it falls below the critical limit (e.g. below 0.00 for a recommended limit of 0.30), it is considered a critical error and is auto-rejected if auto-rejection is active.",
     
     ruleClippingTitle: "4. Saturation Ceiling (Clipping)",
     ruleClippingDesc: "Looks for peaks that digitally saturate (True Peak).",

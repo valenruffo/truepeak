@@ -376,6 +376,18 @@ export default function ConfigPage() {
                   <input type="range" min={60} max={200} value={bpmRange[1]} onChange={(e) => { setBpmRange([bpmRange[0], Math.max(+e.target.value, bpmRange[0] + 5)]); setActivePreset(null); }} className="w-full cursor-pointer accent-emerald-500" />
                 </div>
               </div>
+              {/* Dynamic zone indicators */}
+              <div className="flex gap-2 flex-wrap mt-3.5 pt-3.5 border-t border-[var(--border)]">
+                <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in" style={{ background: "rgba(16,185,129,0.1)", color: "#10b981", border: "1px solid rgba(16,185,129,0.2)" }}>
+                  {t("config.badge.optimo")}: {bpmRange[0]} — {bpmRange[1]} BPM
+                </span>
+                <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in" style={{ background: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.2)" }}>
+                  {t("config.badge.warning")}: {bpmRange[0] - 3}–{bpmRange[0] - 1} / {bpmRange[1] + 1}–{bpmRange[1] + 3} BPM
+                </span>
+                <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in" style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
+                  {t("config.badge.critico")}: &lt; {bpmRange[0] - 3} o &gt; {bpmRange[1] + 3} BPM {t("config.badge.no_auto_reject")}
+                </span>
+              </div>
             </div>
 
             {/* LUFS Target */}
@@ -394,6 +406,18 @@ export default function ConfigPage() {
                   <input type="range" min={0.5} max={4} step={0.5} value={lufsTolerance} onChange={(e) => { setLufsTolerance(+e.target.value); setActivePreset(null); }} className="w-full cursor-pointer accent-emerald-500" />
                 </div>
               </div>
+              {/* Dynamic zone indicators */}
+              <div className="flex gap-2 flex-wrap mt-3.5 pt-3.5 border-t border-[var(--border)]">
+                <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in" style={{ background: "rgba(16,185,129,0.1)", color: "#10b981", border: "1px solid rgba(16,185,129,0.2)" }}>
+                  {t("config.badge.optimo")}: {(lufsTarget - lufsTolerance).toFixed(1)} — {(lufsTarget + lufsTolerance).toFixed(1)} LUFS
+                </span>
+                <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in" style={{ background: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.2)" }}>
+                  {t("config.badge.warning")}: {(lufsTarget - lufsTolerance - 1.5).toFixed(1)} a {(lufsTarget - lufsTolerance).toFixed(1)} / {(lufsTarget + lufsTolerance).toFixed(1)} a {(lufsTarget + lufsTolerance + 1.5).toFixed(1)} LUFS
+                </span>
+                <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in" style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
+                  {t("config.badge.critico")}: &lt; {(lufsTarget - lufsTolerance - 1.5).toFixed(1)} o &gt; {(lufsTarget + lufsTolerance + 1.5).toFixed(1)} LUFS {t("config.badge.no_auto_reject")}
+                </span>
+              </div>
             </div>
 
             {/* Duration Range */}
@@ -408,11 +432,25 @@ export default function ConfigPage() {
                 {durationEnabled && <span className="font-mono text-xs px-2 py-1 rounded-lg" style={{ background: "var(--bg-card)" }}>{Math.floor(durationMax / 60)}:{String(durationMax % 60).padStart(2, "0")}</span>}
               </div>
               {durationEnabled && (
-                <div>
-                  <div className="flex items-center justify-between mb-1"><span className="text-xs text-muted">{t("config.bpm_max")}</span><span className="font-mono text-xs" style={{ color: "#10b981" }}>{Math.floor(durationMax / 60)}:{String(durationMax % 60).padStart(2, "0")}</span></div>
-                  <input type="range" min={0} max={1200} step={30} value={durationMax} onChange={(e) => setDurationMax(+e.target.value)} className="w-full cursor-pointer accent-emerald-500" />
-                  <div className="flex justify-between text-[10px] font-mono text-muted mt-1"><span>0:00</span><span>20:00</span></div>
-                </div>
+                <>
+                  <div>
+                    <div className="flex items-center justify-between mb-1"><span className="text-xs text-muted">{t("config.bpm_max")}</span><span className="font-mono text-xs" style={{ color: "#10b981" }}>{Math.floor(durationMax / 60)}:{String(durationMax % 60).padStart(2, "0")}</span></div>
+                    <input type="range" min={0} max={1200} step={30} value={durationMax} onChange={(e) => setDurationMax(+e.target.value)} className="w-full cursor-pointer accent-emerald-500" />
+                    <div className="flex justify-between text-[10px] font-mono text-muted mt-1"><span>0:00</span><span>20:00</span></div>
+                  </div>
+                  {/* Dynamic zone indicators */}
+                  <div className="flex gap-2 flex-wrap mt-3.5 pt-3.5 border-t border-[var(--border)]">
+                    <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in" style={{ background: "rgba(16,185,129,0.1)", color: "#10b981", border: "1px solid rgba(16,185,129,0.2)" }}>
+                      {t("config.badge.optimo")}: ≤ {Math.floor(durationMax / 60)}:{String(durationMax % 60).padStart(2, "0")}
+                    </span>
+                    <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in" style={{ background: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.2)" }}>
+                      {t("config.badge.warning")}: {Math.floor(durationMax / 60)}:{String(durationMax % 60).padStart(2, "0")} — {Math.floor((durationMax + 120) / 60)}:{String((durationMax + 120) % 60).padStart(2, "0")}
+                    </span>
+                    <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium animate-fade-in" style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
+                      {t("config.badge.critico")}: &gt; {Math.floor((durationMax + 120) / 60)}:{String((durationMax + 120) % 60).padStart(2, "0")} {t("config.badge.no_auto_reject")}
+                    </span>
+                  </div>
+                </>
               )}
             </div>
 

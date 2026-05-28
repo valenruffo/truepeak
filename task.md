@@ -16,4 +16,4 @@
   - [x] Update i18n keys for custom warning margins info block
   - [x] Add reset button in panel header to restore recommended limits (0.0 dB, 5.0 dB, 0.3)
   - [x] Validate build locally and verify zero errors
-  - [/] Deploy changes to Vercel production
+  - [x] Deploy changes to Vercel production
