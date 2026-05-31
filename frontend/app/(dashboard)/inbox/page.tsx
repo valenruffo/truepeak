@@ -1600,8 +1600,9 @@ useEffect(() => {
             ref={provided.innerRef}
             {...provided.draggableProps}
             className={cn(
-              "rounded border mb-2 transition-shadow overflow-hidden",
-              snapshot.isDragging && "shadow-lg opacity-80"
+              "rounded border mb-2 transition-all duration-200 overflow-hidden",
+              snapshot.isDragging && "shadow-lg opacity-80",
+              isLoading && "opacity-50 pointer-events-none"
             )}
             style={{
               background: "var(--bg-card)",
@@ -1796,6 +1797,7 @@ useEffect(() => {
               <TwoClickDelete
                 onDelete={() => handleDelete(sub)}
                 size={20}
+                isLoading={isLoading === "delete"}
               />
             </div>
           </div>
@@ -2156,6 +2158,7 @@ useEffect(() => {
                   <TwoClickDelete
                     onDelete={() => handleDelete(d)}
                     size={20}
+                    isLoading={isLoading === "delete"}
                   />
                 </div>
               </div>
@@ -2225,6 +2228,7 @@ useEffect(() => {
       {filteredSystemItems.length > 0 ? (
         filteredSystemItems.map((d) => {
           const badge = statusBadgeColor(d.status);
+          const isLoading = actionLoading[d.id];
           return (
             <div
               key={d.id}
@@ -2273,6 +2277,7 @@ useEffect(() => {
                 <TwoClickDelete
                   onDelete={() => handleDelete(d)}
                   size={22}
+                  isLoading={isLoading === "delete"}
                 />
               </div>
             </div>

@@ -5,14 +5,16 @@ import { useState, useEffect, useCallback } from "react";
 interface TwoClickDeleteProps {
   onDelete: () => void;
   size?: number;
+  isLoading?: boolean;
 }
 
-export default function TwoClickDelete({ onDelete, size = 22 }: TwoClickDeleteProps) {
+export default function TwoClickDelete({ onDelete, size = 22, isLoading = false }: TwoClickDeleteProps) {
   const [confirming, setConfirming] = useState(false);
 
   const handleFirstClick = useCallback(() => {
+    if (isLoading) return;
     setConfirming(true);
-  }, []);
+  }, [isLoading]);
 
   // Auto-cancel after 3 seconds
   useEffect(() => {
@@ -25,6 +27,26 @@ export default function TwoClickDelete({ onDelete, size = 22 }: TwoClickDeletePr
     setConfirming(false);
     onDelete();
   }, [onDelete]);
+
+  // Loading spinner after confirmation
+  if (isLoading) {
+    return (
+      <div
+        className="flex items-center justify-center rounded"
+        style={{ width: size, height: size }}
+      >
+        <div
+          className="rounded-full animate-spin border-current border-t-transparent"
+          style={{
+            width: size * 0.55,
+            height: size * 0.55,
+            borderWidth: 2,
+            color: "#10b981",
+          }}
+        />
+      </div>
+    );
+  }
 
   if (confirming) {
     return (
