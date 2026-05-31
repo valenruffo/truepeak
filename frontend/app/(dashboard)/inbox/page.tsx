@@ -2597,7 +2597,7 @@ useEffect(() => {
                       const unreadCount = systemItems.filter(s => !interactedIds.has(s.id)).length;
                       if (unreadCount === 0) return null;
                       return (
-                        <span className="w-4 h-4 flex items-center justify-center rounded-full text-[9px] bg-emerald-500/80 text-black font-bold">
+                        <span className="w-4 h-4 flex items-center justify-center rounded-full text-[9px] bg-red-500/80 text-white font-bold">
                           {unreadCount}
                         </span>
                       );
