@@ -204,7 +204,7 @@ const resolvePlaceholders = (text: string, c: Contact, labelName: string) => {
 function CRMContent() {
   const { t } = useLanguage();
   const [selectedTemplate, setSelectedTemplate] = useState("reject-phase");
-  const [selectedContact, setSelectedContact] = useState(0);
+  const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
   const emailBodyState = useUndoableState("");
   const emailSubjectState = useUndoableState("");
   const { value: emailBody, set: setEmailBody, undo: undoEmailBody, redo: redoEmailBody } = emailBodyState;
@@ -309,9 +309,9 @@ function CRMContent() {
 
   useEffect(() => {
     if (highlightedId && contacts.length > 0) {
-      const idx = contacts.findIndex((c) => c.id === highlightedId);
-      if (idx >= 0) {
-        setSelectedContact(idx);
+      const found = contacts.find((c) => c.id === highlightedId);
+      if (found) {
+        setSelectedContactId(highlightedId);
         setTimeout(() => {
           const el = document.getElementById(`crm-contact-${highlightedId}`);
           if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -329,7 +329,7 @@ function CRMContent() {
   }, [highlightedId, contacts]);
 
   const templates = buildTemplates(labelName || "tu sello", t);
-  const contact = contacts[selectedContact];
+  const contact = contacts.find((c) => c.id === selectedContactId) || null;
   const isAlreadySent = sent || (contact?.sent ?? false);
   const template = templates.find((t) => t.id === selectedTemplate);
 
@@ -345,8 +345,8 @@ function CRMContent() {
     setSent(false);
   };
 
-  const handleContactChange = (idx: number) => {
-    setSelectedContact(idx);
+  const handleContactChange = (id: string) => {
+    setSelectedContactId(id);
     setSent(false);
     setHighlightedId(null);
     if (window.location.search.includes("highlight")) {
@@ -461,8 +461,27 @@ function CRMContent() {
     }
   }, [emailSubject, contact, labelName]);
 
+  const [showApproved, setShowApproved] = useState(true);
+  const [showRejected, setShowRejected] = useState(true);
   const rejectionCount = contacts.filter((c) => c.status === "rejected").length;
   const approvalCount = contacts.filter((c) => c.status === "approved").length;
+  const filteredContacts = contacts.filter(c => {
+    if (showApproved && showRejected) return true;
+    if (showApproved) return c.status === "approved";
+    return c.status === "rejected";
+  });
+
+  // Auto-select first contact when list loads and nothing is selected
+  useEffect(() => {
+    if (!selectedContactId && filteredContacts.length > 0) {
+      setSelectedContactId(filteredContacts[0].id);
+    }
+    // If selected contact got filtered out, pick first available
+    if (selectedContactId && filteredContacts.length > 0 && !filteredContacts.find(c => c.id === selectedContactId)) {
+      setSelectedContactId(filteredContacts[0].id);
+    }
+  }, [filteredContacts, selectedContactId]);
+
   const plan = typeof window !== "undefined" ? localStorage.getItem("plan") : "free";
   const isFree = plan === "free" || !plan;
 
@@ -508,7 +527,7 @@ function CRMContent() {
       if (!res.ok) { const err = await res.json().catch(() => null); throw new Error(err?.detail || `Error ${res.status}`); }
       setSent(true);
       setContacts((prev) => {
-        const next = prev.map((c, i) => (i === selectedContact ? { ...c, sent: true } : c));
+        const next = prev.map((c) => (c.id === contact.id ? { ...c, sent: true } : c));
         setCache("tp_crm_contacts", next);
         return next;
       });
@@ -1171,22 +1190,50 @@ function CRMContent() {
 
       {activeTab === "bandeja" ? (
         <div className="rounded border overflow-hidden" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
-          <div className="grid grid-cols-5" style={{ minHeight: "500px" }}>
+          <div className="grid grid-cols-1 lg:grid-cols-5" style={{ minHeight: "500px" }}>
             {/* Left Sidebar - Contacts */}
-            <div className="col-span-2 border-r flex flex-col" style={{ borderColor: "var(--border)" }}>
+            <div className="col-span-1 lg:col-span-2 lg:border-r border-b lg:border-b-0 flex flex-col" style={{ borderColor: "var(--border)" }}>
               <div className="px-4 py-3 border-b" style={{ borderColor: "var(--border)" }}>
                 <div className="text-[10px] font-mono uppercase tracking-wider text-muted mb-2">{t("crm.contacts_label")}</div>
                 <div className="flex gap-2">
-                  <span className="text-[10px] px-2 py-0.5 rounded" style={{ background: "rgba(239,68,68,0.15)", color: "#ef4444" }}>{rejectionCount} {t("crm.rejections")}</span>
-                  <span className="text-[10px] px-2 py-0.5 rounded" style={{ background: "rgba(16,185,129,0.15)", color: "#10b981" }}>{approvalCount} {t("crm.approvals")}</span>
+                  <button
+                    onClick={() => {
+                      if (showApproved && showRejected) { setShowApproved(false); }
+                      else if (!showApproved) { setShowApproved(true); }
+                    }}
+                    className={cn(
+                      "text-[10px] px-2 py-0.5 rounded border transition-all",
+                      showApproved
+                        ? "border-emerald-500/20 text-emerald-400"
+                        : "border-zinc-700/50 text-zinc-500"
+                    )}
+                    style={showApproved ? { background: "rgba(16,185,129,0.15)" } : { background: "rgba(39,39,42,0.5)" }}
+                  >
+                    {approvalCount} {t("crm.approvals")}
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (showApproved && showRejected) { setShowRejected(false); }
+                      else if (!showRejected) { setShowRejected(true); }
+                    }}
+                    className={cn(
+                      "text-[10px] px-2 py-0.5 rounded border transition-all",
+                      showRejected
+                        ? "border-red-500/20 text-red-400"
+                        : "border-zinc-700/50 text-zinc-500"
+                    )}
+                    style={showRejected ? { background: "rgba(239,68,68,0.15)" } : { background: "rgba(39,39,42,0.5)" }}
+                  >
+                    {rejectionCount} {t("crm.rejections")}
+                  </button>
                 </div>
               </div>
               <div className="overflow-y-auto flex-1" style={{ maxHeight: "680px" }}>
-                {contacts.length > 0 ? contacts.map((c, i) => {
+                {filteredContacts.length > 0 ? filteredContacts.map((c) => {
                   const isHighlighted = highlightedId === c.id;
 
                   return (
-                    <div key={i} id={`crm-contact-${c.id}`} onClick={() => handleContactChange(i)} className="w-full text-left px-4 py-3 border-b cursor-pointer transition-none" style={{ borderColor: "var(--border-light)", background: selectedContact === i ? "rgba(16,185,129,0.08)" : "transparent", animation: isHighlighted ? "breathe 1.2s ease-in-out 1 forwards" : "none" }}>
+                    <div key={c.id} id={`crm-contact-${c.id}`} onClick={() => handleContactChange(c.id)} className="w-full text-left px-4 py-3 border-b cursor-pointer transition-none" style={{ borderColor: "var(--border-light)", background: selectedContactId === c.id ? "rgba(16,185,129,0.08)" : "transparent", animation: isHighlighted ? "breathe 1.2s ease-in-out 1 forwards" : "none" }}>
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-sm font-medium truncate">{c.name}</span>
                         <span className="font-mono text-[10px] px-1.5 py-0.5 rounded flex-shrink-0 ml-2" style={{ background: c.status === "rejected" ? "rgba(239,68,68,0.15)" : "rgba(16,185,129,0.15)", color: c.status === "rejected" ? "#ef4444" : "#10b981" }}>
@@ -1204,14 +1251,8 @@ function CRMContent() {
                             )}
                           </button>
                         )}
-                        <span className="text-[10px] text-muted">"{c.track}"</span>
-                        <Link href={`/inbox?highlight=${c.id}`} className="text-[10px] hover:underline" style={{ color: "#10b981" }} onClick={(e) => e.stopPropagation()} title="Ver demo">{t("crm.view_demo")}</Link>
-                        {c.sent && (
-                          <span className="font-mono text-[9px] px-1.5 py-0.5 rounded font-semibold cursor-default select-none border border-emerald-500/30" style={{ background: "rgba(16,185,129,0.15)", color: "#10b981" }}>
-                            {t("crm.sent")}!
-                          </span>
-                        )}
-                        {!c.sent && <span className="text-[10px] text-muted">{t("crm.pending_email")}</span>}
+                        <span className="text-[10px] text-muted truncate max-w-[90px]" title={c.track}>"{c.track}"</span>
+                        <Link href={`/inbox?highlight=${c.id}`} className="text-[10px] hover:underline flex-shrink-0" style={{ color: "#10b981" }} onClick={(e) => e.stopPropagation()} title="Ver demo">{t("crm.view_demo")}</Link>
                       </div>
                     </div>
                   );
@@ -1222,7 +1263,7 @@ function CRMContent() {
             </div>
 
             {/* Right Panel - Email Composer */}
-            <div className="col-span-3 flex flex-col">
+            <div className="col-span-1 lg:col-span-3 flex flex-col">
               <div className="px-4 py-3 border-b" style={{ borderColor: "var(--border)" }}>
                 <div className="text-[10px] font-mono uppercase tracking-wider text-muted mb-2">{t("crm.template_label")}</div>
                 <div className="flex gap-1.5 flex-wrap">

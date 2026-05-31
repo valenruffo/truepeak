@@ -17,3 +17,8 @@
   - [x] Add reset button in panel header to restore recommended limits (0.0 dB, 5.0 dB, 0.3)
   - [x] Validate build locally and verify zero errors
   - [x] Deploy changes to Vercel production
+- [x] Phase 6: Interactive information buttons for critical limits
+  - [x] Remove default hover tooltips from badges to allow plain text read
+  - [x] Add click-to-open information icons (i) next to critical badges on both tabs
+  - [x] Implement click-outside listener to close popup cards gracefully
+  - [x] Verify local Next.js static builds and deploy to Vercel
