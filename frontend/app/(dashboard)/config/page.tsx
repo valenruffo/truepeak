@@ -873,10 +873,18 @@ export default function ConfigPage() {
 
         {/* Save Button (Persistent outside the tabs content, but within the single column) */}
         <div className="pt-6 border-t" style={{ borderColor: "var(--border)" }}>
+          {saveError && (
+            <div className="mb-4 px-4 py-3 rounded border flex items-start gap-3" style={{ background: "rgba(239,68,68,0.08)", borderColor: "rgba(239,68,68,0.3)" }}>
+              <svg className="w-4 h-4 flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <div>
+                <p className="text-sm font-medium" style={{ color: "#ef4444" }}>{t("config.save_error")}</p>
+                <p className="text-xs mt-1" style={{ color: "rgba(239,68,68,0.7)" }}>{saveError}</p>
+              </div>
+            </div>
+          )}
           <div className="flex items-center gap-3">
             <button onClick={handleSave} disabled={saving} className="px-6 py-2.5 text-sm font-medium rounded transition-all hover:opacity-90 disabled:opacity-50" style={{ background: "#10b981", color: "#09090b" }}>{saving ? t("config.saving") : t("config.save")}</button>
             {saved && (<span className="text-sm font-mono" style={{ color: "#10b981" }}>{t("config.saved")}</span>)}
-            {saveError && (<span className="text-sm" style={{ color: "#ef4444" }}>{t("config.save_error")}: {saveError}</span>)}
           </div>
         </div>
       </div>

@@ -456,11 +456,8 @@ async def update_label_config(
         "target_camelot_keys",
         "auto_reject_rules",
         "peak_limit_max",
-        "peak_limit_critical",
         "crest_factor_min",
-        "crest_factor_critical",
         "phase_correlation_min",
-        "phase_correlation_critical",
     }
     missing = required_keys - set(body.sonic_signature.keys())
     if missing:
