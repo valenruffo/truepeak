@@ -1985,7 +1985,10 @@ useEffect(() => {
                 key={d.id}
                 className="grid grid-cols-12 gap-2 px-4 py-3 text-xs items-center border-b cursor-pointer hover:bg-white/[0.02] transition-colors"
                 style={{ borderColor: "var(--border-light)" }}
-                onClick={() => setDetailModal({ open: true, submission: d })}
+              onClick={() => {
+                markAsInteracted(d.id);
+                setDetailModal({ open: true, submission: d });
+              }}
               >
                 {/* Track Details & Play Button */}
                 <div className="col-span-3 flex items-center gap-2 min-w-0">
@@ -2234,7 +2237,10 @@ useEffect(() => {
               key={d.id}
               className="grid grid-cols-12 gap-2 px-4 py-3 text-xs items-center border-b cursor-pointer hover:bg-white/[0.02] transition-colors"
               style={{ borderColor: "var(--border-light)" }}
-              onClick={() => setDetailModal({ open: true, submission: d })}
+              onClick={() => {
+                markAsInteracted(d.id);
+                setDetailModal({ open: true, submission: d });
+              }}
             >
               <div className="col-span-3 flex items-center gap-2">
                 <div className="min-w-0 flex-1">
@@ -2360,7 +2366,10 @@ useEffect(() => {
               key={d.id}
               className="grid grid-cols-12 gap-2 px-4 py-3 text-xs items-center border-b cursor-pointer hover:bg-white/[0.02] transition-colors"
               style={{ borderColor: "var(--border-light)", opacity: 0.6 }}
-              onClick={() => setDetailModal({ open: true, submission: d })}
+              onClick={() => {
+                markAsInteracted(d.id);
+                setDetailModal({ open: true, submission: d });
+              }}
             >
               <div className="col-span-4 flex items-center gap-2">
                 <div className="min-w-0 flex-1">
@@ -2575,6 +2584,17 @@ useEffect(() => {
                   {tab.key === "kanban" && (
                     (() => {
                       const unreadCount = board.inbox.filter(s => !interactedIds.has(s.id)).length;
+                      if (unreadCount === 0) return null;
+                      return (
+                        <span className="w-4 h-4 flex items-center justify-center rounded-full text-[9px] bg-emerald-500/80 text-black font-bold">
+                          {unreadCount}
+                        </span>
+                      );
+                    })()
+                  )}
+                  {tab.key === "system" && (
+                    (() => {
+                      const unreadCount = systemItems.filter(s => !interactedIds.has(s.id)).length;
                       if (unreadCount === 0) return null;
                       return (
                         <span className="w-4 h-4 flex items-center justify-center rounded-full text-[9px] bg-emerald-500/80 text-black font-bold">
