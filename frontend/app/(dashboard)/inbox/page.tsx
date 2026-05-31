@@ -2682,65 +2682,78 @@ useEffect(() => {
               const sub = detailModal.submission;
               if (!sub) return null;
               
-              const rules = sonicSignature?.auto_reject_rules || {};
+              // Parse alertas to detect warning/critical per metric
+              const alerts = sub.alertas || [];
+              const hasKeyword = (keywords: string[]) => 
+                alerts.some(a => keywords.some(k => a.toLowerCase().includes(k)));
+              const hasKeywordCrit = (keywords: string[]) =>
+                alerts.some(a => keywords.some(k => a.toLowerCase().includes(k)) && (a.includes("crítico") || a.includes("crítica") || a.includes("crític")));
               
-              // Calculate failures on the fly (for old tracks or if backend reason is generic)
+              const metricState = (metricKeywords: string[]) => {
+                if (hasKeywordCrit(metricKeywords)) return "critico";
+                if (hasKeyword(metricKeywords)) return "warning";
+                return null;
+              };
+              
+              const peakState = metricState(["peak", "true peak", "tp"]);
+              const crestState = metricState(["crest", "rango dinámico", "dinámico"]);
+              const phaseState = metricState(["fase", "phase", "correlación"]);
+              const bpmState = metricState(["tempo", "bpm"]);
+              const lufsState = metricState(["sonoridad", "lufs", "volumen"]);
+              const keyState = metricState(["tonalidad", "key", "escala"]);
+              const durationState = metricState(["duración", "duration"]);
+              
+              // Keep old displayReason logic for auto_rejected tracks
               const bpmMin = sonicSignature?.bpm_min ?? 70;
               const bpmMax = sonicSignature?.bpm_max ?? 180;
               const lufsLimit = (sonicSignature?.lufs_target ?? -14) + (sonicSignature?.lufs_tolerance ?? 2);
               const phaseMin = sonicSignature?.phase_correlation_min ?? 0;
               
-              // Normalize rule keys — DB may store short keys (tempo/phase/lufs) or long ones
-              const isBpmFailed = (rules.reject_out_of_tempo || rules.tempo) && sub.bpm !== null && (sub.bpm < bpmMin || sub.bpm > bpmMax);
-              const isLufsFailed = (rules.reject_excessive_loudness || rules.lufs) && sub.lufs !== null && (sub.lufs > lufsLimit);
-              const isPhaseFailed = (rules.reject_inverted_phase || rules.phase) && sub.phase_correlation !== null && (sub.phase_correlation <= phaseMin);
-              const isCrestFailed = (rules.reject_low_dynamic_range) && sub.crest_factor !== null && (sub.crest_factor < (sonicSignature?.crest_factor_min ?? 5.0));
-              const isKeyFailed = (rules.reject_wrong_key) && sub.musical_key && sonicSignature?.target_camelot_keys?.length > 0 && !sonicSignature.target_camelot_keys.includes(sub.musical_key);
-
-              // Determine the "primary" failure if the backend reason is missing
               let displayReason = sub.rejection_reason;
+              const rules = sonicSignature?.auto_reject_rules || {};
               if (!displayReason && sub.status === "auto_rejected") {
-                if (isBpmFailed) displayReason = "out_of_tempo";
-                else if (isLufsFailed) displayReason = "excessive_loudness";
-                else if (isPhaseFailed) displayReason = "inverted_phase";
-                else if (isCrestFailed) displayReason = "low_dynamic_range";
-                else if (isKeyFailed) displayReason = "wrong_musical_key";
+                if ((rules.reject_out_of_tempo || rules.tempo) && sub.bpm !== null && (sub.bpm < bpmMin || sub.bpm > bpmMax)) displayReason = "out_of_tempo";
+                else if ((rules.reject_excessive_loudness || rules.lufs) && sub.lufs !== null && (sub.lufs > lufsLimit)) displayReason = "excessive_loudness";
+                else if ((rules.reject_inverted_phase || rules.phase) && sub.phase_correlation !== null && (sub.phase_correlation <= phaseMin)) displayReason = "inverted_phase";
+                else if (rules.reject_low_dynamic_range && sub.crest_factor !== null && (sub.crest_factor < (sonicSignature?.crest_factor_min ?? 5.0))) displayReason = "low_dynamic_range";
+                else if (rules.reject_wrong_key && sub.musical_key && sonicSignature?.target_camelot_keys?.length > 0 && !sonicSignature.target_camelot_keys.includes(sub.musical_key)) displayReason = "wrong_musical_key";
               }
+              
+              const metricBorder = (state: string | null) => {
+                if (state === "critico") return "border-red-500/50 bg-red-500/10 shadow-[0_0_10px_rgba(239,68,68,0.1)]";
+                if (state === "warning") return "border-amber-500/40 bg-amber-500/5";
+                return "border-zinc-800 bg-white/[0.02]";
+              };
+              const metricLabel = (state: string | null) => {
+                if (state === "critico") return "text-red-400 font-bold";
+                if (state === "warning") return "text-amber-400 font-semibold";
+                return "text-muted";
+              };
+              const metricValue = (state: string | null) => {
+                if (state === "critico") return "text-red-500";
+                if (state === "warning") return "text-amber-500";
+                return "";
+              };
 
               return (
                 <div className="flex-1 overflow-y-auto p-6 space-y-8">
                   {/* Main metrics grid */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                    <div 
-                      className={cn(
-                        "p-3 rounded border transition-all",
-                        isBpmFailed ? "bg-red-500/10 border-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.1)]" : "bg-white/[0.02] border-zinc-800"
-                      )}
-                      title={isBpmFailed ? `Límite: ${bpmMin}-${bpmMax} BPM` : (sonicSignature ? `Config: ${bpmMin}-${bpmMax} BPM` : "")}
-                    >
-                      <p className={cn("text-[10px] uppercase tracking-wider mb-1 font-mono", isBpmFailed ? "text-red-400 font-bold" : "text-muted")}>{t("inbox.header.bpm")}</p>
-                      <p className={cn("text-xl font-display font-semibold", isBpmFailed ? "text-red-500" : "")}>{formatBpm(sub.bpm)}</p>
+                    <div className={cn("p-3 rounded border transition-all", metricBorder(bpmState))}>
+                      <p className={cn("text-[10px] uppercase tracking-wider mb-1 font-mono", metricLabel(bpmState))}>{t("inbox.header.bpm")}</p>
+                      <p className={cn("text-xl font-display font-semibold", metricValue(bpmState))}>{formatBpm(sub.bpm)}</p>
                     </div>
-                    <div 
-                      className={cn(
-                        "p-3 rounded border transition-all",
-                        isLufsFailed ? "bg-red-500/10 border-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.1)]" : "bg-white/[0.02] border-zinc-800"
-                      )}
-                      title={isLufsFailed ? `Máximo permitido: ${lufsLimit} LUFS` : (sonicSignature ? `Config: ${lufsLimit} LUFS` : "")}
-                    >
-                      <p className={cn("text-[10px] uppercase tracking-wider mb-1 font-mono", isLufsFailed ? "text-red-400 font-bold" : "text-muted")}>{t("inbox.header.lufs")}</p>
-                      <p className={cn("text-xl font-display font-semibold", isLufsFailed ? "text-red-500" : "")}>{formatLufs(sub.lufs)}</p>
+                    <div className={cn("p-3 rounded border transition-all", metricBorder(lufsState))}>
+                      <p className={cn("text-[10px] uppercase tracking-wider mb-1 font-mono", metricLabel(lufsState))}>{t("inbox.header.lufs")}</p>
+                      <p className={cn("text-xl font-display font-semibold", metricValue(lufsState))}>{formatLufs(sub.lufs)}</p>
                     </div>
-                    <div className={cn(
-                      "p-3 rounded border transition-all",
-                      isKeyFailed ? "bg-red-500/10 border-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.1)]" : "bg-white/[0.02] border-zinc-800"
-                    )}>
-                      <p className={cn("text-[10px] uppercase tracking-wider mb-1 font-mono", isKeyFailed ? "text-red-400 font-bold" : "text-muted")}>Tonalidad</p>
-                      <p className={cn("text-xl font-display font-semibold", isKeyFailed ? "text-red-500" : "")}>{formatKey(sub.musical_key)}</p>
+                    <div className={cn("p-3 rounded border transition-all", metricBorder(keyState))}>
+                      <p className={cn("text-[10px] uppercase tracking-wider mb-1 font-mono", metricLabel(keyState))}>Tonalidad</p>
+                      <p className={cn("text-xl font-display font-semibold", metricValue(keyState))}>{formatKey(sub.musical_key)}</p>
                     </div>
-                    <div className="p-3 rounded border bg-white/[0.02] border-zinc-800">
-                      <p className="text-[10px] uppercase tracking-wider text-muted mb-1 font-mono">Duración</p>
-                      <p className="text-xl font-display font-semibold">{formatDuration(sub.duration)}</p>
+                    <div className={cn("p-3 rounded border transition-all", metricBorder(durationState))}>
+                      <p className={cn("text-[10px] uppercase tracking-wider mb-1 font-mono", metricLabel(durationState))}>Duración</p>
+                      <p className={cn("text-xl font-display font-semibold", metricValue(durationState))}>{formatDuration(sub.duration)}</p>
                     </div>
                   </div>
 
@@ -2750,20 +2763,17 @@ useEffect(() => {
                       Análisis Técnico
                     </h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3">
-                      <div className="flex justify-between items-center text-sm py-1 border-b border-white/[0.03]">
-                        <span className="text-muted">{t("inbox.header.peak")}</span>
-                        <span className="font-mono">{formatPeak(sub.true_peak)} dB</span>
+                      <div className={cn("flex justify-between items-center text-sm py-1 border-b border-white/[0.03] px-1 rounded", peakState === "critico" ? "bg-red-500/10" : peakState === "warning" ? "bg-amber-500/5" : "")}>
+                        <span className={cn(peakState === "critico" ? "text-red-400" : peakState === "warning" ? "text-amber-400" : "text-muted")}>{t("inbox.header.peak")}</span>
+                        <span className={cn("font-mono", peakState === "critico" ? "text-red-500" : peakState === "warning" ? "text-amber-500" : "")}>{formatPeak(sub.true_peak)} dB</span>
                       </div>
-                      <div className={cn("flex justify-between items-center text-sm py-1 border-b border-white/[0.03] px-1 rounded", isCrestFailed ? "bg-red-500/10" : "")}>
-                        <span className={isCrestFailed ? "text-red-400" : "text-muted"}>{t("inbox.header.crest")}</span>
-                        <span className={cn("font-mono", isCrestFailed ? "text-red-500" : "")}>{formatCrest(sub.crest_factor)} dB</span>
+                      <div className={cn("flex justify-between items-center text-sm py-1 border-b border-white/[0.03] px-1 rounded", crestState === "critico" ? "bg-red-500/10" : crestState === "warning" ? "bg-amber-500/5" : "")}>
+                        <span className={cn(crestState === "critico" ? "text-red-400" : crestState === "warning" ? "text-amber-400" : "text-muted")}>{t("inbox.header.crest")}</span>
+                        <span className={cn("font-mono", crestState === "critico" ? "text-red-500" : crestState === "warning" ? "text-amber-500" : "")}>{formatCrest(sub.crest_factor)} dB</span>
                       </div>
-                      <div 
-                        className={cn("flex justify-between items-center text-sm py-1 border-b border-white/[0.03] transition-colors px-1 rounded", isPhaseFailed ? "bg-red-500/10" : "")}
-                        title={isPhaseFailed ? `Mínimo permitido: ${phaseMin}` : ""}
-                      >
-                        <span className={isPhaseFailed ? "text-red-400 font-bold" : "text-muted"}>Correlación de Fase</span>
-                        <span className={cn("font-mono", isPhaseFailed ? "text-red-500" : "")}>{sub.phase_correlation?.toFixed(2) ?? "—"}</span>
+                      <div className={cn("flex justify-between items-center text-sm py-1 border-b border-white/[0.03] px-1 rounded", phaseState === "critico" ? "bg-red-500/10" : phaseState === "warning" ? "bg-amber-500/5" : "")}>
+                        <span className={cn(phaseState === "critico" ? "text-red-400" : phaseState === "warning" ? "text-amber-400" : "text-muted")}>Correlación de Fase</span>
+                        <span className={cn("font-mono", phaseState === "critico" ? "text-red-500" : phaseState === "warning" ? "text-amber-500" : "")}>{sub.phase_correlation?.toFixed(2) ?? "—"}</span>
                       </div>
                       <div className="flex justify-between items-center text-sm py-1 border-b border-white/[0.03]">
                         <span className="text-muted">Estado Actual</span>
