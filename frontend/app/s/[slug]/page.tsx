@@ -143,12 +143,14 @@ export default function SubmissionPage() {
       xhr.open("POST", `${apiUrl}/api/upload`);
 
       // Real upload progress capped at 90% — last 10% is analysis
+      let simStarted = false;
       xhr.upload.onprogress = (event) => {
         if (event.lengthComputable) {
           const rawPct = Math.round((event.loaded / event.total) * 100);
           const cappedPct = Math.round(rawPct * 0.9); // 0-90% for upload
           setProgress(cappedPct);
-          if (rawPct >= 100) {
+          if (rawPct >= 100 && !simStarted) {
+            simStarted = true;
             setAnalyzing(true);
             // Simulate analysis progress 90→99% (never 100 until done)
             let simPct = cappedPct;
@@ -157,7 +159,6 @@ export default function SubmissionPage() {
               simPct += Math.max(1, Math.round((99 - simPct) * 0.08)); // decelerating
               setProgress(Math.min(simPct, 99));
             }, 600);
-            // Store timer to clear on completion
             (xhr as any)._simTimer = simTimer;
           }
         }
@@ -166,8 +167,9 @@ export default function SubmissionPage() {
       xhr.onload = () => {
         clearInterval((xhr as any)._simTimer);
         setProgress(100);
-        setUploading(false);
         setAnalyzing(false);
+        // Brief delay so user sees 100% before bar disappears
+        setTimeout(() => setUploading(false), 400);
         if (xhr.status === 200) {
           setSubmitted(true);
         } else {
