@@ -2806,8 +2806,10 @@ useEffect(() => {
               const sub = detailModal.submission;
               if (!sub) return null;
               
+              const tech = evaluateSubmission(sub, sonicSignature);
+              
               // Parse alertas to detect warning/critical per metric
-              const alerts = sub.alertas || [];
+              const alerts = tech.alertas;
               const hasKeyword = (keywords: string[]) => 
                 alerts.some(a => keywords.some(k => a.toLowerCase().includes(k)));
               const hasKeywordCrit = (keywords: string[]) =>
@@ -2966,9 +2968,9 @@ useEffect(() => {
                     </div>
                   </div>
 
-                  {/* Technical Diagnosis / Rejection Reasons */}
-                  {sub.alertas && sub.alertas.length > 0 ? (
-                    sub.status_tecnico === "warning" ? (
+                  {/* Technical Diagnosis — real-time against current sonic signature */}
+                  {tech.alertas.length > 0 ? (
+                    tech.status === "warning" ? (
                       <div className="p-4 rounded-lg bg-amber-500/5 border border-amber-500/20 shadow-[inset_0_0_20px_rgba(245,158,11,0.05)]">
                         <div className="flex items-center gap-2 mb-2">
                           <AlertTriangle className="w-4 h-4 text-amber-500" />
@@ -2977,7 +2979,7 @@ useEffect(() => {
                           </h3>
                         </div>
                         <ul className="list-disc list-inside space-y-1 text-sm text-amber-200/90 leading-relaxed font-medium">
-                          {sub.alertas.map((alerta, idx) => (
+                          {tech.alertas.map((alerta, idx) => (
                             <li key={idx}>{alerta}</li>
                           ))}
                         </ul>
@@ -2991,7 +2993,7 @@ useEffect(() => {
                           </h3>
                         </div>
                         <ul className="list-disc list-inside space-y-1 text-sm text-red-200/90 leading-relaxed font-medium">
-                          {sub.alertas.map((alerta, idx) => (
+                          {tech.alertas.map((alerta, idx) => (
                             <li key={idx}>{alerta}</li>
                           ))}
                         </ul>
