@@ -122,7 +122,9 @@ function formatKey(key: string | null): string {
 }
 
 function formatPeak(peak: number | null): string {
-  return peak != null ? peak.toFixed(2) : "—";
+  if (peak == null) return "—";
+  const db = peak > 0 ? (20 * Math.log10(peak)) : -99;
+  return db.toFixed(2);
 }
 
 function formatCrest(crest: number | null): string {
@@ -2260,7 +2262,7 @@ useEffect(() => {
                 {formatLufs(d.lufs)}
               </div>
               <div className="col-span-1 text-center font-mono text-muted">
-                {formatPeak(d.true_peak)}
+                {formatPeak(d.true_peak)} dB
               </div>
               <div className="col-span-1 text-center font-mono text-muted">
                 {formatCrest(d.crest_factor)}
@@ -2888,7 +2890,7 @@ useEffect(() => {
                             if (displayReason === "excessive_loudness") return `Volumen excesivo. El track mide ${sub.lufs} LUFS y tu límite máximo es ${lufsLimit} LUFS.`;
                             if (displayReason === "inverted_phase") return `Falla de fase. La correlación es de ${sub.phase_correlation?.toFixed(2)}, por debajo del mínimo de ${phaseMin}.`;
                             if (displayReason === "wrong_musical_key") return `Tonalidad incorrecta. El track está en ${formatKey(sub.musical_key)} y no coincide con tus escalas preferidas.`;
-                            if (displayReason === "digital_clipping") return `Clipping digital. El True Peak alcanzó ${sub.true_peak} dB (máximo permitido: < 0 dB).`;
+                            if (displayReason === "digital_clipping") return `Clipping digital. El True Peak alcanzó ${formatPeak(sub.true_peak)} dB (máximo permitido: < 0 dB).`;
                             if (displayReason === "low_dynamic_range") return `Rango dinámico insuficiente. El Crest Factor es de ${sub.crest_factor} dB (mínimo: ${sonicSignature?.crest_factor_min ?? 5.0} dB).`;
                             return displayReason || t("inbox.auto_rejected_reason");
                           })()}
