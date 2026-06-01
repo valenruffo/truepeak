@@ -128,6 +128,29 @@ export default function SubmissionPage() {
     setProgress(0);
     setAnalyzing(false);
 
+    // Start smooth animation immediately for upload phase feedback
+    let targetPct = 1;
+    let currentPct = 0;
+    let animFrame: number;
+    let done = false;
+
+    const animate = () => {
+      if (done) return;
+      if (currentPct < targetPct) {
+        currentPct += Math.max(0.3, (targetPct - currentPct) * 0.08);
+        if (currentPct > targetPct) currentPct = targetPct;
+        setProgress(Math.round(currentPct));
+      }
+      animFrame = requestAnimationFrame(animate);
+    };
+    animFrame = requestAnimationFrame(animate);
+
+    // Upload phase: climb slowly 0→15% while file is being sent
+    const uploadTimer = setInterval(() => {
+      if (targetPct < 15) targetPct = Math.min(15, targetPct + 0.4);
+      else clearInterval(uploadTimer);
+    }, 150);
+
     try {
       const formData = new FormData();
       formData.append("file", file);
@@ -145,7 +168,11 @@ export default function SubmissionPage() {
         body: formData,
       });
 
+      clearInterval(uploadTimer);
+
       if (!response.ok) {
+        done = true;
+        cancelAnimationFrame(animFrame);
         const err = await response.json().catch(() => ({ detail: "Error desconocido" }));
         throw new Error(err.detail || `Error ${response.status}`);
       }
@@ -159,8 +186,8 @@ export default function SubmissionPage() {
       let isAnalyzing = false;
 
       while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+        const { done: streamDone, value } = await reader.read();
+        if (streamDone) break;
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
@@ -171,27 +198,39 @@ export default function SubmissionPage() {
             try {
               const event = JSON.parse(line.slice(6));
               if (event.error) {
+                done = true;
+                cancelAnimationFrame(animFrame);
                 setError(event.error);
                 setUploading(false);
                 return;
               }
               if (event.done) {
-                setProgress(100);
-                setAnalyzing(false);
-                setTimeout(() => setUploading(false), 400);
-                setSubmitted(true);
+                targetPct = 100;
+                setTimeout(() => {
+                  done = true;
+                  cancelAnimationFrame(animFrame);
+                  setProgress(100);
+                  setAnalyzing(false);
+                  setTimeout(() => setUploading(false), 400);
+                  setSubmitted(true);
+                }, 600);
                 return;
               }
-              // Progress event
               if (event.pct != null) {
-                setProgress(event.pct);
+                targetPct = event.pct;
                 if (!isAnalyzing) { isAnalyzing = true; setAnalyzing(true); }
               }
             } catch { /* skip malformed JSON */ }
           }
         }
       }
+
+      done = true;
+      cancelAnimationFrame(animFrame);
     } catch (err) {
+      done = true;
+      cancelAnimationFrame(animFrame);
+      clearInterval(uploadTimer);
       setUploading(false);
       setAnalyzing(false);
       setError(err instanceof Error ? err.message : "Error al subir el archivo.");
