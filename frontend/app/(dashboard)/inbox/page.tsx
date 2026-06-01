@@ -138,6 +138,85 @@ function formatDuration(seconds: number | null): string {
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
+type TechStatus = "optimo" | "warning" | "critico";
+
+function evaluateSubmission(
+  sub: SubmissionSummary,
+  sig: any
+): { status: TechStatus; alertas: string[] } {
+  if (!sig) return { status: "optimo", alertas: [] };
+  
+  const alertas: string[] = [];
+  const statuses: TechStatus[] = [];
+  
+  const peakLimitMax = sig.peak_limit_max ?? 0.0;
+  const peakLimitCritical = peakLimitMax + 1.5;
+  const crestMin = sig.crest_factor_min ?? 5.0;
+  const crestCritical = Math.max(crestMin - 1.5, 2.0);
+  const phaseMin = sig.phase_correlation_min ?? 0.3;
+  const phaseCritical = Math.max(phaseMin - 0.3, -0.2);
+  
+  // True Peak (convert linear to dB)
+  if (sub.true_peak != null) {
+    const tpDb = sub.true_peak > 0 ? 20 * Math.log10(sub.true_peak) : -99;
+    if (tpDb <= peakLimitMax) statuses.push("optimo");
+    else if (tpDb <= peakLimitCritical) { statuses.push("warning"); alertas.push(`True Peak alto: ${tpDb.toFixed(2)} dB (recomendado: < ${peakLimitMax.toFixed(1)} dB)`); }
+    else { statuses.push("critico"); alertas.push(`True Peak crítico: ${tpDb.toFixed(2)} dB (límite: +${peakLimitCritical.toFixed(1)} dB)`); }
+  }
+  
+  // Crest Factor
+  if (sub.crest_factor != null) {
+    if (sub.crest_factor >= crestMin) statuses.push("optimo");
+    else if (sub.crest_factor > crestCritical) { statuses.push("warning"); alertas.push(`Rango dinámico bajo (Crest Factor): ${sub.crest_factor.toFixed(2)} dB`); }
+    else { statuses.push("critico"); alertas.push(`Rango dinámico crítico (Crest Factor): ${sub.crest_factor.toFixed(2)} dB`); }
+  }
+  
+  // Phase Correlation
+  if (sub.phase_correlation != null) {
+    if (sub.phase_correlation >= phaseMin) statuses.push("optimo");
+    else if (sub.phase_correlation >= phaseCritical) { statuses.push("warning"); alertas.push(`Falla de fase: correlación baja (${sub.phase_correlation.toFixed(2)})`); }
+    else { statuses.push("critico"); alertas.push(`Falla de fase: correlación negativa (${sub.phase_correlation.toFixed(2)})`); }
+  }
+  
+  // BPM
+  if (sub.bpm != null && sig.bpm_min != null && sig.bpm_max != null) {
+    const bpm = Math.round(sub.bpm);
+    if (bpm >= sig.bpm_min && bpm <= sig.bpm_max) statuses.push("optimo");
+    else if (bpm >= sig.bpm_min - 3 && bpm <= sig.bpm_max + 3) { statuses.push("warning"); alertas.push(`Tempo fuera de rango recomendado (BPM): ${bpm}`); }
+    else { statuses.push("critico"); alertas.push(`Tempo fuera de rango (BPM): ${bpm}`); }
+  }
+  
+  // LUFS
+  if (sub.lufs != null && sig.lufs_target != null) {
+    const target = sig.lufs_target;
+    const tol = sig.lufs_tolerance ?? 2;
+    if (sub.lufs >= target - tol && sub.lufs <= target + tol) statuses.push("optimo");
+    else if (sub.lufs >= target - tol - 1.5 && sub.lufs <= target + tol + 1.5) { statuses.push("warning"); alertas.push(`Sonoridad fuera de tolerancia (LUFS): ${sub.lufs.toFixed(2)}`); }
+    else { statuses.push("critico"); alertas.push(`Sonoridad crítica (LUFS): ${sub.lufs.toFixed(2)}`); }
+  }
+  
+  // Duration
+  if (sig.duration_enabled && sig.duration_max != null && sub.duration != null) {
+    if (sub.duration <= sig.duration_max) statuses.push("optimo");
+    else if (sub.duration <= sig.duration_max + 120) { statuses.push("warning"); alertas.push(`Duración excedida: ${sub.duration.toFixed(0)}s`); }
+    else { statuses.push("critico"); alertas.push(`Duración crítica: ${sub.duration.toFixed(0)}s`); }
+  }
+  
+  // Key mismatch
+  if (sub.musical_key && sig.target_camelot_keys?.length > 0) {
+    if (!sig.target_camelot_keys.includes(sub.musical_key)) {
+      statuses.push("warning");
+      alertas.push(`Tonalidad no coincide con las preferidas (Key): ${sub.musical_key}`);
+    }
+  }
+  
+  let status: TechStatus = "optimo";
+  if (statuses.includes("critico")) status = "critico";
+  else if (statuses.includes("warning")) status = "warning";
+  
+  return { status, alertas };
+}
+
 function cleanHtmlToPlainText(html: string): string {
   if (!html) return "";
   if (!html.includes("<") && !html.includes(">")) {
@@ -1594,6 +1673,7 @@ useEffect(() => {
     const badge = statusBadgeColor(sub.status);
     const isLoading = actionLoading[sub.id];
     const isPlayingThis = currentTrack?.id === sub.id && isPlaying;
+    const tech = evaluateSubmission(sub, sonicSignature);
 
     return (
       <Draggable key={sub.id} draggableId={sub.id} index={index}>
@@ -1662,22 +1742,22 @@ useEffect(() => {
                 >
                   {statusLabel(sub.status, role, t)}
                 </span>
-                {sub.status_tecnico === "warning" && sub.alertas && sub.alertas.length > 0 && (
+                {tech.status === "warning" && tech.alertas.length > 0 && (
                   <span
                     className="font-mono text-[10px] px-1.5 py-0.5 rounded flex items-center gap-1 bg-amber-500/10 text-amber-500 border border-amber-500/20 font-semibold"
-                    title={sub.alertas.join(", ")}
+                    title={tech.alertas.join(", ")}
                   >
                     <AlertTriangle className="w-3 h-3" />
-                    {sub.alertas.length} {sub.alertas.length === 1 ? t("validation.alert_singular") : t("validation.alert_plural")}
+                    {tech.alertas.length}
                   </span>
                 )}
-                {sub.status_tecnico === "critico" && sub.alertas && sub.alertas.length > 0 && (
+                {tech.status === "critico" && tech.alertas.length > 0 && (
                   <span
                     className="font-mono text-[10px] px-1.5 py-0.5 rounded flex items-center gap-1 bg-red-500/10 text-red-500 border border-red-500/20 font-semibold"
-                    title={sub.alertas.join(", ")}
+                    title={tech.alertas.join(", ")}
                   >
                     <AlertTriangle className="w-3 h-3" />
-                    {sub.alertas.length} {sub.alertas.length === 1 ? t("validation.alert_singular") : t("validation.alert_plural")}
+                    {tech.alertas.length}
                   </span>
                 )}
                 <div className="text-[10px]">
@@ -1981,6 +2061,7 @@ useEffect(() => {
           filteredItems.map((d) => {
             const isPlayingThis = isPlaying && currentTrack?.id === d.id;
             const isLoading = actionLoading[d.id];
+            const tech = evaluateSubmission(d, sonicSignature);
             
             return (
               <div
@@ -2044,14 +2125,34 @@ useEffect(() => {
                   {formatKey(d.musical_key)}
                 </div>
 
-                {/* Status Badge (static) */}
+                {/* Status Badge + Tech Warnings */}
                 <div className="col-span-2 text-center">
-                  <span
-                    className="font-mono text-[10px] px-2 py-0.5 rounded"
-                    style={{ background: statusBadgeColor(d.status).bg, color: statusBadgeColor(d.status).color }}
-                  >
-                    {statusLabel(d.status, role, t)}
-                  </span>
+                  <div className="flex items-center justify-center gap-1.5">
+                    <span
+                      className="font-mono text-[10px] px-2 py-0.5 rounded"
+                      style={{ background: statusBadgeColor(d.status).bg, color: statusBadgeColor(d.status).color }}
+                    >
+                      {statusLabel(d.status, role, t)}
+                    </span>
+                    {tech.status === "warning" && tech.alertas.length > 0 && (
+                      <span
+                        className="font-mono text-[9px] px-1 py-0.5 rounded flex items-center gap-0.5 bg-amber-500/10 text-amber-500 border border-amber-500/20 font-semibold"
+                        title={tech.alertas.join(", ")}
+                      >
+                        <AlertTriangle className="w-2.5 h-2.5" />
+                        {tech.alertas.length}
+                      </span>
+                    )}
+                    {tech.status === "critico" && tech.alertas.length > 0 && (
+                      <span
+                        className="font-mono text-[9px] px-1 py-0.5 rounded flex items-center gap-0.5 bg-red-500/10 text-red-500 border border-red-500/20 font-semibold"
+                        title={tech.alertas.join(", ")}
+                      >
+                        <AlertTriangle className="w-2.5 h-2.5" />
+                        {tech.alertas.length}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* Action Buttons */}
@@ -2234,6 +2335,7 @@ useEffect(() => {
         filteredSystemItems.map((d) => {
           const badge = statusBadgeColor(d.status);
           const isLoading = actionLoading[d.id];
+          const tech = evaluateSubmission(d, sonicSignature);
           return (
             <div
               key={d.id}
@@ -2271,12 +2373,32 @@ useEffect(() => {
                 {d.phase_correlation != null ? d.phase_correlation.toFixed(2) : "—"}
               </div>
               <div className="col-span-2 text-center">
-                <span
-                  className="font-mono text-[10px] px-2 py-0.5 rounded"
-                  style={{ background: badge.bg, color: badge.color }}
-                >
-                  {t("inbox.auto_rejected_badge")}
-                </span>
+                <div className="flex items-center justify-center gap-1.5">
+                  <span
+                    className="font-mono text-[10px] px-2 py-0.5 rounded"
+                    style={{ background: badge.bg, color: badge.color }}
+                  >
+                    {t("inbox.auto_rejected_badge")}
+                  </span>
+                  {tech.status === "warning" && tech.alertas.length > 0 && (
+                    <span
+                      className="font-mono text-[9px] px-1 py-0.5 rounded flex items-center gap-0.5 bg-amber-500/10 text-amber-500 border border-amber-500/20 font-semibold"
+                      title={tech.alertas.join(", ")}
+                    >
+                      <AlertTriangle className="w-2.5 h-2.5" />
+                      {tech.alertas.length}
+                    </span>
+                  )}
+                  {tech.status === "critico" && tech.alertas.length > 0 && (
+                    <span
+                      className="font-mono text-[9px] px-1 py-0.5 rounded flex items-center gap-0.5 bg-red-500/10 text-red-500 border border-red-500/20 font-semibold"
+                      title={tech.alertas.join(", ")}
+                    >
+                      <AlertTriangle className="w-2.5 h-2.5" />
+                      {tech.alertas.length}
+                    </span>
+                  )}
+                </div>
               </div>
               <div 
                 className="col-span-2 text-right flex items-center justify-end gap-1.5"
