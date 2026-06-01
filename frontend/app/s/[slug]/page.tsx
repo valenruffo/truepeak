@@ -142,17 +142,30 @@ export default function SubmissionPage() {
       const apiUrl = (process.env.NEXT_PUBLIC_API_URL || "");
       xhr.open("POST", `${apiUrl}/api/upload`);
 
+      // Real upload progress capped at 90% — last 10% is analysis
       xhr.upload.onprogress = (event) => {
         if (event.lengthComputable) {
-          const pct = Math.round((event.loaded / event.total) * 100);
-          setProgress(pct);
-          if (pct >= 100) {
+          const rawPct = Math.round((event.loaded / event.total) * 100);
+          const cappedPct = Math.round(rawPct * 0.9); // 0-90% for upload
+          setProgress(cappedPct);
+          if (rawPct >= 100) {
             setAnalyzing(true);
+            // Simulate analysis progress 90→99% (never 100 until done)
+            let simPct = cappedPct;
+            const simTimer = setInterval(() => {
+              if (simPct >= 99) { clearInterval(simTimer); return; }
+              simPct += Math.max(1, Math.round((99 - simPct) * 0.08)); // decelerating
+              setProgress(Math.min(simPct, 99));
+            }, 600);
+            // Store timer to clear on completion
+            (xhr as any)._simTimer = simTimer;
           }
         }
       };
 
       xhr.onload = () => {
+        clearInterval((xhr as any)._simTimer);
+        setProgress(100);
         setUploading(false);
         setAnalyzing(false);
         if (xhr.status === 200) {
@@ -170,6 +183,7 @@ export default function SubmissionPage() {
       };
 
       xhr.onerror = () => {
+        clearInterval((xhr as any)._simTimer);
         setUploading(false);
         setAnalyzing(false);
         setError("Error de conexión. Verificá tu internet.");
@@ -395,7 +409,7 @@ export default function SubmissionPage() {
                       `Subiendo...`
                     )}
                   </span>
-                  <span className="font-mono" style={{ color: "#10b981" }}>{analyzing ? "100%" : `${progress}%`}</span>
+                  <span className="font-mono" style={{ color: "#10b981" }}>{progress}%</span>
                 </div>
                 <div className="h-1.5 rounded-full" style={{ background: "#27272a" }}>
                   <div
@@ -417,7 +431,7 @@ export default function SubmissionPage() {
               className="w-full py-2.5 text-sm font-medium rounded transition-all hover:opacity-90 disabled:opacity-50"
               style={{ background: "#10b981", color: "#09090b" }}
             >
-              {analyzing ? "Analizando..." : uploading ? "Subiendo..." : "Enviar demo"}
+              {analyzing ? `Analizando... ${progress}%` : uploading ? "Subiendo..." : "Enviar demo"}
             </button>
           </form>
         </div>
