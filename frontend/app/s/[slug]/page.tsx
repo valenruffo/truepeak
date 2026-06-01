@@ -126,6 +126,7 @@ export default function SubmissionPage() {
 
     setUploading(true);
     setProgress(0);
+    setAnalyzing(false);
 
     try {
       const formData = new FormData();
@@ -138,64 +139,62 @@ export default function SubmissionPage() {
       if (producerInstagram) formData.append("producer_instagram", producerInstagram);
       if (producerSoundcloud) formData.append("producer_soundcloud", producerSoundcloud);
 
-      const xhr = new XMLHttpRequest();
       const apiUrl = (process.env.NEXT_PUBLIC_API_URL || "");
-      xhr.open("POST", `${apiUrl}/api/upload`);
+      const response = await fetch(`${apiUrl}/api/upload`, {
+        method: "POST",
+        body: formData,
+      });
 
-      // Real upload progress capped at 90% — last 10% is analysis
-      let simStarted = false;
-      xhr.upload.onprogress = (event) => {
-        if (event.lengthComputable) {
-          const rawPct = Math.round((event.loaded / event.total) * 100);
-          const cappedPct = Math.round(rawPct * 0.9); // 0-90% for upload
-          setProgress(cappedPct);
-          if (rawPct >= 100 && !simStarted) {
-            simStarted = true;
-            setAnalyzing(true);
-            // Simulate analysis progress 90→99% (never 100 until done)
-            let simPct = cappedPct;
-            const simTimer = setInterval(() => {
-              if (simPct >= 99) { clearInterval(simTimer); return; }
-              simPct += Math.max(1, Math.round((99 - simPct) * 0.08)); // decelerating
-              setProgress(Math.min(simPct, 99));
-            }, 600);
-            (xhr as any)._simTimer = simTimer;
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({ detail: "Error desconocido" }));
+        throw new Error(err.detail || `Error ${response.status}`);
+      }
+
+      // Read SSE stream for real-time progress
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No response body");
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let isAnalyzing = false;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            try {
+              const event = JSON.parse(line.slice(6));
+              if (event.error) {
+                setError(event.error);
+                setUploading(false);
+                return;
+              }
+              if (event.done) {
+                setProgress(100);
+                setAnalyzing(false);
+                setTimeout(() => setUploading(false), 400);
+                setSubmitted(true);
+                return;
+              }
+              // Progress event
+              if (event.pct != null) {
+                setProgress(event.pct);
+                if (!isAnalyzing) { isAnalyzing = true; setAnalyzing(true); }
+              }
+            } catch { /* skip malformed JSON */ }
           }
         }
-      };
-
-      xhr.onload = () => {
-        clearInterval((xhr as any)._simTimer);
-        setProgress(100);
-        setAnalyzing(false);
-        // Brief delay so user sees 100% before bar disappears
-        setTimeout(() => setUploading(false), 400);
-        if (xhr.status === 200) {
-          setSubmitted(true);
-        } else {
-          let serverMsg = "Error al subir el archivo. Intentá de nuevo.";
-          try {
-            const resp = JSON.parse(xhr.responseText);
-            if (resp.detail) serverMsg = resp.detail;
-          } catch {
-            // fallback
-          }
-          setError(serverMsg);
-        }
-      };
-
-      xhr.onerror = () => {
-        clearInterval((xhr as any)._simTimer);
-        setUploading(false);
-        setAnalyzing(false);
-        setError("Error de conexión. Verificá tu internet.");
-      };
-
-      xhr.send(formData);
-    } catch {
+      }
+    } catch (err) {
       setUploading(false);
       setAnalyzing(false);
-      setError("Error al subir el archivo.");
+      setError(err instanceof Error ? err.message : "Error al subir el archivo.");
     }
   };
 

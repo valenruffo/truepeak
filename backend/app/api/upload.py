@@ -1,11 +1,14 @@
 """Audio upload endpoint — accepts audio, triggers analysis lifecycle, returns results."""
 
+import asyncio
+import json
 import os
 import uuid
 from pathlib import Path
 
 import librosa
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.audio.exceptions import AudioAnalysisError, FileCleanupError
@@ -161,85 +164,120 @@ async def upload_audio(
         with open(audio_path, "wb") as f:
             f.write(content)
 
-        # --- Process through lifecycle ---
+        # --- Process through lifecycle with SSE progress streaming ---
         submission_id = str(uuid.uuid4())
-
-        try:
-            result = await process_submission(
-                file_path=audio_path,
-                submission_id=submission_id,
-                label_id=label_id,
-                sonic_signature=sonic_signature,
+        
+        async def event_generator():
+            """SSE async generator: yields progress events then final result."""
+            progress_queue: asyncio.Queue = asyncio.Queue()
+            
+            async def on_progress(stage: str, pct: int):
+                await progress_queue.put({"stage": stage, "pct": pct})
+            
+            # Launch processing in background
+            process_task = asyncio.create_task(
+                process_submission(
+                    file_path=audio_path,
+                    submission_id=submission_id,
+                    label_id=label_id,
+                    sonic_signature=sonic_signature,
+                    on_progress=on_progress,
+                )
             )
-        except AudioAnalysisError as e:
-            # Analysis failed — return 400 with clean message
-            raise HTTPException(
-                status_code=400,
-                detail=f"Audio analysis failed: {e}",
-            )
-
-        # --- Save original file for HQ download based on plan limits ---
-        original_path: str | None = None
-        if hq_retention_days > 0:
-            original_path = result["original_path"]
-        else:
-            # Plan Free has 0 hq_retention_days: delete original WAV from R2 immediately to clean up storage
-            if result["original_path"]:
-                from app.services.r2 import delete_file_from_r2
+            
+            # Stream progress events while processing
+            while not process_task.done():
                 try:
-                    await delete_file_from_r2(result["original_path"])
-                except Exception:
-                    pass  # Best-effort cleanup
-
-        # --- Create submission record in DB ---
-        session = next(get_session())
-        try:
-            submission = Submission(
-                id=submission_id,
-                label_id=label_id,
-                producer_name=producer_name or file.filename or "Unknown",
-                producer_email=producer_email or "",
-                track_name=track_name or file.filename or "Unknown Track",
-                bpm=result["metrics"].get("bpm") if result["metrics"] else None,
-                lufs=result["metrics"].get("lufs") if result["metrics"] else None,
-                duration=result["metrics"].get("duration") if result["metrics"] else None,
-                phase_correlation=result["metrics"].get("phase_correlation") if result["metrics"] else None,
-                musical_key=result["metrics"].get("musical_key") if result["metrics"] else None,
-                true_peak=result["metrics"].get("true_peak") if result["metrics"] else None,
-                crest_factor=result["metrics"].get("crest_factor") if result["metrics"] else None,
-                status=result["status"],
-                status_tecnico=result.get("status_tecnico", "optimo"),
-                alertas=result.get("alertas"),
-                rejection_reason=result["rejection_reason"],
-                mp3_path=result["mp3_path"],
-                original_path=original_path,
-                peaks=result.get("peaks"),
-                notes=notes or None,
-                producer_instagram=producer_instagram or None,
-                producer_soundcloud=producer_soundcloud or None,
-            )
-            session.add(submission)
-            session.commit()
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            session.rollback()
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to save submission record. Error: {str(e)}",
-            )
-        finally:
-            session.close()
-
-        return UploadResponse(
-            submission_id=submission_id,
-            status=result["status"],
-            metrics=result["metrics"],
-            rejection_reason=result["rejection_reason"],
-            mp3_path=result["mp3_path"],
-            has_original=original_path is not None,
-            status_tecnico=result.get("status_tecnico", "optimo"),
-            alertas=result.get("alertas"),
+                    event = await asyncio.wait_for(progress_queue.get(), timeout=0.3)
+                    yield f"data: {json.dumps(event)}\n\n"
+                except asyncio.TimeoutError:
+                    # No progress yet, check if task is done
+                    continue
+            
+            # Get result
+            try:
+                result = await process_task
+            except AudioAnalysisError as e:
+                yield f"data: {json.dumps({'error': f'Audio analysis failed: {e}'})}\n\n"
+                return
+            except Exception as e:
+                yield f"data: {json.dumps({'error': f'Processing failed: {e}'})}\n\n"
+                return
+            
+            # Signal completion
+            yield f"data: {json.dumps({'stage': 'Guardando...', 'pct': 95})}\n\n"
+            
+            # --- Save original file for HQ download based on plan limits ---
+            original_path: str | None = None
+            if hq_retention_days > 0:
+                original_path = result["original_path"]
+            else:
+                if result["original_path"]:
+                    from app.services.r2 import delete_file_from_r2
+                    try:
+                        await delete_file_from_r2(result["original_path"])
+                    except Exception:
+                        pass
+            
+            # --- Create submission record in DB ---
+            session = next(get_session())
+            try:
+                submission = Submission(
+                    id=submission_id,
+                    label_id=label_id,
+                    producer_name=producer_name or file.filename or "Unknown",
+                    producer_email=producer_email or "",
+                    track_name=track_name or file.filename or "Unknown Track",
+                    bpm=result["metrics"].get("bpm") if result["metrics"] else None,
+                    lufs=result["metrics"].get("lufs") if result["metrics"] else None,
+                    duration=result["metrics"].get("duration") if result["metrics"] else None,
+                    phase_correlation=result["metrics"].get("phase_correlation") if result["metrics"] else None,
+                    musical_key=result["metrics"].get("musical_key") if result["metrics"] else None,
+                    true_peak=result["metrics"].get("true_peak") if result["metrics"] else None,
+                    crest_factor=result["metrics"].get("crest_factor") if result["metrics"] else None,
+                    status=result["status"],
+                    status_tecnico=result.get("status_tecnico", "optimo"),
+                    alertas=result.get("alertas"),
+                    rejection_reason=result["rejection_reason"],
+                    mp3_path=result["mp3_path"],
+                    original_path=original_path,
+                    peaks=result.get("peaks"),
+                    notes=notes or None,
+                    producer_instagram=producer_instagram or None,
+                    producer_soundcloud=producer_soundcloud or None,
+                )
+                session.add(submission)
+                session.commit()
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                session.rollback()
+                yield f"data: {json.dumps({'error': f'Failed to save: {e}'})}\n\n"
+                return
+            finally:
+                session.close()
+            
+            # Final success event
+            yield f"data: {json.dumps({
+                'done': True,
+                'submission_id': submission_id,
+                'status': result['status'],
+                'metrics': result['metrics'],
+                'rejection_reason': result['rejection_reason'],
+                'mp3_path': result['mp3_path'],
+                'has_original': original_path is not None,
+                'status_tecnico': result.get('status_tecnico', 'optimo'),
+                'alertas': result.get('alertas'),
+            })}\n\n"
+        
+        return StreamingResponse(
+            event_generator(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
         )
 
     except HTTPException:

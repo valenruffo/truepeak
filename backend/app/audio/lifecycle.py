@@ -10,6 +10,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from typing import Any, Callable, Awaitable
+
 from app.audio.analyzer import analyze_audio
 from app.audio.converter import convert_to_mp3
 from app.audio.exceptions import AudioAnalysisError, ConversionError, FileCleanupError
@@ -201,6 +203,7 @@ async def process_submission(
     submission_id: str,
     label_id: str,
     sonic_signature: dict[str, Any],
+    on_progress: Callable[[str, int], Awaitable[None]] | None = None,
 ) -> dict[str, Any]:
     """Process a single audio submission through the zero-storage lifecycle.
 
@@ -210,7 +213,13 @@ async def process_submission(
         3. Convert WAV to MP3 preview locally (bypassed if auto_rejected).
         4. Upload WAV original, MP3 preview, and waveform peaks JSON to R2 (bypassed if auto_rejected).
         5. Clean up all local files (WAV, MP3) from the server immediately.
+    
+    If on_progress is provided, it's called with (stage_label, percent) at each step.
     """
+    async def _progress(stage: str, pct: int):
+        if on_progress:
+            await on_progress(stage, pct)
+
     metrics: dict[str, Any] = {}
     mp3_temp_path: str | None = None
     r2_mp3_url: str | None = None
@@ -218,9 +227,11 @@ async def process_submission(
 
     try:
         # Step 1: Analyze audio
+        await _progress("Analizando audio...", 15)
         metrics = await analyze_audio(file_path)
 
         # Step 2: Compare against sonic signature and compute technical status
+        await _progress("Evaluando firma sónica...", 40)
         status_tecnico, alertas = calculate_technical_status(metrics, sonic_signature)
         auto_reject_enabled = sonic_signature.get("auto_reject_enabled", True)
 
@@ -254,6 +265,7 @@ async def process_submission(
             }
 
         # Step 3: Convert to MP3 locally in /tmp
+        await _progress("Convirtiendo a MP3...", 60)
         ext = Path(file_path).suffix.lower()
         mp3_temp_path = f"/tmp/{submission_id}.mp3"
         
@@ -266,6 +278,7 @@ async def process_submission(
             raise AudioAnalysisError(f"Audio conversion failed: {e}") from e
 
         # Step 4: Upload combo (original, preview.mp3, waveform.json) to R2
+        await _progress("Subiendo a la nube...", 80)
         r2_original_key = f"tracks/{submission_id}/original{ext}"
         r2_mp3_key = f"tracks/{submission_id}/preview.mp3"
         r2_peaks_key = f"tracks/{submission_id}/waveform.json"
