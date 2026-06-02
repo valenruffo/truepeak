@@ -1,7 +1,10 @@
 """Audio feature extraction using librosa, pyloudnorm, and scipy."""
 
+from __future__ import annotations
+
 import asyncio
 import gc
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 import librosa
@@ -110,72 +113,83 @@ def _compute_phase_correlation(y: np.ndarray) -> float:
     return float(np.clip(correlation, -1.0, 1.0))
 
 
-def _analyze_audio_sync(file_path: str) -> dict[str, Any]:
-    """Synchronous audio analysis — must be called via asyncio.to_thread."""
-    y: np.ndarray | None = None
-    sr: int | None = None
+def _load_audio(file_path: str) -> tuple:
+    """Load audio file — heaviest step (disk decode + resample)."""
+    return librosa.load(file_path, sr=None, mono=False)
+
+
+def _detect_bpm(y_mono, sr):
+    """Detect BPM via beat tracking."""
+    tempo, _ = librosa.beat.beat_track(y=y_mono, sr=sr)
+    return float(tempo) if np.isscalar(tempo) else float(tempo[0])
+
+
+def _measure_lufs(y, sr):
+    """Measure integrated LUFS loudness."""
+    audio = y.reshape(-1, 1) if y.ndim == 1 else y.T
+    meter = pyln.Meter(sr)
+    return meter.integrated_loudness(audio)
+
+
+def _detect_key(y_mono, sr):
+    """Detect musical key via chroma features."""
+    chroma = librosa.feature.chroma_stft(y=y_mono, sr=sr)
+    return _detect_musical_key(chroma)
+
+
+async def analyze_audio(
+    file_path: str,
+    on_progress: Callable[[str, int], Awaitable[None]] | None = None,
+) -> dict[str, Any]:
+    """Analyze audio file and extract features with intermediate progress."""
+
+    async def _progress(stage: str, pct: int):
+        if on_progress:
+            await on_progress(stage, pct)
+
+    # Step 1: Load audio (heaviest — disk I/O + decode)
+    await _progress("Cargando audio...", 15)
+    y, sr = await asyncio.to_thread(_load_audio, file_path)
+
+    # Waveform peaks (fast — already have y in memory)
+    y_mono = librosa.to_mono(y) if y.ndim == 2 else y
+    peaks = _extract_waveform_peaks(y)
+    await _progress("Extrayendo waveform...", 22)
+
+    # Step 2: BPM (moderate — beat tracking)
+    bpm = await asyncio.to_thread(_detect_bpm, y_mono, sr)
+    await _progress("Detectando BPM...", 28)
+
+    # Step 3: LUFS (fast — loudness meter)
+    lufs = await asyncio.to_thread(_measure_lufs, y, sr)
+    await _progress("Midiendo sonoridad...", 33)
+
+    # Step 4: Phase correlation (fast — numpy ops)
+    phase = _compute_phase_correlation(y)
+    await _progress("Analizando fase...", 37)
+
+    # Step 5: Musical key (moderate — STFT chroma)
+    musical_key = await asyncio.to_thread(_detect_key, y_mono, sr)
+    await _progress("Detectando tonalidad...", 40)
+
+    # Step 6: Duration, peak, crest (fast)
+    duration = float(len(y_mono) / sr) if sr and len(y_mono) > 0 else 0.0
+    true_peak = float(np.max(np.abs(y)))
+    rms = float(np.sqrt(np.mean(y**2)))
+    crest_factor = float(20 * np.log10(true_peak / (rms + 1e-10))) if rms > 0 else 0.0
 
     try:
-        y, sr = librosa.load(file_path, sr=None, mono=False)
-
-        # --- Waveform peaks for WaveSurfer.js visualization ---
-        peaks = _extract_waveform_peaks(y)
-
-        # Convert to mono for beat tracking and chroma (librosa 0.11+ requires mono)
-        y_mono = librosa.to_mono(y) if y.ndim == 2 else y
-
-        # --- BPM detection ---
-        tempo, _ = librosa.beat.beat_track(y=y_mono, sr=sr)
-        bpm = float(tempo) if np.isscalar(tempo) else float(tempo[0])
-
-        # --- Integrated LUFS ---
-        if y.ndim == 1:
-            audio_for_loudness = y.reshape(-1, 1)
-        else:
-            audio_for_loudness = y.T
-
-        meter = pyln.Meter(sr)
-        lufs = meter.integrated_loudness(audio_for_loudness)
-
-        # --- Phase correlation ---
-        phase_correlation = _compute_phase_correlation(y)
-
-        # --- Musical key detection ---
-        chroma = librosa.feature.chroma_stft(y=y_mono, sr=sr)
-        musical_key = _detect_musical_key(chroma)
-
-        # --- Duration ---
-        duration = float(len(y_mono) / sr) if sr and len(y_mono) > 0 else 0.0
-
-        # --- Peak and Crest Factor ---
-        # Calculate max absolute peak (Sample Peak)
-        true_peak = float(np.max(np.abs(y)))
-
-        # Calculate Crest Factor in dB: 20 * log10(peak / (rms + epsilon))
-        rms = float(np.sqrt(np.mean(y**2)))
-        crest_factor = float(20 * np.log10(true_peak / (rms + 1e-10))) if rms > 0 else 0.0
-
         return {
             "bpm": float(round(bpm, 2)),
             "lufs": float(round(lufs, 2)),
             "true_peak": float(round(true_peak, 4)),
             "crest_factor": float(round(crest_factor, 2)),
-            "phase_correlation": float(round(phase_correlation, 4)),
+            "phase_correlation": float(round(phase, 4)),
             "musical_key": musical_key,
             "duration": float(round(duration, 1)),
             "peaks": peaks,
         }
-
-    except librosa.LibrosaError as e:
-        raise AudioAnalysisError(f"Librosa analysis failed: {e}") from e
-    except Exception as e:
-        raise AudioAnalysisError(f"Audio analysis failed: {e}") from e
     finally:
         del y
         del sr
         gc.collect()
-
-
-async def analyze_audio(file_path: str) -> dict[str, Any]:
-    """Analyze audio file and extract features."""
-    return await asyncio.to_thread(_analyze_audio_sync, file_path)

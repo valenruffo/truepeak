@@ -226,9 +226,8 @@ async def process_submission(
     r2_original_path: str | None = None
 
     try:
-        # Step 1: Analyze audio
-        await _progress("Analizando audio...", 15)
-        metrics = await analyze_audio(file_path)
+        # Step 1: Analyze audio (emits its own intermediate progress: 15→22→28→33→37→40)
+        metrics = await analyze_audio(file_path, on_progress=on_progress)
 
         # Step 2: Compare against sonic signature and compute technical status
         await _progress("Evaluando firma sónica...", 40)
@@ -278,7 +277,7 @@ async def process_submission(
             raise AudioAnalysisError(f"Audio conversion failed: {e}") from e
 
         # Step 4: Upload combo (original, preview.mp3, waveform.json) to R2
-        await _progress("Subiendo a la nube...", 80)
+        await _progress("Subiendo original a R2...", 70)
         r2_original_key = f"tracks/{submission_id}/original{ext}"
         r2_mp3_key = f"tracks/{submission_id}/preview.mp3"
         r2_peaks_key = f"tracks/{submission_id}/waveform.json"
@@ -290,14 +289,16 @@ async def process_submission(
         elif ext in (".aiff", ".aif"):
             orig_content_type = "audio/aiff"
 
-        # Upload files in parallel/sequence to R2
+        # Upload files to R2 with progress between each
         await upload_file_to_r2(file_path, r2_original_key, orig_content_type)
+        await _progress("Subiendo preview MP3...", 80)
         await upload_file_to_r2(mp3_temp_path, r2_mp3_key, "audio/mpeg")
 
         # Upload peaks waveform JSON
         peaks = metrics.get("peaks", [])
         duration = metrics.get("duration", 0.0)
         peaks_data = json.dumps({"peaks": peaks, "duration": duration}).encode("utf-8")
+        await _progress("Guardando waveform...", 90)
         await upload_bytes_to_r2(peaks_data, r2_peaks_key, "application/json")
 
         # Set R2 paths for DB persistence
