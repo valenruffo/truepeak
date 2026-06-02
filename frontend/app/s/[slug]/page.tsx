@@ -145,18 +145,18 @@ export default function SubmissionPage() {
     };
     animFrame = requestAnimationFrame(animate);
 
-    // Upload phase: smooth 0→80% with randomized steps while backend works
-    // Distributes the idle upload time across the full range so the bar
-    // never looks stuck — actual SSE pct events from the backend will
-    // override targetPct and jump past 80 once analysis begins.
+    // Upload phase: slow, steady 0→95% with small randomized steps while backend works
+    // Keeps the bar moving subtly throughout the entire upload wait period
+    // so it never appears stuck at any particular point. Actual SSE pct
+    // events from the backend will override targetPct once analysis begins.
     const uploadTimer = setInterval(() => {
-      if (targetPct < 80) {
-        const step = 0.3 + Math.random() * 1.2;  // random 0.3–1.5 per tick
-        targetPct = Math.min(80, targetPct + step);
+      if (targetPct < 95) {
+        const step = 0.15 + Math.random() * 0.35;  // random 0.15-0.50 per tick
+        targetPct = Math.min(95, targetPct + step);
       } else {
         clearInterval(uploadTimer);
       }
-    }, 200);
+    }, 300);
 
     try {
       const formData = new FormData();
