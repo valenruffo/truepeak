@@ -100,7 +100,6 @@ async def upload_audio(
                     select(func.count(Submission.id)).where(
                         Submission.label_id == label_id,
                         Submission.created_at >= month_start,
-                        (Submission.deleted_at.is_(None)),
                     )
                 ).one()
                 if month_count >= label.max_tracks_month:

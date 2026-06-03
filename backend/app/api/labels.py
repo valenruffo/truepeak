@@ -470,7 +470,7 @@ async def get_label_stats(
     if label.id != auth["label_id"]:
         raise HTTPException(status_code=403, detail="Access denied to this label.")
 
-    # Filter out deleted submissions
+    # Count non-deleted for status breakdowns
     total_active = session.exec(
         select(Submission).where(
             Submission.label_id == label.id,
@@ -483,8 +483,18 @@ async def get_label_stats(
     rejected = len([s for s in total_active if s.status == "rejected"])
     auto_rejected = len([s for s in total_active if s.status == "auto_rejected"])
 
+    # Total tracks processed this month (including deleted — for limit enforcement)
+    now = datetime.now(timezone.utc)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    monthly_total = session.exec(
+        select(func.count(Submission.id)).where(
+            Submission.label_id == label.id,
+            Submission.created_at >= month_start,
+        )
+    ).one()
+
     return LabelStats(
-        total=len(total_active),
+        total=monthly_total,
         inbox=inbox,
         shortlist=shortlist,
         rejected=rejected,
