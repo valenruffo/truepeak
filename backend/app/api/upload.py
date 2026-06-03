@@ -47,6 +47,7 @@ def _validate_magic_bytes(content: bytes, ext: str) -> bool:
 # ── Router ───────────────────────────────────────────────────────────────────
 
 router = APIRouter(prefix="/api", tags=["upload"])
+limiter = Limiter(key_func=get_remote_address)
 
 # Constants
 MAX_AUDIO_SIZE = 200 * 1024 * 1024  # 200MB
