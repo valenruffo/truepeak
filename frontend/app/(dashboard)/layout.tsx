@@ -6,7 +6,6 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { PlayerProvider, usePlayer, type PlayerTrack } from "@/lib/PlayerContext";
 import { ToastProvider } from "@/components/ui/toast";
-import WhatsAppBubble from "@/components/WhatsAppBubble";
 import { useLanguage } from "@/lib/i18n";
 import { useTheme } from "@/lib/theme";
 import { Music, Clock, AlertTriangle, Sliders, Link2, Inbox, Mail, BookOpen, Settings, LogOut } from "lucide-react";
@@ -261,6 +260,9 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
   const [maxTracksMonth, setMaxTracksMonth] = useState<number>(10);
   const [mounted, setMounted] = useState(false);
   const [currentRole, setCurrentRole] = useState<string>("label");
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackMsg, setFeedbackMsg] = useState("");
+  const [feedbackSent, setFeedbackSent] = useState(false);
   const { queueTracks } = usePlayer();
 
   useEffect(() => {
@@ -555,6 +557,20 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
           </div>
         )}
 
+        {/* Feedback button */}
+        <div className="px-4 mb-3 mt-2 pt-3 border-t" style={{ borderColor: "var(--border)" }}>
+          <button
+            onClick={() => { setFeedbackOpen(true); setFeedbackSent(false); setFeedbackMsg(""); }}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded text-[12px] font-medium transition-all hover:bg-white/5"
+            style={{ color: "var(--text-muted)" }}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+            Feedback
+          </button>
+        </div>
+
         {/* Admin Testing Panel (Localhost or VPS IP) */}
         {mounted && (
           window.location.hostname === "localhost" || 
@@ -770,7 +786,62 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
       </main>
 
       {subscriptionStatus !== "frozen" && <PlayerBar />}
-      <WhatsAppBubble />
+
+      {/* Feedback Modal */}
+      {feedbackOpen && (
+        <>
+          <div className="fixed inset-0 z-50" style={{ background: "rgba(0,0,0,0.6)" }} onClick={() => setFeedbackOpen(false)} />
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-md mx-4 rounded-xl border p-6" style={{ background: "var(--bg-card)", borderColor: "var(--border)" }}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold">
+                {lang === "es" ? "Dejanos tu feedback" : "Leave your feedback"}
+              </h2>
+              <button onClick={() => setFeedbackOpen(false)} className="text-muted hover:text-primary transition-colors">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            {feedbackSent ? (
+              <div className="text-center py-6">
+                <div className="w-12 h-12 mx-auto mb-3 rounded-full flex items-center justify-center" style={{ background: "rgba(16,185,129,0.12)" }}>
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                </div>
+                <p className="text-sm font-medium" style={{ color: "#10b981" }}>
+                  {lang === "es" ? "¡Gracias! Tu mensaje fue enviado." : "Thanks! Your message was sent."}
+                </p>
+              </div>
+            ) : (
+              <>
+                <textarea
+                  value={feedbackMsg}
+                  onChange={(e) => setFeedbackMsg(e.target.value)}
+                  placeholder={lang === "es" ? "Contanos qué pensás, bugs, ideas..." : "Tell us what you think, bugs, ideas..."}
+                  className="w-full px-3 py-2.5 rounded-lg border text-sm bg-transparent resize-none focus:outline-none focus:ring-1 focus:ring-emerald-500 mb-4"
+                  style={{ borderColor: "var(--border)", minHeight: "120px" }}
+                  autoFocus
+                />
+                <button
+                  onClick={() => {
+                    if (!feedbackMsg.trim()) return;
+                    const phone = "5491135167226";
+                    const msg = encodeURIComponent(feedbackMsg.trim());
+                    window.open(`https://wa.me/${phone}?text=${msg}`, "_blank");
+                    setFeedbackSent(true);
+                    setTimeout(() => { setFeedbackOpen(false); setFeedbackMsg(""); }, 2000);
+                  }}
+                  disabled={!feedbackMsg.trim()}
+                  className="w-full py-2.5 rounded-lg text-sm font-semibold transition-all hover:opacity-90 disabled:opacity-40"
+                  style={{ background: "#25D366", color: "#fff" }}
+                >
+                  {lang === "es" ? "Enviar por WhatsApp" : "Send via WhatsApp"}
+                </button>
+                <p className="text-[10px] text-muted text-center mt-2">
+                  {lang === "es" ? "También podés escribir a ruffovalen@gmail.com" : "You can also email ruffovalen@gmail.com"}
+                </p>
+              </>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
