@@ -4,8 +4,8 @@ import os
 import httpx
 from jose import JWTError
 
-SUPABASE_URL = "https://dhnxyumxznhvpofujzwq.supabase.co"
-SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRobnh5dW14em5odnBvZnVqendxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1NjE5NDYsImV4cCI6MjA5NTEzNzk0Nn0.jmVNxrvMMiy7Z-GeUsH-T152U7m7OgbDJepkKuvGb-w"
+SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")
 
 def verify_token(token: str) -> dict[str, str]:
     """Verify a Supabase JWT token by calling the Supabase Auth API.

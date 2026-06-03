@@ -24,6 +24,7 @@ build/
 .env
 .env.local
 .env.*.local
+infra/.env
 
 # Data (database + MP3s)
 data/

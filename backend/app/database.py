@@ -6,7 +6,9 @@ from typing import Generator
 from sqlmodel import SQLModel, create_engine, Session
 
 # Supabase PostgreSQL URL
-DATABASE_URL = os.getenv("POSTGRES_URL", "postgresql+psycopg2://postgres:postgres@localhost:5432/postgres")
+DATABASE_URL = os.getenv("POSTGRES_URL")
+if not DATABASE_URL:
+    raise RuntimeError("POSTGRES_URL environment variable is required")
 
 # Enable connection pooling for production
 engine = create_engine(

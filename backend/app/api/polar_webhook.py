@@ -48,8 +48,8 @@ def _verify_polar_signature(raw_body: bytes, headers: dict, secret: str) -> bool
     logger.warning("Secret starts with polar_whs_: %s", secret.startswith("polar_whs_"))
 
     if not secret:
-        logger.warning("POLAR_WEBHOOK_SECRET not set — skipping signature verification")
-        return True
+        logger.error("POLAR_WEBHOOK_SECRET not set — rejecting webhook")
+        return False
 
     # 1. Try Standard Webhooks (New)
     if "webhook-signature" in headers:

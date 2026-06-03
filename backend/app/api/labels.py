@@ -155,6 +155,18 @@ class HQCountResponse(BaseModel):
     max_approved: int = 10
 
 
+# --- Admin auth helper ---
+
+def _verify_admin_key(request: Request) -> None:
+    """Verify X-Admin-Key header against ADMIN_API_KEY env var."""
+    admin_key = os.getenv("ADMIN_API_KEY", "")
+    if not admin_key:
+        raise HTTPException(status_code=500, detail="ADMIN_API_KEY not configured")
+    req_key = request.headers.get("X-Admin-Key", "")
+    if req_key != admin_key:
+        raise HTTPException(status_code=401, detail="Admin key required")
+
+
 # --- Endpoints ---
 
 @router.post("/register-profile", response_model=RegisterResponse, status_code=201)
@@ -726,9 +738,11 @@ class AdminPlanUpdateRequest(BaseModel):
 @router.post("/admin/by-email/plan")
 async def update_plan_admin(
     req: AdminPlanUpdateRequest,
+    request: Request,
+    _: None = Depends(_verify_admin_key),
     session: Session = Depends(get_session)
 ):
-    """Internal endpoint for Vercel proxy to sync DB after Polar updates."""
+    """Internal endpoint for Vercel proxy to sync DB after Polar updates. Requires admin key."""
     label = session.exec(select(Label).where(Label.owner_email == req.email)).first()
     if not label:
         raise HTTPException(status_code=404, detail="Label not found")
@@ -1119,6 +1133,8 @@ class PlanUpdateByEmail(BaseModel):
 @router.post("/admin/by-email/plan")
 async def admin_update_label_plan_by_email(
     body: PlanUpdateByEmail,
+    request: Request,
+    _: None = Depends(_verify_admin_key),
     session: Session = Depends(get_session),
 ):
     """Admin endpoint to update label plan by owner email. Used by Polar webhook proxy.
@@ -1185,9 +1201,11 @@ async def admin_update_label_plan_by_email(
 async def admin_update_label_plan(
     slug: str,
     body: PlanUpdate,
+    request: Request,
+    _: None = Depends(_verify_admin_key),
     session: Session = Depends(get_session),
 ):
-    """Admin endpoint to update label plan without auth. FOR TESTING ONLY — remove in production."""
+    """Admin endpoint to update label plan. Requires admin key."""
     label = session.exec(select(Label).where(Label.slug == slug)).first()
     if not label:
         raise HTTPException(status_code=404, detail="Sello no encontrado.")
@@ -1226,7 +1244,12 @@ class RoleUpdate(BaseModel):
 
 
 @router.post("/webhook-debug")
-async def debug_webhook_payload(body: dict, session: Session = Depends(get_session)):
+async def debug_webhook_payload(
+    body: dict,
+    request: Request,
+    _: None = Depends(_verify_admin_key),
+    session: Session = Depends(get_session)
+):
     """Functional webhook handler used for debugging and production sync.
     Handles both raw Polar payloads AND simplified payloads from our Next.js proxy.
     """
@@ -1328,9 +1351,11 @@ class RoleUpdate(BaseModel):
 async def admin_update_label_role(
     slug: str,
     body: RoleUpdate,
+    request: Request,
+    _: None = Depends(_verify_admin_key),
     session: Session = Depends(get_session),
 ):
-    """Admin endpoint to update label role without auth. FOR TESTING ONLY — remove in production."""
+    """Admin endpoint to update label role. Requires admin key."""
     label = session.exec(select(Label).where(Label.slug == slug)).first()
     if not label:
         raise HTTPException(status_code=404, detail="Sello no encontrado.")

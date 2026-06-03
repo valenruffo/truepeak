@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { cookies, headers } from "next/headers";
 
-const POLAR_ACCESS_TOKEN = process.env.POLAR_ACCESS_TOKEN || "polar_oat_DbwYw1d85au26rcFoonMyOunonLiFDfPdTtAU0pmvXl";
+const POLAR_ACCESS_TOKEN = process.env.POLAR_ACCESS_TOKEN;
+if (!POLAR_ACCESS_TOKEN) throw new Error("POLAR_ACCESS_TOKEN is not configured");
 const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://164.152.194.196:8000";
 
 // Map Product ID to Plan Tier
