@@ -494,7 +494,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
         style={{ width: "200px", background: "var(--bg-card)", borderRight: "1px solid var(--border)" }}
       >
         <div className="px-4 pt-6 pb-4 flex items-center justify-start">
-          <Link href="/"><img src="/logo.png" alt="True Peak AI" className="h-8 w-auto object-contain" /></Link>
+          <Link href="/"><img src="/logo.png" alt="True Peak" className="h-8 w-auto object-contain" /></Link>
         </div>
 
         <nav className="flex-1 px-2.5 pt-4 space-y-1">

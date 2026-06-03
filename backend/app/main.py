@@ -1,4 +1,4 @@
-"""True Peak AI — FastAPI application entry point."""
+"""True Peak — FastAPI application entry point."""
 
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -24,8 +24,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 
 app = FastAPI(
-    title="True Peak AI",
-    description="AI-powered audio mastering submission and review system",
+    title="True Peak",
+    description="Audio mastering submission and review system",
     version="0.1.0",
     lifespan=lifespan,
 )

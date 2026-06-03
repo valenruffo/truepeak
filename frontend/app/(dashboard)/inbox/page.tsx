@@ -1367,7 +1367,7 @@ useEffect(() => {
           to: emailModal.submission.producer_email || "",
           subject: subjectToSend,
           body: bodyToSend,
-          from_name: labelName || "True Peak AI",
+          from_name: labelName || "True Peak",
           submission_id: subId,
         }),
       });

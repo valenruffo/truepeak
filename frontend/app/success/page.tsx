@@ -118,7 +118,7 @@ function SuccessContent() {
         {planUpdated && planLabel ? (
           <div>
             <p className="text-sm mb-6" style={{ color: "#10b981" }}>
-              Tu plan se actualizó a <strong>{planLabel}</strong>. ¡Bienvenido a True Peak AI!
+              Tu plan se actualizó a <strong>{planLabel}</strong>. ¡Bienvenido a True Peak!
             </p>
             <p className="text-xs" style={{ color: "#52525b" }}>
               Redirigiendo a tu cuenta en unos segundos...

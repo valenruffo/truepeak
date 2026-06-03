@@ -6,10 +6,10 @@ export default function TermsOfService() {
         <div className="space-y-6 text-sm text-muted leading-relaxed">
           <p><strong className="text-foreground">Última actualización:</strong> Mayo 2026</p>
 
-          <p>Bienvenido a True Peak AI. Al acceder y usar nuestra plataforma, aceptás estos términos. Si no estás de acuerdo, no uses el servicio.</p>
+          <p>Bienvenido a True Peak. Al acceder y usar nuestra plataforma, aceptás estos términos. Si no estás de acuerdo, no uses el servicio.</p>
 
           <h2 className="font-display font-semibold text-lg text-foreground mt-8 mb-2">1. Servicio</h2>
-          <p>True Peak AI es una plataforma de filtrado automático de demos musicales mediante análisis técnico por IA. Proporcionamos análisis de BPM, LUFS, fase, headroom y detección de samples para sellos discográficos y profesionales del audio.</p>
+          <p>True Peak es una plataforma de filtrado automático de demos musicales mediante análisis técnico de audio. Proporcionamos análisis de BPM, LUFS, fase, headroom y detección de samples para sellos discográficos y profesionales del audio.</p>
 
           <h2 className="font-display font-semibold text-lg text-foreground mt-8 mb-2">2. Cuentas</h2>
           <p>Para usar el servicio necesitás crear una cuenta. Sos responsable de mantener la confidencialidad de tus credenciales y de toda actividad que ocurra bajo tu cuenta. Si detectás uso no autorizado, notificanos inmediatamente.</p>
@@ -22,7 +22,7 @@ export default function TermsOfService() {
           <p>No podés usar el servicio para: (a) analizar contenido que no tengas derecho a procesar, (b) intentar acceder a datos de otros usuarios, (c) usar el servicio de forma que interfiera con su funcionamiento, (d) revender o redistribuir el servicio sin autorización.</p>
 
           <h2 className="font-display font-semibold text-lg text-foreground mt-8 mb-2">5. Propiedad Intelectual</h2>
-          <p>Todo el contenido, diseño, código y marca de True Peak AI es propiedad de True Peak AI. Los archivos de audio que subís siguen siendo tuyos — no reclamamos derechos sobre tu material.</p>
+          <p>Todo el contenido, diseño, código y marca de True Peak es propiedad de True Peak. Los archivos de audio que subís siguen siendo tuyos — no reclamamos derechos sobre tu material.</p>
 
           <h2 className="font-display font-semibold text-lg text-foreground mt-8 mb-2">6. Limitación de Responsabilidad</h2>
           <p>El servicio se proporciona "tal cual". No garantizamos que el análisis sea 100% preciso ni que el servicio esté disponible sin interrupciones. No somos responsables de pérdidas indirectas, incidentales o consecuentes derivadas del uso del servicio.</p>

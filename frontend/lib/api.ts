@@ -93,13 +93,6 @@ export interface EmailTemplate {
   template_type: string;
   subject: string;
   body: string;
-  use_llm: boolean;
-}
-
-export interface GenerateEmailResponse {
-  subject: string;
-  body: string;
-  is_draft: boolean;
 }
 
 export interface SendEmailResponse {
@@ -246,24 +239,6 @@ export async function sendEmail(
   return request<SendEmailResponse>("/api/email/send", {
     method: "POST",
     body: JSON.stringify({ to, subject, body }),
-  });
-}
-
-/**
- * Generate an email draft using LLM personalization.
- */
-export async function generateEmailDraft(
-  submissionId: number,
-  templateType: string,
-  customNotes?: string
-): Promise<GenerateEmailResponse> {
-  return request<GenerateEmailResponse>("/api/email/generate", {
-    method: "POST",
-    body: JSON.stringify({
-      submission_id: submissionId,
-      template_type: templateType,
-      ...(customNotes && { custom_notes: customNotes }),
-    }),
   });
 }
 

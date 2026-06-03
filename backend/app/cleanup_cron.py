@@ -1,4 +1,4 @@
-"""Daily cleanup cron job for True Peak AI.
+"""Daily cleanup cron job for True Peak.
 
 Run via: python -m app.cleanup_cron
 Or: docker exec infra-backend-1 python -m app.cleanup_cron
@@ -99,10 +99,10 @@ async def cleanup_async():
                 subject = f"Aviso de inactividad de la cuenta - {label.name}"
                 body = f"""
                 <p>Hola,</p>
-                <p>Tu cuenta de True Peak AI (<b>{label.name}</b>) lleva congelada más de 15 días.</p>
+                <p>Tu cuenta de True Peak (<b>{label.name}</b>) lleva congelada más de 15 días.</p>
                 <p>Actualmente estamos conservando tus previas (MP3) y tu historial de demos. Sin embargo, eliminaremos permanentemente tus archivos y registros si la cuenta permanece inactiva durante otros 15 días (cumpliendo 30 días en total).</p>
                 <p>Si deseas mantener tus datos, por favor renueva tu plan iniciando sesión en el sistema.</p>
-                <p>Saludos,<br/>El equipo de True Peak AI</p>
+                <p>Saludos,<br/>El equipo de True Peak</p>
                 """
                 await send_email(to=label.owner_email, subject=subject, body=body)
                 label.churn_warning_sent = True
@@ -130,10 +130,10 @@ async def cleanup_async():
                 subject = f"ÚLTIMO AVISO: Eliminación de datos inminente - {label.name}"
                 body = f"""
                 <p>Hola,</p>
-                <p>Este es el <b>último aviso</b> de True Peak AI para la cuenta <b>{label.name}</b>.</p>
+                <p>Este es el <b>último aviso</b> de True Peak para la cuenta <b>{label.name}</b>.</p>
                 <p>Tu cuenta lleva congelada 29 días. En exactamente <b>24 horas</b>, todos tus historiales de demos, tracks y configuraciones serán <b>eliminados permanentemente y sin posibilidad de recuperación</b>.</p>
                 <p>Si deseas evitar la pérdida total de tus datos, por favor renueva tu plan <b>hoy mismo</b>.</p>
-                <p>Saludos,<br/>El equipo de True Peak AI</p>
+                <p>Saludos,<br/>El equipo de True Peak</p>
                 """
                 await send_email(to=label.owner_email, subject=subject, body=body)
                 label.final_warning_sent = True

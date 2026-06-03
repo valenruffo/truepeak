@@ -73,7 +73,7 @@ export default function GuidePage() {
 
   // Translation Helpers
   const esText = {
-    title: "Guía de True Peak AI",
+    title: "Guía de True Peak",
     subtitle: "Entendé la matemática detrás del filtrado y simulá tu Firma Sónica en tiempo real.",
     tabWorkflow: "Flujo de Trabajo",
     tabRules: "Criterios Técnicos",
@@ -82,7 +82,7 @@ export default function GuidePage() {
     
     // Technical Section
     rulesTitle: "Matemática y Criterios del Filtro",
-    rulesDesc: "True Peak AI analiza el audio a nivel científico. Acá tenés las fórmulas exactas y reglas que determinan si un track se aprueba o se auto-rechaza:",
+    rulesDesc: "True Peak analiza el audio a nivel científico. Acá tenés las fórmulas exactas y reglas que determinan si un track se aprueba o se auto-rechaza:",
     ruleBpmTitle: "1. Tempo (BPM)",
     ruleBpmDesc: "El BPM del track se detecta como un valor decimal y se redondea al número entero más cercano antes de la verificación.",
     ruleBpmExample: "Si tu límite máximo es 126 BPM:\n• Un track detectado con 126.4 BPM se redondea a 126 (APROBADO).\n• Un track detectado con 126.5 BPM se redondea a 127 (AUTO-RECHAZADO).",
@@ -130,7 +130,7 @@ export default function GuidePage() {
   };
 
   const enText = {
-    title: "True Peak AI Guide",
+    title: "True Peak Guide",
     subtitle: "Understand the math behind the filtering and simulate your Sonic Signature in real time.",
     tabWorkflow: "Workflow",
     tabRules: "Technical Specs",
@@ -139,7 +139,7 @@ export default function GuidePage() {
     
     // Technical Section
     rulesTitle: "Filter Math & Criteria",
-    rulesDesc: "True Peak AI analyzes audio at a scientific level. Here are the exact formulas and rules that determine whether a track is approved or auto-rejected:",
+    rulesDesc: "True Peak analyzes audio at a scientific level. Here are the exact formulas and rules that determine whether a track is approved or auto-rejected:",
     ruleBpmTitle: "1. Tempo (BPM)",
     ruleBpmDesc: "The track's BPM is detected as a decimal value and rounded to the nearest integer before verification.",
     ruleBpmExample: "If your maximum limit is 126 BPM:\n• A track detected at 126.4 BPM rounds to 126 (APPROVED).\n• A track detected at 126.5 BPM rounds to 127 (AUTO-REJECTED).",

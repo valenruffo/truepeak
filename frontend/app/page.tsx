@@ -227,7 +227,7 @@ function Nav() {
     >
       <div className="max-w-6xl mx-auto px-6 flex items-center justify-between" style={{ height: "56px" }}>
         <Link href="/">
-          <img src="/logo.png" alt="True Peak AI" className="h-7 w-auto" />
+          <img src="/logo.png" alt="True Peak" className="h-7 w-auto" />
         </Link>
 
         <div className="hidden md:flex items-center gap-8">
@@ -1601,7 +1601,7 @@ function CRMSimulator({ t }: { t: (key: any) => string }) {
 
             {/* Actions */}
             <div className="flex justify-between items-center">
-              <span className="text-[8px] font-mono" style={{ color: "var(--text-muted)" }}>AI-Assisted drafting</span>
+              <span className="text-[8px] font-mono" style={{ color: "var(--text-muted)" }}>Smart drafting</span>
               <button
                 className="py-1.5 px-4 rounded text-xs font-semibold font-mono flex items-center gap-1.5 transition-all duration-300 relative overflow-hidden"
                 style={{
@@ -1891,7 +1891,7 @@ function Footer() {
   return (
     <footer className="py-8 px-6" style={{ borderTop: "1px solid var(--border)" }}>
       <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-        <img src="/logo.png" alt="True Peak AI" className="h-8 w-auto" />
+        <img src="/logo.png" alt="True Peak" className="h-8 w-auto" />
 
         <div className="text-xs" style={{ color: "var(--text-muted)" }}>
           {t("footer.copy")}

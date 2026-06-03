@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "truepeak-ai"
+name = "truepeak"
 version = "0.1.0"
-description = "AI-powered audio mastering submission and review system"
+description = "Audio mastering submission and review system"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115.0",
@@ -22,7 +22,6 @@ dependencies = [
     "scipy>=1.14.0",
     "numpy>=2.1.0",
     "httpx>=0.27.0",
-    "openai>=1.51.0",
     "python-dotenv>=1.0.1",
     "Pillow>=10.0.0",
     "resend>=2.0.0",

@@ -11,7 +11,7 @@ from app.services.email_service import send_email
 
 async def main():
     body = """
-    <h2>Test de True Peak AI 🚀</h2>
+    <h2>Test de True Peak 🚀</h2>
     <p>Hola Valentino,</p>
     <p>Este es un email de prueba para confirmar que los envíos transaccionales con <b>Resend</b> están funcionando correctamente en el servidor de producción (VPS Oracle ARM64).</p>
     <p>El sistema utiliza <code>noreply@truepeak.space</code> como remitente y toma el correo de la cuenta del sello como <b>Reply-To</b>, así que si un productor responde a un aviso de rechazo o shortlisting, el mail le llega directo al dueño del sello.</p>
@@ -23,7 +23,7 @@ async def main():
     <p>Saludos,<br>Antigravity 🤖</p>
     """
     try:
-        res = await send_email(to="valentinoruffo2016@gmail.com", subject="Test de Correos Transaccionales - True Peak AI", body=body)
+        res = await send_email(to="valentinoruffo2016@gmail.com", subject="Test de Correos Transaccionales - True Peak", body=body)
         print("Sent:", res)
     except Exception as e:
         print("Error:", e)

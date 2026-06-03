@@ -6,7 +6,7 @@ export default function PrivacyPolicy() {
         <div className="space-y-6 text-sm text-muted leading-relaxed">
           <p><strong className="text-foreground">Última actualización:</strong> Mayo 2026</p>
 
-          <p>En True Peak AI nos comprometemos a proteger tu privacidad. Esta política explica qué datos recopilamos, cómo los usamos y tus derechos.</p>
+          <p>En True Peak nos comprometemos a proteger tu privacidad. Esta política explica qué datos recopilamos, cómo los usamos y tus derechos.</p>
 
           <h2 className="font-display font-semibold text-lg text-foreground mt-8 mb-2">1. Datos que Recopilamos</h2>
           <p><strong className="text-foreground">Datos de cuenta:</strong> nombre, email, nombre de sello, slug personalizado.</p>

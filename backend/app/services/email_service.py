@@ -44,7 +44,7 @@ async def send_email(
     to: str,
     subject: str,
     body: str,
-    from_name: str = "True Peak AI",
+    from_name: str = "True Peak",
     reply_to: str | None = None,
 ) -> EmailSendResult:
     """Send an email via Resend API.

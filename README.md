@@ -1,4 +1,4 @@
-# True Peak AI
+# True Peak
 
 > B2B SaaS that automates demo filtering for electronic music labels via audio analysis.
 
@@ -11,7 +11,7 @@ Label owners configure **sonic signatures** (BPM range, LUFS target, phase corre
 | **Backend** | Python 3.12, FastAPI, SQLModel (SQLite), librosa, pyloudnorm, scipy, ffmpeg |
 | **Frontend** | Next.js 16 (App Router), React 19, Tailwind CSS v4, shadcn/ui, Zustand, framer-motion |
 | **Infrastructure** | Docker Compose, Oracle Cloud ARM64 |
-| **Email** | Resend API + OpenAI/Gemini for LLM-assisted drafts |
+| **Email** | Resend API for transactional emails |
 | **Auth** | JWT in httpOnly cookies |
 
 ## Quick Start
@@ -54,7 +54,6 @@ npm run dev
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `JWT_SECRET` | Yes | Secret key for JWT token signing |
-| `OPENAI_API_KEY` | No | For LLM-assisted email drafts |
 | `RESEND_API_KEY` | No | For sending emails to producers |
 | `DATA_DIR` | No | Path for database and MP3 storage (default: `./data`) |
 
@@ -72,7 +71,7 @@ truepeak/
 │   ├── app/
 │   │   ├── api/           # Route handlers (upload, submissions, labels, email, health)
 │   │   ├── audio/         # Audio engine (analyzer, converter, lifecycle)
-│   │   ├── services/      # Business logic (auth, llm_email, email_service)
+│   │   ├── services/      # Business logic (auth, email_service)
 │   │   ├── main.py        # FastAPI app factory
 │   │   ├── models.py      # SQLModel entities
 │   │   └── database.py    # SQLite engine + session
@@ -109,7 +108,6 @@ Once running, visit http://localhost:8000/docs for the interactive OpenAPI docum
 | `PATCH` | `/api/submissions/{id}/status` | Yes | Approve/reject a submission |
 | `GET` | `/api/labels/{slug}/config` | Yes | Get sonic signature config |
 | `PUT` | `/api/labels/{slug}/config` | Yes | Update sonic signature config |
-| `POST` | `/api/email/generate` | Yes | Generate LLM-assisted email draft |
 | `POST` | `/api/email/send` | Yes | Send email via Resend API |
 | `GET` | `/` | No | Root health check |
 
@@ -160,7 +158,7 @@ The `./data` directory is volume-mapped to `/app/data` in the backend container.
 
 ## Audio Pipeline — Zero-Storage Lifecycle
 
-True Peak AI follows a **zero-storage** philosophy: original WAV files are **never persisted**.
+True Peak follows a **zero-storage** philosophy: original WAV files are **never persisted**.
 
 ```
 Producer uploads WAV (POST /api/upload)

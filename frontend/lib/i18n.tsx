@@ -18,7 +18,7 @@ const translations = {
     "hero.badge": "El estandar DSP para la industria electronica",
     "hero.cta_primary": "Soy un Sello Discografico",
     "hero.cta_secondary": "Soy un DJ de Gira",
-    "hero.description": "True Peak AI es el primer asistente A&R automatizado. Analizamos el audio a nivel de ingenieria (Fase, Dinamica, True Peak) y rechazamos la basura automaticamente para que solo escuches la musica que esta lista para el club.",
+    "hero.description": "True Peak es el primer asistente A&R automatizado. Analizamos el audio a nivel de ingenieria (Fase, Dinamica, True Peak) y rechazamos la basura automaticamente para que solo escuches la musica que esta lista para el club.",
     "hero.title_line1": "Tu bandeja de entrada musical,",
     "hero.title_line2": "filtrada por matematica pura.",
     "hero.demo.phase_inverted": "Fase invertida en L/R",
@@ -28,7 +28,7 @@ const translations = {
     // Landing - Sellos section
     "sellos.section_label": "Para Sellos Discograficos",
     "sellos.title": "Encontra tu proximo release en minutos, no en horas.",
-    "sellos.description": "Olvídate del infierno de los links rotos de SoundCloud y las bandejas de Gmail colapsadas. True Peak AI recibe los WAVs de los productores, analiza la calidad de mezcla en milisegundos y organiza los tracks válidos en un Kanban visual.",
+    "sellos.description": "Olvídate del infierno de los links rotos de SoundCloud y las bandejas de Gmail colapsadas. True Peak recibe los WAVs de los productores, analiza la calidad de mezcla en milisegundos y organiza los tracks válidos en un Kanban visual.",
     "sellos.benefit0.title": "Filtro Implacable",
     "sellos.benefit0.desc": "Rechazo automatico de tracks fuera de tu Firma Sónica (BPM, LUFS, Crest Factor).",
     "sellos.benefit1.title": "Cero Friccion",
@@ -49,7 +49,7 @@ const translations = {
 
     // Landing - Tech Proof section
     "tech.section_label": "Prueba Tecnica",
-    "tech.title": "No usamos IA para adivinar. Usamos algoritmos DSP para asegurar.",
+    "tech.title": "No usamos magia. Usamos algoritmos DSP para asegurar.",
     "tech.card0.title": "Clipping Digital",
     "tech.card0.desc": "Detectamos saturacion destructiva en el limite de los 0 dBFS.",
     "tech.card1.title": "Correlacion de Fase",
@@ -72,7 +72,7 @@ const translations = {
     "step.01.title": "Comparti tu link",
     "step.01.desc": "Los productores envian sus tracks a traves de tu URL personalizada. Sin registro, sin friccion. Solo suben el WAV y listo.",
     "step.02.title": "Analisis Automático",
-    "step.02.desc": "La IA analiza BPM, LUFS, fase, headroom y tonalidad músical. Rechaza automaticamente los tracks que no cumplen tus reglas.",
+    "step.02.desc": "True Peak analiza BPM, LUFS, fase, headroom y tonalidad músical. Rechaza automaticamente los tracks que no cumplen tus reglas.",
     "step.03.title": "Escuchá al instante",
     "step.03.desc": "Reproducí las demos directo desde tu Kanban con el reproductor online integrado en calidad MP3 a 320 kbps. Evaluá, considerá o descartá al instante sin salir de la misma pantalla y sin descargar nada.",
     "step.04.title": "Contacta productores",
@@ -129,7 +129,7 @@ const translations = {
     "pricing.pro.6": "Soporte prioritario WhatsApp",
 
     // Footer
-    "footer.copy": "© 2026 True Peak AI. Hecho con cabeza en Buenos Aires.",
+    "footer.copy": "© 2026 True Peak. Hecho con cabeza en Buenos Aires.",
     "footer.terms": "Terminos",
     "footer.privacy": "Privacidad",
 
@@ -454,7 +454,7 @@ const translations = {
     "config.glossary.phase.desc": "Revisa si el audio colapsa cuando se suma a mono. Valores cercanos a 0 o negativos significan cancelación de fase. Importante para clubs con sistemas mono.",
 
     // Guide
-    "guide.title": "Como usar True Peak AI",
+    "guide.title": "Como usar True Peak",
     "guide.subtitle": "Guia paso a paso para sacarle el máximo provecho a tu sello.",
     "guide.step1.title": "Comparti tu link de Tracks",
     "guide.step1.desc": "Anda a",
@@ -462,7 +462,7 @@ const translations = {
     "guide.step1.desc3": "Esa pagina tiene tu logo, nombre del sello y un formulario para que te envien tracks en WAV, FLAC o AIFF. Tambien podes personalizar el titulo y la descripcion desde",
     "guide.step2.title": "Configura tu firma sónica",
     "guide.step2.desc": "Anda a",
-    "guide.step2.desc2": ". Aca le decis a la IA que tipo de música buscas:",
+    "guide.step2.desc2": ". Aca le decis al sistema que tipo de música buscas:",
     "guide.step2.bpm": "Rango de BPM: El tempo que esperas (ej: 120-128 para house).",
     "guide.step2.lufs": "LUFS objetivo: El volumen integrado (ej: -14 LUFS es estandar de streaming). Cuanto mas negativo, mas dinamico; cuanto mas cercano a 0, mas comprimido.",
     "guide.step2.duration": "Duracion max.: Descarta automaticamente tracks muy largos (ej: sets de 2 horas).",
@@ -547,7 +547,7 @@ const translations = {
     "hero.badge": "The DSP standard for the electronic industry",
     "hero.cta_primary": "I am a Record Label",
     "hero.cta_secondary": "I am a Touring DJ",
-    "hero.description": "True Peak AI is the first automated A&R assistant. We analyze audio at the engineering level (Phase, Dynamics, True Peak) and automatically reject the garbage so you only hear music that is club-ready.",
+    "hero.description": "True Peak is the first automated A&R assistant. We analyze audio at the engineering level (Phase, Dynamics, True Peak) and automatically reject the garbage so you only hear music that is club-ready.",
     "hero.title_line1": "Your music inbox,",
     "hero.title_line2": "filtered by pure math.",
     "hero.demo.phase_inverted": "Inverted phase in L/R",
@@ -557,7 +557,7 @@ const translations = {
     // Landing - Sellos section
     "sellos.section_label": "For Record Labels",
     "sellos.title": "Find your next release in minutes, not hours.",
-    "sellos.description": "Forget the nightmare of broken SoundCloud links and overflowing Gmail inboxes. True Peak AI receives WAVs from producers, analyzes mix quality in milliseconds, and organizes valid tracks in a visual Kanban.",
+    "sellos.description": "Forget the nightmare of broken SoundCloud links and overflowing Gmail inboxes. True Peak receives WAVs from producers, analyzes mix quality in milliseconds, and organizes valid tracks in a visual Kanban.",
     "sellos.benefit0.title": "Relentless Filter",
     "sellos.benefit0.desc": "Automatic rejection of tracks outside your Sonic Signature (BPM, LUFS, Crest Factor).",
     "sellos.benefit1.title": "Zero Friction",
@@ -578,7 +578,7 @@ const translations = {
 
     // Landing - Tech Proof section
     "tech.section_label": "Technical Proof",
-    "tech.title": "We do not use AI to guess. We use DSP algorithms to guarantee.",
+    "tech.title": "We don't use magic. We use DSP algorithms to guarantee.",
     "tech.card0.title": "Digital Clipping",
     "tech.card0.desc": "We detect destructive saturation at the 0 dBFS limit.",
     "tech.card1.title": "Phase Correlation",
@@ -601,7 +601,7 @@ const translations = {
     "step.01.title": "Share your link",
     "step.01.desc": "Producers submit tracks through your custom URL. No signup, no friction. Just upload the WAV and done.",
     "step.02.title": "Automatic analysis",
-    "step.02.desc": "AI analyzes BPM, LUFS, phase, headroom and músical key. Automatically rejects tracks that don't meet your rules.",
+    "step.02.desc": "True Peak analyzes BPM, LUFS, phase, headroom and músical key. Automatically rejects tracks that don't meet your rules.",
     "step.03.title": "Listen Instantly",
     "step.03.desc": "Play incoming demos directly from your Kanban board with the integrated online player in 320 kbps MP3 quality. Evaluate or discard instantly on a single screen without downloading anything.",
     "step.04.title": "Contact producers",
@@ -658,7 +658,7 @@ const translations = {
     "pricing.pro.6": "Priority WhatsApp Support",
 
     // Footer
-    "footer.copy": "© 2026 True Peak AI. Built with care in Buenos Aires.",
+    "footer.copy": "© 2026 True Peak. Built with care in Buenos Aires.",
     "footer.terms": "Terms",
     "footer.privacy": "Privacy",
 
@@ -983,7 +983,7 @@ const translations = {
     "config.glossary.phase.desc": "Checks if the audio collapses when summed to mono. Values near 0 or negative mean phase cancellation. Important for clubs with mono PA systems.",
 
     // Guide
-    "guide.title": "How to use True Peak AI",
+    "guide.title": "How to use True Peak",
     "guide.subtitle": "Step-by-step guide to get the most out of your label.",
     "guide.step1.title": "Share your Tracks link",
     "guide.step1.desc": "Go to",
@@ -991,7 +991,7 @@ const translations = {
     "guide.step1.desc3": "That page has your logo, label name and a form for producers to submit WAV, FLAC or AIFF tracks. You can also customize the title and description from",
     "guide.step2.title": "Configure your sonic signature",
     "guide.step2.desc": "Go to",
-    "guide.step2.desc2": ". Here you tell the AI what type of music you're looking for:",
+    "guide.step2.desc2": ". Here you tell the system what type of music you're looking for:",
     "guide.step2.bpm": "BPM Range: The tempo you expect (e.g. 120-128 for house).",
     "guide.step2.lufs": "LUFS target: Integrated loudness (e.g. -14 LUFS is streaming standard). More negative = more dynamic; closer to 0 = more compressed.",
     "guide.step2.duration": "Max duration: Automatically discards very long tracks (e.g. 2-hour sets).",

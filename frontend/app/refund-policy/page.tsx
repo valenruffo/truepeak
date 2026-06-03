@@ -6,7 +6,7 @@ export default function RefundPolicy() {
         <div className="space-y-6 text-sm text-muted leading-relaxed">
           <p><strong className="text-foreground">Última actualización:</strong> Mayo 2026</p>
 
-          <p>En True Peak AI nos tomamos en serio la satisfacción de nuestros clientes. Esta política describe las condiciones bajo las cuales procesamos reembolsos.</p>
+          <p>En True Peak nos tomamos en serio la satisfacción de nuestros clientes. Esta política describe las condiciones bajo las cuales procesamos reembolsos.</p>
 
           <h2 className="font-display font-semibold text-lg text-foreground mt-8 mb-2">1. Período de Prueba</h2>
           <p>Ofrecemos un período de prueba gratuito al registrarte. Durante este período podés evaluar el servicio sin compromiso. No se realiza ningún cargo hasta que elijas un plan de pago.</p>

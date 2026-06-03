@@ -1,4 +1,4 @@
-# True Peak AI — Project Context for Gemini
+# True Peak — Project Context for Gemini
 
 > **Domain:** `truepeak.space`  
 > **Repo:** `https://github.com/valenruffo/truepeak`  

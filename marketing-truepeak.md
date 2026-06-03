@@ -1,12 +1,12 @@
-# True Peak AI — Manual de Marca, Planes y Estrategia de Marketing
+# True Peak — Manual de Marca, Planes y Estrategia de Marketing
 
-Este documento consolida la identidad visual, la propuesta de valor y las estrategias comerciales de **True Peak AI** para optimizar la captación de sellos discográficos (B2B).
+Este documento consolida la identidad visual, la propuesta de valor y las estrategias comerciales de **True Peak** para optimizar la captación de sellos discográficos (B2B).
 
 ---
 
 ## 1. Identidad de Marca (Brand Identity)
 
-True Peak AI proyecta una imagen tecnológica, minimalista, precisa y de calidad de estudio de audio. No es un juguete de inteligencia artificial generativa; es una **herramienta de ingeniería de audio de precisión** para profesionales.
+True Peak proyecta una imagen tecnológica, minimalista, precisa y de calidad de estudio de audio. No es un juguete de inteligencia artificial generativa; es una **herramienta de ingeniería de audio de precisión** para profesionales.
 
 ### 1.1 Paleta de Colores (Diseño Oscuro por Defecto)
 El sistema utiliza una interfaz oscura que emula un DAW (Digital Audio Workstation) moderno o software de estudio profesional:
@@ -41,8 +41,8 @@ Los sellos de música electrónica reciben cientos de demos por semana a través
 
 Los A&R y dueños de sellos pierden horas de su día dándole "play" a música que técnicamente no califica.
 
-### La Solución de True Peak AI
-**True Peak AI** actúa como un **filtro inteligente y automatizado de pre-escucha**.
+### La Solución de True Peak
+**True Peak** actúa como un **filtro inteligente y automatizado de pre-escucha**.
 *   El productor sube su archivo original en alta calidad (WAV/FLAC/AIFF) a un enlace público personalizado del sello (ej: `truepeak.space/s/pedro`).
 *   **Zero-Storage Lifecycle:** El sistema analiza las métricas de audio nativas, extrae BPM, LUFS (pyloudnorm), correlación de fase y tono musical (key) en segundos. Si el track cumple las reglas, se genera una vista previa en MP3 de 320kbps y se borra el WAV pesado inmediatamente para no saturar espacio. Si el track no califica, es rechazado automáticamente.
 *   **Kanban Inbox:** Solo los demos que superan las pruebas de "Firma Sónica" del sello entran al buzón de entrada limpio del sello, listos para ser evaluados artísticamente.
@@ -60,14 +60,14 @@ Ofrecemos un modelo SaaS escalable según el volumen del sello discográfico:
 | **Emails de Feedback/mes** | 0 (Bloqueado) | 100 correos | 500 correos |
 | **Retención de Archivos HQ** | 0 días (Borrado inmediato) | 7 días (WAV disponible para descarga) | 14 días (WAV disponible para descarga) |
 | **Límite Almacenamiento HQ** | Máx. 10 tracks aprobados a la vez | Sin límite dentro de los 7 días | Sin límite dentro de los 14 días |
-| **Generación de Emails por IA** | No disponible | Incluido (OpenRouter LLM drafts) | Incluido (OpenRouter LLM drafts) |
+| **Generación de Emails** | No disponible | Incluido | Incluido |
 | **Integraciones Sociales** | Básicas | Completas (Instagram/SoundCloud) | Completas + Personalización visual |
 
 ---
 
 ## 4. Estrategia de Marketing y Ventas (Go-to-Market)
 
-Para vender un software B2B como True Peak AI, la clave no es vender "features técnicos", sino **vender tiempo recuperado y profesionalismo**.
+Para vender un software B2B como True Peak, la clave no es vender "features técnicos", sino **vender tiempo recuperado y profesionalismo**.
 
 ### 4.1 Público Objetivo (Target Audience)
 1.  **Label Managers / Dueños de Sellos Pequeños y Medianos:** Que manejan todo solos (A&R, marketing, distribución) y no tienen tiempo físico para escuchar 40 demos semanales.
@@ -95,7 +95,7 @@ Para vender un software B2B como True Peak AI, la clave no es vender "features t
 >
 > Como dueño de sello, sé que el tiempo de escucha es sagrado. El problema es que el 80% de los demos que te llegan por correo, Instagram o WeTransfer no cumplen con la calidad técnica mínima: tracks saturados, fuera de tu rango de BPM, o con problemas graves de fase que arruinarían un set de club.
 >
-> Creamos **True Peak AI** específicamente para resolver esto. Es un portal de carga privado para tu sello que:
+> Creamos **True Peak** específicamente para resolver esto. Es un portal de carga privado para tu sello que:
 > 1. Analiza el WAV original en segundos (BPM, LUFS, correlación estéreo).
 > 2. Filtra y rechaza automáticamente los archivos que no coinciden con tus requisitos de estilo o mezcla.
 > 3. Te organiza los demos aptos en un tablero visual limpio, convirtiendo tus WAVs a MP3s livianos para pre-escucha al instante.
@@ -105,7 +105,7 @@ Para vender un software B2B como True Peak AI, la clave no es vender "features t
 > Un abrazo,
 >
 > **[Tu Nombre]**  
-> Fundador, True Peak AI  
+> Fundador, True Peak  
 > `truepeak.space`
 
 ---

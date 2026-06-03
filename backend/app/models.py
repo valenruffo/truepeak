@@ -1,4 +1,4 @@
-"""SQLModel database models for True Peak AI."""
+"""SQLModel database models for True Peak."""
 
 from datetime import UTC, datetime
 from typing import Any

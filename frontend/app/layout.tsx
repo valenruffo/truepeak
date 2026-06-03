@@ -23,7 +23,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "True Peak AI",
+  title: "True Peak",
   description:
     "Automated demo filtering for electronic music labels. Configure your sonic signature, get a unique submission link, and receive only technically-compliant demos.",
   icons: {

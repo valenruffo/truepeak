@@ -1,10 +1,10 @@
 #!/bin/bash
-# True Peak AI - Backend Deployment Script
+# True Peak - Backend Deployment Script
 # Run this on your Oracle Cloud server
 
 set -e
 
-echo "🚀 Deploying True Peak AI Backend..."
+echo "🚀 Deploying True Peak Backend..."
 
 # Navigate to project directory
 cd /home/ubuntu/truepeak || { echo "❌ Directory not found. Update path in deploy.sh"; exit 1; }

@@ -6,8 +6,8 @@ export default function WhatsAppBubble() {
   const { lang } = useLanguage();
   const phone = "5491135167226";
   const messageText = lang === "es" 
-    ? "¡Hola! Tengo una consulta sobre True Peak AI" 
-    : "Hello! I have a question about True Peak AI";
+    ? "¡Hola! Tengo una consulta sobre True Peak" 
+    : "Hello! I have a question about True Peak";
   const message = encodeURIComponent(messageText);
 
   return (

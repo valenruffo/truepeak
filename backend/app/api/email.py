@@ -1,4 +1,4 @@
-"""Email API — send, generate draft, template CRUD."""
+"""Email API — send, template CRUD."""
 
 from datetime import UTC, datetime
 
@@ -10,7 +10,6 @@ from app.database import get_session
 from app.models import EmailLog, EmailTemplate, Label, Submission
 from app.services.auth import verify_token
 from app.services.email_service import EmailSendError, send_email
-from app.services.llm_email import LLMEmailError, generate_email_draft, get_fallback_template
 
 router = APIRouter(prefix="/api/email", tags=["email"])
 
@@ -22,7 +21,7 @@ class SendEmailRequest(BaseModel):
     to: str
     subject: str
     body: str
-    from_name: str = "True Peak AI"
+    from_name: str = "True Peak"
     submission_id: str | None = None  # Optional: associate with submission for quota tracking
 
 
@@ -34,16 +33,6 @@ class SendEmailResponse(BaseModel):
 class EmailLogResponse(BaseModel):
     subject: str | None = None
     body: str | None = None
-
-
-class GenerateEmailRequest(BaseModel):
-    submission_id: str
-    template_type: str  # "rejection" | "approval"
-
-
-class GenerateEmailResponse(BaseModel):
-    subject: str
-    body: str
 
 
 class EmailTemplateCreate(BaseModel):
@@ -215,57 +204,6 @@ async def get_email_logs(
         raise HTTPException(status_code=404, detail="No email log found for this submission.")
 
     return EmailLogResponse(subject=log.subject, body=log.body)
-
-
-@router.post("/generate", response_model=GenerateEmailResponse)
-async def generate_email(
-    body: GenerateEmailRequest,
-    auth: dict = Depends(_get_label_from_token),
-    session: Session = Depends(get_session),
-):
-    """Generate personalized rejection/approval email draft via LLM.
-
-    Fetches submission metrics, builds prompt with technical details,
-    calls OpenAI to generate personalized email. Falls back to template
-    if LLM call fails.
-    """
-    # Fetch submission
-    submission = session.get(Submission, body.submission_id)
-    if not submission:
-        raise HTTPException(status_code=404, detail="Submission not found.")
-
-    # Verify ownership
-    if submission.label_id != auth["label_id"]:
-        raise HTTPException(status_code=403, detail="Access denied to this submission.")
-
-    # Fetch label
-    label = session.get(Label, submission.label_id)
-    if not label:
-        raise HTTPException(status_code=404, detail="Label not found.")
-
-    # Validate template type
-    if body.template_type not in ("rejection", "approval"):
-        raise HTTPException(
-            status_code=400,
-            detail="template_type must be 'rejection' or 'approval'.",
-        )
-
-    # Try LLM generation first, fall back to template
-    try:
-        draft = await generate_email_draft(
-            submission=submission,
-            template_type=body.template_type,
-            label=label,
-        )
-    except LLMEmailError:
-        # Fall back to basic template
-        draft = get_fallback_template(
-            submission=submission,
-            template_type=body.template_type,
-            label=label,
-        )
-
-    return GenerateEmailResponse(subject=draft["subject"], body=draft["body"])
 
 
 @router.get("/templates", response_model=list[EmailTemplateResponse])
