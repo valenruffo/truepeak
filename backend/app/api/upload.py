@@ -3,13 +3,17 @@
 import asyncio
 import json
 import os
+import re
+import struct
 import uuid
 from pathlib import Path
 
 import librosa
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, Request, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from app.audio.exceptions import AudioAnalysisError, FileCleanupError
 from app.audio.lifecycle import process_submission
@@ -17,6 +21,30 @@ from app.database import get_session
 from app.models import Label, Submission
 from sqlmodel import select, func
 from datetime import datetime, timezone
+
+
+# ── Magic bytes for audio format validation ──────────────────────────────────
+
+AUDIO_MAGIC_BYTES = {
+    ".wav": (b"RIFF", 0),
+    ".flac": (b"fLaC", 0),
+    ".aiff": (b"FORM", 0),
+    ".aif": (b"FORM", 0),
+}
+
+EMAIL_RE = re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
+
+
+def _validate_magic_bytes(content: bytes, ext: str) -> bool:
+    """Verify file content matches its claimed audio format via magic bytes."""
+    entry = AUDIO_MAGIC_BYTES.get(ext)
+    if entry is None:
+        return False
+    magic, offset = entry
+    return len(content) > offset + len(magic) and content[offset:offset + len(magic)] == magic
+
+
+# ── Router ───────────────────────────────────────────────────────────────────
 
 router = APIRouter(prefix="/api", tags=["upload"])
 
@@ -52,7 +80,9 @@ def _safe_remove(file_path: str) -> None:
 
 
 @router.post("/upload", response_model=UploadResponse)
+@limiter.limit("10/minute")
 async def upload_audio(
+    request: Request,
     file: UploadFile = File(...),
     label_slug: str = Form(...),
     producer_name: str = Form(""),
@@ -155,6 +185,20 @@ async def upload_audio(
             raise HTTPException(
                 status_code=400,
                 detail="Empty file received.",
+            )
+
+        # --- Validate magic bytes (real audio content, not just extension) ---
+        if not _validate_magic_bytes(content, ext):
+            raise HTTPException(
+                status_code=400,
+                detail=f"File content does not match its claimed {ext} format. Only valid WAV, FLAC, or AIFF files are accepted.",
+            )
+
+        # --- Validate producer email ---
+        if producer_email and not EMAIL_RE.match(producer_email):
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid email format.",
             )
 
         # --- Save to /tmp with UUID name, preserving original extension ---
@@ -294,9 +338,9 @@ async def upload_audio(
         )
 
     except Exception as e:
-        # Catch-all: never crash the server
+        # Catch-all: never crash the server, never leak internal details
         _safe_remove(audio_path)
         raise HTTPException(
             status_code=500,
-            detail=f"Internal server error: {e}",
+            detail="Internal server error. Please try again later.",
         )
