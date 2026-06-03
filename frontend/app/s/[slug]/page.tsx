@@ -15,6 +15,7 @@ export default function SubmissionPage() {
   );
   const [askInstagram, setAskInstagram] = useState(false);
   const [askSoundcloud, setAskSoundcloud] = useState(false);
+  const [askSpotify, setAskSpotify] = useState(false);
   const [allowedFormats, setAllowedFormats] = useState<string[]>(["wav", "flac", "aiff"]);
   const [maxUploadSizeMb, setMaxUploadSizeMb] = useState<number>(100);
   const [labelLoading, setLabelLoading] = useState(true);
@@ -38,6 +39,7 @@ export default function SubmissionPage() {
           if (data.submission_description) setSubmissionDescription(data.submission_description);
           setAskInstagram(!!data.ask_instagram);
           setAskSoundcloud(!!data.ask_soundcloud);
+          setAskSpotify(!!data.ask_spotify);
           if (data.sonic_signature) {
             if (data.sonic_signature.allowed_formats) {
               setAllowedFormats(data.sonic_signature.allowed_formats);
@@ -67,6 +69,7 @@ export default function SubmissionPage() {
   const [producerEmail, setProducerEmail] = useState("");
   const [producerInstagram, setProducerInstagram] = useState("");
   const [producerSoundcloud, setProducerSoundcloud] = useState("");
+  const [producerSpotify, setProducerSpotify] = useState("");
   const [trackName, setTrackName] = useState("");
   const [notes, setNotes] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -165,6 +168,7 @@ export default function SubmissionPage() {
       formData.append("notes", notes);
       if (producerInstagram) formData.append("producer_instagram", producerInstagram);
       if (producerSoundcloud) formData.append("producer_soundcloud", producerSoundcloud);
+      if (producerSpotify) formData.append("producer_spotify", producerSpotify);
 
       const apiUrl = (process.env.NEXT_PUBLIC_API_URL || "");
       const response = await fetch(`${apiUrl}/api/upload`, {
@@ -372,6 +376,20 @@ export default function SubmissionPage() {
                   className="w-full px-3 py-2.5 rounded border text-sm bg-transparent"
                   style={{ borderColor: "#27272a" }}
                   placeholder="djkrill"
+                />
+              </div>
+            )}
+
+            {askSpotify && (
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">Spotify (opcional)</label>
+                <input
+                  type="text"
+                  value={producerSpotify}
+                  onChange={(e) => setProducerSpotify(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded border text-sm bg-transparent"
+                  style={{ borderColor: "#27272a" }}
+                  placeholder="open.spotify.com/artist/..."
                 />
               </div>
             )}

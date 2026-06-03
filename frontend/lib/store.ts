@@ -32,6 +32,9 @@ export interface Submission {
   duration: number | null;
   mp3_path: string | null;
   created_at: string;
+  producer_instagram?: string | null;
+  producer_soundcloud?: string | null;
+  producer_spotify?: string | null;
 }
 
 export type FilterStatus = "all" | "pending" | "approved" | "rejected";

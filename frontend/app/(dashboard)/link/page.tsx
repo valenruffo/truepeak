@@ -15,7 +15,7 @@ type LabelStats = {
   max_tracks_month: number;
   emails_sent_this_month: number;
 };
-type LabelInfo = { id: string; name: string; slug: string; owner_email: string; sonic_signature: any; created_at: string; submission_title?: string; submission_description?: string; plan?: string; max_tracks_month?: number; logo_path?: string | null; ask_instagram?: boolean; ask_soundcloud?: boolean };
+type LabelInfo = { id: string; name: string; slug: string; owner_email: string; sonic_signature: any; created_at: string; submission_title?: string; submission_description?: string; plan?: string; max_tracks_month?: number; logo_path?: string | null; ask_instagram?: boolean; ask_soundcloud?: boolean; ask_spotify?: boolean };
 
 export default function LinkPage() {
   const { t } = useLanguage();
@@ -37,6 +37,7 @@ export default function LinkPage() {
   const [textsError, setTextsError] = useState<string | null>(null);
   const [askInstagram, setAskInstagram] = useState(false);
   const [askSoundcloud, setAskSoundcloud] = useState(false);
+  const [askSpotify, setAskSpotify] = useState(false);
   const [allowedFormats, setAllowedFormats] = useState<string[]>(["wav", "flac", "aiff"]);
   const [maxUploadSizeMb, setMaxUploadSizeMb] = useState<number>(100);
 
@@ -81,6 +82,7 @@ export default function LinkPage() {
       }
       setAskInstagram(!!cachedLabel.ask_instagram);
       setAskSoundcloud(!!cachedLabel.ask_soundcloud);
+      setAskSpotify(!!cachedLabel.ask_spotify);
       if (cachedLabel.sonic_signature) {
         const sig = typeof cachedLabel.sonic_signature === "string" ? JSON.parse(cachedLabel.sonic_signature) : cachedLabel.sonic_signature;
         if (sig.allowed_formats) setAllowedFormats(sig.allowed_formats);
@@ -113,6 +115,7 @@ export default function LinkPage() {
         }
         setAskInstagram(!!data.ask_instagram);
         setAskSoundcloud(!!data.ask_soundcloud);
+        setAskSpotify(!!data.ask_spotify);
         if (data.sonic_signature) {
           const sig = typeof data.sonic_signature === "string" ? JSON.parse(data.sonic_signature) : data.sonic_signature;
           if (sig.allowed_formats) setAllowedFormats(sig.allowed_formats);
@@ -188,7 +191,8 @@ export default function LinkPage() {
           title: editTitle, 
           description: editDescription,
           ask_instagram: askInstagram,
-          ask_soundcloud: askSoundcloud
+          ask_soundcloud: askSoundcloud,
+          ask_spotify: askSpotify
         }),
       });
       if (!resText.ok) {
@@ -206,6 +210,7 @@ export default function LinkPage() {
           logo_path: finalLogoUrl,
           ask_instagram: askInstagram,
           ask_soundcloud: askSoundcloud,
+          ask_spotify: askSpotify,
         };
         setCache("tp_link_label_info", nextLabel);
       }
@@ -518,6 +523,32 @@ export default function LinkPage() {
                       />
                     </button>
                   </div>
+
+                  <div className="flex items-center justify-between">
+                    <div className="pr-4">
+                      <label className="text-xs font-semibold text-white block">
+                        Pedir Spotify
+                      </label>
+                      <span className="text-[10px] text-zinc-500 block mt-0.5">
+                        Agrega un campo para el perfil de Spotify del productor.
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setAskSpotify(!askSpotify)}
+                      className={cn(
+                        "relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none",
+                        askSpotify ? "bg-emerald-500" : "bg-zinc-700"
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+                          askSpotify ? "translate-x-4" : "translate-x-0"
+                        )}
+                      />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -605,6 +636,15 @@ export default function LinkPage() {
                   <label className="text-xs font-medium text-zinc-400 mb-1 block">SoundCloud (opcional)</label>
                   <div className="w-full px-3 py-2 rounded border text-xs bg-zinc-900/50 border-zinc-800 text-zinc-500">
                     djkrill
+                  </div>
+                </div>
+              )}
+
+              {askSpotify && (
+                <div>
+                  <label className="text-xs font-medium text-zinc-400 mb-1 block">Spotify (opcional)</label>
+                  <div className="w-full px-3 py-2 rounded border text-xs bg-zinc-900/50 border-zinc-800 text-zinc-500">
+                    open.spotify.com/artist/...
                   </div>
                 </div>
               )}

@@ -39,6 +39,7 @@ class SubmissionDetail(BaseModel):
     notes: str | None
     producer_instagram: str | None = None
     producer_soundcloud: str | None = None
+    producer_spotify: str | None = None
     status_tecnico: str = "optimo"
     alertas: list[str] | None = None
     created_at: str
@@ -63,6 +64,7 @@ class SubmissionSummary(BaseModel):
     notes: str | None
     producer_instagram: str | None = None
     producer_soundcloud: str | None = None
+    producer_spotify: str | None = None
     human_email_sent: bool = False
     hq_downloaded: bool = False
     status_tecnico: str = "optimo"
@@ -177,6 +179,7 @@ async def list_submissions(
             notes=s.notes,
             producer_instagram=s.producer_instagram,
             producer_soundcloud=s.producer_soundcloud,
+            producer_spotify=s.producer_spotify,
             human_email_sent=bool(s.human_email_sent),
             hq_downloaded=bool(s.hq_downloaded),
             status_tecnico=s.status_tecnico or "optimo",
@@ -219,6 +222,7 @@ async def get_submission(
         notes=submission.notes,
         producer_instagram=submission.producer_instagram,
         producer_soundcloud=submission.producer_soundcloud,
+        producer_spotify=submission.producer_spotify,
         status_tecnico=submission.status_tecnico or "optimo",
         alertas=submission.alertas,
         created_at=submission.created_at.isoformat(),

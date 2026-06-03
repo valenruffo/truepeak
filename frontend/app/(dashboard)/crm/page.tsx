@@ -24,6 +24,7 @@ interface Submission {
   created_at: string;
   producer_instagram?: string | null;
   producer_soundcloud?: string | null;
+  producer_spotify?: string | null;
   human_email_sent?: boolean;
 }
 

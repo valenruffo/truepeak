@@ -57,6 +57,14 @@ def migrate(db_path: str) -> None:
         else:
             print(f"[LABEL] Column already exists: {col_name}")
 
+    # --- Add Spotify columns (June 2026) ---
+    label_spotify = ("ask_spotify", "ALTER TABLE label ADD COLUMN ask_spotify BOOLEAN DEFAULT 0")
+    if label_spotify[0] not in label_cols:
+        print(f"[LABEL] Adding column: {label_spotify[0]}")
+        cur.execute(label_spotify[1])
+    else:
+        print(f"[LABEL] Column already exists: {label_spotify[0]}")
+
     # --- Add Submission columns ---
     submission_migrations = [
         ("deleted_at", "ALTER TABLE submission ADD COLUMN deleted_at DATETIME"),
@@ -69,6 +77,14 @@ def migrate(db_path: str) -> None:
             cur.execute(sql)
         else:
             print(f"[SUBMISSION] Column already exists: {col_name}")
+
+    # --- Add Spotify submission column (June 2026) ---
+    sub_spotify = ("producer_spotify", "ALTER TABLE submission ADD COLUMN producer_spotify TEXT")
+    if sub_spotify[0] not in submission_cols:
+        print(f"[SUBMISSION] Adding column: {sub_spotify[0]}")
+        cur.execute(sub_spotify[1])
+    else:
+        print(f"[SUBMISSION] Column already exists: {sub_spotify[0]}")
 
     conn.commit()
 

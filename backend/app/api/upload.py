@@ -61,6 +61,7 @@ async def upload_audio(
     notes: str = Form(""),
     producer_instagram: str = Form(""),
     producer_soundcloud: str = Form(""),
+    producer_spotify: str = Form(""),
 ):
     """Upload an audio file for analysis and submission.
 
@@ -245,6 +246,7 @@ async def upload_audio(
                     notes=notes or None,
                     producer_instagram=producer_instagram or None,
                     producer_soundcloud=producer_soundcloud or None,
+                    producer_spotify=producer_spotify or None,
                 )
                 session.add(submission)
                 session.commit()

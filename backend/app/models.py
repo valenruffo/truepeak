@@ -63,6 +63,7 @@ class Label(SQLModel, table=True):
     polar_subscription_id: str | None = None
     ask_instagram: bool = Field(default=False)
     ask_soundcloud: bool = Field(default=False)
+    ask_spotify: bool = Field(default=False)
     reply_to_email: str | None = Field(default=None)  # Custom Reply-To for outbound emails
 
     submissions: list["Submission"] = Relationship(back_populates="label")
@@ -100,6 +101,7 @@ class Submission(SQLModel, table=True):
     notes: str | None = None
     producer_instagram: str | None = Field(default=None)
     producer_soundcloud: str | None = Field(default=None)
+    producer_spotify: str | None = Field(default=None)
     hq_downloaded: bool = Field(default=False)  # True once original file has been downloaded
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC),

@@ -182,6 +182,7 @@ class LabelConfig(BaseModel):
     submission_description: str | None = None
     ask_instagram: bool = False
     ask_soundcloud: bool = False
+    ask_spotify: bool = False
     role: str = "label_owner"
     reply_to_email: str | None = None  # Custom Reply-To address for outbound emails
 
@@ -287,6 +288,7 @@ async def register_label_profile(
             polar_subscription_id=orphaned_profile.polar_subscription_id,
             ask_instagram=orphaned_profile.ask_instagram,
             ask_soundcloud=orphaned_profile.ask_soundcloud,
+            ask_spotify=orphaned_profile.ask_spotify,
         )
         session.add(new_label)
         session.flush()  # Make sure new_label exists in Postgres before referencing it in other tables
@@ -427,6 +429,7 @@ async def get_label_config(
         submission_description=label.submission_description,
         ask_instagram=label.ask_instagram,
         ask_soundcloud=label.ask_soundcloud,
+        ask_spotify=label.ask_spotify,
         role=role,
         reply_to_email=label.reply_to_email,
     )
@@ -492,6 +495,7 @@ async def update_label_config(
         submission_description=label.submission_description,
         ask_instagram=label.ask_instagram,
         ask_soundcloud=label.ask_soundcloud,
+        ask_spotify=label.ask_spotify,
         role=role,
         reply_to_email=label.reply_to_email,
     )
@@ -671,6 +675,7 @@ class SubmissionTextUpdate(BaseModel):
     description: str | None = None
     ask_instagram: bool | None = None
     ask_soundcloud: bool | None = None
+    ask_spotify: bool | None = None
 
 
 class SubmissionTextResponse(BaseModel):
@@ -678,6 +683,7 @@ class SubmissionTextResponse(BaseModel):
     submission_description: str | None
     ask_instagram: bool
     ask_soundcloud: bool
+    ask_spotify: bool
 
 
 @router.put("/{slug}/submission-text", response_model=SubmissionTextResponse)
@@ -703,6 +709,8 @@ async def update_submission_text(
         label.ask_instagram = body.ask_instagram
     if body.ask_soundcloud is not None:
         label.ask_soundcloud = body.ask_soundcloud
+    if body.ask_spotify is not None:
+        label.ask_spotify = body.ask_spotify
     label.updated_at = datetime.now(timezone.utc)
 
     session.add(label)
@@ -713,6 +721,7 @@ async def update_submission_text(
         submission_description=label.submission_description,
         ask_instagram=label.ask_instagram,
         ask_soundcloud=label.ask_soundcloud,
+        ask_spotify=label.ask_spotify,
     )
 
 
