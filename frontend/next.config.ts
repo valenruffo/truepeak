@@ -15,14 +15,18 @@ const nextConfig: NextConfig = {
         destination: "/api/debug-backend",
       },
       // Proxy label logos to backend
+const backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://164.152.194.196:8000";
+
+// ...
+
       {
         source: "/logos/:path*",
-        destination: "http://164.152.194.196:8000/logos/:path*",
+        destination: `${backendUrl}/logos/:path*`,
       },
       // All other API requests proxied to backend
       {
         source: "/api/:path*",
-        destination: "http://164.152.194.196:8000/api/:path*",
+        destination: `${backendUrl}/api/:path*`,
       },
     ];
   },

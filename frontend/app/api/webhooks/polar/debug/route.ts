@@ -15,7 +15,6 @@ export async function GET() {
   // Test 1: Check env vars
   results.env = {
     WEBHOOK_SECRET_CONFIGURED: !!WEBHOOK_SECRET,
-    WEBHOOK_SECRET_PREFIX: WEBHOOK_SECRET ? WEBHOOK_SECRET.slice(0, 12) + "..." : "not set",
     BACKEND_URL,
     NODE_ENV: process.env.NODE_ENV,
     VERCEL: process.env.VERCEL,

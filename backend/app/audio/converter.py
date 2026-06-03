@@ -1,6 +1,7 @@
 """FFmpeg-based WAV to MP3 conversion."""
 
 import os
+import re
 import subprocess
 from pathlib import Path
 
@@ -14,6 +15,9 @@ def convert_to_mp3(wav_path: str, mp3_path: str, bitrate: str = "320k") -> str:
         wav_path: Path to source WAV file.
         mp3_path: Path to destination MP3 file.
         bitrate: MP3 bitrate (e.g., "128k", "192k", "320k").
+    """
+    if not re.match(r'^\d+[kKmM]$', bitrate):
+        raise ConversionError(f"Invalid bitrate format: {bitrate}")
 
     Returns:
         The mp3_path on success.
