@@ -1094,15 +1094,6 @@ function CRMContent() {
       `}</style>
       <div className="flex items-center justify-between mb-4">
         <h1 className="font-display font-semibold text-xl">{t("crm.title")}</h1>
-        <div className="flex gap-1 p-1 rounded-lg border" style={{ background: "var(--bg-secondary)", borderColor: "var(--border)" }}>
-          <button 
-            onClick={() => setActiveTab("bandeja")}
-            className={cn("px-4 py-1.5 rounded-md text-xs font-medium transition-all", activeTab === "bandeja" ? "shadow-sm" : "text-muted hover:text-primary")}
-            style={activeTab === "bandeja" ? { background: "#10b981", color: "#09090b" } : {}}
-          >
-            Bandeja
-          </button>
-        </div>
       </div>
 
       {/* ── Reply-To Email Config Card ─────────────────────────── */}
