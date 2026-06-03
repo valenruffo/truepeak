@@ -1,4 +1,4 @@
-"""Email API — send, template CRUD."""
+"""Email API — send, logs, fixed templates."""
 
 from datetime import UTC, datetime
 
@@ -7,9 +7,9 @@ from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from app.database import get_session
-from app.models import EmailLog, EmailTemplate, Label, Submission
+from app.models import EmailLog, Label, Submission
 from app.services.auth import verify_token
-from app.services.email_service import EmailSendError, send_email
+from app.services.email_service import EmailSendError, get_fixed_template, send_email
 
 router = APIRouter(prefix="/api/email", tags=["email"])
 
@@ -35,21 +35,11 @@ class EmailLogResponse(BaseModel):
     body: str | None = None
 
 
-class EmailTemplateCreate(BaseModel):
-    label_id: str
-    name: str
-    template_type: str  # rejection | approval | followup
-    subject_template: str
-    body_template: str
-
-
-class EmailTemplateResponse(BaseModel):
+class TemplateResponse(BaseModel):
     id: str
-    label_id: str
-    name: str
     template_type: str
-    subject_template: str
-    body_template: str
+    subject: str
+    body: str
 
 
 # --- Auth helper (header + cookie) ---
@@ -206,81 +196,26 @@ async def get_email_logs(
     return EmailLogResponse(subject=log.subject, body=log.body)
 
 
-@router.get("/templates", response_model=list[EmailTemplateResponse])
-async def list_email_templates(
-    label_id: str | None = None,
-    auth: dict = Depends(_get_label_from_token),
-    session: Session = Depends(get_session),
-):
-    """List email templates for a label."""
-    target_label_id = label_id or auth["label_id"]
+@router.get("/templates", response_model=list[TemplateResponse])
+async def list_templates():
+    """Return the fixed email templates (rejection and approval).
 
-    if target_label_id != auth["label_id"]:
-        raise HTTPException(status_code=403, detail="Access denied to these templates.")
-
-    templates = session.exec(
-        select(EmailTemplate).where(EmailTemplate.label_id == target_label_id)
-    ).all()
-
+    No auth required — these are the same for all labels.
+    Templates include placeholders like {{producer_name}}, {{track_name}}, {{bpm}}, etc.
+    """
+    rejection = get_fixed_template("rejection")
+    approval = get_fixed_template("approval")
     return [
-        EmailTemplateResponse(
-            id=t.id,
-            label_id=t.label_id,
-            name=t.name,
-            template_type=t.template_type,
-            subject_template=t.subject_template,
-            body_template=t.body_template,
-        )
-        for t in templates
+        TemplateResponse(
+            id="fixed-rejection",
+            template_type="rejection",
+            subject=rejection["subject"],
+            body=rejection["body"],
+        ),
+        TemplateResponse(
+            id="fixed-approval",
+            template_type="approval",
+            subject=approval["subject"],
+            body=approval["body"],
+        ),
     ]
-
-
-@router.post("/templates", response_model=EmailTemplateResponse)
-async def create_email_template(
-    body: EmailTemplateCreate,
-    auth: dict = Depends(_get_label_from_token),
-    session: Session = Depends(get_session),
-):
-    """Create or update an email template for a label."""
-    # Verify label ownership
-    if body.label_id != auth["label_id"]:
-        raise HTTPException(status_code=403, detail="Access denied to this label.")
-
-    # Check if template with same name already exists for this label
-    existing = session.exec(
-        select(EmailTemplate).where(
-            EmailTemplate.label_id == body.label_id,
-            EmailTemplate.name == body.name,
-        )
-    ).first()
-
-    if existing:
-        # Update existing template
-        existing.template_type = body.template_type
-        existing.subject_template = body.subject_template
-        existing.body_template = body.body_template
-        session.add(existing)
-        session.commit()
-        session.refresh(existing)
-        template = existing
-    else:
-        # Create new template
-        template = EmailTemplate(
-            label_id=body.label_id,
-            name=body.name,
-            template_type=body.template_type,
-            subject_template=body.subject_template,
-            body_template=body.body_template,
-        )
-        session.add(template)
-        session.commit()
-        session.refresh(template)
-
-    return EmailTemplateResponse(
-        id=template.id,
-        label_id=template.label_id,
-        name=template.name,
-        template_type=template.template_type,
-        subject_template=template.subject_template,
-        body_template=template.body_template,
-    )

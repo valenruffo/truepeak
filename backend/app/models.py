@@ -67,7 +67,6 @@ class Label(SQLModel, table=True):
     reply_to_email: str | None = Field(default=None)  # Custom Reply-To for outbound emails
 
     submissions: list["Submission"] = Relationship(back_populates="label")
-    email_templates: list["EmailTemplate"] = Relationship(back_populates="label")
 
 
 class Submission(SQLModel, table=True):
@@ -113,22 +112,6 @@ class Submission(SQLModel, table=True):
     )
 
 
-class EmailTemplate(SQLModel, table=True):
-    """Email template for automated notifications."""
-
-    __tablename__ = "email_template"
-
-    id: str = Field(default_factory=lambda: str(uuid4()), primary_key=True)
-    label_id: str = Field(foreign_key="label.id", index=True)
-    name: str
-    template_type: str = Field(index=True)  # rejection | approval | followup
-    subject_template: str
-    body_template: str
-
-    label: Label = Relationship(back_populates="email_templates")
-    email_logs: list["EmailLog"] = Relationship(back_populates="template")
-
-
 class EmailLog(SQLModel, table=True):
     """Log of sent emails for audit and debugging."""
 
@@ -136,7 +119,6 @@ class EmailLog(SQLModel, table=True):
 
     id: str = Field(default_factory=lambda: str(uuid4()), primary_key=True)
     submission_id: str = Field(foreign_key="submission.id", index=True)
-    template_id: str | None = Field(foreign_key="email_template.id", nullable=True)
     sent_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC),
     )
@@ -146,4 +128,3 @@ class EmailLog(SQLModel, table=True):
     body: str | None = Field(default=None, nullable=True)
 
     submission: Submission = Relationship(back_populates="email_logs")
-    template: EmailTemplate | None = Relationship(back_populates="email_logs")

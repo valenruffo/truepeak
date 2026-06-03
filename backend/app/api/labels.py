@@ -15,7 +15,7 @@ from slowapi.util import get_remote_address
 from sqlmodel import Session, select, func
 
 from app.database import get_session
-from app.models import Label, Submission, EmailTemplate
+from app.models import Label, Submission
 from app.services.auth import verify_token
 from app.services.r2 import upload_bytes_to_r2
 
@@ -40,76 +40,6 @@ def _apply_plan_limits(label: Label, plan: str | None = None) -> None:
     label.hq_retention_days = limits["hq_retention_days"]
 
 
-def _get_default_templates(label_id: str, role: str) -> list[dict]:
-    """Return role-specific default email templates."""
-    if role == "dj":
-        return [
-            {
-                "label_id": label_id,
-                "name": "Promo rechazada",
-                "template_type": "rejection",
-                "subject_template": "Tu promo no fue seleccionada",
-                "body_template": "Hola,\n\nGracias por enviar tu promo. Después de escucharla, no fue seleccionada para nuestros sets.\n\nTe deseamos lo mejor en tus próximas producciones.\n\nSaludos",
-            },
-            {
-                "label_id": label_id,
-                "name": "Promo seleccionada",
-                "template_type": "approval",
-                "subject_template": "Nos interesa tu promo",
-                "body_template": "Hola,\n\nTu promo nos gustó. Vamos a estar en contacto pronto para discutir los detalles.\n\nSaludos",
-            },
-            {
-                "label_id": label_id,
-                "name": "Seguimiento",
-                "template_type": "followup",
-                "subject_template": "Seguimiento de tu promo",
-                "body_template": "Hola,\n\nQueríamos saber si la promo que enviaste está aún disponible. Quedamos atentos.\n\nSaludos",
-            },
-        ]
-    # Label defaults
-    return [
-        {
-            "label_id": label_id,
-            "name": "Rechazo — Problema de fase",
-            "template_type": "rejection",
-            "subject_template": "Tu demo tiene problemas de fase",
-            "body_template": "Hola,\n\nGracias por enviar tu track. Después de analizarlo detectamos problemas de correlación de fase que impiden que sea considerado para nuestro catálogo.\n\nTe recomendamos revisar la fase estéreo de tu master antes de volver a enviar.\n\nSaludos",
-        },
-        {
-            "label_id": label_id,
-            "name": "Rechazo — Fuera de tempo",
-            "template_type": "rejection",
-            "subject_template": "Tu demo está fuera del rango de tempo",
-            "body_template": "Hola,\n\nGracias por enviar tu track. El tempo no se ajusta al rango que buscamos actualmente. Estate atento a futuras búsquedas.\n\nSaludos",
-        },
-        {
-            "label_id": label_id,
-            "name": "Aprobacion — Interes en el track",
-            "template_type": "approval",
-            "subject_template": "Nos interesa tu track",
-            "body_template": "Hola,\n\nTu track nos gustó mucho. Creemos que puede encajar en nuestra visión. Quedamos en contacto para conocer más sobre ti y tu música.\n\nSaludos",
-        },
-        {
-            "label_id": label_id,
-            "name": "Seguimiento — Segunda version",
-            "template_type": "followup",
-            "subject_template": "Seguimiento de tu demo",
-            "body_template": "Hola,\n\nTe escribimos para saber si tenés una nueva versión de tu track o si hay alguna actualización. Quedamos atentos.\n\nSaludos",
-        },
-    ]
-
-
-def _provision_default_templates(session: Session, label: Label) -> None:
-    """Create role-specific default email templates if none exist."""
-    existing = session.exec(
-        select(EmailTemplate).where(EmailTemplate.label_id == label.id)
-    ).all()
-    if existing:
-        return  # Already has templates
-    templates = _get_default_templates(label.id, label.role)
-    for tmpl in templates:
-        session.add(EmailTemplate(**tmpl))
-    session.commit()
 
 
 # --- Auth helper (header + cookie) ---
@@ -293,7 +223,7 @@ async def register_label_profile(
         session.add(new_label)
         session.flush()  # Make sure new_label exists in Postgres before referencing it in other tables
         
-        # 3. Update Submission and EmailTemplate references
+        # 3. Update Submission references
         from sqlmodel import update
         
         # Update Submissions
@@ -303,14 +233,6 @@ async def register_label_profile(
             .values(label_id=label_id)
         )
         session.exec(submissions_stmt)
-        
-        # Update EmailTemplates
-        templates_stmt = (
-            update(EmailTemplate)
-            .where(EmailTemplate.label_id == old_label_id)
-            .values(label_id=label_id)
-        )
-        session.exec(templates_stmt)
         session.flush()
         
         # 4. Delete the old label
@@ -365,8 +287,6 @@ async def register_label_profile(
     session.add(label)
     session.commit()
     session.refresh(label)
-
-    _provision_default_templates(session, label)
 
     return RegisterResponse(
         id=label.id,

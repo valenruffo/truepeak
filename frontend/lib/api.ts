@@ -88,8 +88,7 @@ export interface LabelConfig {
 }
 
 export interface EmailTemplate {
-  id: number;
-  label_id: number;
+  id: string;
   template_type: string;
   subject: string;
   body: string;
@@ -243,23 +242,10 @@ export async function sendEmail(
 }
 
 /**
- * Get all email templates for a label.
+ * Get fixed email templates (rejection and approval).
  */
-export async function getTemplates(labelId: number): Promise<EmailTemplate[]> {
-  return request<EmailTemplate[]>(`/api/email/templates?label_id=${labelId}`);
-}
-
-/**
- * Create a new email template.
- */
-export async function createTemplate(
-  labelId: number,
-  template: Omit<EmailTemplate, "id" | "label_id">
-): Promise<EmailTemplate> {
-  return request<EmailTemplate>(`/api/email/templates?label_id=${labelId}`, {
-    method: "POST",
-    body: JSON.stringify({ label_id: labelId, ...template }),
-  });
+export async function getTemplates(): Promise<EmailTemplate[]> {
+  return request<EmailTemplate[]>("/api/email/templates");
 }
 
 /**

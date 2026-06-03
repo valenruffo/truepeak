@@ -53,10 +53,9 @@ interface SubmissionSummary {
 
 interface EmailTemplate {
   id: string;
-  name: string;
   template_type: string;
-  subject_template: string;
-  body_template: string;
+  subject: string;
+  body: string;
 }
 
 interface BoardState {
@@ -69,8 +68,6 @@ interface EmailModalState {
   open: boolean;
   submission: SubmissionSummary | null;
   targetStatus: "shortlist" | "rejected" | null;
-  templates: EmailTemplate[];
-  selectedTemplate: string;
   subject: string;
   body: string;
   sending: boolean;
@@ -802,8 +799,6 @@ function InboxContent() {
     open: false,
     submission: null,
     targetStatus: null,
-    templates: [],
-    selectedTemplate: "",
     subject: "",
     body: "",
     sending: false,
@@ -1295,29 +1290,24 @@ useEffect(() => {
     sub: SubmissionSummary,
     targetStatus: "shortlist" | "rejected"
   ) => {
-    // Fetch templates
+    // Fetch fixed templates
     let templates: EmailTemplate[] = [];
     try {
-      const res = await fetch("/api/email/templates", {
-        credentials: "include",
-      });
+      const res = await fetch("/api/email/templates");
       if (res.ok) templates = await res.json();
     } catch {
-      // silent
+      // silent — will use empty defaults
     }
 
-    // Pick first matching template
     const targetType =
       targetStatus === "shortlist" ? "approval" : "rejection";
-    const firstMatch = templates.find(
-      (t) => t.template_type === targetType
-    );
+    const match = templates.find((t) => t.template_type === targetType);
 
-    const initSubject = firstMatch
-      ? replaceVariables(cleanHtmlToPlainText(firstMatch.subject_template), sub, labelName)
+    const initSubject = match
+      ? replaceVariables(cleanHtmlToPlainText(match.subject), sub, labelName)
       : "";
-    const initBody = firstMatch
-      ? replaceVariables(cleanHtmlToPlainText(firstMatch.body_template), sub, labelName)
+    const initBody = match
+      ? replaceVariables(cleanHtmlToPlainText(match.body), sub, labelName)
       : "";
 
     setEmailSubject(initSubject);
@@ -1327,29 +1317,12 @@ useEffect(() => {
       open: true,
       submission: sub,
       targetStatus,
-      templates,
-      selectedTemplate: firstMatch?.id || "",
       subject: initSubject,
       body: initBody,
       sending: false,
       sent: false,
       error: null,
     });
-  };
-
-  const handleTemplateChange = (templateId: string) => {
-    const tmpl = emailModal.templates.find((t) => t.id === templateId);
-    if (!tmpl || !emailModal.submission) return;
-    const newSubject = replaceVariables(cleanHtmlToPlainText(tmpl.subject_template), emailModal.submission, labelName);
-    const newBody = replaceVariables(cleanHtmlToPlainText(tmpl.body_template), emailModal.submission, labelName);
-    setEmailSubject(newSubject);
-    setEmailBody(newBody);
-    setEmailModal((prev) => ({
-      ...prev,
-      selectedTemplate: templateId,
-      subject: newSubject,
-      body: newBody,
-    }));
   };
 
   const handleSendEmail = async () => {
@@ -3167,35 +3140,14 @@ useEffect(() => {
 
               {!emailModal.sent && (
                 <>
-                  {/* Template selector */}
+                  {/* Template indicator */}
                   <div>
                     <label className="text-[10px] text-muted uppercase tracking-wider block mb-1">
                       Plantilla
                     </label>
-                    <select
-                      value={emailModal.selectedTemplate}
-                      onChange={(e) => handleTemplateChange(e.target.value)}
-                      className="w-full rounded px-3 py-2 text-sm border"
-                      style={{
-                        background: "var(--bg-card)",
-                        borderColor: "var(--border)",
-                        color: "var(--text-primary)",
-                      }}
-                    >
-                      <option value="">
-                        {emailModal.sending ? t("inbox.kanban.email_sending") : emailModal.templates.length === 0 ? t("inbox.kanban.no_templates_crm") : t("inbox.kanban.select_template")}
-                      </option>
-                      {emailModal.templates.map((tmpl) => (
-                        <option key={tmpl.id} value={tmpl.id}>
-                          {tmpl.name}
-                        </option>
-                      ))}
-                    </select>
-                    {emailModal.templates.length === 0 && !emailModal.sending && (
-                      <Link href="/crm" className="text-[10px] text-emerald-500 hover:underline mt-1 inline-block">
-                        Ir a CRM para crear plantillas
-                      </Link>
-                    )}
+                    <div className="w-full rounded px-3 py-2 text-sm border text-muted" style={{ background: "var(--bg-card)", borderColor: "var(--border)" }}>
+                      {emailModal.targetStatus === "shortlist" ? "Aprobación" : "Rechazo"}
+                    </div>
                   </div>
 
                   {/* Variable Chips */}

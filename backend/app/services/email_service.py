@@ -1,4 +1,4 @@
-"""Resend API integration for sending emails."""
+"""Resend API integration for sending emails and fixed templates."""
 
 import os
 
@@ -7,6 +7,59 @@ from pydantic import BaseModel
 
 RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
 RESEND_API_URL = "https://api.resend.com/emails"
+
+
+# ── Fixed email templates ────────────────────────────────────────────────────
+
+REJECTION_TEMPLATE = {
+    "subject": "{{track_name}} — Resultado del análisis",
+    "body": """<p>Hola {{producer_name}},</p>
+
+<p>Gracias por enviar <b>{{track_name}}</b> a {{label_name}}.</p>
+
+<p>Después de analizar tu track, no cumple con los requisitos técnicos que buscamos en este momento:</p>
+
+<ul>
+<li><b>BPM:</b> {{bpm}}</li>
+<li><b>LUFS:</b> {{lufs}}</li>
+<li><b>Fase:</b> {{phase_correlation}}</li>
+<li><b>Tonalidad:</b> {{musical_key}}</li>
+</ul>
+
+<p>Esto no significa que el track sea malo — simplemente no matchea con lo que necesitamos ahora. Seguí mandando material.</p>
+
+<p>Saludos,<br/>{{label_name}} via True Peak</p>""",
+}
+
+APPROVAL_TEMPLATE = {
+    "subject": "¡{{track_name}} seleccionado por {{label_name}}!",
+    "body": """<p>Hola {{producer_name}},</p>
+
+<p>¡Buenas noticias! <b>{{track_name}}</b> pasó nuestro análisis técnico y fue seleccionado por {{label_name}}.</p>
+
+<p>Métricas del track:</p>
+
+<ul>
+<li><b>BPM:</b> {{bpm}}</li>
+<li><b>LUFS:</b> {{lufs}}</li>
+<li><b>Fase:</b> {{phase_correlation}}</li>
+<li><b>Tonalidad:</b> {{musical_key}}</li>
+</ul>
+
+<p>Te vamos a estar contactando pronto con los próximos pasos.</p>
+
+<p>Saludos,<br/>{{label_name}} via True Peak</p>""",
+}
+
+
+def get_fixed_template(template_type: str) -> dict[str, str]:
+    """Return a fixed email template for rejection or approval."""
+    if template_type == "rejection":
+        return REJECTION_TEMPLATE
+    return APPROVAL_TEMPLATE
+
+
+# ── Email sending ─────────────────────────────────────────────────────────────
 
 
 class EmailSendError(Exception):
