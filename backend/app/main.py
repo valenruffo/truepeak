@@ -52,7 +52,7 @@ app.state.limiter = limiter
 @app.get("/")
 async def root() -> dict[str, str]:
     """Health check endpoint."""
-    return {"service": "truepeak-ai", "status": "ok"}
+    return {"service": "truepeak", "status": "ok"}
 
 
 # Phase 2: Audio upload router
