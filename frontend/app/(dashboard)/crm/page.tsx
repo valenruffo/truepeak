@@ -1322,10 +1322,9 @@ function CRMContent() {
             </div>
           </div>
         </div>
-      </div>
+      }
     </div>
   );
-}
 
 export default function CRMPage() {
   return (
