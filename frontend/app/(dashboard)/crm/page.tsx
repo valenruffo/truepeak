@@ -487,18 +487,31 @@ function CRMContent() {
   const isFree = plan === "free" || !plan;
 
   const [activeTab, setActiveTab] = useState<"bandeja" | "templates">("bandeja");
+  const [dbTemplates, setDbTemplates] = useState<any[]>([]);
+  const [templateName, setTemplateName] = useState("");
+  const [templateType, setTemplateType] = useState("rejection");
+  const templateSubjectState = useUndoableState("");
+  const templateBodyState = useUndoableState("");
+  const [savingTemplate, setSavingTemplate] = useState(false);
   const [bodyCursor, setBodyCursor] = useState(0);
   const [subjectCursor, setSubjectCursor] = useState(0);
   const [bodyRef, setBodyRef] = useState<HTMLTextAreaElement | null>(null);
   const [subjectRef, setSubjectRef] = useState<HTMLInputElement | null>(null);
-  const [dragOverField, setDragOverField] = useState<"email-body" | "email-subject" | null>(null);
+  const [dragOverField, setDragOverField] = useState<"email-body" | "email-subject" | "template-body" | "template-subject" | null>(null);
   const [dragCursorPos, setDragCursorPos] = useState(0);
 
-  // Wire undo/redo for email composer
+  // Wire undo/redo for email composer (active when on bandeja tab)
   useUndoRedoKey({
     onUndo: () => { undoEmailBody(); undoEmailSubject(); },
     onRedo: () => { redoEmailBody(); redoEmailSubject(); },
-    enabled: true,
+    enabled: activeTab === "bandeja",
+  });
+
+  // Wire undo/redo for template form (active when on templates tab)
+  useUndoRedoKey({
+    onUndo: () => { templateBodyState.undo(); templateSubjectState.undo(); },
+    onRedo: () => { templateBodyState.redo(); templateSubjectState.redo(); },
+    enabled: activeTab === "templates",
   });
 
   const handleSendEmail = async () => {
@@ -571,7 +584,7 @@ function CRMContent() {
   }, []);
 
   /** Real-time drag cursor tracking — moves the native caret to show drop position */
-  const handleDragOverField = useCallback((e: React.DragEvent, field: "email-body" | "email-subject") => {
+  const handleDragOverField = useCallback((e: React.DragEvent, field: "email-body" | "email-subject" | "template-body" | "template-subject") => {
     e.preventDefault();
     e.dataTransfer.dropEffect = "copy";
     setDragOverField(field);
@@ -594,17 +607,17 @@ function CRMContent() {
 
   const insertVariable = (variable: string, field: "body" | "subject") => {
     if (field === "body" && bodyRef) {
-      const pos = bodyCursor;
-      const before = emailBodyState.value.slice(0, pos);
-      const after = emailBodyState.value.slice(pos);
-      emailBodyState.set(before + variable + after);
+      const pos = dragOverField === "template-body" ? dragCursorPos : bodyCursor;
+      const before = templateBodyState.value.slice(0, pos);
+      const after = templateBodyState.value.slice(pos);
+      templateBodyState.set(before + variable + after);
       const newPos = pos + variable.length;
       setTimeout(() => { bodyRef.focus(); bodyRef.setSelectionRange(newPos, newPos); }, 0);
     } else if (field === "subject" && subjectRef) {
-      const pos = subjectCursor;
-      const before = emailSubjectState.value.slice(0, pos);
-      const after = emailSubjectState.value.slice(pos);
-      emailSubjectState.set(before + variable + after);
+      const pos = dragOverField === "template-subject" ? dragCursorPos : subjectCursor;
+      const before = templateSubjectState.value.slice(0, pos);
+      const after = templateSubjectState.value.slice(pos);
+      templateSubjectState.set(before + variable + after);
       const newPos = pos + variable.length;
       setTimeout(() => { subjectRef.focus(); subjectRef.setSelectionRange(newPos, newPos); }, 0);
     }
@@ -917,6 +930,46 @@ function CRMContent() {
   };
 
   const fetchTemplates = async () => {
+    try {
+      const res = await fetch("/api/email/templates", { credentials: "include" });
+      if (res.ok) {
+        const data = await res.json();
+        setDbTemplates(data);
+      }
+    } catch (e) { console.error("Error fetching templates", e); }
+  };
+
+  useEffect(() => {
+    if (activeTab === "templates") fetchTemplates();
+  }, [activeTab]);
+
+  const handleSaveTemplate = async () => {
+    setSavingTemplate(true);
+    const labelId = localStorage.getItem("label_id");
+    try {
+      const res = await fetch("/api/email/templates", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          label_id: labelId,
+          name: templateName,
+          template_type: templateType,
+          subject_template: templateSubjectState.value,
+          body_template: templateBodyState.value,
+        }),
+      });
+      if (res.ok) {
+        setTemplateName("");
+        setTemplateType("rejection");
+        templateSubjectState.reset();
+        templateBodyState.reset();
+        fetchTemplates();
+      }
+    } catch (e) { console.error("Error saving template", e); }
+    finally { setSavingTemplate(false); }
+  };
+
   if (loading) {
     return (
       <div className="w-full max-w-[1700px] mx-auto px-6 py-8 animate-pulse">
@@ -1129,7 +1182,7 @@ function CRMContent() {
       {/* ── End Reply-To Card ──────────────────────────────────── */}
 
 
-      {
+      {activeTab === "bandeja" ? (
         <div className="rounded border overflow-hidden" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
           <div className="grid grid-cols-1 lg:grid-cols-5" style={{ minHeight: "500px" }}>
             {/* Left Sidebar - Contacts */}
@@ -1322,10 +1375,130 @@ function CRMContent() {
             </div>
           </div>
         </div>
-      }
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Form Create */}
+          <div className="rounded border p-6" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
+            <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg>
+              Nueva Plantilla
+            </h2>
+            <div className="space-y-4">
+              <div>
+                <label className="text-[10px] text-muted uppercase tracking-wider block mb-1">Nombre</label>
+                <input 
+                  type="text" 
+                  value={templateName} 
+                  onChange={(e) => setTemplateName(e.target.value)}
+                  className="w-full px-3 py-2 rounded border text-sm bg-transparent" 
+                  placeholder="Ej: Rechazo por Tempo"
+                  style={{ borderColor: "var(--border)" }} 
+                />
+              </div>
+              <div>
+                <label className="text-[10px] text-muted uppercase tracking-wider block mb-1">Tipo</label>
+                <select 
+                  value={templateType}
+                  onChange={(e) => setTemplateType(e.target.value)}
+                  className="w-full px-3 py-2 rounded border text-sm bg-transparent" 
+                  style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
+                >
+                  <option value="rejection">Rechazo</option>
+                  <option value="approval">Aprobación</option>
+                  <option value="followup">Seguimiento</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] text-muted uppercase tracking-wider block mb-1">Asunto</label>
+                <VariableChips target="template" />
+                <input 
+                  ref={setSubjectRef}
+                  type="text" 
+                  value={templateSubjectState.value}
+                  onChange={(e) => templateSubjectState.set(e.target.value)}
+                  onDragOver={(e) => handleDragOverField(e, "template-subject")}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(e) => handleDrop(e, "subject")}
+                  onSelect={handleSubjectSelect}
+                  onClick={handleSubjectSelect}
+                  className="w-full px-3 py-2 rounded border text-sm bg-transparent" 
+                  placeholder="Asunto del email..."
+                  style={{ borderColor: "var(--border)", caretColor: "#10b981" }} 
+                />
+              </div>
+              <div>
+                <label className="text-[10px] text-muted uppercase tracking-wider block mb-1">Cuerpo</label>
+                <VariableChips target="template" />
+                <textarea 
+                  ref={setBodyRef}
+                  value={templateBodyState.value}
+                  onChange={(e) => templateBodyState.set(e.target.value)}
+                  onDragOver={(e) => handleDragOverField(e, "template-body")}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(e) => handleDrop(e, "body")}
+                  onSelect={handleBodySelect}
+                  onClick={handleBodySelect}
+                  className="w-full px-3 py-2 rounded border text-sm bg-transparent resize-none" 
+                  rows={6}
+                  placeholder="Hola {producer}, recibimos {track}..."
+                  style={{ borderColor: "var(--border)", caretColor: "#10b981" }} 
+                />
+              </div>
+              <button 
+                onClick={handleSaveTemplate}
+                disabled={savingTemplate || !templateName}
+                className="w-full py-2 rounded text-sm font-medium transition-all hover:opacity-90 disabled:opacity-50"
+                style={{ background: "#10b981", color: "#09090b" }}
+              >
+                {savingTemplate ? "Guardando..." : "Guardar Plantilla"}
+              </button>
+            </div>
+          </div>
+
+          {/* List templates */}
+          <div className="rounded border p-6 flex flex-col" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
+            <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16v16H4zM4 9h16M9 4v16"/></svg>
+              Tus Plantillas
+            </h2>
+            <div className="space-y-3 flex-1 overflow-y-auto max-h-[500px] pr-2">
+              {dbTemplates.length > 0 ? dbTemplates.map((tpl: any) => (
+                <div key={tpl.id} className="p-3 rounded border text-sm group" style={{ borderColor: "var(--border-light)" }}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-medium">{tpl.name}</span>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded uppercase font-mono" style={{ background: "rgba(161,161,170,0.1)", color: "var(--text-muted)" }}>
+                      {tpl.template_type}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-muted truncate mb-2">{tpl.subject_template}</div>
+                  <button 
+                    onClick={() => {
+                      setTemplateName(tpl.name);
+                      setTemplateType(tpl.template_type);
+                      templateSubjectState.reset();
+                      templateSubjectState.set(convertHtmlToText(tpl.subject_template));
+                      templateBodyState.reset();
+                      templateBodyState.set(convertHtmlToText(tpl.body_template));
+                    }}
+                    className="text-[10px] text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1"
+                  >
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    Editar
+                  </button>
+                </div>
+              )) : (
+                <div className="text-center py-12 text-muted text-xs">
+                  No tenés plantillas personalizadas todavía.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       </div>
     </div>
   );
+}
 
 export default function CRMPage() {
   return (
