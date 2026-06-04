@@ -375,8 +375,8 @@ export default function LinkPage() {
           
           {/* Compartir Link Card */}
           <div className="rounded-lg border p-6" style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}>
-            <h2 className="text-xs font-semibold text-white mb-2 uppercase tracking-wider">Compartir link con productores</h2>
-            <p className="text-xs text-muted mb-4">{t("link.description")}</p>
+            <h2 className="text-xs font-semibold text-white mb-2 uppercase tracking-wider">{t("link.share_title")}</h2>
+            <p className="text-xs text-muted mb-4">{t("link.share_desc")}</p>
             
             <div className="flex items-center gap-2">
               <div className="flex-1 px-3 py-2 rounded border font-mono text-xs overflow-x-auto whitespace-nowrap bg-zinc-950/40" style={{ borderColor: "var(--border)" }}>
@@ -409,7 +409,7 @@ export default function LinkPage() {
                         <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                         </svg>
-                        <span className="text-[10px] text-white font-medium uppercase tracking-wider">Cambiar</span>
+                        <span className="text-[10px] text-white font-medium uppercase tracking-wider">{t("link.edit.logo_change")}</span>
                       </div>
                     </div>
                   ) : (
@@ -425,8 +425,8 @@ export default function LinkPage() {
                       <svg className={cn("w-6 h-6 mb-1 transition-colors", logoDragActive ? "text-emerald-500" : "text-zinc-500")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                       </svg>
-                      <span className="text-[10px] text-zinc-400 font-medium">Subir Logo</span>
-                      <span className="text-[8px] text-zinc-600 mt-0.5">JPG, PNG, WebP</span>
+                      <span className="text-[10px] text-zinc-400 font-medium">{t("link.edit.logo_upload")}</span>
+                      <span className="text-[8px] text-zinc-600 mt-0.5">{t("link.edit.logo_formats")}</span>
                     </div>
                   )}
 
@@ -475,10 +475,10 @@ export default function LinkPage() {
                   <div className="flex items-center justify-between">
                     <div className="pr-4">
                       <label className="text-xs font-semibold text-white block">
-                        Pedir Instagram
+                        {t("link.edit.ask_instagram")}
                       </label>
                       <span className="text-[10px] text-zinc-500 block mt-0.5">
-                        Agrega un campo para el usuario de Instagram del productor.
+                        {t("link.edit.ask_instagram_desc")}
                       </span>
                     </div>
                     <button
@@ -501,10 +501,10 @@ export default function LinkPage() {
                   <div className="flex items-center justify-between">
                     <div className="pr-4">
                       <label className="text-xs font-semibold text-white block">
-                        Pedir SoundCloud
+                        {t("link.edit.ask_soundcloud")}
                       </label>
                       <span className="text-[10px] text-zinc-500 block mt-0.5">
-                        Agrega un campo para el usuario de SoundCloud del productor.
+                        {t("link.edit.ask_soundcloud_desc")}
                       </span>
                     </div>
                     <button
@@ -527,10 +527,10 @@ export default function LinkPage() {
                   <div className="flex items-center justify-between">
                     <div className="pr-4">
                       <label className="text-xs font-semibold text-white block">
-                        Pedir Spotify
+                        {t("link.edit.ask_spotify")}
                       </label>
                       <span className="text-[10px] text-zinc-500 block mt-0.5">
-                        Agrega un campo para el perfil de Spotify del productor.
+                        {t("link.edit.ask_spotify_desc")}
                       </span>
                     </div>
                     <button
@@ -555,7 +555,7 @@ export default function LinkPage() {
 
             {/* Save Button Bar */}
             <div className="flex items-center gap-3 pt-5 mt-5 border-t justify-end" style={{ borderColor: "var(--border-light)" }}>
-              {textsSaved && <span className="text-xs font-medium text-emerald-400">✓ Cambios guardados</span>}
+              {textsSaved && <span className="text-xs font-medium text-emerald-400">✓ {t("link.edit.saved")}</span>}
               {textsError && <span className="text-xs font-medium text-destructive">{textsError}</span>}
               
               <button 
@@ -567,10 +567,10 @@ export default function LinkPage() {
                 {savingTexts || logoUploading ? (
                   <span className="inline-flex items-center gap-1.5">
                     <span className="w-1.5 h-1.5 rounded-full bg-black animate-pulse" />
-                    Guardando...
+                    {t("link.edit.saving")}
                   </span>
                 ) : (
-                  "Guardar cambios"
+                  t("link.edit.save")
                 )}
               </button>
             </div>
@@ -581,7 +581,7 @@ export default function LinkPage() {
         <div className="lg:col-span-5 space-y-4 lg:sticky lg:top-6">
           <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: "var(--border)" }}>
             <span className="text-xs font-mono uppercase tracking-wider text-muted">{t("link.preview_label")}</span>
-            <span className="text-[10px] px-2 py-0.5 rounded font-mono uppercase bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">Vista previa en vivo</span>
+            <span className="text-[10px] px-2 py-0.5 rounded font-mono uppercase bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">{t("link.preview_badge")}</span>
           </div>
 
           <div className="rounded-xl border p-6 space-y-6" style={{ borderColor: "var(--border)", background: "#09090b" }}>
@@ -601,7 +601,7 @@ export default function LinkPage() {
                 </div>
               )}
               <div>
-                <h2 className="font-display font-bold text-base text-white">{editTitle || "Enviar demo"}</h2>
+                <h2 className="font-display font-bold text-base text-white">{editTitle || t("submission.default_title")}</h2>
                 <p className="text-xs text-muted max-w-sm mx-auto mt-1 whitespace-pre-wrap">{editDescription}</p>
               </div>
             </div>
@@ -609,14 +609,14 @@ export default function LinkPage() {
             {/* Simulating Form inputs */}
             <div className="space-y-4 text-left">
               <div>
-                <label className="text-xs font-medium text-zinc-400 mb-1 block">Tu nombre</label>
+                <label className="text-xs font-medium text-zinc-400 mb-1 block">{t("link.preview.name")}</label>
                 <div className="w-full px-3 py-2 rounded border text-xs bg-zinc-900/50 border-zinc-800 text-zinc-500">
                   DJ Krill
                 </div>
               </div>
 
               <div>
-                <label className="text-xs font-medium text-zinc-400 mb-1 block">Email</label>
+                <label className="text-xs font-medium text-zinc-400 mb-1 block">{t("link.preview.email")}</label>
                 <div className="w-full px-3 py-2 rounded border text-xs bg-zinc-900/50 border-zinc-800 text-zinc-500">
                   tu@email.com
                 </div>
@@ -624,7 +624,7 @@ export default function LinkPage() {
 
               {askInstagram && (
                 <div>
-                  <label className="text-xs font-medium text-zinc-400 mb-1 block">Instagram (opcional)</label>
+                  <label className="text-xs font-medium text-zinc-400 mb-1 block">{t("submission.label_instagram")}</label>
                   <div className="w-full px-3 py-2 rounded border text-xs bg-zinc-900/50 border-zinc-800 text-zinc-500">
                     @djkrill
                   </div>
@@ -633,7 +633,7 @@ export default function LinkPage() {
 
               {askSoundcloud && (
                 <div>
-                  <label className="text-xs font-medium text-zinc-400 mb-1 block">SoundCloud (opcional)</label>
+                  <label className="text-xs font-medium text-zinc-400 mb-1 block">{t("submission.label_soundcloud")}</label>
                   <div className="w-full px-3 py-2 rounded border text-xs bg-zinc-900/50 border-zinc-800 text-zinc-500">
                     djkrill
                   </div>
@@ -642,7 +642,7 @@ export default function LinkPage() {
 
               {askSpotify && (
                 <div>
-                  <label className="text-xs font-medium text-zinc-400 mb-1 block">Spotify (opcional)</label>
+                  <label className="text-xs font-medium text-zinc-400 mb-1 block">{t("submission.label_spotify")}</label>
                   <div className="w-full px-3 py-2 rounded border text-xs bg-zinc-900/50 border-zinc-800 text-zinc-500">
                     open.spotify.com/artist/...
                   </div>
@@ -650,24 +650,24 @@ export default function LinkPage() {
               )}
 
               <div>
-                <label className="text-xs font-medium text-zinc-400 mb-1 block">Nombre del track</label>
+                <label className="text-xs font-medium text-zinc-400 mb-1 block">{t("link.preview.track")}</label>
                 <div className="w-full px-3 py-2 rounded border text-xs bg-zinc-900/50 border-zinc-800 text-zinc-500">
                   Midnight Protocol
                 </div>
               </div>
 
               <div>
-                <label className="text-xs font-medium text-zinc-400 mb-1 block">Archivo de audio</label>
+                <label className="text-xs font-medium text-zinc-400 mb-1 block">{t("link.preview.audio")}</label>
                 <div className="rounded-lg border border-dashed border-zinc-800 p-6 text-center bg-zinc-900/20">
-                  <div className="text-xs text-zinc-400 font-medium">Arrastrá tu audio acá</div>
+                  <div className="text-xs text-zinc-400 font-medium">{t("link.preview.drag")}</div>
                   <div className="text-[10px] text-zinc-600 mt-0.5">{allowedFormats.map(f => f.toUpperCase()).join(", ")} · Max {maxUploadSizeMb}MB</div>
                 </div>
               </div>
 
               <div>
-                <label className="text-xs font-medium text-zinc-400 mb-1 block">Observaciones adicionales (opcional)</label>
+                <label className="text-xs font-medium text-zinc-400 mb-1 block">{t("link.preview.notes")}</label>
                 <div className="w-full px-3 py-2 rounded border text-xs bg-zinc-900/50 border-zinc-800 text-zinc-500 h-16">
-                  Referencias, notas de producción, etc.
+                  {t("link.preview.notes_placeholder")}
                 </div>
               </div>
 
