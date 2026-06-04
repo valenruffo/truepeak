@@ -862,7 +862,7 @@ function ConfiguratorSimulator({ t }: { t: (key: any) => string }) {
   }, []);
 
   return (
-    <div className="rounded-xl border overflow-hidden shadow-2xl transition-all duration-300 flex flex-col text-left" style={{ borderColor: "var(--border)", background: "var(--bg-card)", height: "460px" }}>
+    <div className="rounded-xl border overflow-hidden shadow-2xl transition-all duration-300 flex flex-col text-left" style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}>
       {/* Split view representation */}
       
       {/* Header */}
@@ -889,7 +889,7 @@ function ConfiguratorSimulator({ t }: { t: (key: any) => string }) {
       </div>
 
       {/* Bottom: Preview */}
-      <div className="p-3 flex-1 overflow-y-auto relative custom-scrollbar" style={{ background: "#09090b" }}>
+      <div className="p-3 relative" style={{ background: "#09090b" }}>
         
         {/* Card container */}
         <div className="border rounded-xl p-4 max-w-[280px] mx-auto shadow-xl" style={{ borderColor: "rgba(39,39,42,0.5)", background: "#0c0c0e" }}>
