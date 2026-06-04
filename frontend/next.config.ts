@@ -1,5 +1,7 @@
 import type { NextConfig } from "next";
 
+const backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://164.152.194.196:8000";
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   images: {
@@ -15,10 +17,6 @@ const nextConfig: NextConfig = {
         destination: "/api/debug-backend",
       },
       // Proxy label logos to backend
-const backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://164.152.194.196:8000";
-
-// ...
-
       {
         source: "/logos/:path*",
         destination: `${backendUrl}/logos/:path*`,
