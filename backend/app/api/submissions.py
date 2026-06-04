@@ -567,6 +567,62 @@ async def get_waveform_peaks(
                 status_code=404,
                 detail="Waveform peaks not available and MP3 file is missing."
             )
+    else:
+        # Check if peaks look "flat" (old normalized peaks where all values are similar)
+        # Old algorithm normalized to max, so most values are 0.9-1.0
+        # New algorithm uses RMS so there's more variance
+        import numpy as np
+        peaks_array = np.array(submission.peaks)
+        if len(peaks_array) > 0:
+            # If more than 80% of positive peaks are > 0.85, they're likely old normalized peaks
+            positive_peaks = peaks_array[peaks_array > 0]
+            if len(positive_peaks) > 0:
+                high_ratio = np.sum(positive_peaks > 0.85) / len(positive_peaks)
+                if high_ratio > 0.8:
+                    # Regenerate with new algorithm
+                    if submission.mp3_path:
+                        import tempfile
+                        from app.services.r2 import download_file_from_r2
+                        import librosa
+                        from app.audio.analyzer import _extract_waveform_peaks
+                        import asyncio
+
+                        temp_dir = tempfile.gettempdir()
+                        temp_mp3_path = os.path.join(temp_dir, f"{submission_id}_peaks_regen.mp3")
+
+                        try:
+                            if submission.mp3_path.startswith("http://") or submission.mp3_path.startswith("https://"):
+                                r2_key = f"tracks/{submission_id}/preview.mp3"
+                                await download_file_from_r2(r2_key, temp_mp3_path)
+                            else:
+                                if os.path.exists(submission.mp3_path):
+                                    temp_mp3_path = submission.mp3_path
+                                else:
+                                    raise FileNotFoundError("Local MP3 file missing.")
+
+                            def load_and_extract(path):
+                                y, sr = librosa.load(path, sr=None, mono=False)
+                                peaks = _extract_waveform_peaks(y)
+                                duration = float(len(librosa.to_mono(y)) / sr) if sr and len(y) > 0 else 0.0
+                                return peaks, duration
+
+                            peaks, duration = await asyncio.to_thread(load_and_extract, temp_mp3_path)
+
+                            submission.peaks = peaks
+                            if not submission.duration:
+                                submission.duration = duration
+                            session.add(submission)
+                            session.commit()
+
+                        except Exception as e:
+                            # If regeneration fails, keep old peaks
+                            pass
+                        finally:
+                            if temp_mp3_path != submission.mp3_path and os.path.exists(temp_mp3_path):
+                                try:
+                                    os.remove(temp_mp3_path)
+                                except OSError:
+                                    pass
 
     return {
         "peaks": submission.peaks,
