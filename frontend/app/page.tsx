@@ -279,7 +279,7 @@ function Nav() {
 function Hero() {
   const { t } = useLanguage();
   return (
-    <section className="relative pt-32 pb-20 px-6 overflow-hidden">
+    <section className="relative min-h-screen flex items-center pt-32 pb-20 px-6 overflow-hidden">
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
@@ -326,7 +326,7 @@ function Hero() {
               </a>
             </div>
           </div>
-          <div className="hidden md:block max-w-sm mx-auto w-full">
+          <div className="max-w-sm mx-auto w-full">
             <DemoSimulation />
           </div>
         </div>
@@ -361,10 +361,6 @@ function PersonaSelectorSection() {
   const [bpmRange, setBpmRange] = useState([120, 126]);
   const [lufsTarget, setLufsTarget] = useState(-10);
   const [lufsTolerance, setLufsTolerance] = useState(1);
-  const [maxDuration, setMaxDuration] = useState(9);
-  const [durationEnabled, setDurationEnabled] = useState(true);
-  const [allowedFormats, setAllowedFormats] = useState<string[]>(["WAV", "FLAC", "AIFF"]);
-  const [maxFileSize, setMaxFileSize] = useState(100);
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set(["8A", "7A", "9A", "8B"]));
 
   useEffect(() => {
@@ -373,9 +369,6 @@ function PersonaSelectorSection() {
       setBpmRange([preset.bpmMin, preset.bpmMax]);
       setLufsTarget(preset.lufs);
       setLufsTolerance(preset.tolerance);
-      setMaxDuration(preset.duration);
-      setAllowedFormats(preset.formats);
-      setMaxFileSize(preset.size);
       
       if (preset.scale === "A") {
         setSelectedKeys(new Set(["8A", "7A", "9A", "8B"]));
@@ -395,10 +388,6 @@ function PersonaSelectorSection() {
       }
       return next;
     });
-  };
-
-  const toggleFormat = (fmt: string) => {
-    setAllowedFormats(prev => prev.includes(fmt) ? prev.filter(f => f !== fmt) : [...prev, fmt]);
   };
 
   // --- States for DJs interactive widget ---
@@ -471,7 +460,7 @@ function PersonaSelectorSection() {
   const compatibleKeys = getCompatibleKeys(selectedKey);
 
   return (
-    <section id="personas" className="py-24 px-6 relative overflow-hidden" style={{ borderTop: "1px solid var(--border)" }}>
+    <section id="personas" className="py-20 px-6 relative overflow-hidden" style={{ borderTop: "1px solid var(--border)" }}>
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
@@ -548,20 +537,20 @@ function PersonaSelectorSection() {
             {/* Right Col: Widget */}
             <div className="lg:col-span-6">
               {activeTab === "labels" ? (
-                <div className="rounded border overflow-hidden shadow-2xl flex flex-col h-[500px] md:h-[600px]" style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}>
+                <div className="rounded border overflow-hidden shadow-2xl flex flex-col" style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}>
                   <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: "var(--border)" }}>
                     <div className="flex flex-col">
-                      <span className="font-mono text-[10px] text-zinc-500 uppercase">Configuration</span>
+                      <span className="font-mono text-[10px] text-zinc-500 uppercase">{t("widget.configuration")}</span>
                       <span className="font-bold text-sm text-white">Sonic signature — Main label</span>
                     </div>
                   </div>
 
-                  <div className="p-6 space-y-6 overflow-y-auto" style={{ maxHeight: "70vh" }}>
+                  <div className="p-6 space-y-5">
                     {/* Presets */}
                     <div className="space-y-3">
                       <div className="flex justify-between items-center text-[10px] font-mono text-zinc-400 uppercase">
-                        <span>Preset</span>
-                        <span className="text-zinc-600">Loads suggested values</span>
+                        <span>{t("widget.preset")}</span>
+                        <span className="text-zinc-600">{t("widget.loads_suggested")}</span>
                       </div>
                       <div className="flex flex-wrap gap-2">
                         {(Object.keys(signaturePresets) as Array<keyof typeof signaturePresets>).map((genre) => (
@@ -584,13 +573,13 @@ function PersonaSelectorSection() {
                     {/* BPM Range */}
                     <div className="p-4 rounded border space-y-4" style={{ borderColor: "var(--border)", background: "rgba(9,9,11,0.2)" }}>
                       <div className="flex justify-between items-center">
-                        <span className="text-sm font-semibold text-white">BPM Range</span>
+                        <span className="text-sm font-semibold text-white">{t("widget.bpm_range")}</span>
                         <span className="text-sm font-bold font-mono" style={{ color: "var(--text-primary)" }}>{bpmRange[0]} — {bpmRange[1]}</span>
                       </div>
                       <div className="flex items-center gap-6">
                         <div className="flex-1 space-y-2">
                           <div className="flex justify-between text-xs text-zinc-500">
-                            <span>Minimum</span>
+                            <span>{t("widget.minimum")}</span>
                             <span className="text-emerald-500 font-mono">{bpmRange[0]}</span>
                           </div>
                           <div className="h-1.5 rounded-full relative bg-zinc-800">
@@ -600,7 +589,7 @@ function PersonaSelectorSection() {
                         </div>
                         <div className="flex-1 space-y-2">
                           <div className="flex justify-between text-xs text-zinc-500">
-                            <span>Maximum</span>
+                            <span>{t("widget.maximum")}</span>
                             <span className="text-emerald-500 font-mono">{bpmRange[1]}</span>
                           </div>
                           <div className="h-1.5 rounded-full relative bg-zinc-800">
@@ -614,13 +603,13 @@ function PersonaSelectorSection() {
                     {/* LUFS target */}
                     <div className="p-4 rounded border space-y-4" style={{ borderColor: "var(--border)", background: "rgba(9,9,11,0.2)" }}>
                       <div className="flex justify-between items-center">
-                        <span className="text-sm font-semibold text-white">LUFS target</span>
+                        <span className="text-sm font-semibold text-white">{t("widget.lufs_target")}</span>
                         <span className="text-sm font-bold font-mono" style={{ color: "var(--text-primary)" }}>{lufsTarget} LUFS ± {lufsTolerance}</span>
                       </div>
                       <div className="flex items-center gap-6">
                         <div className="flex-1 space-y-2">
                           <div className="flex justify-between text-xs text-zinc-500">
-                            <span>Target</span>
+                            <span>{t("widget.target")}</span>
                             <span className="text-emerald-500 font-mono">{lufsTarget}</span>
                           </div>
                           <div className="h-1.5 rounded-full relative bg-zinc-800">
@@ -630,7 +619,7 @@ function PersonaSelectorSection() {
                         </div>
                         <div className="flex-1 space-y-2">
                           <div className="flex justify-between text-xs text-zinc-500">
-                            <span>Tolerance</span>
+                            <span>{t("widget.tolerance")}</span>
                             <span className="text-emerald-500 font-mono">± {lufsTolerance}</span>
                           </div>
                           <div className="h-1.5 rounded-full relative bg-zinc-800">
@@ -641,73 +630,9 @@ function PersonaSelectorSection() {
                       </div>
                     </div>
 
-                    {/* Max Duration */}
-                    <div className="p-4 rounded border space-y-4" style={{ borderColor: "var(--border)", background: "rgba(9,9,11,0.2)" }}>
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center gap-3">
-                          <span className="text-sm font-semibold text-white">Max duration</span>
-                          <div className={`w-8 h-4 rounded-full flex items-center px-0.5 cursor-pointer transition-colors ${durationEnabled ? "bg-emerald-500" : "bg-zinc-700"}`} onClick={() => setDurationEnabled(!durationEnabled)}>
-                            <motion.div className="w-3 h-3 rounded-full bg-white" animate={{ x: durationEnabled ? 16 : 0 }} />
-                          </div>
-                        </div>
-                        <span className="text-sm font-bold font-mono" style={{ color: "var(--text-primary)" }}>{maxDuration}:00</span>
-                      </div>
-                      <div className="space-y-2" style={{ opacity: durationEnabled ? 1 : 0.5, pointerEvents: durationEnabled ? "auto" : "none" }}>
-                        <div className="flex justify-between text-xs text-zinc-500">
-                          <span>Maximum</span>
-                          <span className="text-emerald-500 font-mono">{maxDuration}:00</span>
-                        </div>
-                        <div className="h-1.5 rounded-full relative bg-zinc-800">
-                          <motion.div className="absolute left-0 top-0 bottom-0 rounded-full" style={{ background: "#10b981" }} animate={{ width: `${(maxDuration / 20) * 100}%` }} />
-                          <motion.div className="absolute top-1/2 -mt-2 w-4 h-4 rounded-full bg-zinc-300 border-2 border-zinc-800 shadow cursor-pointer" animate={{ left: `calc(${(maxDuration / 20) * 100}% - 8px)` }} />
-                        </div>
-                        <div className="flex justify-between text-[10px] text-zinc-600 font-mono">
-                          <span>0:00</span>
-                          <span>20:00</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Allowed formats & Max file size */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-3">
-                        <span className="text-sm font-semibold text-white block">Allowed formats</span>
-                        <div className="flex gap-2">
-                          {["WAV", "FLAC", "AIFF"].map(fmt => (
-                            <button
-                              key={fmt}
-                              onClick={() => toggleFormat(fmt)}
-                              className="flex-1 py-2 rounded border text-xs font-medium font-mono transition-colors"
-                              style={{
-                                borderColor: allowedFormats.includes(fmt) ? "#10b981" : "var(--border)",
-                                color: allowedFormats.includes(fmt) ? "#10b981" : "var(--text-muted)",
-                                background: allowedFormats.includes(fmt) ? "rgba(16,185,129,0.05)" : "transparent"
-                              }}
-                            >
-                              {fmt}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="space-y-3">
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm font-semibold text-white">Max file size limit</span>
-                          <span className="text-xs font-bold font-mono text-emerald-500">{maxFileSize} MB</span>
-                        </div>
-                        <div className="h-1.5 rounded-full relative bg-zinc-800 mt-4">
-                          <motion.div className="absolute left-0 top-0 bottom-0 rounded-full" style={{ background: "var(--text-primary)" }} animate={{ width: `${((maxFileSize - 50) / 150) * 100}%` }} />
-                          <motion.div className="absolute top-1/2 -mt-2 w-4 h-4 rounded-full bg-zinc-300 border-2 border-zinc-800 shadow cursor-pointer" animate={{ left: `calc(${((maxFileSize - 50) / 150) * 100}% - 8px)` }} />
-                        </div>
-                        <div className="flex justify-between text-[10px] text-zinc-600 font-mono mt-1">
-                          <span>50 MB</span>
-                          <span>200 MB</span>
-                        </div>
-                      </div>
-                    </div>
-
                     {/* Camelot Key Grid */}
                     <div className="p-4 rounded border space-y-4" style={{ borderColor: "var(--border)", background: "rgba(9,9,11,0.2)" }}>
-                      <span className="text-sm font-semibold text-white block">Preferred scale</span>
+                      <span className="text-sm font-semibold text-white block">{t("widget.preferred_scale")}</span>
                       <div className="flex flex-col gap-2">
                         <div className="flex gap-2 justify-between">
                           {camelotKeysRowB.map(k => (
@@ -746,22 +671,10 @@ function PersonaSelectorSection() {
                         Sistema Camelot: Fila superior (B) para tonos Mayores, fila inferior (A) para tonos Menores.
                       </p>
                     </div>
-
-                    {/* Auto-reject Tags */}
-                    <div className="p-4 rounded border space-y-3" style={{ borderColor: "var(--border)", background: "rgba(9,9,11,0.2)" }}>
-                      <span className="text-sm font-semibold text-white block">Auto-reject</span>
-                      <div className="flex flex-wrap gap-3">
-                        {["Inverted phase", "Off tempo", "Digital clipping", "Crest Factor"].map(tag => (
-                          <div key={tag} className="px-3 py-1.5 rounded-full border border-red-500/50 text-red-400 text-xs font-medium" style={{ background: "rgba(239,68,68,0.05)" }}>
-                            {tag}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
                   </div>
                 </div>
               ) : (
-                <div className="rounded border overflow-hidden shadow-2xl flex flex-col" style={{ borderColor: "var(--border)", background: "var(--bg-card)", minHeight: "600px" }}>
+                <div className="rounded border overflow-hidden shadow-2xl flex flex-col" style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}>
                   <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: "var(--border)" }}>
                     <div className="flex items-center gap-2">
                       <div className={`w-2 h-2 rounded-full ${isPhaseInverted ? "bg-red-500 animate-ping" : "bg-cyan-500 animate-pulse"}`} />
@@ -772,7 +685,7 @@ function PersonaSelectorSection() {
                     <span className="font-mono text-[10px] text-muted">HARMONIC_ANALYSIS</span>
                   </div>
 
-                  <div className="p-6 space-y-8 overflow-y-auto" style={{ maxHeight: "70vh" }}>
+                  <div className="p-6 space-y-6">
                     <div className="space-y-4">
                       <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider block">Selector de Tono Actual (DJ Set)</span>
                       
@@ -886,41 +799,6 @@ function PersonaSelectorSection() {
   );
 }
 
-// ─── Tech Proof Section ───────────────────────────────────────────────────────
-
-function TechProof() {
-  const { t } = useLanguage();
-  const cards = [
-    { icon: <IconWaveform />, title: t("tech.card0.title"), desc: t("tech.card0.desc") },
-    { icon: <IconAnalysis />, title: t("tech.card1.title"), desc: t("tech.card1.desc") },
-    { icon: <IconShield />, title: t("tech.card2.title"), desc: t("tech.card2.desc") },
-    { icon: <IconFingerprint />, title: t("tech.card3.title"), desc: t("tech.card3.desc") },
-  ];
-
-  return (
-    <section id="tech-proof" className="py-20 px-6" style={{ borderTop: "1px solid var(--border)" }}>
-      <div className="max-w-6xl mx-auto">
-        <div className="mb-12 text-center">
-          <div className="text-xs font-mono uppercase tracking-wider mb-3" style={{ color: "var(--text-muted)" }}>{t("tech.section_label")}</div>
-          <h2 className="font-bold text-2xl md:text-3xl tracking-tight" style={{ color: "var(--text-primary)" }}>
-            {t("tech.title")}
-          </h2>
-        </div>
-
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {cards.map((c, i) => (
-            <div key={i} className="p-5 rounded border transition-all hover:border-zinc-600" style={{ background: "var(--bg-secondary)", borderColor: "var(--border)" }}>
-              <div className="w-9 h-9 rounded flex items-center justify-center mb-4" style={{ background: "rgba(16,185,129,0.1)", color: "#10b981" }}>{c.icon}</div>
-              <h3 className="font-semibold text-sm mb-2" style={{ color: "var(--text-primary)" }}>{c.title}</h3>
-              <p className="text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>{c.desc}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
 // ─── How It Works ─────────────────────────────────────────────────────────────
 
 const stepsData = [
@@ -984,7 +862,7 @@ function ConfiguratorSimulator({ t }: { t: (key: any) => string }) {
   }, []);
 
   return (
-    <div className="rounded-xl border overflow-hidden shadow-2xl transition-all duration-300 flex flex-col text-left" style={{ borderColor: "var(--border)", background: "var(--bg-card)", height: "520px" }}>
+    <div className="rounded-xl border overflow-hidden shadow-2xl transition-all duration-300 flex flex-col text-left" style={{ borderColor: "var(--border)", background: "var(--bg-card)", height: "460px" }}>
       {/* Split view representation */}
       
       {/* Header */}
@@ -1749,7 +1627,7 @@ function HowItWorks() {
           </div>
 
           {/* Right: Visual */}
-          <div className="hidden md:block">
+          <div>
             <div className="sticky top-24">
               <StepVisual step={activeStep} t={t} />
             </div>
@@ -1838,7 +1716,7 @@ function Pricing() {
   ];
 
   return (
-    <section id="pricing" className="py-20 px-6" style={{ borderTop: "1px solid var(--border)" }}>
+    <section id="pricing" className="min-h-screen flex flex-col justify-center py-20 px-6" style={{ borderTop: "1px solid var(--border)" }}>
       <div className="max-w-5xl mx-auto">
         <div className="mb-12 text-center">
           <div className="text-xs font-mono uppercase tracking-wider mb-3" style={{ color: "var(--text-muted)" }}>{t("pricing.section_label")}</div>
@@ -1878,6 +1756,72 @@ function Pricing() {
               )}
             </div>
           ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── Social Proof ─────────────────────────────────────────────────────────────
+
+function SocialProof() {
+  const { t } = useLanguage();
+  const stats = [
+    { value: "500+", label: t("social_proof.stat0") },
+    { value: "50+", label: t("social_proof.stat1") },
+    { value: "98%", label: t("social_proof.stat2") },
+    { value: "24h", label: t("social_proof.stat3") },
+  ];
+
+  return (
+    <section className="py-20 px-6" style={{ borderTop: "1px solid var(--border)" }}>
+      <div className="max-w-6xl mx-auto">
+        <h2 className="font-bold text-2xl md:text-3xl tracking-tight text-center mb-12" style={{ color: "var(--text-primary)" }}>
+          {t("social_proof.title")}
+        </h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {stats.map((s, i) => (
+            <div key={i} className="p-6 rounded border text-center" style={{ background: "var(--bg-secondary)", borderColor: "var(--border)" }}>
+              <div className="font-bold text-3xl mb-2" style={{ color: "#10b981" }}>{s.value}</div>
+              <div className="text-sm" style={{ color: "var(--text-muted)" }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── Final CTA ────────────────────────────────────────────────────────────────
+
+function FinalCTA() {
+  const { t } = useLanguage();
+  return (
+    <section className="py-20 px-6" style={{ borderTop: "1px solid var(--border)" }}>
+      <div className="max-w-3xl mx-auto text-center">
+        <h2 className="font-bold text-3xl md:text-4xl tracking-tight mb-4" style={{ color: "var(--text-primary)" }}>
+          {t("cta.title")}
+        </h2>
+        <p className="text-lg mb-8" style={{ color: "var(--text-muted)" }}>
+          {t("cta.subtitle")}
+        </p>
+        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+          <Link
+            href="/register"
+            className="px-8 py-3 text-sm font-medium rounded transition-all hover:opacity-90"
+            style={{ background: "#10b981", color: "#09090b" }}
+          >
+            {t("cta.primary")}
+          </Link>
+          <a
+            href="#pricing"
+            className="px-8 py-3 text-sm rounded transition-all"
+            style={{ border: "1px solid var(--border)", color: "var(--text-primary)" }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-secondary)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+          >
+            {t("cta.secondary")}
+          </a>
         </div>
       </div>
     </section>
@@ -1930,10 +1874,11 @@ export default function Home() {
       <Nav />
       <Hero />
       <PersonaSelectorSection />
-      <TechProof />
+      <SocialProof />
       <HowItWorks />
       <Features />
       <Pricing />
+      <FinalCTA />
       <Footer />
       <WhatsAppBubble />
     </div>

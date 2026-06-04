@@ -533,6 +533,31 @@ const translations = {
     "settings.cancel_modal.feature_loss": "Si cancelas, pierdes acceso a tracks ilimitados, almacenamiento HQ extendido y soporte por WhatsApp. Vuelves al plan gratuito.",
     "validation.alert_singular": "alerta",
     "validation.alert_plural": "alertas",
+
+    // Landing widget labels
+    "widget.configuration": "Configuracion",
+    "widget.preset": "Preset",
+    "widget.loads_suggested": "Carga valores sugeridos",
+    "widget.bpm_range": "Rango de BPM",
+    "widget.minimum": "Minimo",
+    "widget.maximum": "Maximo",
+    "widget.lufs_target": "Objetivo LUFS",
+    "widget.target": "Target",
+    "widget.tolerance": "Tolerancia",
+    "widget.preferred_scale": "Escala preferida",
+
+    // Social proof
+    "social_proof.title": "Sellos y productores confian en nosotros",
+    "social_proof.stat0": "Tracks analizados",
+    "social_proof.stat1": "Sellos activos",
+    "social_proof.stat2": "Uptime",
+    "social_proof.stat3": "Tiempo promedio de respuesta",
+
+    // Final CTA
+    "cta.title": "Empeza a analizar tus demos hoy",
+    "cta.subtitle": "Configura tu firma sonica en minutos y deja que el algoritmo filtre la musica que importa.",
+    "cta.primary": "Crear cuenta gratis",
+    "cta.secondary": "Ver precios",
   },
   en: {
     // Nav
@@ -1062,6 +1087,31 @@ const translations = {
     "settings.cancel_modal.feature_loss": "If you cancel, you lose access to unlimited tracks, extended HQ storage and WhatsApp support. You'll go back to the free plan.",
     "validation.alert_singular": "alert",
     "validation.alert_plural": "alerts",
+
+    // Landing widget labels
+    "widget.configuration": "Configuration",
+    "widget.preset": "Preset",
+    "widget.loads_suggested": "Loads suggested values",
+    "widget.bpm_range": "BPM Range",
+    "widget.minimum": "Minimum",
+    "widget.maximum": "Maximum",
+    "widget.lufs_target": "LUFS target",
+    "widget.target": "Target",
+    "widget.tolerance": "Tolerance",
+    "widget.preferred_scale": "Preferred scale",
+
+    // Social proof
+    "social_proof.title": "Trusted by labels & producers",
+    "social_proof.stat0": "Tracks analyzed",
+    "social_proof.stat1": "Active labels",
+    "social_proof.stat2": "Uptime",
+    "social_proof.stat3": "Avg response time",
+
+    // Final CTA
+    "cta.title": "Start analyzing your demos today",
+    "cta.subtitle": "Set up your sonic signature in minutes and let the algorithm filter the music that matters.",
+    "cta.primary": "Create free account",
+    "cta.secondary": "View pricing",
   },
 };
 
