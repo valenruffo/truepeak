@@ -2,16 +2,18 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { useParams } from "next/navigation";
+import { useLanguage } from "@/lib/i18n";
 
 export default function SubmissionPage() {
+  const { t } = useLanguage();
   const params = useParams();
   const slug = params.slug as string;
 
   const [labelName, setLabelName] = useState<string | null>(null);
   const [labelLogo, setLabelLogo] = useState<string | null>(null);
-  const [submissionTitle, setSubmissionTitle] = useState("Enviar demo");
+  const [submissionTitle, setSubmissionTitle] = useState(t("submission.default_title"));
   const [submissionDescription, setSubmissionDescription] = useState(
-    "Subí tu WAV. Analizamos BPM, LUFS, fase y headroom antes de que el sello lo escuche."
+    t("submission.default_description")
   );
   const [askInstagram, setAskInstagram] = useState(false);
   const [askSoundcloud, setAskSoundcloud] = useState(false);
@@ -109,11 +111,11 @@ export default function SubmissionPage() {
     const ext = "." + f.name.split(".").pop()?.toLowerCase();
     if (!validExts.includes(ext)) {
       const allowedStr = allowedFormats.map(fmt => fmt.toUpperCase()).join(", ");
-      setError(`Solo se aceptan archivos ${allowedStr}`);
+      setError(t("submission.error_ext").replace("{formats}", allowedStr));
       return;
     }
     if (f.size > maxUploadSizeMb * 1024 * 1024) {
-      setError(`El archivo no puede superar los ${maxUploadSizeMb}MB`);
+      setError(t("submission.error_size").replace("{size}", String(maxUploadSizeMb)));
       return;
     }
     setError("");
@@ -181,7 +183,7 @@ export default function SubmissionPage() {
       if (!response.ok) {
         done = true;
         cancelAnimationFrame(animFrame);
-        const err = await response.json().catch(() => ({ detail: "Error desconocido" }));
+        const err = await response.json().catch(() => ({ detail: t("submission.error_unknown") }));
         throw new Error(err.detail || `Error ${response.status}`);
       }
 
@@ -241,7 +243,7 @@ export default function SubmissionPage() {
       clearInterval(uploadTimer);
       setUploading(false);
       setAnalyzing(false);
-      setError(err instanceof Error ? err.message : "Error al subir el archivo.");
+      setError(err instanceof Error ? err.message : t("submission.error_upload"));
     }
   };
 
@@ -256,10 +258,8 @@ export default function SubmissionPage() {
               <line x1="12" y1="16" x2="12.01" y2="16" />
             </svg>
           </div>
-          <h1 className="font-display font-bold text-2xl mb-3">Link deshabilitado</h1>
-          <p className="text-muted mb-6">
-            El sello <strong style={{ color: "#fafafa" }}>{labelName || slug}</strong> actualmente no está recibiendo demos a través de este link.
-          </p>
+          <h1 className="font-display font-bold text-2xl mb-3">{t("submission.frozen_title")}</h1>
+          <p className="text-muted mb-6" dangerouslySetInnerHTML={{ __html: t("submission.frozen_desc").replace("{label_name}", labelName || slug) }} />
         </div>
       </div>
     );
@@ -274,17 +274,14 @@ export default function SubmissionPage() {
               <polyline points="20 6 9 17 4 12" />
             </svg>
           </div>
-          <h1 className="font-display font-bold text-2xl mb-3">Demo enviado</h1>
-          <p className="text-muted mb-6">
-            Tu track <strong style={{ color: "#fafafa" }}>{trackName}</strong> fue recibido y está siendo analizado.
-            El sello te contactará si pasa el filtro técnico.
-          </p>
+          <h1 className="font-display font-bold text-2xl mb-3">{t("submission.success_title")}</h1>
+          <p className="text-muted mb-6" dangerouslySetInnerHTML={{ __html: t("submission.success_desc").replace("{track_name}", trackName) }} />
           <button
             onClick={() => { setSubmitted(false); setFile(null); setProducerName(""); setProducerEmail(""); setTrackName(""); setNotes(""); }}
             className="px-6 py-2.5 text-sm font-medium rounded"
             style={{ background: "#10b981", color: "#09090b" }}
           >
-            Enviar otro demo
+            {t("submission.send_another")}
           </button>
         </div>
       </div>
@@ -302,7 +299,7 @@ export default function SubmissionPage() {
               <div className="w-6 h-6 rounded" style={{ background: "#10b981" }} />
             )}
             <span className="font-display font-semibold text-lg">
-              {labelLoading ? "Cargando..." : labelError ? slug : labelName}
+              {labelLoading ? t("submission.loading") : labelError ? slug : labelName}
             </span>
           </div>
           <h1 className="font-display font-bold text-xl mb-2">{submissionTitle}</h1>
@@ -320,7 +317,7 @@ export default function SubmissionPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="text-sm font-medium mb-1.5 block">Tu nombre</label>
+              <label className="text-sm font-medium mb-1.5 block">{t("submission.label_name")}</label>
               <input
                 type="text"
                 value={producerName}
@@ -333,7 +330,7 @@ export default function SubmissionPage() {
             </div>
 
             <div>
-              <label className="text-sm font-medium mb-1.5 block">Email</label>
+              <label className="text-sm font-medium mb-1.5 block">{t("submission.label_email")}</label>
               <input
                 type="email"
                 value={producerEmail}
@@ -347,7 +344,7 @@ export default function SubmissionPage() {
 
             {askInstagram && (
               <div>
-                <label className="text-sm font-medium mb-1.5 block">Instagram (opcional)</label>
+                <label className="text-sm font-medium mb-1.5 block">{t("submission.label_instagram")}</label>
                 <div className="flex rounded border bg-transparent" style={{ borderColor: "#27272a" }}>
                   <span className="flex items-center justify-center px-3 bg-zinc-900/50 text-zinc-500 border-r border-zinc-800 text-sm select-none rounded-l">
                     @
@@ -368,7 +365,7 @@ export default function SubmissionPage() {
 
             {askSoundcloud && (
               <div>
-                <label className="text-sm font-medium mb-1.5 block">SoundCloud (opcional)</label>
+                <label className="text-sm font-medium mb-1.5 block">{t("submission.label_soundcloud")}</label>
                 <input
                   type="text"
                   value={producerSoundcloud}
@@ -382,7 +379,7 @@ export default function SubmissionPage() {
 
             {askSpotify && (
               <div>
-                <label className="text-sm font-medium mb-1.5 block">Spotify (opcional)</label>
+                <label className="text-sm font-medium mb-1.5 block">{t("submission.label_spotify")}</label>
                 <input
                   type="text"
                   value={producerSpotify}
@@ -395,7 +392,7 @@ export default function SubmissionPage() {
             )}
 
             <div>
-              <label className="text-sm font-medium mb-1.5 block">Nombre del track</label>
+              <label className="text-sm font-medium mb-1.5 block">{t("submission.label_track")}</label>
               <input
                 type="text"
                 value={trackName}
@@ -408,7 +405,7 @@ export default function SubmissionPage() {
             </div>
 
             <div>
-              <label className="text-sm font-medium mb-1.5 block">Archivo de audio</label>
+              <label className="text-sm font-medium mb-1.5 block">{t("submission.label_audio")}</label>
               <div
                 onDragEnter={handleDrag}
                 onDragLeave={handleDrag}
@@ -438,21 +435,21 @@ export default function SubmissionPage() {
                   </div>
                 ) : (
                   <div>
-                    <div className="text-sm mb-1">Arrastrá tu audio acá</div>
-                    <div className="text-xs text-muted">o hacé clic para seleccionar · Max {maxUploadSizeMb}MB ({allowedFormats.map(f => f.toUpperCase()).join(", ")})</div>
+                    <div className="text-sm mb-1">{t("submission.drag_audio")}</div>
+                    <div className="text-xs text-muted">{t("submission.or_click")} · Max {maxUploadSizeMb}MB ({allowedFormats.map(f => f.toUpperCase()).join(", ")})</div>
                   </div>
                 )}
               </div>
             </div>
 
             <div>
-              <label className="text-sm font-medium mb-1.5 block">Observaciones adicionales (opcional)</label>
+              <label className="text-sm font-medium mb-1.5 block">{t("submission.label_notes")}</label>
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 className="w-full px-3 py-2.5 rounded border text-sm bg-transparent"
                 style={{ borderColor: "#27272a" }}
-                placeholder="Referencias, notas de producción, etc."
+                placeholder={t("submission.notes_placeholder")}
                 rows={3}
                 suppressHydrationWarning
               />
@@ -465,10 +462,10 @@ export default function SubmissionPage() {
                     {analyzing ? (
                       <span className="inline-flex items-center gap-1.5">
                         <span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "#10b981" }} />
-                        Analizando audio...
+                        {t("submission.analyzing")}
                       </span>
                     ) : (
-                      `Subiendo...`
+                      t("submission.uploading")
                     )}
                   </span>
                   <span className="font-mono" style={{ color: "#10b981" }}>{progress}%</span>
@@ -493,7 +490,7 @@ export default function SubmissionPage() {
               className="w-full py-2.5 text-sm font-medium rounded transition-all hover:opacity-90 disabled:opacity-50"
               style={{ background: "#10b981", color: "#09090b" }}
             >
-              {analyzing ? `Analizando... ${progress}%` : uploading ? "Subiendo..." : "Enviar demo"}
+              {analyzing ? t("submission.submitting").replace("{progress}", String(progress)) : uploading ? t("submission.uploading_btn") : t("submission.submit")}
             </button>
           </form>
         </div>

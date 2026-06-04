@@ -11,7 +11,7 @@ RESEND_API_URL = "https://api.resend.com/emails"
 
 # ── Fixed email templates ────────────────────────────────────────────────────
 
-REJECTION_TEMPLATE = {
+REJECTION_TEMPLATE_ES = {
     "subject": "{{track_name}} — Resultado del análisis",
     "body": """<p>Hola {{producer_name}},</p>
 
@@ -31,7 +31,7 @@ REJECTION_TEMPLATE = {
 <p>Saludos,<br/>{{label_name}} via True Peak</p>""",
 }
 
-APPROVAL_TEMPLATE = {
+APPROVAL_TEMPLATE_ES = {
     "subject": "¡{{track_name}} seleccionado por {{label_name}}!",
     "body": """<p>Hola {{producer_name}},</p>
 
@@ -51,12 +51,57 @@ APPROVAL_TEMPLATE = {
 <p>Saludos,<br/>{{label_name}} via True Peak</p>""",
 }
 
+REJECTION_TEMPLATE_EN = {
+    "subject": "{{track_name}} — Analysis Result",
+    "body": """<p>Hi {{producer_name}},</p>
 
-def get_fixed_template(template_type: str) -> dict[str, str]:
-    """Return a fixed email template for rejection or approval."""
+<p>Thanks for sending <b>{{track_name}}</b> to {{label_name}}.</p>
+
+<p>After analyzing your track, it doesn't meet the technical requirements we're looking for at this time:</p>
+
+<ul>
+<li><b>BPM:</b> {{bpm}}</li>
+<li><b>LUFS:</b> {{lufs}}</li>
+<li><b>Phase:</b> {{phase_correlation}}</li>
+<li><b>Key:</b> {{musical_key}}</li>
+</ul>
+
+<p>This doesn't mean your track is bad — it just doesn't match what we need right now. Keep sending material.</p>
+
+<p>Best regards,<br/>{{label_name}} via True Peak</p>""",
+}
+
+APPROVAL_TEMPLATE_EN = {
+    "subject": "{{track_name}} selected by {{label_name}}!",
+    "body": """<p>Hi {{producer_name}},</p>
+
+<p>Great news! <b>{{track_name}}</b> passed our technical analysis and was selected by {{label_name}}.</p>
+
+<p>Track metrics:</p>
+
+<ul>
+<li><b>BPM:</b> {{bpm}}</li>
+<li><b>LUFS:</b> {{lufs}}</li>
+<li><b>Phase:</b> {{phase_correlation}}</li>
+<li><b>Key:</b> {{musical_key}}</li>
+</ul>
+
+<p>We'll be contacting you soon with the next steps.</p>
+
+<p>Best regards,<br/>{{label_name}} via True Peak</p>""",
+}
+
+
+def get_fixed_template(template_type: str, lang: str = "es") -> dict[str, str]:
+    """Return a fixed email template for rejection or approval.
+    
+    Args:
+        template_type: "rejection" or "approval"
+        lang: "es" or "en"
+    """
     if template_type == "rejection":
-        return REJECTION_TEMPLATE
-    return APPROVAL_TEMPLATE
+        return REJECTION_TEMPLATE_ES if lang == "es" else REJECTION_TEMPLATE_EN
+    return APPROVAL_TEMPLATE_ES if lang == "es" else APPROVAL_TEMPLATE_EN
 
 
 # ── Email sending ─────────────────────────────────────────────────────────────

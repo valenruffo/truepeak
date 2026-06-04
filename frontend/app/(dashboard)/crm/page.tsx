@@ -203,7 +203,7 @@ const resolvePlaceholders = (text: string, c: Contact, labelName: string) => {
 };
 
 function CRMContent() {
-  const { t } = useLanguage();
+  const { lang, t } = useLanguage();
   const [selectedTemplate, setSelectedTemplate] = useState("reject-phase");
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
   const emailBodyState = useUndoableState("");
@@ -931,7 +931,7 @@ function CRMContent() {
 
   const fetchTemplates = async () => {
     try {
-      const res = await fetch("/api/email/templates", { credentials: "include" });
+      const res = await fetch(`/api/email/templates?lang=${lang}`, { credentials: "include" });
       if (res.ok) {
         const data = await res.json();
         setDbTemplates(data);

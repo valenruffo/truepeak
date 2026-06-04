@@ -1293,7 +1293,7 @@ useEffect(() => {
     // Fetch fixed templates
     let templates: EmailTemplate[] = [];
     try {
-      const res = await fetch("/api/email/templates");
+      const res = await fetch(`/api/email/templates?lang=${lang}`);
       if (res.ok) templates = await res.json();
     } catch {
       // silent — will use empty defaults

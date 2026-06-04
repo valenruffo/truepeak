@@ -197,14 +197,17 @@ async def get_email_logs(
 
 
 @router.get("/templates", response_model=list[TemplateResponse])
-async def list_templates():
+async def list_templates(lang: str = "es"):
     """Return the fixed email templates (rejection and approval).
 
     No auth required — these are the same for all labels.
     Templates include placeholders like {{producer_name}}, {{track_name}}, {{bpm}}, etc.
+    
+    Args:
+        lang: "es" or "en" - language for the templates
     """
-    rejection = get_fixed_template("rejection")
-    approval = get_fixed_template("approval")
+    rejection = get_fixed_template("rejection", lang)
+    approval = get_fixed_template("approval", lang)
     return [
         TemplateResponse(
             id="fixed-rejection",
