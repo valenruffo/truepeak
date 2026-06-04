@@ -21,10 +21,10 @@ export default function RefundPolicy() {
           </ul>
 
           <h2 className="font-display font-semibold text-lg text-foreground mt-8 mb-2">3. Cómo Solicitar un Reembolso</h2>
-          <p>Para solicitar un reembolso, contactanos a <span className="text-foreground">soporte@truepeak.space</span> con tu número de orden (proporcionado por Lemon Squeezy) y el motivo de la solicitud. Procesaremos tu pedido en un plazo de 5-10 días hábiles.</p>
+          <p>Para solicitar un reembolso, contactanos a <span className="text-foreground">soporte@truepeak.space</span> con tu número de orden (proporcionado por Polar) y el motivo de la solicitud. Procesaremos tu pedido en un plazo de 5-10 días hábiles.</p>
 
           <h2 className="font-display font-semibold text-lg text-foreground mt-8 mb-2">4. Procesamiento de Pagos</h2>
-          <p>Todos los pagos se procesan a través de <strong className="text-foreground">Lemon Squeezy</strong>. Los reembolsos se realizan al mismo método de pago utilizado en la compra original. Los tiempos de acreditación dependen de tu banco o emisor de tarjeta (generalmente 5-15 días hábiles).</p>
+          <p>Todos los pagos se procesan a través de <strong className="text-foreground">Polar</strong>. Los reembolsos se realizan al mismo método de pago utilizado en la compra original. Los tiempos de acreditación dependen de tu banco o emisor de tarjeta (generalmente 5-15 días hábiles).</p>
 
           <h2 className="font-display font-semibold text-lg text-foreground mt-8 mb-2">5. Cambios de Plan</h2>
           <p>Si cambiás de plan (upgrade o downgrade), el ajuste se aplica en tu próximo ciclo de facturación. No se realizan reembolsos por la diferencia en el ciclo actual.</p>

@@ -15,7 +15,7 @@ export default function TermsOfService() {
           <p>Para usar el servicio necesitás crear una cuenta. Sos responsable de mantener la confidencialidad de tus credenciales y de toda actividad que ocurra bajo tu cuenta. Si detectás uso no autorizado, notificanos inmediatamente.</p>
 
           <h2 className="font-display font-semibold text-lg text-foreground mt-8 mb-2">3. Suscripción y Pagos</h2>
-          <p>Los pagos se procesan a través de <strong className="text-foreground">Lemon Squeezy</strong>, nuestro proveedor de pagos. Al suscribirte, autorizás a Lemon Squeezy a cobrar el monto correspondiente según el plan elegido. Las suscripciones se renuevan automáticamente al final de cada período hasta que canceles.</p>
+          <p>Los pagos se procesan a través de <strong className="text-foreground">Polar</strong>, nuestro proveedor de pagos. Al suscribirte, autorizás a Polar a cobrar el monto correspondiente según el plan elegido. Las suscripciones se renuevan automáticamente al final de cada período hasta que canceles.</p>
           <p>Los precios están en USD. Nos reservamos el derecho de modificar los precios con aviso previo de 30 días.</p>
 
           <h2 className="font-display font-semibold text-lg text-foreground mt-8 mb-2">4. Uso Aceptable</h2>

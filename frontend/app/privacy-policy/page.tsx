@@ -12,12 +12,12 @@ export default function PrivacyPolicy() {
           <p><strong className="text-foreground">Datos de cuenta:</strong> nombre, email, nombre de sello, slug personalizado.</p>
           <p><strong className="text-foreground">Datos de uso:</strong> configuración de firma sónica (BPM, LUFS, escala musical), historial de análisis, preferencias de CRM.</p>
           <p><strong className="text-foreground">Archivos de audio:</strong> los archivos WAV que subís para análisis. Se procesan automáticamente y se almacenan temporalmente.</p>
-          <p><strong className="text-foreground">Datos de pago:</strong> procesados exclusivamente por <strong className="text-foreground">Lemon Squeezy</strong>. No almacenamos datos de tarjetas de crédito ni información financiera sensible.</p>
+          <p><strong className="text-foreground">Datos de pago:</strong> procesados exclusivamente por <strong className="text-foreground">Polar</strong>. No almacenamos datos de tarjetas de crédito ni información financiera sensible.</p>
 
           <h2 className="font-display font-semibold text-lg text-foreground mt-8 mb-2">2. Cómo Usamos tus Datos</h2>
           <ul className="list-disc pl-6 space-y-1">
             <li>Proveer y mejorar el servicio de análisis de demos.</li>
-            <li>Procesar pagos a través de Lemon Squeezy.</li>
+            <li>Procesar pagos a través de Polar.</li>
             <li>Enviar notificaciones sobre el estado de tus análisis.</li>
             <li>Comunicarnos contigo sobre actualizaciones o soporte.</li>
             <li>Cumplir con obligaciones legales.</li>
@@ -29,7 +29,7 @@ export default function PrivacyPolicy() {
           <h2 className="font-display font-semibold text-lg text-foreground mt-8 mb-2">4. Compartir Datos con Terceros</h2>
           <p>No vendemos ni compartimos tus datos personales con terceros, excepto:</p>
           <ul className="list-disc pl-6 space-y-1">
-            <li><strong className="text-foreground">Lemon Squeezy:</strong> para procesar pagos.</li>
+            <li><strong className="text-foreground">Polar:</strong> para procesar pagos.</li>
             <li><strong className="text-foreground">Proveedores de infraestructura:</strong> para hosting y almacenamiento seguro.</li>
             <li><strong className="text-foreground">Obligación legal:</strong> si una autoridad competente lo requiere.</li>
           </ul>
