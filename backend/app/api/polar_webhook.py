@@ -144,10 +144,11 @@ async def polar_webhook(request: Request, bg_tasks: BackgroundTasks):
 
     Polar sends events for:
       - subscription.created  -> activate plan
-      -subscription.active    -> activate plan (redundant but safe)
+      - subscription.active   -> activate plan (redundant but safe)
       - subscription.updated  -> update plan if product changed
       - subscription.canceled -> downgrade to free
-      - subscription.revoked  -> downgrade to free
+      - subscription.revoked  -> downgrade to free and freeze
+      - subscription.past_due -> log only (Polar retries payment automatically)
 
     The webhook payload structure depends on the event type.
     We handle the most common subscription events.
@@ -338,6 +339,13 @@ async def polar_webhook(request: Request, bg_tasks: BackgroundTasks):
             session.commit()
             logger.info("Label %s (%s) downgraded to free and frozen via webhook", label.slug, customer_email)
             return {"received": True, "action": "downgraded_and_frozen", "plan": "free", "label": label.slug}
+
+        elif event_type == "subscription.past_due":
+            # Payment failed — Polar will retry automatically (dunning).
+            # We do NOT freeze the account yet. Only freeze on subscription.revoked.
+            logger.warning("Label %s (%s) payment past_due — Polar will retry", label.slug, customer_email)
+            return {"received": True, "action": "past_due_logged", "label": label.slug}
+
         else:
             logger.info("Polar webhook: unhandled event type %s", event_type)
             return {"received": True, "skipped": True, "reason": f"unhandled event: {event_type}"}
