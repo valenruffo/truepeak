@@ -1240,7 +1240,7 @@ export function useLanguage() {
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [lang, setLangState] = useState<"es" | "en">("es");
+  const [lang, setLangState] = useState<"es" | "en">("en");
 
   useEffect(() => {
     const stored = localStorage.getItem("lang");
@@ -1253,7 +1253,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   };
 
   const t = (key: TranslationKeys): string => {
-    return translations[lang]?.[key] ?? translations.es[key] ?? key;
+    return translations[lang]?.[key] ?? translations.en[key] ?? key;
   };
 
   return (

@@ -92,7 +92,7 @@ APPROVAL_TEMPLATE_EN = {
 }
 
 
-def get_fixed_template(template_type: str, lang: str = "es") -> dict[str, str]:
+def get_fixed_template(template_type: str, lang: str = "en") -> dict[str, str]:
     """Return a fixed email template for rejection or approval.
     
     Args:

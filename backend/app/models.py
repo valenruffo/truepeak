@@ -65,7 +65,7 @@ class Label(SQLModel, table=True):
     ask_soundcloud: bool = Field(default=False)
     ask_spotify: bool = Field(default=False)
     reply_to_email: str | None = Field(default=None)  # Custom Reply-To for outbound emails
-    lang: str = Field(default="es")  # "es" | "en" - Label language for email templates
+    lang: str = Field(default="en")  # "es" | "en" - Label language for email templates
 
     submissions: list["Submission"] = Relationship(back_populates="label")
 
