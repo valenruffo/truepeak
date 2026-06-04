@@ -89,7 +89,7 @@ function PlayerBar() {
         barWidth: 3,
         barGap: 1,
         barRadius: 2,
-        normalize: true,
+        normalize: false,
         peaks: peaksData ? [peaksData] : undefined,
         duration: trackDuration || durationRef.current || undefined,
       });
