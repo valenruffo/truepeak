@@ -541,7 +541,7 @@ function PersonaSelectorSection() {
                   <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: "var(--border)" }}>
                     <div className="flex flex-col">
                       <span className="font-mono text-[10px] text-zinc-500 uppercase">{t("widget.configuration")}</span>
-                      <span className="font-bold text-sm text-white">Sonic signature — Main label</span>
+                      <span className="font-bold text-sm text-white">{t("widget.sonic_signature")}</span>
                     </div>
                   </div>
 
@@ -668,7 +668,7 @@ function PersonaSelectorSection() {
                         </div>
                       </div>
                       <p className="text-[10px] text-zinc-500 italic mt-2">
-                        Sistema Camelot: Fila superior (B) para tonos Mayores, fila inferior (A) para tonos Menores.
+                        {t("widget.camelot_note")}
                       </p>
                     </div>
                   </div>
@@ -687,7 +687,7 @@ function PersonaSelectorSection() {
 
                   <div className="p-6 space-y-6">
                     <div className="space-y-4">
-                      <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider block">Selector de Tono Actual (DJ Set)</span>
+                      <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider block">{t("dj_widget.current_key_selector")}</span>
                       
                       <div className="flex flex-col gap-2">
                         <div className="flex gap-2 justify-between">
@@ -735,25 +735,25 @@ function PersonaSelectorSection() {
                       </div>
                       
                       <div className="flex items-center gap-3 mt-4 text-[10px] font-mono">
-                        <div className="flex items-center gap-1.5 text-zinc-400">
+                          <div className="flex items-center gap-1.5 text-zinc-400">
                           <div className="w-3 h-3 rounded-sm border" style={{ borderColor: "#06b6d4", background: "rgba(6,182,212,0.15)" }}></div>
-                          <span>Tono Actual</span>
+                          <span>{t("dj_widget.current_key")}</span>
                         </div>
                         <div className="flex items-center gap-1.5 text-zinc-400">
                           <div className="w-3 h-3 rounded-sm border" style={{ borderColor: "rgba(6,182,212,0.3)", background: "rgba(6,182,212,0.05)" }}></div>
-                          <span>Tonos Compatibles</span>
+                          <span>{t("dj_widget.compatible_keys")}</span>
                         </div>
                       </div>
                       <span className="text-[10px] text-zinc-500 font-mono block mt-2 border-t border-zinc-800 pt-3">
-                        Mezcla armónica perfecta garantizada con tu track activo.
+                        {t("dj_widget.harmonic_mix_note")}
                       </span>
                     </div>
 
                     <div className="space-y-4 pt-6 border-t" style={{ borderColor: "var(--border-light)" }}>
                       <div className="flex justify-between text-[11px] font-mono text-zinc-400">
-                        <span>CORRELACIÓN DE FASE ESTÉREO</span>
+                        <span>{t("dj_widget.stereo_phase_correlation")}</span>
                         <span className={`font-bold ${isPhaseInverted ? "text-red-500 animate-pulse" : "text-cyan-500"}`}>
-                          {(phaseCorrelation).toFixed(2)} {isPhaseInverted ? "(Fase Invertida)" : "(Fase OK)"}
+                          {(phaseCorrelation).toFixed(2)} {isPhaseInverted ? t("dj_widget.phase_inverted") : t("dj_widget.phase_ok")}
                         </span>
                       </div>
 
@@ -770,7 +770,7 @@ function PersonaSelectorSection() {
                         />
 
                         <div className="absolute left-[3%] text-[9px] font-mono text-zinc-600">-1.0</div>
-                        <div className="absolute left-[50%] -translate-x-1/2 text-[9px] font-mono text-zinc-600">0.0 (Mono)</div>
+                        <div className="absolute left-[50%] -translate-x-1/2 text-[9px] font-mono text-zinc-600">0.0 ({t("dj_widget.mono")})</div>
                         <div className="absolute right-[3%] text-[9px] font-mono text-zinc-600">+1.0</div>
                       </div>
 
@@ -784,7 +784,7 @@ function PersonaSelectorSection() {
                             color: isPhaseInverted ? "#ef4444" : "var(--text-muted)",
                           }}
                         >
-                          <span>⚠️ {isPhaseInverted ? "Simulación: Corregir Fase" : "Simular Error de Fase"}</span>
+                          <span>⚠️ {isPhaseInverted ? t("dj_widget.sim_fix_phase") : t("dj_widget.sim_phase_error")}</span>
                         </button>
                       </div>
                     </div>
@@ -899,7 +899,7 @@ function ConfiguratorSimulator({ t }: { t: (key: any) => string }) {
            {/* Title & desc */}
            <div className="text-center mb-4">
               <h3 className="font-bold text-white mb-1 text-sm">Enviar demo</h3>
-              <p className="text-[9px] text-zinc-500 leading-tight px-2">Subí tu WAV. Analizamos BPM, LUFS, fase y headroom.</p>
+               <p className="text-[9px] text-zinc-500 leading-tight px-2">{t("simulator.upload_desc")}</p>
            </div>
 
            <div className="space-y-3">
@@ -934,8 +934,8 @@ function ConfiguratorSimulator({ t }: { t: (key: any) => string }) {
                 <div className="p-2 rounded-lg border-2 border-dashed border-zinc-800 flex flex-col items-center justify-center relative overflow-hidden h-16 transition-colors" style={{ background: "#09090b" }}>
                   {phase === "idle" || phase === "copying" || phase === "typing" ? (
                     <>
-                      <span className="text-[11px] text-zinc-300 font-medium">Arrastrá tu audio acá</span>
-                      <span className="text-[9px] text-zinc-600">WAV, FLAC, AIFF - Max 100MB</span>
+                      <span className="text-[11px] text-zinc-300 font-medium">{t("simulator.drag_audio")}</span>
+                      <span className="text-[9px] text-zinc-600">{t("simulator.audio_formats")}</span>
                     </>
                   ) : phase === "uploading" ? (
                     <div className="w-full px-2 text-center">
@@ -1198,7 +1198,7 @@ function AnalyzerSimulator({ t }: { t: (key: any) => string }) {
               className="border p-2.5 text-center rounded text-[10px] font-mono"
               style={{ background: "rgba(16,185,129,0.05)", borderColor: "rgba(16,185,129,0.2)", color: "#10b981" }}
             >
-              ✓ Conversión a MP3 320kbps y firma sónica validados.
+              ✓ {t("simulator.mp3_conversion_done")}
             </motion.div>
           )}
         </AnimatePresence>
@@ -1394,7 +1394,7 @@ function KanbanSimulator({ t }: { t: (key: any) => string }) {
 function CRMSimulator({ t }: { t: (key: any) => string }) {
   const [text, setText] = useState("");
   const [phase, setPhase] = useState<"typing" | "idle_ready" | "sending" | "sent">("typing");
-  const fullText = "Hola Krill,\n\nGracias por enviarnos 'Midnight Protocol'. Nos encantó la energía del track. Cumple con los parámetros de la firma (126 BPM, -6.2 LUFS).\n\nLo sumamos a la Shortlist para el próximo release.\n\nSaludos!";
+  const fullText = t("simulator.email_body");
 
   useEffect(() => {
     let active = true;
@@ -1550,7 +1550,7 @@ function CRMSimulator({ t }: { t: (key: any) => string }) {
             </motion.div>
             <h4 className="text-xs font-bold uppercase tracking-wider font-mono" style={{ color: "var(--text-primary)" }}>Email Enviado</h4>
             <p className="text-[10px] max-w-[200px] mt-1.5 font-mono leading-relaxed" style={{ color: "var(--text-muted)" }}>
-              El productor ha recibido la respuesta con los datos de firma sónica.
+              {t("simulator.email_sent_desc")}
             </p>
           </motion.div>
         )}
@@ -1794,40 +1794,6 @@ function SocialProof() {
 
 // ─── Final CTA ────────────────────────────────────────────────────────────────
 
-function FinalCTA() {
-  const { t } = useLanguage();
-  return (
-    <section className="py-20 px-6" style={{ borderTop: "1px solid var(--border)" }}>
-      <div className="max-w-3xl mx-auto text-center">
-        <h2 className="font-bold text-3xl md:text-4xl tracking-tight mb-4" style={{ color: "var(--text-primary)" }}>
-          {t("cta.title")}
-        </h2>
-        <p className="text-lg mb-8" style={{ color: "var(--text-muted)" }}>
-          {t("cta.subtitle")}
-        </p>
-        <div className="flex flex-col sm:flex-row gap-3 justify-center">
-          <Link
-            href="/register"
-            className="px-8 py-3 text-sm font-medium rounded transition-all hover:opacity-90"
-            style={{ background: "#10b981", color: "#09090b" }}
-          >
-            {t("cta.primary")}
-          </Link>
-          <a
-            href="#pricing"
-            className="px-8 py-3 text-sm rounded transition-all"
-            style={{ border: "1px solid var(--border)", color: "var(--text-primary)" }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-secondary)")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-          >
-            {t("cta.secondary")}
-          </a>
-        </div>
-      </div>
-    </section>
-  );
-}
-
 // ─── Footer ───────────────────────────────────────────────────────────────────
 
 function Footer() {
@@ -1878,7 +1844,6 @@ export default function Home() {
       <HowItWorks />
       <Features />
       <Pricing />
-      <FinalCTA />
       <Footer />
       <WhatsAppBubble />
     </div>

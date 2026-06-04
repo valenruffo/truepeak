@@ -97,8 +97,8 @@ const translations = {
 
     // Pricing
     "pricing.section_label": "Precios",
-    "pricing.title": "Simple.",
-    "pricing.title_accent": "Sin sorpresas.",
+    "pricing.title": "Precios claros.",
+    "pricing.title_accent": "Sin letra chica.",
     "pricing.free": "Gratis",
     "pricing.indie": "Indie",
     "pricing.pro": "Pro",
@@ -545,6 +545,28 @@ const translations = {
     "widget.target": "Target",
     "widget.tolerance": "Tolerancia",
     "widget.preferred_scale": "Escala preferida",
+    "widget.sonic_signature": "Firma sónica — Label principal",
+    "widget.camelot_note": "Sistema Camelot: Fila superior (B) para tonos Mayores, fila inferior (A) para tonos Menores.",
+
+    // DJ Widget
+    "dj_widget.current_key_selector": "Selector de tono actual (DJ Set)",
+    "dj_widget.current_key": "Tono Actual",
+    "dj_widget.compatible_keys": "Tonos Compatibles",
+    "dj_widget.harmonic_mix_note": "Mezcla armónica perfecta garantizada con tu track activo.",
+    "dj_widget.stereo_phase_correlation": "CORRELACIÓN DE FASE ESTÉREO",
+    "dj_widget.phase_inverted": "(Fase Invertida)",
+    "dj_widget.phase_ok": "(Fase OK)",
+    "dj_widget.mono": "Mono",
+    "dj_widget.sim_fix_phase": "Simulación: Corregir Fase",
+    "dj_widget.sim_phase_error": "Simular Error de Fase",
+
+    // Simulator strings
+    "simulator.upload_desc": "Subí tu WAV. Analizamos BPM, LUFS, fase y headroom.",
+    "simulator.drag_audio": "Arrastrá tu audio acá",
+    "simulator.audio_formats": "WAV, FLAC, AIFF - Max 100MB",
+    "simulator.mp3_conversion_done": "Conversión a MP3 320kbps y firma sónica validados.",
+    "simulator.email_body": "Hola Krill,\n\nGracias por enviarnos 'Midnight Protocol'. Nos encantó la energía del track. Cumple con los parámetros de la firma (126 BPM, -6.2 LUFS).\n\nLo sumamos a la Shortlist para el próximo release.\n\nSaludos!",
+    "simulator.email_sent_desc": "El productor ha recibido la respuesta con los datos de firma sónica.",
 
     // Social proof
     "social_proof.title": "Sellos y productores confian en nosotros",
@@ -651,8 +673,8 @@ const translations = {
 
     // Pricing
     "pricing.section_label": "Pricing",
-    "pricing.title": "Simple.",
-    "pricing.title_accent": "No surprises.",
+    "pricing.title": "Clear pricing.",
+    "pricing.title_accent": "No hidden fees.",
     "pricing.free": "Free",
     "pricing.indie": "Indie",
     "pricing.pro": "Pro",
@@ -1099,6 +1121,28 @@ const translations = {
     "widget.target": "Target",
     "widget.tolerance": "Tolerance",
     "widget.preferred_scale": "Preferred scale",
+    "widget.sonic_signature": "Sonic signature — Main label",
+    "widget.camelot_note": "Camelot System: Top row (B) for Major keys, bottom row (A) for Minor keys.",
+
+    // DJ Widget
+    "dj_widget.current_key_selector": "Current Key Selector (DJ Set)",
+    "dj_widget.current_key": "Current Key",
+    "dj_widget.compatible_keys": "Compatible Keys",
+    "dj_widget.harmonic_mix_note": "Perfect harmonic mixing guaranteed with your active track.",
+    "dj_widget.stereo_phase_correlation": "STEREO PHASE CORRELATION",
+    "dj_widget.phase_inverted": "(Phase Inverted)",
+    "dj_widget.phase_ok": "(Phase OK)",
+    "dj_widget.mono": "Mono",
+    "dj_widget.sim_fix_phase": "Simulation: Fix Phase",
+    "dj_widget.sim_phase_error": "Simulate Phase Error",
+
+    // Simulator strings
+    "simulator.upload_desc": "Upload your WAV. We analyze BPM, LUFS, phase and headroom.",
+    "simulator.drag_audio": "Drag your audio here",
+    "simulator.audio_formats": "WAV, FLAC, AIFF - Max 100MB",
+    "simulator.mp3_conversion_done": "MP3 320kbps conversion and sonic signature validated.",
+    "simulator.email_body": "Hi Krill,\n\nThanks for sending us 'Midnight Protocol'. We loved the energy of the track. It meets our label's parameters (126 BPM, -6.2 LUFS).\n\nWe're adding it to the Shortlist for the next release.\n\nCheers!",
+    "simulator.email_sent_desc": "The producer has received the response with sonic signature data.",
 
     // Social proof
     "social_proof.title": "Trusted by labels & producers",
