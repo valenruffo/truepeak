@@ -23,9 +23,9 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "True Peak",
+  title: "True Peak | Automated Demo Submission & A&R Workflow",
   description:
-    "Automated demo filtering for electronic music labels. Configure your sonic signature, get a unique submission link, and receive only technically-compliant demos.",
+    "Streamline your music label's inbox. Automatically screen track demos for digital clipping, phase issues, and dynamic range with an automated Kanban CRM.",
   icons: {
     icon: "/favicon.ico",
     shortcut: "/favicon.ico",
