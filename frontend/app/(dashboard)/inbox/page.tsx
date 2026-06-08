@@ -1654,8 +1654,9 @@ useEffect(() => {
           <div
             ref={provided.innerRef}
             {...provided.draggableProps}
+            {...provided.dragHandleProps}
             className={cn(
-              "rounded border mb-2 transition-all duration-200 overflow-hidden",
+              "rounded border mb-2 transition-all duration-200 overflow-hidden cursor-pointer",
               snapshot.isDragging && "shadow-lg opacity-80",
               isLoading && "opacity-50 pointer-events-none"
             )}
@@ -1664,20 +1665,18 @@ useEffect(() => {
               borderColor: "var(--border)",
               ...provided.draggableProps.style,
             }}
+            onClick={() => {
+              markAsInteracted(sub.id);
+              setDetailModal({ open: true, submission: sub });
+            }}
           >
-            {/* Clickable zone for details */}
-            <div 
-              className="cursor-pointer hover:bg-white/[0.02] transition-colors"
-              onClick={() => {
-                markAsInteracted(sub.id);
-                setDetailModal({ open: true, submission: sub });
-              }}
-            >
-              {/* Drag handle — thin visual indicator */}
+            {/* Card content — entire area is clickable and draggable */}
+            <div>
+              {/* Thin top border */}
               <div className="h-1" style={{ background: "rgba(255,255,255,0.03)", borderTop: "1px solid rgba(255,255,255,0.04)" }} />
 
-              {/* Top row — full-width drag zone */}
-              <div className="flex items-start gap-2 px-3 pt-2.5 cursor-grab active:cursor-grabbing" {...provided.dragHandleProps} onClick={(e) => e.stopPropagation()}>
+              {/* Title row */}
+              <div className="flex items-start gap-2 px-3 pt-2.5">
                 {/* Grip icon — subtle visual cue */}
                 <div className="mt-0.5 flex-shrink-0" style={{ color: "var(--text-muted)" }}>
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
@@ -1691,7 +1690,7 @@ useEffect(() => {
                 </div>
 
                 <div className="min-w-0 flex-1">
-                  <div className="font-medium text-sm truncate group-hover/card:text-emerald-500 transition-colors">
+                  <div className="font-medium text-sm truncate">
                     {sub.track_name || t("inbox.modal.no_name")}
                   </div>
                   <div className="text-[11px] text-muted mt-0.5">
@@ -1743,7 +1742,10 @@ useEffect(() => {
             <div className="flex items-center gap-1 px-3 pb-2.5">
               {sub.mp3_path && (
                 <button
-                  onClick={() => handleListen(sub)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleListen(sub);
+                  }}
                   disabled={!!isLoading}
                   className="w-6 h-6 rounded flex items-center justify-center transition-colors hover:bg-white/10 disabled:opacity-50"
                   style={{
@@ -1849,11 +1851,13 @@ useEffect(() => {
                 </a>
               )}
               <div className="flex-1" />
-              <TwoClickDelete
-                onDelete={() => handleDelete(sub)}
-                size={20}
-                isLoading={isLoading === "delete"}
-              />
+              <div onClick={(e) => e.stopPropagation()}>
+                <TwoClickDelete
+                  onDelete={() => handleDelete(sub)}
+                  size={20}
+                  isLoading={isLoading === "delete"}
+                />
+              </div>
             </div>
           </div>
         )}
