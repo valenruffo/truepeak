@@ -234,7 +234,7 @@ function PlayerBar() {
           step="0.01" 
           value={volume} 
           onChange={(e) => setVolume(parseFloat(e.target.value))} 
-          className="w-36 spotify-slider" 
+          className="w-20 spotify-slider" 
           style={{
             "--volume-percent": `${volume * 100}%`
           } as React.CSSProperties}
