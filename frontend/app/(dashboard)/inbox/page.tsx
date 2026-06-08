@@ -262,6 +262,14 @@ const variables = [
   { key: "{track}", label: "Track", desc: "Nombre del track" },
   { key: "{bpm}", label: "BPM", desc: "Tempo del track" },
   { key: "{label}", label: "Sello", desc: "Nombre del sello" },
+  { key: "{lufs}", label: "LUFS", desc: "Loudness (LUFS)" },
+  { key: "{phase_correlation}", label: "Fase", desc: "Correlación de fase" },
+  { key: "{musical_key}", label: "Tonalidad", desc: "Tonalidad musical" },
+  { key: "{true_peak}", label: "True Peak", desc: "Peak verdadero (dB)" },
+  { key: "{crest_factor}", label: "Crest", desc: "Crest factor (dB)" },
+  { key: "{duration}", label: "Duración", desc: "Duración del track" },
+  { key: "{status}", label: "Status", desc: "Estado actual" },
+  { key: "{rejection_reason}", label: "Motivo", desc: "Motivo de rechazo" },
 ];
 
 const escapeHtml = (str: string) => {
@@ -282,12 +290,30 @@ const convertTextToHtml = (text: string, sub: SubmissionSummary | null, labelNam
   const trackName = sub ? sub.track_name : "Track";
   const bpmValue = sub ? (sub.bpm ? String(Math.round(sub.bpm)) : "—") : "BPM";
   const labelVal = labelName || "Sello";
+  const lufsValue = sub && sub.lufs ? sub.lufs.toFixed(1) : "—";
+  const phaseValue = sub && sub.phase_correlation ? sub.phase_correlation.toFixed(2) : "—";
+  const keyValue = sub?.musical_key || "—";
+  const truePeakValue = sub && sub.true_peak ? sub.true_peak.toFixed(2) : "—";
+  const crestValue = sub && sub.crest_factor ? sub.crest_factor.toFixed(1) : "—";
+  const durationValue = sub && sub.duration ? formatDuration(sub.duration) : "—";
+  const statusValue = sub?.status || "—";
+  const rejectionReasonValue = sub?.rejection_reason || "";
+
+  const badgeClass = "select-none inline-block align-middle px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20";
 
   const badges: Record<string, string> = {
-    "{producer}": `\u200B<span contenteditable="false" class="select-none inline-block align-middle px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20" data-variable="{producer}">${escapeHtml(name)}</span>\u200B `,
-    "{track}": `\u200B<span contenteditable="false" class="select-none inline-block align-middle px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20" data-variable="{track}">${escapeHtml(trackName)}</span>\u200B `,
-    "{bpm}": `\u200B<span contenteditable="false" class="select-none inline-block align-middle px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20" data-variable="{bpm}">${escapeHtml(bpmValue)}</span>\u200B `,
-    "{label}": `\u200B<span contenteditable="false" class="select-none inline-block align-middle px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium mx-0.5 border border-emerald-500/20" data-variable="{label}">${escapeHtml(labelVal)}</span>\u200B `
+    "{producer}": `\u200B<span contenteditable="false" class="${badgeClass}" data-variable="{producer}">${escapeHtml(name)}</span>\u200B `,
+    "{track}": `\u200B<span contenteditable="false" class="${badgeClass}" data-variable="{track}">${escapeHtml(trackName)}</span>\u200B `,
+    "{bpm}": `\u200B<span contenteditable="false" class="${badgeClass}" data-variable="{bpm}">${escapeHtml(bpmValue)}</span>\u200B `,
+    "{label}": `\u200B<span contenteditable="false" class="${badgeClass}" data-variable="{label}">${escapeHtml(labelVal)}</span>\u200B `,
+    "{lufs}": `\u200B<span contenteditable="false" class="${badgeClass}" data-variable="{lufs}">${escapeHtml(lufsValue)}</span>\u200B `,
+    "{phase_correlation}": `\u200B<span contenteditable="false" class="${badgeClass}" data-variable="{phase_correlation}">${escapeHtml(phaseValue)}</span>\u200B `,
+    "{musical_key}": `\u200B<span contenteditable="false" class="${badgeClass}" data-variable="{musical_key}">${escapeHtml(keyValue)}</span>\u200B `,
+    "{true_peak}": `\u200B<span contenteditable="false" class="${badgeClass}" data-variable="{true_peak}">${escapeHtml(truePeakValue)}</span>\u200B `,
+    "{crest_factor}": `\u200B<span contenteditable="false" class="${badgeClass}" data-variable="{crest_factor}">${escapeHtml(crestValue)}</span>\u200B `,
+    "{duration}": `\u200B<span contenteditable="false" class="${badgeClass}" data-variable="{duration}">${escapeHtml(durationValue)}</span>\u200B `,
+    "{status}": `\u200B<span contenteditable="false" class="${badgeClass}" data-variable="{status}">${escapeHtml(statusValue)}</span>\u200B `,
+    "{rejection_reason}": `\u200B<span contenteditable="false" class="${badgeClass}" data-variable="{rejection_reason}">${escapeHtml(rejectionReasonValue)}</span>\u200B `,
   };
 
   Object.entries(badges).forEach(([placeholder, badgeHtml]) => {
@@ -381,7 +407,22 @@ function resolvePlaceholders(text: string, sub: SubmissionSummary, labelName: st
     .replace(/\{producer\}/g, sub.producer_name || "Productor")
     .replace(/\{track\}/g, sub.track_name || "Track")
     .replace(/\{bpm\}/g, sub.bpm ? String(Math.round(sub.bpm)) : "—")
-    .replace(/\{label\}/g, labelName || "Sello");
+    .replace(/\{label\}/g, labelName || "Sello")
+    .replace(/\{label_name\}/g, labelName || "Sello")
+    .replace(/\{lufs\}/g, sub.lufs ? sub.lufs.toFixed(1) : "—")
+    .replace(/\{phase_correlation\}/g, sub.phase_correlation ? sub.phase_correlation.toFixed(2) : "—")
+    .replace(/\{musical_key\}/g, sub.musical_key || "—")
+    .replace(/\{true_peak\}/g, sub.true_peak ? sub.true_peak.toFixed(2) : "—")
+    .replace(/\{crest_factor\}/g, sub.crest_factor ? sub.crest_factor.toFixed(1) : "—")
+    .replace(/\{duration\}/g, sub.duration ? formatDuration(sub.duration) : "—")
+    .replace(/\{status\}/g, sub.status || "—")
+    .replace(/\{rejection_reason\}/g, sub.rejection_reason || "");
+}
+
+function formatDuration(seconds: number): string {
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
 function statusLabel(status: string, role: "label" | "dj", t: (key: any) => string): string {
