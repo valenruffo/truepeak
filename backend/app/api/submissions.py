@@ -1,14 +1,15 @@
 """Submission management API — list, detail, status updates, delete."""
 
-import os
+import contextlib
 import logging
-from datetime import datetime, timezone
+import os
+from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from sqlmodel import Session, select, func
+from sqlmodel import Session, select
 
 from app.database import get_session
 from app.models import Label, Submission
@@ -303,19 +304,19 @@ async def delete_submission(
                     os.remove(path)
                 except OSError:
                     pass  # Best effort
-        
+
         # Hard delete: remove folder from R2
         from app.services.r2 import delete_folder_from_r2
         try:
             await delete_folder_from_r2(f"tracks/{submission_id}/")
         except Exception as e:
             logger.error(f"Failed to delete R2 folder prefix tracks/{submission_id}/ during hard delete: {e}")
-        
+
         session.delete(submission)
         session.commit()
     else:
         # Soft delete: set deleted_at timestamp
-        submission.deleted_at = datetime.now(timezone.utc)
+        submission.deleted_at = datetime.now(UTC)
         session.add(submission)
         session.commit()
 
@@ -341,9 +342,9 @@ async def restore_submission(
     # Check 24h window
     deleted_at = submission.deleted_at
     if deleted_at.tzinfo is None:
-        deleted_at = deleted_at.replace(tzinfo=timezone.utc)
+        deleted_at = deleted_at.replace(tzinfo=UTC)
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     elapsed = (now - deleted_at).total_seconds()
     if elapsed > 86400:  # 24 hours
         raise HTTPException(
@@ -405,16 +406,18 @@ async def download_original(
     session: Session = Depends(get_session),
 ):
     """Download the original or MP3 file.
-    
+
     When downloading the original HQ file:
     - Downloads the file from R2 to a temporary local path in Oracle.
     - Marks hq_downloaded = True on the submission.
     - Cleans up both the temporary local file and the file from Cloudflare R2 after serving.
     """
-    from fastapi.responses import RedirectResponse
-    from app.services.r2 import download_file_from_r2, delete_file_from_r2
-    from starlette.background import BackgroundTask
     import tempfile
+
+    from fastapi.responses import RedirectResponse
+    from starlette.background import BackgroundTask
+
+    from app.services.r2 import delete_file_from_r2, download_file_from_r2
 
     submission = session.get(Submission, submission_id)
     if not submission:
@@ -426,7 +429,6 @@ async def download_original(
     if label and label.subscription_status == "frozen":
         raise HTTPException(status_code=402, detail="Cuenta congelada. Reactivá tu plan para escuchar tus demos.")
 
-    is_hq_download = type != "mp3"
 
     if type == "mp3":
         if not submission.mp3_path:
@@ -450,9 +452,9 @@ async def download_original(
     ext = Path(original_key).suffix.lower()
     filename = f"{submission.track_name or submission.id}{ext}"
     media_type = (
-        "audio/wav" if ext == ".wav" 
-        else "audio/flac" if ext == ".flac" 
-        else "audio/aiff" if ext in (".aiff", ".aif") 
+        "audio/wav" if ext == ".wav"
+        else "audio/flac" if ext == ".flac"
+        else "audio/aiff" if ext in (".aiff", ".aif")
         else "application/octet-stream"
     )
 
@@ -483,12 +485,10 @@ async def download_original(
                 os.remove(local_path)
         except OSError:
             pass
-        
+
         # Remove from Cloudflare R2
-        try:
+        with contextlib.suppress(Exception):
             await delete_file_from_r2(r2_key)
-        except Exception:
-            pass
 
     return FileResponse(
         path=local_temp_path,
@@ -496,6 +496,53 @@ async def download_original(
         media_type=media_type,
         background=BackgroundTask(_cleanup_after_serve, local_temp_path, original_key),
     )
+
+
+async def _download_and_extract_peaks(
+    submission: Submission, submission_id: str
+) -> tuple[list[float], float]:
+    """Download MP3 from R2 (or use local path), extract waveform peaks, persist to DB."""
+    import asyncio
+    import tempfile
+
+    import librosa
+
+    from app.audio.analyzer import _extract_waveform_peaks
+    from app.services.r2 import download_file_from_r2
+
+    if not submission.mp3_path:
+        raise HTTPException(
+            status_code=404,
+            detail="Waveform peaks not available and MP3 file is missing.",
+        )
+
+    temp_dir = tempfile.gettempdir()
+    temp_mp3_path = os.path.join(temp_dir, f"{submission_id}_peaks_temp.mp3")
+
+    try:
+        if submission.mp3_path.startswith("http://") or submission.mp3_path.startswith("https://"):
+            r2_key = f"tracks/{submission_id}/preview.mp3"
+            await download_file_from_r2(r2_key, temp_mp3_path)
+        else:
+            if os.path.exists(submission.mp3_path):
+                temp_mp3_path = submission.mp3_path
+            else:
+                raise FileNotFoundError("Local MP3 file missing.")
+
+        def load_and_extract(path):
+            y, sr = librosa.load(path, sr=None, mono=False)
+            peaks = _extract_waveform_peaks(y)
+            duration = float(len(librosa.to_mono(y)) / sr) if sr and len(y) > 0 else 0.0
+            return peaks, duration
+
+        peaks, duration = await asyncio.to_thread(load_and_extract, temp_mp3_path)
+        return peaks, duration
+    finally:
+        if temp_mp3_path != submission.mp3_path and os.path.exists(temp_mp3_path):
+            import contextlib
+
+            with contextlib.suppress(OSError):
+                os.remove(temp_mp3_path)
 
 
 @router.get("/{submission_id}/peaks")
@@ -512,117 +559,40 @@ async def get_waveform_peaks(
     _verify_label_ownership(session, auth["label_id"], submission)
 
     if not submission.peaks:
-        # Fallback to extract peaks if they are missing
-        if submission.mp3_path:
-            import tempfile
-            from app.services.r2 import download_file_from_r2
-            import librosa
-            from app.audio.analyzer import _extract_waveform_peaks
-            import asyncio
-
-            # Download MP3 from R2 to a temporary local file
-            temp_dir = tempfile.gettempdir()
-            temp_mp3_path = os.path.join(temp_dir, f"{submission_id}_peaks_temp.mp3")
-
-            try:
-                if submission.mp3_path.startswith("http://") or submission.mp3_path.startswith("https://"):
-                    # Extract S3 key from URL: we know key is "tracks/{submission_id}/preview.mp3"
-                    r2_key = f"tracks/{submission_id}/preview.mp3"
-                    await download_file_from_r2(r2_key, temp_mp3_path)
-                else:
-                    # Fallback for old local file
-                    if os.path.exists(submission.mp3_path):
-                        temp_mp3_path = submission.mp3_path
-                    else:
-                        raise FileNotFoundError("Local MP3 file missing.")
-
-                def load_and_extract(path):
-                    y, sr = librosa.load(path, sr=None, mono=False)
-                    peaks = _extract_waveform_peaks(y)
-                    duration = float(len(librosa.to_mono(y)) / sr) if sr and len(y) > 0 else 0.0
-                    return peaks, duration
-
-                peaks, duration = await asyncio.to_thread(load_and_extract, temp_mp3_path)
-
-                submission.peaks = peaks
-                if not submission.duration:
-                    submission.duration = duration
-                session.add(submission)
-                session.commit()
-
-            except Exception as e:
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Failed to generate peaks dynamically: {e}"
-                )
-            finally:
-                # Always clean up temp file
-                if temp_mp3_path != submission.mp3_path and os.path.exists(temp_mp3_path):
-                    try:
-                        os.remove(temp_mp3_path)
-                    except OSError:
-                        pass
-        else:
+        try:
+            peaks, duration = await _download_and_extract_peaks(submission, submission_id)
+            submission.peaks = peaks
+            if not submission.duration:
+                submission.duration = duration
+            session.add(submission)
+            session.commit()
+        except HTTPException:
+            raise
+        except Exception as e:
             raise HTTPException(
-                status_code=404,
-                detail="Waveform peaks not available and MP3 file is missing."
-            )
+                status_code=500,
+                detail=f"Failed to generate peaks dynamically: {e}",
+            ) from None
     else:
-        # Check if peaks look "flat" (old normalized peaks where all values are similar)
-        # Old algorithm normalized to max, so most values are 0.9-1.0
-        # New algorithm uses RMS so there's more variance
         import numpy as np
+
         peaks_array = np.array(submission.peaks)
         if len(peaks_array) > 0:
-            # If more than 80% of positive peaks are > 0.85, they're likely old normalized peaks
             positive_peaks = peaks_array[peaks_array > 0]
             if len(positive_peaks) > 0:
                 high_ratio = np.sum(positive_peaks > 0.85) / len(positive_peaks)
                 if high_ratio > 0.8:
-                    # Regenerate with new algorithm
-                    if submission.mp3_path:
-                        import tempfile
-                        from app.services.r2 import download_file_from_r2
-                        import librosa
-                        from app.audio.analyzer import _extract_waveform_peaks
-                        import asyncio
-
-                        temp_dir = tempfile.gettempdir()
-                        temp_mp3_path = os.path.join(temp_dir, f"{submission_id}_peaks_regen.mp3")
-
-                        try:
-                            if submission.mp3_path.startswith("http://") or submission.mp3_path.startswith("https://"):
-                                r2_key = f"tracks/{submission_id}/preview.mp3"
-                                await download_file_from_r2(r2_key, temp_mp3_path)
-                            else:
-                                if os.path.exists(submission.mp3_path):
-                                    temp_mp3_path = submission.mp3_path
-                                else:
-                                    raise FileNotFoundError("Local MP3 file missing.")
-
-                            def load_and_extract(path):
-                                y, sr = librosa.load(path, sr=None, mono=False)
-                                peaks = _extract_waveform_peaks(y)
-                                duration = float(len(librosa.to_mono(y)) / sr) if sr and len(y) > 0 else 0.0
-                                return peaks, duration
-
-                            peaks, duration = await asyncio.to_thread(load_and_extract, temp_mp3_path)
-
-                            submission.peaks = peaks
-                            if not submission.duration:
-                                submission.duration = duration
-                            session.add(submission)
-                            session.commit()
-
-                        except Exception as e:
-                            # If regeneration fails, keep old peaks
-                            pass
-                        finally:
-                            if temp_mp3_path != submission.mp3_path and os.path.exists(temp_mp3_path):
-                                try:
-                                    os.remove(temp_mp3_path)
-                                except OSError:
-                                    pass
+                    try:
+                        peaks, duration = await _download_and_extract_peaks(
+                            submission, submission_id
+                        )
+                        submission.peaks = peaks
+                        if not submission.duration:
+                            submission.duration = duration
+                        session.add(submission)
+                        session.commit()
+                    except Exception:
+                        pass
 
     return {
         "peaks": submission.peaks,

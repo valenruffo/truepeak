@@ -60,7 +60,7 @@ export function Waveform({
         const isPlayed = barProgress <= progress;
         const peak = peaks[peakIndex] || 0;
         const absPeak = Math.abs(peak);
-        const barH = Math.max(2, absPeak * (height - 16) * 0.45);
+        const barH = Math.max(2, absPeak * (height - 8));
 
         return (
           <div

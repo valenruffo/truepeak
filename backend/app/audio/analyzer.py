@@ -11,22 +11,20 @@ import librosa
 import numpy as np
 import pyloudnorm as pyln
 
-from app.audio.exceptions import AudioAnalysisError
-
 
 def _extract_waveform_peaks(y: np.ndarray, target_points: int = 2000) -> list[float]:
-    """Extract waveform peaks from audio signal for WaveSurfer.js.
+    """Extract waveform peaks from audio signal for visualization.
 
-    Uses RMS (energy) per window instead of raw peak to show actual dynamics:
-    quiet sections produce short bars, loud/dense sections produce tall bars.
-    A small floor prevents silent windows from disappearing entirely.
+    Uses pure peak (max absolute sample) per window, then normalizes all
+    peaks relative to the track's global max so quiet tracks fill the
+    display and loud tracks stay proportional.
 
     Args:
         y: Audio signal (mono or stereo).
         target_points: Number of peak pairs to return.
 
     Returns:
-        List of peak values in [-1.0, 1.0] range (not globally normalized).
+        List of peak values in [-1.0, 1.0] range, per-track normalized.
     """
     y_mono = librosa.to_mono(y) if y.ndim == 2 else y
 
@@ -41,26 +39,19 @@ def _extract_waveform_peaks(y: np.ndarray, target_points: int = 2000) -> list[fl
         chunk = y_mono[i : i + window_size]
         if len(chunk) == 0:
             break
-        # Use RMS for the "body" of the bar — shows energy/density, not just max sample
-        rms = float(np.sqrt(np.mean(chunk ** 2)))
-        # Use peak for the "tip" — preserves transient detail
-        positive_peak = float(np.max(chunk))
-        negative_peak = float(np.min(chunk))
-        # Blend: 70% RMS (energy) + 30% peak (transients) for natural look
-        pos_value = 0.7 * rms + 0.3 * positive_peak
-        neg_value = -(0.7 * rms + 0.3 * abs(negative_peak))
+        pos_value = float(np.max(np.abs(chunk)))
+        neg_value = -pos_value
         peaks.append(pos_value)
         peaks.append(neg_value)
         if len(peaks) >= target_points * 2:
             break
 
-    # Small floor so silent sections don't vanish, but no global normalization.
-    # Scale up so the waveform uses the vertical space well (RMS values are
-    # naturally smaller than peaks — typically 0.1-0.3 vs 0.9-1.0).
     floor = 0.02
-    scale = 3.0  # amplify RMS-dominant values to fill the display height
+    global_max = max(abs(p) for p in peaks) if peaks else 1.0
+    if global_max == 0:
+        global_max = 1.0
     peaks = [
-        min(max(p * scale, floor), 1.0) if p >= 0 else max(min(p * scale, -floor), -1.0)
+        min(max(p / global_max, floor), 1.0) if p >= 0 else max(min(p / global_max, -floor), -1.0)
         for p in peaks
     ]
 
