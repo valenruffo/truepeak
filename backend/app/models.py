@@ -68,6 +68,7 @@ class Label(SQLModel, table=True):
     lang: str = Field(default="en")  # "es" | "en" - Label language for email templates
 
     submissions: list["Submission"] = Relationship(back_populates="label")
+    email_templates: list["EmailTemplate"] = Relationship(back_populates="label")
 
 
 class Submission(SQLModel, table=True):
@@ -129,3 +130,24 @@ class EmailLog(SQLModel, table=True):
     body: str | None = Field(default=None, nullable=True)
 
     submission: Submission = Relationship(back_populates="email_logs")
+
+
+class EmailTemplate(SQLModel, table=True):
+    """Custom email templates for labels."""
+
+    __tablename__ = "email_template"
+
+    id: str = Field(default_factory=lambda: str(uuid4()), primary_key=True)
+    label_id: str = Field(foreign_key="label.id", index=True)
+    name: str
+    subject_template: str
+    body_template: str
+    template_type: str = Field(default="custom", index=True)  # rejection | approval | custom
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC),
+    )
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC),
+    )
+
+    label: Label = Relationship(back_populates="email_templates")

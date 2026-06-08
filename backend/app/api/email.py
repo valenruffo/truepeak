@@ -1,4 +1,4 @@
-"""Email API — send, logs, fixed templates."""
+"""Email API — send, logs, templates CRUD."""
 
 from datetime import UTC, datetime
 
@@ -7,9 +7,9 @@ from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from app.database import get_session
-from app.models import EmailLog, Label, Submission
+from app.models import EmailLog, EmailTemplate, Label, Submission
 from app.services.auth import verify_token
-from app.services.email_service import EmailSendError, get_fixed_template, send_email
+from app.services.email_service import EmailSendError, send_email
 
 router = APIRouter(prefix="/api/email", tags=["email"])
 
@@ -37,9 +37,26 @@ class EmailLogResponse(BaseModel):
 
 class TemplateResponse(BaseModel):
     id: str
+    label_id: str
+    name: str
     template_type: str
     subject: str
     body: str
+    created_at: datetime | None = None
+
+
+class CreateTemplateRequest(BaseModel):
+    name: str
+    template_type: str  # rejection | approval | custom
+    subject_template: str
+    body_template: str
+
+
+class UpdateTemplateRequest(BaseModel):
+    name: str | None = None
+    template_type: str | None = None
+    subject_template: str | None = None
+    body_template: str | None = None
 
 
 # --- Auth helper (header + cookie) ---
@@ -197,28 +214,149 @@ async def get_email_logs(
 
 
 @router.get("/templates", response_model=list[TemplateResponse])
-async def list_templates(lang: str = "es"):
-    """Return the fixed email templates (rejection and approval).
-
-    No auth required — these are the same for all labels.
-    Templates include placeholders like {{producer_name}}, {{track_name}}, {{bpm}}, etc.
+async def list_templates(
+    auth: dict = Depends(_get_label_from_token),
+    session: Session = Depends(get_session),
+):
+    """Return email templates for the authenticated label.
     
-    Args:
-        lang: "es" or "en" - language for the templates
+    Returns custom templates created by the label, plus 2 default templates
+    (rejection/approval) if no custom templates exist.
     """
-    rejection = get_fixed_template("rejection", lang)
-    approval = get_fixed_template("approval", lang)
+    label_id = auth["label_id"]
+    
+    # Fetch custom templates for this label
+    templates = session.exec(
+        select(EmailTemplate)
+        .where(EmailTemplate.label_id == label_id)
+        .order_by(EmailTemplate.created_at.desc())
+    ).all()
+    
+    # If no templates exist, return 2 default templates (fallback)
+    if not templates:
+        from app.services.email_service import get_fixed_template
+        lang = "es"  # Default to Spanish
+        
+        rejection = get_fixed_template("rejection", lang)
+        approval = get_fixed_template("approval", lang)
+        
+        return [
+            TemplateResponse(
+                id="default-rejection",
+                label_id=label_id,
+                name="Rechazo",
+                template_type="rejection",
+                subject=rejection["subject"],
+                body=rejection["body"],
+            ),
+            TemplateResponse(
+                id="default-approval",
+                label_id=label_id,
+                name="Aprobación",
+                template_type="approval",
+                subject=approval["subject"],
+                body=approval["body"],
+            ),
+        ]
+    
+    # Return custom templates
     return [
         TemplateResponse(
-            id="fixed-rejection",
-            template_type="rejection",
-            subject=rejection["subject"],
-            body=rejection["body"],
-        ),
-        TemplateResponse(
-            id="fixed-approval",
-            template_type="approval",
-            subject=approval["subject"],
-            body=approval["body"],
-        ),
+            id=t.id,
+            label_id=t.label_id,
+            name=t.name,
+            template_type=t.template_type,
+            subject=t.subject_template,
+            body=t.body_template,
+            created_at=t.created_at,
+        )
+        for t in templates
     ]
+
+
+@router.post("/templates", response_model=TemplateResponse)
+async def create_template(
+    body: CreateTemplateRequest,
+    auth: dict = Depends(_get_label_from_token),
+    session: Session = Depends(get_session),
+):
+    """Create a new email template for the authenticated label."""
+    template = EmailTemplate(
+        label_id=auth["label_id"],
+        name=body.name,
+        template_type=body.template_type,
+        subject_template=body.subject_template,
+        body_template=body.body_template,
+    )
+    session.add(template)
+    session.commit()
+    session.refresh(template)
+    
+    return TemplateResponse(
+        id=template.id,
+        label_id=template.label_id,
+        name=template.name,
+        template_type=template.template_type,
+        subject=template.subject_template,
+        body=template.body_template,
+        created_at=template.created_at,
+    )
+
+
+@router.put("/templates/{template_id}", response_model=TemplateResponse)
+async def update_template(
+    template_id: str,
+    body: UpdateTemplateRequest,
+    auth: dict = Depends(_get_label_from_token),
+    session: Session = Depends(get_session),
+):
+    """Update an existing email template."""
+    template = session.get(EmailTemplate, template_id)
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found.")
+    if template.label_id != auth["label_id"]:
+        raise HTTPException(status_code=403, detail="Access denied to this template.")
+    
+    # Update fields if provided
+    if body.name is not None:
+        template.name = body.name
+    if body.template_type is not None:
+        template.template_type = body.template_type
+    if body.subject_template is not None:
+        template.subject_template = body.subject_template
+    if body.body_template is not None:
+        template.body_template = body.body_template
+    
+    template.updated_at = datetime.now(UTC)
+    session.add(template)
+    session.commit()
+    session.refresh(template)
+    
+    return TemplateResponse(
+        id=template.id,
+        label_id=template.label_id,
+        name=template.name,
+        template_type=template.template_type,
+        subject=template.subject_template,
+        body=template.body_template,
+        created_at=template.created_at,
+    )
+
+
+@router.delete("/templates/{template_id}")
+async def delete_template(
+    template_id: str,
+    auth: dict = Depends(_get_label_from_token),
+    session: Session = Depends(get_session),
+):
+    """Delete an email template."""
+    template = session.get(EmailTemplate, template_id)
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found.")
+    if template.label_id != auth["label_id"]:
+        raise HTTPException(status_code=403, detail="Access denied to this template.")
+    
+    session.delete(template)
+    session.commit()
+    
+    return {"status": "deleted"}
