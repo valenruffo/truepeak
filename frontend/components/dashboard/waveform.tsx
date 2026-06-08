@@ -16,9 +16,9 @@ interface WaveformProps {
 export function Waveform({
   peaks,
   progress,
-  height = 48,
-  barWidth = 3,
-  barGap = 1,
+  height = 64,
+  barWidth = 1,
+  barGap = 0,
   playedColor = "#10b981",
   unplayedColor = "var(--border)",
   onSeek,
@@ -37,7 +37,7 @@ export function Waveform({
 
   if (!peaks || peaks.length === 0) return null;
 
-  const totalBars = Math.min(peaks.length, 400);
+  const totalBars = Math.min(peaks.length, 1000);
   const step = Math.max(1, Math.floor(peaks.length / totalBars));
   const halfHeight = height / 2;
   const center = halfHeight;
@@ -46,7 +46,7 @@ export function Waveform({
     <div
       ref={containerRef}
       onClick={handleClick}
-      className="flex items-center gap-px"
+      className="flex items-center"
       style={{
         width: "100%",
         height: `${height}px`,
@@ -60,12 +60,12 @@ export function Waveform({
         const isPlayed = barProgress <= progress;
         const peak = peaks[peakIndex] || 0;
         const absPeak = Math.abs(peak);
-        const barH = Math.max(2, absPeak * (height - 8));
+        const barH = Math.max(1, absPeak * (height - 4));
 
         return (
           <div
             key={i}
-            className="rounded-full flex-shrink-0"
+            className="flex-shrink-0"
             style={{
               width: `${barWidth}px`,
               height: `${barH}px`,

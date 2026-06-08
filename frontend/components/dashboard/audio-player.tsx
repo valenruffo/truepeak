@@ -104,7 +104,7 @@ export function AudioPlayer({ src, trackTitle, submissionId }: AudioPlayerProps)
         <Waveform
           peaks={peaks}
           progress={progress}
-          height={48}
+          height={64}
           onSeek={handleSeek}
         />
       </div>
