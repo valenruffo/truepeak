@@ -1981,11 +1981,7 @@ useEffect(() => {
   // ─── Status change for list view ──────────────────────────────────────────
 
   const handleStatusChange = async (sub: SubmissionSummary, newStatus: "inbox" | "shortlist" | "rejected") => {
-    if (newStatus === "rejected") {
-      setPendingReject({ sub, reason: "" });
-    } else {
-      await updateStatus(sub, newStatus);
-    }
+    await updateStatus(sub, newStatus);
   };
 
   const handleLoadMoreList = async () => {
