@@ -1242,8 +1242,11 @@ useEffect(() => {
       for (const col of ["inbox", "shortlist", "rejected"] as const) {
         next[col] = next[col].filter((s) => s.id !== sub.id);
       }
-      // Add to target column
+      // Add to target column with updated status and rejection_reason if applicable
       const updated = { ...sub, status };
+      if (status === "rejected" && reason) {
+        updated.rejection_reason = reason;
+      }
       if (status === "shortlist") {
         next.shortlist = [updated, ...next.shortlist];
       } else if (status === "rejected") {
@@ -3185,10 +3188,10 @@ useEffect(() => {
                         {emailModal.submission.producer_email}
                       </span>
                       <Link
-                        href="/config"
+                        href="/crm"
                         className="text-[10px] font-medium hover:underline flex-shrink-0"
                         style={{ color: "#10b981" }}
-                        title="Cambiar reply-to desde Configuración → Emails"
+                        title="Cambiar reply-to desde Emails"
                         onClick={(e) => {
                           e.stopPropagation();
                           closeEmailModal();
