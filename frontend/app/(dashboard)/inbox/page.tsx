@@ -1298,39 +1298,57 @@ useEffect(() => {
     sub: SubmissionSummary,
     targetStatus: "shortlist" | "rejected"
   ) => {
-    // Fetch fixed templates
-    let templates: EmailTemplate[] = [];
-    try {
-      const res = await fetch(`/api/email/templates?lang=${lang}`);
-      if (res.ok) templates = await res.json();
-    } catch {
-      // silent — will use empty defaults
+    // Only fetch templates if we don't already have content (first open)
+    const hasExistingContent = emailSubject.trim() || emailBody.trim();
+    const isSameSubmission = emailModal.submission?.id === sub.id;
+    const isSameStatus = emailModal.targetStatus === targetStatus;
+
+    if (!hasExistingContent || !isSameSubmission || !isSameStatus) {
+      // Fetch fixed templates
+      let templates: EmailTemplate[] = [];
+      try {
+        const res = await fetch(`/api/email/templates?lang=${lang}`);
+        if (res.ok) templates = await res.json();
+      } catch {
+        // silent — will use empty defaults
+      }
+
+      const targetType =
+        targetStatus === "shortlist" ? "approval" : "rejection";
+      const match = templates.find((t) => t.template_type === targetType);
+
+      const initSubject = match
+        ? replaceVariables(cleanHtmlToPlainText(match.subject), sub, labelName)
+        : "";
+      const initBody = match
+        ? replaceVariables(cleanHtmlToPlainText(match.body), sub, labelName)
+        : "";
+
+      setEmailSubject(initSubject);
+      setEmailBody(initBody);
+
+      setEmailModal({
+        open: true,
+        submission: sub,
+        targetStatus,
+        subject: initSubject,
+        body: initBody,
+        sending: false,
+        sent: false,
+        error: null,
+      });
+    } else {
+      // Reopening with existing content — just set the modal state
+      setEmailModal((p) => ({
+        ...p,
+        open: true,
+        submission: sub,
+        targetStatus,
+        sending: false,
+        sent: false,
+        error: null,
+      }));
     }
-
-    const targetType =
-      targetStatus === "shortlist" ? "approval" : "rejection";
-    const match = templates.find((t) => t.template_type === targetType);
-
-    const initSubject = match
-      ? replaceVariables(cleanHtmlToPlainText(match.subject), sub, labelName)
-      : "";
-    const initBody = match
-      ? replaceVariables(cleanHtmlToPlainText(match.body), sub, labelName)
-      : "";
-
-    setEmailSubject(initSubject);
-    setEmailBody(initBody);
-
-    setEmailModal({
-      open: true,
-      submission: sub,
-      targetStatus,
-      subject: initSubject,
-      body: initBody,
-      sending: false,
-      sent: false,
-      error: null,
-    });
   };
 
   const handleSendEmail = async () => {
@@ -3159,6 +3177,36 @@ useEffect(() => {
 
               {!emailModal.sent && (
                 <>
+                  {/* Reply-to indicator */}
+                  {emailModal.submission.producer_email && (
+                    <div className="flex items-center gap-2 rounded px-3 py-2 text-xs" style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.2)" }}>
+                      <Mail className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "#10b981" }} />
+                      <span className="flex-1 truncate" style={{ color: "#10b981" }}>
+                        {emailModal.submission.producer_email}
+                      </span>
+                      <Link
+                        href="/config"
+                        className="text-[10px] font-medium hover:underline flex-shrink-0"
+                        style={{ color: "#10b981" }}
+                        title="Cambiar reply-to desde Configuración → Emails"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          closeEmailModal();
+                        }}
+                      >
+                        Emails →
+                      </Link>
+                    </div>
+                  )}
+
+                  {/* Rejection reason context */}
+                  {emailModal.targetStatus === "rejected" && emailModal.submission.rejection_reason && (
+                    <div className="rounded px-3 py-2 text-xs" style={{ background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.15)" }}>
+                      <div className="font-medium mb-1" style={{ color: "#ef4444" }}>Motivo de rechazo:</div>
+                      <div style={{ color: "var(--text-secondary)" }}>{emailModal.submission.rejection_reason}</div>
+                    </div>
+                  )}
+
                   {/* Template indicator */}
                   <div>
                     <label className="text-[10px] text-muted uppercase tracking-wider block mb-1">
