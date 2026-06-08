@@ -46,20 +46,22 @@ def _extract_waveform_peaks(y: np.ndarray, target_points: int = 2000) -> list[fl
         if len(peaks) >= target_points * 2:
             break
 
-    floor = 0.02
-    abs_peaks = [abs(p) for p in peaks]
-    abs_sorted = sorted(abs_peaks)
-    # Use 75th percentile as reference (not max) to avoid compression from loud masters
-    p75_index = int(len(abs_sorted) * 0.75)
-    p75 = abs_sorted[p75_index] if p75_index < len(abs_sorted) else abs_sorted[-1]
-    if p75 == 0:
-        p75 = 1.0
+    floor = 0.001
+    abs_peaks = [max(abs(p), floor) for p in peaks]
+    max_peak = max(abs_peaks)
+    if max_peak == 0:
+        max_peak = 1.0
 
-    # Apply cube root curve to aggressively expand low values
-    # 0.125 -> 0.5, 0.001 -> 0.1, 0.5 -> 0.79
+    # Log scale: expands low values dramatically
+    # 0.001 -> 0%, 0.01 -> 33%, 0.1 -> 67%, 1.0 -> 100%
+    log_min = 0  # log10(floor) = -3, but we normalize to [0, 1]
+    log_max = 1  # log10(1.0) = 0, normalized to 1
+    log_floor = -3  # log10(0.001)
+
     peaks = [
-        min(max((p / p75) ** (1/3), floor), 1.0) if p >= 0 else max(min(-((-p) / p75) ** (1/3), -floor), -1.0)
-        for p in peaks
+        min(max((np.log10(p) - log_floor) / (0 - log_floor), floor), 1.0) if p >= 0
+        else max(min((np.log10(-p) - log_floor) / (0 - log_floor), -floor), -1.0)
+        for p in abs_peaks
     ]
 
     return peaks
