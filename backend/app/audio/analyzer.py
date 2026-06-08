@@ -46,22 +46,19 @@ def _extract_waveform_peaks(y: np.ndarray, target_points: int = 2000) -> list[fl
         if len(peaks) >= target_points * 2:
             break
 
-    floor = 0.001
-    abs_peaks = [max(abs(p), floor) for p in peaks]
-    max_peak = max(abs_peaks)
-    if max_peak == 0:
-        max_peak = 1.0
+    floor = 0.02
+    abs_peaks = [abs(p) for p in peaks]
+    abs_sorted = sorted(abs_peaks)
+    # Use median (50th percentile) as reference — much lower than max for loud masters
+    p50_index = int(len(abs_sorted) * 0.50)
+    p50 = abs_sorted[p50_index] if p50_index < len(abs_sorted) else abs_sorted[-1]
+    if p50 == 0:
+        p50 = 1.0
 
-    # Log scale: expands low values dramatically
-    # 0.001 -> 0%, 0.01 -> 33%, 0.1 -> 67%, 1.0 -> 100%
-    log_min = 0  # log10(floor) = -3, but we normalize to [0, 1]
-    log_max = 1  # log10(1.0) = 0, normalized to 1
-    log_floor = -3  # log10(0.001)
-
+    # Sqrt curve: 0.25 -> 0.5, 0.01 -> 0.1, values > p50 get compressed to 1.0
     peaks = [
-        min(max((np.log10(p) - log_floor) / (0 - log_floor), floor), 1.0) if p >= 0
-        else max(min((np.log10(-p) - log_floor) / (0 - log_floor), -floor), -1.0)
-        for p in abs_peaks
+        min(max((p / p50) ** 0.5, floor), 1.0) if p >= 0 else max(min(-((-p) / p50) ** 0.5, -floor), -1.0)
+        for p in peaks
     ]
 
     return peaks
