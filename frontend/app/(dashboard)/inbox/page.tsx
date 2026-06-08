@@ -941,12 +941,6 @@ useEffect(() => {
   // Action loading per card
   const [actionLoading, setActionLoading] = useState<Record<string, string>>({});
 
-  // Rejection reason for drag-to-reject
-  const [pendingReject, setPendingReject] = useState<{
-    sub: SubmissionSummary;
-    reason: string;
-  } | null>(null);
-
   // Download loading state per submission
   const [downloadLoading, setDownloadLoading] = useState<Record<string, boolean>>({});
 
@@ -1212,21 +1206,8 @@ useEffect(() => {
     // If dropping to same column, no status change needed
     if (!targetStatus || destination.droppableId === sourceCol) return;
 
-    // If rejecting, we need a reason — open rejection modal
-    if (targetStatus === "rejected") {
-      setPendingReject({ sub, reason: "" });
-      return;
-    }
-
-    if (targetStatus === "inbox") {
-      markAsInteracted(subId);
-      await updateStatus(sub, "inbox");
-      return;
-    }
-
-    // Shortlist: update status then open email modal
     markAsInteracted(subId);
-    await updateStatus(sub, "shortlist");
+    await updateStatus(sub, targetStatus);
   };
 
   const updateStatus = async (
@@ -1648,25 +1629,6 @@ useEffect(() => {
         mp3_path: sub.mp3_path,
       });
     }
-  };
-
-  // ─── Handle pending reject submit ─────────────────────────────────────────
-
-  const handleRejectSubmit = () => {
-    if (!pendingReject) return;
-    if (!pendingReject.reason.trim()) {
-      addToast({
-        title: t("inbox.kanban.rejection_reason_required"),
-        variant: "destructive",
-      });
-      return;
-    }
-    updateStatus(
-      pendingReject.sub,
-      "rejected",
-      pendingReject.reason.trim()
-    );
-    setPendingReject(null);
   };
 
   // ─── Render: Kanban Card ──────────────────────────────────────────────────
@@ -3321,87 +3283,6 @@ useEffect(() => {
                   </div>
                 </>
               )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ─── Rejection Reason Modal ──────────────────────────────────────── */}
-      {pendingReject && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center"
-          style={{ background: "rgba(0,0,0,0.7)" }}
-          onClick={() => setPendingReject(null)}
-        >
-          <div
-            className="rounded border max-w-md w-full mx-4 overflow-hidden"
-            style={{
-              borderColor: "var(--border)",
-              background: "var(--bg-secondary)",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div
-              className="flex items-center justify-between px-5 py-4 border-b"
-              style={{ borderColor: "var(--border)" }}
-            >
-              <h2 className="font-display font-semibold text-base">
-                {t("inbox.kanban.reject")} —{" "}
-                {pendingReject.sub.track_name || t("inbox.modal.no_name")}
-              </h2>
-              <button
-                onClick={() => setPendingReject(null)}
-                className="w-7 h-7 rounded flex items-center justify-center text-muted hover:text-white transition-colors"
-                style={{ background: "var(--bg-card-alt)" }}
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="px-5 py-4 space-y-4">
-              <div>
-                <label className="text-[10px] text-muted uppercase tracking-wider block mb-1">
-                  {t("inbox.kanban.rejection_reason_placeholder")}
-                </label>
-                <textarea
-                  value={pendingReject.reason}
-                  onChange={(e) =>
-                    setPendingReject((p) =>
-                      p ? { ...p, reason: e.target.value } : null
-                    )
-                  }
-                  rows={3}
-                  className="w-full rounded px-3 py-2 text-sm border resize-none"
-                  style={{
-                    background: "var(--bg-card)",
-                    borderColor: "var(--border)",
-                    color: "var(--text-primary)",
-                  }}
-                  placeholder={t(
-                    "inbox.kanban.rejection_reason_placeholder"
-                  )}
-                />
-              </div>
-
-              <div className="flex items-center gap-2 justify-end pt-2">
-                <button
-                  onClick={() => setPendingReject(null)}
-                  className="px-4 py-2 rounded text-sm font-medium transition-colors hover:bg-white/10"
-                  style={{
-                    background: "var(--bg-card-alt)",
-                    color: "var(--text-secondary)",
-                  }}
-                >
-                  {t("inbox.kanban.email_skip")}
-                </button>
-                <button
-                  onClick={handleRejectSubmit}
-                  className="px-4 py-2 rounded text-sm font-medium transition-colors"
-                  style={{ background: "#ef4444", color: "#fff" }}
-                >
-                  {t("inbox.kanban.reject")}
-                </button>
-              </div>
             </div>
           </div>
         </div>
