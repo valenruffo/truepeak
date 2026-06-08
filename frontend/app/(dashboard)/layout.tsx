@@ -85,10 +85,10 @@ function PlayerBar() {
         progressColor: "#10b981",
         cursorColor: "#10b981",
         cursorWidth: 1,
-        height: 48,
-        barWidth: 3,
-        barGap: 1,
-        barRadius: 2,
+        height: 64,
+        barWidth: 1,
+        barGap: 0,
+        barRadius: 0,
         normalize: false,
         peaks: peaksData ? [peaksData] : undefined,
         duration: trackDuration || durationRef.current || undefined,
@@ -122,7 +122,7 @@ function PlayerBar() {
     <div
       className="fixed bottom-0 left-0 right-0 z-30 flex items-center gap-2 md:gap-4 px-2 md:px-4 md:ml-[200px]"
       style={{
-        height: "64px",
+        height: "80px",
         background: "var(--bg-card)",
         borderTop: "1px solid var(--border)",
       }}
@@ -150,7 +150,7 @@ function PlayerBar() {
       {/* WaveSurfer waveform container */}
       <div
         className="flex-1 relative group"
-        style={{ height: "48px", minWidth: 0 }}
+        style={{ height: "64px", minWidth: 0 }}
         onPointerMove={(e) => {
           if (isCurrentlyLoading) return;
           const rect = e.currentTarget.getBoundingClientRect();
@@ -721,7 +721,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <main className="flex-1 pt-12 md:pt-0" style={{ marginLeft: "0", paddingBottom: "80px" }}>
+      <main className="flex-1 pt-12 md:pt-0" style={{ marginLeft: "0", paddingBottom: "96px" }}>
         <div className="mx-auto max-w-6xl px-3 md:px-6 py-4 md:py-8 md:ml-[200px]">
           {/* Frozen State Banner */}
           {subscriptionStatus === "frozen" && (
