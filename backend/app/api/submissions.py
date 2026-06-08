@@ -250,14 +250,10 @@ async def update_submission_status(
 
     _verify_label_ownership(session, auth["label_id"], submission)
 
-    # Rejecting requires a reason
+    # Rejecting optionally includes a reason
     if body.status == "rejected":
-        if not body.rejection_reason:
-            raise HTTPException(
-                status_code=400,
-                detail="rejection_reason is required when rejecting.",
-            )
-        submission.rejection_reason = body.rejection_reason
+        if body.rejection_reason:
+            submission.rejection_reason = body.rejection_reason
 
     # Approving/shortlisting requires MP3 preview availability
     if body.status in ("approved", "shortlist") and not submission.mp3_path:
