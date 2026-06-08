@@ -1234,6 +1234,27 @@ useEffect(() => {
     status: "inbox" | "shortlist" | "rejected",
     reason?: string
   ) => {
+    // Optimistic update: move card immediately to target column
+    const previousBoard = { ...board };
+    setBoard((prev) => {
+      const next = { ...prev };
+      // Remove from all columns
+      for (const col of ["inbox", "shortlist", "rejected"] as const) {
+        next[col] = next[col].filter((s) => s.id !== sub.id);
+      }
+      // Add to target column
+      const updated = { ...sub, status };
+      if (status === "shortlist") {
+        next.shortlist = [updated, ...next.shortlist];
+      } else if (status === "rejected") {
+        next.rejected = [updated, ...next.rejected];
+      } else if (status === "inbox") {
+        next.inbox = [updated, ...next.inbox];
+      }
+      setCache("tp_inbox_board", next);
+      return next;
+    });
+
     setActionLoading((p) => ({ ...p, [sub.id]: status }));
     try {
       const body: Record<string, unknown> = { status };
@@ -1251,25 +1272,12 @@ useEffect(() => {
         throw new Error(err.detail || `Error ${res.status}`);
       }
 
-      // Remove from source column, add to target
-      setBoard((prev) => {
-        const next = { ...prev };
-        for (const col of ["inbox", "shortlist", "rejected"] as const) {
-          next[col] = next[col].filter((s) => s.id !== sub.id);
-        }
-        const updated = { ...sub, status };
-        if (status === "shortlist") {
-          next.shortlist = [updated, ...next.shortlist];
-        } else if (status === "rejected") {
-          next.rejected = [updated, ...next.rejected];
-        } else if (status === "inbox") {
-          next.inbox = [updated, ...next.inbox];
-        }
-        setCache("tp_inbox_board", next);
-        return next;
-      });
+      // Success: keep the optimistic update, just clear loading
       // NOTE: email modal is now decoupled — user triggers it manually from the card
     } catch (e) {
+      // Revert optimistic update on error
+      setBoard(previousBoard);
+      setCache("tp_inbox_board", previousBoard);
       addToast({
         title: "Error",
         description: e instanceof Error ? e.message : t("inbox.error_unknown"),
@@ -1658,11 +1666,11 @@ useEffect(() => {
             className={cn(
               "rounded border mb-2 transition-all duration-200 overflow-hidden cursor-pointer",
               snapshot.isDragging && "shadow-lg opacity-80",
-              isLoading && "opacity-50 pointer-events-none"
+              isLoading && "border-emerald-500/50 shadow-[0_0_0_1px_rgba(16,185,129,0.3)]"
             )}
             style={{
               background: "var(--bg-card)",
-              borderColor: "var(--border)",
+              borderColor: isLoading ? "rgba(16,185,129,0.5)" : "var(--border)",
               ...provided.draggableProps.style,
             }}
             onClick={() => {
@@ -1697,6 +1705,13 @@ useEffect(() => {
                     {sub.producer_name || t("inbox.modal.anonymous")}
                   </div>
                 </div>
+
+                {/* Loading indicator */}
+                {isLoading && (
+                  <div className="flex-shrink-0 mt-1">
+                    <div className="w-3 h-3 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
+                  </div>
+                )}
               </div>
 
               {/* Metrics row */}
