@@ -2151,7 +2151,7 @@ useEffect(() => {
 
                   {/* Reject (cross) — disabled if already rejected */}
                   <button
-                    onClick={() => setPendingReject({ sub: d, reason: "" })}
+                    onClick={() => handleStatusChange(d, "rejected")}
                     disabled={!!isLoading || d.status === "rejected"}
                     className="w-7 h-7 rounded flex items-center justify-center transition-colors hover:bg-red-500/10"
                     style={{
@@ -3074,7 +3074,7 @@ useEffect(() => {
                 {detailModal.submission.status === "inbox" && (
                   <>
                     <button
-                      onClick={() => { setPendingReject({ sub: detailModal.submission!, reason: "" }); setDetailModal({ open: false, submission: null }); }}
+                      onClick={() => { updateStatus(detailModal.submission!, "rejected"); setDetailModal({ open: false, submission: null }); }}
                       className="text-[10px] font-bold text-red-500 hover:underline uppercase tracking-widest"
                     >
                       {t("inbox.kanban.reject")}
