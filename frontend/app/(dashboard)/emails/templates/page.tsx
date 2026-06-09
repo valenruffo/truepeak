@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Mail, Plus, Edit2, Trash2, X, RotateCcw } from "lucide-react";
+import { Mail, Plus, Edit2, Trash2, X, RotateCcw, Loader2 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 
 interface EmailTemplate {
@@ -12,29 +12,46 @@ interface EmailTemplate {
   subject: string;
   body: string;
   is_default?: boolean;
+  is_modified?: boolean;
+}
+
+interface DefaultTemplate {
+  id: string;
+  name: string;
+  template_type: string;
+  subject: string;
+  body: string;
 }
 
 const variables = [
-  { key: "{producer}", label: "Productor" },
+  { key: "{producer}", label: "Producer" },
   { key: "{track}", label: "Track" },
   { key: "{bpm}", label: "BPM" },
-  { key: "{label}", label: "Sello" },
+  { key: "{label}", label: "Label" },
   { key: "{lufs}", label: "LUFS" },
-  { key: "{phase_correlation}", label: "Fase" },
-  { key: "{musical_key}", label: "Tonalidad" },
+  { key: "{phase_correlation}", label: "Phase" },
+  { key: "{musical_key}", label: "Key" },
   { key: "{true_peak}", label: "True Peak" },
   { key: "{crest_factor}", label: "Crest" },
-  { key: "{duration}", label: "Duración" },
+  { key: "{duration}", label: "Duration" },
   { key: "{status}", label: "Status" },
-  { key: "{rejection_reason}", label: "Motivo" },
+  { key: "{rejection_reason}", label: "Reason" },
 ];
+
+// Replace {variable} with green badge HTML
+const renderVariableBadges = (text: string): string => {
+  if (!text) return "";
+  return text.replace(/\{(\w+)\}/g, '<span style="background: rgba(16,185,129,0.1); color: #10b981; border: 1px solid rgba(16,185,129,0.2); padding: 2px 6px; border-radius: 4px; font-size: 0.85em; font-weight: 500;">{$1}</span>');
+};
 
 export default function TemplatesPage() {
   const { t, lang } = useLanguage();
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
+  const [defaultTemplates, setDefaultTemplates] = useState<DefaultTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     template_type: "custom",
@@ -44,6 +61,7 @@ export default function TemplatesPage() {
 
   useEffect(() => {
     fetchTemplates();
+    fetchDefaultTemplates();
   }, []);
 
   const fetchTemplates = async () => {
@@ -55,12 +73,36 @@ export default function TemplatesPage() {
       });
       if (res.ok) {
         const data = await res.json();
-        setTemplates(data);
+        // Mark templates as modified if they differ from defaults
+        const templatesWithStatus = data.map((t: EmailTemplate) => {
+          const defaultTemplate = defaultTemplates.find((d) => d.template_type === t.template_type);
+          const isModified = defaultTemplate 
+            ? (t.subject !== defaultTemplate.subject || t.body !== defaultTemplate.body)
+            : false;
+          return { ...t, is_modified: isModified };
+        });
+        setTemplates(templatesWithStatus);
       }
     } catch (err) {
       console.error("Error fetching templates:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchDefaultTemplates = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch("/api/email/templates?defaults=true", {
+        credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setDefaultTemplates(data);
+      }
+    } catch (err) {
+      console.error("Error fetching default templates:", err);
     }
   };
 
@@ -87,7 +129,7 @@ export default function TemplatesPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("¿Eliminar esta plantilla?")) return;
+    if (!confirm(lang === "es" ? "¿Eliminar esta plantilla?" : "Delete this template?")) return;
     
     try {
       const token = localStorage.getItem("token");
@@ -105,36 +147,31 @@ export default function TemplatesPage() {
   };
 
   const handleRestore = async (template: EmailTemplate) => {
-    if (!confirm("¿Restaurar esta plantilla a su versión original? Se perderán los cambios.")) return;
+    const confirmMsg = lang === "es" 
+      ? "¿Restaurar esta plantilla a su versión original? Se perderán los cambios."
+      : "Restore this template to its original version? Changes will be lost.";
+    if (!confirm(confirmMsg)) return;
     
-    // Fetch default templates to get original content
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch("/api/email/templates?defaults=true", {
-        credentials: "include",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (res.ok) {
-        const defaults = await res.json();
-        const original = defaults.find((d: EmailTemplate) => d.template_type === template.template_type);
-        if (original) {
-          const updateRes = await fetch(`/api/email/templates/${template.id}`, {
-            method: "PUT",
-            credentials: "include",
-            headers: {
-              "Content-Type": "application/json",
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
-            body: JSON.stringify({
-              name: original.name,
-              template_type: original.template_type,
-              subject_template: original.subject,
-              body_template: original.body,
-            }),
-          });
-          if (updateRes.ok) {
-            fetchTemplates();
-          }
+      const original = defaultTemplates.find((d) => d.template_type === template.template_type);
+      if (original) {
+        const updateRes = await fetch(`/api/email/templates/${template.id}`, {
+          method: "PUT",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            name: original.name,
+            template_type: original.template_type,
+            subject_template: original.subject,
+            body_template: original.body,
+          }),
+        });
+        if (updateRes.ok) {
+          fetchTemplates();
         }
       }
     } catch (err) {
@@ -143,6 +180,7 @@ export default function TemplatesPage() {
   };
 
   const handleSave = async () => {
+    setSaving(true);
     try {
       const token = localStorage.getItem("token");
       const url = editingTemplate
@@ -172,6 +210,8 @@ export default function TemplatesPage() {
       }
     } catch (err) {
       console.error("Error saving template:", err);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -182,11 +222,6 @@ export default function TemplatesPage() {
     });
   };
 
-  // Render HTML preview (for default templates)
-  const renderPreview = (html: string) => {
-    return { __html: html };
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -195,14 +230,20 @@ export default function TemplatesPage() {
     );
   }
 
+  const isEn = lang === "en";
+
   return (
     <div className="p-6 max-w-6xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-primary">Plantillas de Email</h1>
+          <h1 className="text-2xl font-bold text-primary">
+            {isEn ? "Email Templates" : "Plantillas de Email"}
+          </h1>
           <p className="text-sm text-muted mt-1">
-            Crea y gestiona plantillas personalizadas para tus emails
+            {isEn 
+              ? "Create and manage custom email templates"
+              : "Crea y gestiona plantillas personalizadas para tus emails"}
           </p>
         </div>
         <button
@@ -210,7 +251,7 @@ export default function TemplatesPage() {
           className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500 text-black font-medium hover:bg-emerald-600 transition-colors"
         >
           <Plus className="w-4 h-4" />
-          Nueva Plantilla
+          {isEn ? "New Template" : "Nueva Plantilla"}
         </button>
       </div>
 
@@ -246,11 +287,12 @@ export default function TemplatesPage() {
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                {template.is_default && (
+                {/* Show restore button ONLY if template has been modified */}
+                {template.is_modified && (
                   <button
                     onClick={() => handleRestore(template)}
                     className="p-2 rounded hover:bg-white/5 text-muted hover:text-primary transition-colors"
-                    title="Restaurar original"
+                    title={isEn ? "Restore original" : "Restaurar original"}
                   >
                     <RotateCcw className="w-4 h-4" />
                   </button>
@@ -258,14 +300,14 @@ export default function TemplatesPage() {
                 <button
                   onClick={() => handleEdit(template)}
                   className="p-2 rounded hover:bg-white/5 text-muted hover:text-primary transition-colors"
-                  title="Editar"
+                  title={isEn ? "Edit" : "Editar"}
                 >
                   <Edit2 className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => handleDelete(template.id)}
                   className="p-2 rounded hover:bg-red-500/10 text-muted hover:text-red-500 transition-colors"
-                  title="Eliminar"
+                  title={isEn ? "Delete" : "Eliminar"}
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
@@ -274,17 +316,21 @@ export default function TemplatesPage() {
 
             {/* Subject */}
             <div className="mb-3">
-              <div className="text-[10px] font-medium text-muted uppercase tracking-wider mb-1">Asunto</div>
+              <div className="text-[10px] font-medium text-muted uppercase tracking-wider mb-1">
+                {isEn ? "Subject" : "Asunto"}
+              </div>
               <div className="text-sm text-primary">{template.subject}</div>
             </div>
 
-            {/* Body Preview */}
+            {/* Body Preview with variable badges */}
             <div>
-              <div className="text-[10px] font-medium text-muted uppercase tracking-wider mb-1">Vista previa</div>
+              <div className="text-[10px] font-medium text-muted uppercase tracking-wider mb-1">
+                {isEn ? "Preview" : "Vista previa"}
+              </div>
               <div 
-                className="text-sm text-primary p-3 rounded border"
+                className="text-sm text-primary p-3 rounded border whitespace-pre-wrap"
                 style={{ background: "var(--bg-secondary)", borderColor: "var(--border)" }}
-                dangerouslySetInnerHTML={renderPreview(template.body)}
+                dangerouslySetInnerHTML={{ __html: renderVariableBadges(template.body) }}
               />
             </div>
           </div>
@@ -294,8 +340,12 @@ export default function TemplatesPage() {
       {templates.length === 0 && (
         <div className="text-center py-12 text-muted">
           <Mail className="w-12 h-12 mx-auto mb-4 opacity-50" />
-          <p className="text-sm">No hay plantillas creadas</p>
-          <p className="text-xs mt-1">Crea tu primera plantilla para comenzar</p>
+          <p className="text-sm">
+            {isEn ? "No templates created yet" : "No hay plantillas creadas"}
+          </p>
+          <p className="text-xs mt-1">
+            {isEn ? "Create your first template to get started" : "Crea tu primera plantilla para comenzar"}
+          </p>
         </div>
       )}
 
@@ -320,7 +370,9 @@ export default function TemplatesPage() {
               style={{ borderColor: "var(--border)" }}
             >
               <h2 className="font-semibold text-lg text-primary">
-                {editingTemplate ? "Editar Plantilla" : "Nueva Plantilla"}
+                {editingTemplate 
+                  ? (isEn ? "Edit Template" : "Editar Plantilla")
+                  : (isEn ? "New Template" : "Nueva Plantilla")}
               </h2>
               <button
                 onClick={() => {
@@ -337,20 +389,24 @@ export default function TemplatesPage() {
             <div className="flex-1 overflow-auto p-6 space-y-4">
               {/* Name */}
               <div>
-                <label className="text-xs font-medium text-muted block mb-1">Nombre</label>
+                <label className="text-xs font-medium text-muted block mb-1">
+                  {isEn ? "Name" : "Nombre"}
+                </label>
                 <input
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   className="w-full px-3 py-2 rounded border text-sm"
                   style={{ background: "var(--bg-card)", borderColor: "var(--border)", color: "var(--text-primary)" }}
-                  placeholder="Ej: Rechazo técnico"
+                  placeholder={isEn ? "e.g., Technical Rejection" : "Ej: Rechazo técnico"}
                 />
               </div>
 
               {/* Type */}
               <div>
-                <label className="text-xs font-medium text-muted block mb-1">Tipo</label>
+                <label className="text-xs font-medium text-muted block mb-1">
+                  {isEn ? "Type" : "Tipo"}
+                </label>
                 <select
                   value={formData.template_type}
                   onChange={(e) => setFormData({ ...formData, template_type: e.target.value })}
@@ -358,40 +414,46 @@ export default function TemplatesPage() {
                   style={{ background: "var(--bg-card)", borderColor: "var(--border)", color: "var(--text-primary)" }}
                 >
                   <option value="custom">Custom</option>
-                  <option value="rejection">Rechazo</option>
-                  <option value="approval">Aprobación</option>
+                  <option value="rejection">{isEn ? "Rejection" : "Rechazo"}</option>
+                  <option value="approval">{isEn ? "Approval" : "Aprobación"}</option>
                 </select>
               </div>
 
               {/* Subject */}
               <div>
-                <label className="text-xs font-medium text-muted block mb-1">Asunto</label>
+                <label className="text-xs font-medium text-muted block mb-1">
+                  {isEn ? "Subject" : "Asunto"}
+                </label>
                 <input
                   type="text"
                   value={formData.subject_template}
                   onChange={(e) => setFormData({ ...formData, subject_template: e.target.value })}
                   className="w-full px-3 py-2 rounded border text-sm"
                   style={{ background: "var(--bg-card)", borderColor: "var(--border)", color: "var(--text-primary)" }}
-                  placeholder="Resultado de análisis: {track}"
+                  placeholder={isEn ? "Analysis result: {track}" : "Resultado de análisis: {track}"}
                 />
               </div>
 
               {/* Body */}
               <div>
-                <label className="text-xs font-medium text-muted block mb-1">Cuerpo (texto plano)</label>
+                <label className="text-xs font-medium text-muted block mb-1">
+                  {isEn ? "Body (plain text)" : "Cuerpo (texto plano)"}
+                </label>
                 <textarea
                   value={formData.body_template}
                   onChange={(e) => setFormData({ ...formData, body_template: e.target.value })}
                   rows={10}
                   className="w-full px-3 py-2 rounded border text-sm resize-none font-mono"
                   style={{ background: "var(--bg-card)", borderColor: "var(--border)", color: "var(--text-primary)" }}
-                  placeholder="Hola {producer},&#10;&#10;Gracias por enviar {track}..."
+                  placeholder={isEn ? "Hi {producer},\n\nThanks for sending {track}..." : "Hola {producer},\n\nGracias por enviar {track}..."}
                 />
               </div>
 
               {/* Variable Chips */}
               <div>
-                <label className="text-xs font-medium text-muted block mb-2">Variables disponibles (haz clic para insertar)</label>
+                <label className="text-xs font-medium text-muted block mb-2">
+                  {isEn ? "Available variables (click to insert)" : "Variables disponibles (haz clic para insertar)"}
+                </label>
                 <div className="flex flex-wrap gap-1.5">
                   {variables.map((v) => (
                     <button
@@ -399,7 +461,7 @@ export default function TemplatesPage() {
                       onClick={() => insertVariable(v.key)}
                       className="text-[10px] px-2 py-1 rounded border hover:border-emerald-500 hover:bg-emerald-500/5 transition-colors"
                       style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}
-                      title={`Insertar ${v.label}`}
+                      title={`Insert ${v.label}`}
                     >
                       +{v.label}
                     </button>
@@ -421,14 +483,17 @@ export default function TemplatesPage() {
                 className="px-4 py-2 rounded text-sm font-medium hover:bg-white/5 transition-colors"
                 style={{ color: "var(--text-secondary)" }}
               >
-                Cancelar
+                {isEn ? "Cancel" : "Cancelar"}
               </button>
               <button
                 onClick={handleSave}
-                disabled={!formData.name || !formData.subject_template || !formData.body_template}
-                className="px-4 py-2 rounded text-sm font-medium bg-emerald-500 text-black hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={!formData.name || !formData.subject_template || !formData.body_template || saving}
+                className="px-4 py-2 rounded text-sm font-medium bg-emerald-500 text-black hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
-                {editingTemplate ? "Guardar Cambios" : "Crear Plantilla"}
+                {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+                {editingTemplate 
+                  ? (isEn ? "Save Changes" : "Guardar Cambios")
+                  : (isEn ? "Create Template" : "Crear Plantilla")}
               </button>
             </div>
           </div>
