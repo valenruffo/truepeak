@@ -466,7 +466,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
     { href: "/config", label: t("dashboard.nav.config"), icon: Sliders },
     { href: "/link", label: t("dashboard.nav.link"), icon: Link2 },
     { href: "/inbox", label: role === "dj" ? "Promos" : "Demos", icon: Inbox },
-    { href: "/crm", label: t("dashboard.nav.crm"), icon: Mail },
+    { href: "/emails", label: "Emails", icon: Mail },
     { href: "/guide", label: t("dashboard.nav.guide"), icon: BookOpen },
   ];
 
