@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
+import useSWR from "swr";
 import { cn } from "@/lib/utils";
 import { PlayerProvider, usePlayer, type PlayerTrack } from "@/lib/PlayerContext";
 import { ToastProvider } from "@/components/ui/toast";
@@ -11,6 +12,8 @@ import { useTheme } from "@/lib/theme";
 import { Music, Clock, AlertTriangle, Sliders, Link2, Inbox, Mail, BookOpen, Settings, LogOut } from "lucide-react";
 import WaveSurfer from "wavesurfer.js";
 import { supabase } from "@/lib/supabase";
+import { SWRProvider } from "@/lib/swr-config";
+import { useLabelStore, type LabelConfig } from "@/store/label";
 
 function PlayerBar() {
   const { currentTrack, isPlaying, progress, duration, volume, hasTracks, togglePlay, prevTrack, nextTrack, setVolume, seekTo, formatTime, audioRef } = usePlayer();
@@ -264,16 +267,75 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
   const [feedbackMsg, setFeedbackMsg] = useState("");
   const [feedbackSent, setFeedbackSent] = useState(false);
   const { queueTracks } = usePlayer();
+  const setLabelData = useLabelStore((s) => s.setLabelData);
+  const setLabelLoading = useLabelStore((s) => s.setLabelLoading);
+  const setLabelError = useLabelStore((s) => s.setLabelError);
+
+  // SWR: label data is fetched once and shared across all dashboard pages.
+  // We keep the existing local state for legacy UI bindings and ALSO mirror
+  // the response into the Zustand store so non-fetching components (link,
+  // config, guide) can read it synchronously without triggering refetch.
+  const labelSlug =
+    typeof window !== "undefined" ? localStorage.getItem("slug") : null;
+  const swrKey = labelSlug ? `/api/labels/${labelSlug}` : null;
+  const { data: labelData, error: labelError, isLoading: labelIsLoading } =
+    useSWR<LabelConfig>(swrKey);
+
+  useEffect(() => {
+    if (!labelData) return;
+    setLabelData(labelData);
+    setLabelName(labelData.name || labelSlug || "");
+    const status = labelData.subscription_status || "active";
+    setSubscriptionStatus(status);
+
+    const overridePlan = localStorage.getItem("admin_plan_override");
+    if (overridePlan) {
+      setPlanInfo(
+        overridePlan.charAt(0).toUpperCase() +
+          overridePlan.slice(1) +
+          " (Override)"
+      );
+      setPlan(overridePlan);
+      localStorage.setItem("plan", overridePlan);
+    } else {
+      const currentStoredPlan = localStorage.getItem("plan");
+      const newPlan = labelData.plan || "free";
+      setPlanInfo(newPlan);
+      setPlan(newPlan);
+      if (currentStoredPlan !== newPlan) {
+        localStorage.setItem("plan", newPlan);
+        window.dispatchEvent(new Event("plan_updated"));
+      }
+    }
+
+    setLogoPath(labelData.logo_path || null);
+    setMaxTracksMonth(labelData.max_tracks_month || 10);
+  }, [labelData, labelSlug, setLabelData]);
+
+  useEffect(() => {
+    if (labelError) {
+      const msg = labelError instanceof Error ? labelError.message : "Error";
+      setLabelError(msg);
+      if (labelSlug) setLabelName(labelSlug);
+    }
+  }, [labelError, labelSlug, setLabelError]);
+
+  useEffect(() => {
+    setLabelLoading(labelIsLoading);
+  }, [labelIsLoading, setLabelLoading]);
+
+  // Track whether the account is frozen so we can skip loading the audio
+  // queue. We resolve this synchronously from the SWR data (no extra fetch).
+  const isFrozenFromSWR = !!(labelData && labelData.subscription_status === "frozen");
 
   useEffect(() => {
     setMounted(true);
-    const slug = localStorage.getItem("slug");
 
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
-      
-      if (!slug || !token) {
+
+      if (!labelSlug || !token) {
         router.push("/login");
         return null;
       }
@@ -313,81 +375,42 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
       return res;
     };
 
-    const fetchLabel = async (): Promise<boolean> => {
-      if (!slug) { setLabelName(""); setPlanInfo(""); return false; }
+    // Load inbox tracks for the global audio player.
+    // Wait for SWR to surface the label config so we can skip when frozen.
+    const loadPlayerQueue = async () => {
+      if (isFrozenFromSWR) return; // Do not load audio queue if frozen
       try {
-        const res = await fetch(`/api/labels/${slug}`);
+        const token = await checkAuth();
+        if (!token) return;
+        const res = await fetch(`/api/submissions?status=inbox&limit=100`, {
+          credentials: "include",
+          headers: { Authorization: `Bearer ${token}` },
+        });
         if (res.ok) {
-          const data = await res.json();
-          setLabelName(data.name || slug);
-          const status = data.subscription_status || "active";
-          setSubscriptionStatus(status);
-          
-          // Check for admin override
-          const overridePlan = localStorage.getItem("admin_plan_override");
-          if (overridePlan) {
-            setPlanInfo(overridePlan.charAt(0).toUpperCase() + overridePlan.slice(1) + " (Override)");
-            setPlan(overridePlan);
-            localStorage.setItem("plan", overridePlan);
-          } else {
-            const currentStoredPlan = localStorage.getItem("plan");
-            const newPlan = data.plan || "free";
-            setPlanInfo(newPlan);
-            setPlan(newPlan);
-            if (currentStoredPlan !== newPlan) {
-              localStorage.setItem("plan", newPlan);
-              window.dispatchEvent(new Event("plan_updated"));
-            }
-          }
-          
-          setLogoPath(data.logo_path || null);
-          setMaxTracksMonth(data.max_tracks_month || 10);
-          return status === "frozen";
-        } else { setLabelName(slug); setPlanInfo(""); return false; }
-      } catch { setLabelName(slug); setPlanInfo(""); return false; }
+          const data: PlayerTrack[] = await res.json();
+          const withMp3 = data.filter((t) => t.mp3_path);
+          queueTracks(withMp3);
+        }
+      } catch { /* silent */ }
     };
 
-    // Initialize sequentially so fetchTracks knows if frozen
-    const initData = async () => {
-      const isFrozen = await fetchLabel();
-      
-      const fetchTracks = async () => {
-        if (isFrozen) return; // Do not load audio queue if frozen
-        try {
-          const token = await checkAuth();
-          if (!token) return;
-          const res = await fetch(`/api/submissions?status=inbox&limit=100`, {
-            credentials: "include",
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          if (res.ok) {
-            const data: PlayerTrack[] = await res.json();
-            const withMp3 = data.filter((t) => t.mp3_path);
-            queueTracks(withMp3);
-          }
-        } catch { /* silent */ }
-      };
-      
-      fetchTracks();
-    };
-
-    initData();
+    loadPlayerQueue();
 
     // If user just completed a payment, re-fetch plan after a short delay
     // to give the webhook time to process
     if (localStorage.getItem("payment_completed") === "true") {
       localStorage.removeItem("payment_completed");
-      
+
       const checkUpdate = async (delay: number) => {
         setTimeout(async () => {
           try {
-            const res = await fetch(`/api/labels/${slug}`);
+            const res = await fetch(`/api/labels/${labelSlug}`);
             if (res.ok) {
               const data = await res.json();
               const newPlan = data.plan || "free";
               const oldPlan = localStorage.getItem("plan") || "free";
               const newStatus = data.subscription_status || "active";
-              
+
               if ((newPlan !== "free" && newPlan !== oldPlan) || newStatus === "active") {
                 console.log(`[Payment] Plan upgraded detected: ${newPlan}`);
                 setPlan(newPlan);
@@ -406,7 +429,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
           }
         }, delay);
       };
-      
+
       checkUpdate(4000); // Initial check after 4s
     }
 
@@ -422,12 +445,12 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
     window.addEventListener("plan_updated", handlePlanUpdate);
 
     const fetchStats = async () => {
-      if (!slug) return;
+      if (!labelSlug) return;
       try {
         const token = await checkAuth();
         if (!token) return;
         const authHeaders: Record<string, string> = { Authorization: `Bearer ${token}` };
-        const res = await fetch(`/api/labels/${slug}/stats`, {
+        const res = await fetch(`/api/labels/${labelSlug}/stats`, {
           credentials: "include",
           headers: authHeaders,
         });
@@ -444,7 +467,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
         const token = await checkAuth();
         if (!token) return;
         const hqHeaders: Record<string, string> = { Authorization: `Bearer ${token}` };
-        const res = await fetch(`/api/labels/${slug}/hq-count`, {
+        const res = await fetch(`/api/labels/${labelSlug}/hq-count`, {
           headers: hqHeaders,
         });
         if (res.ok) {
@@ -453,13 +476,16 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
         }
       } catch { /* silent */ }
     };
-    if (slug) fetchHqCount();
+    if (labelSlug) fetchHqCount();
 
     return () => {
       window.fetch = originalFetch;
       window.removeEventListener("plan_updated", handlePlanUpdate);
     };
-  }, []);
+    // We intentionally re-run when frozen status flips so the player queue
+    // loads/unloads as the account state changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFrozenFromSWR]);
 
   const role = currentRole;
   const navItems = [
@@ -916,10 +942,12 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
-    <PlayerProvider>
-      <ToastProvider>
-        <DashboardInner>{children}</DashboardInner>
-      </ToastProvider>
-    </PlayerProvider>
+    <SWRProvider>
+      <PlayerProvider>
+        <ToastProvider>
+          <DashboardInner>{children}</DashboardInner>
+        </ToastProvider>
+      </PlayerProvider>
+    </SWRProvider>
   );
 }

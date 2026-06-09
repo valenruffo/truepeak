@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef } from "react";
+import useSWR, { mutate } from "swr";
 import { Mail, Plus, Edit2, Trash2, X, RotateCcw, Loader2 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 
@@ -71,9 +72,6 @@ const renderVariableBadges = (text: string): string => {
 
 export default function TemplatesPage() {
   const { t, lang } = useLanguage();
-  const [templates, setTemplates] = useState<EmailTemplate[]>([]);
-  const [defaultTemplates, setDefaultTemplates] = useState<DefaultTemplate[]>([]);
-  const [loading, setLoading] = useState(true);
   const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -94,45 +92,16 @@ export default function TemplatesPage() {
     body_template: "",
   });
 
-  useEffect(() => {
-    fetchDefaultTemplates().then(() => {
-      fetchTemplates();
-    });
-  }, []);
-
-  const fetchTemplates = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const res = await fetch("/api/email/templates", {
-        credentials: "include",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setTemplates(data);
-      }
-    } catch (err) {
-      console.error("Error fetching templates:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchDefaultTemplates = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const res = await fetch("/api/email/templates?defaults=true", {
-        credentials: "include",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setDefaultTemplates(data);
-      }
-    } catch (err) {
-      console.error("Error fetching default templates:", err);
-    }
-  };
+  // SWR-backed data loading
+  const { data: swrTemplates, isLoading: templatesLoading } = useSWR<EmailTemplate[]>(
+    "/api/email/templates"
+  );
+  const { data: swrDefaultTemplates } = useSWR<DefaultTemplate[]>(
+    "/api/email/templates?defaults=true"
+  );
+  const templates = swrTemplates || [];
+  const defaultTemplates = swrDefaultTemplates || [];
+  const loading = templatesLoading;
 
   const isTemplateModified = (template: EmailTemplate): boolean => {
     const defaultTemplate = defaultTemplates.find((d) => d.template_type === template.template_type);
@@ -199,7 +168,11 @@ export default function TemplatesPage() {
             headers: token ? { Authorization: `Bearer ${token}` } : {},
           });
           if (res.ok) {
-            setTemplates(templates.filter((t) => t.id !== id));
+            // Optimistic update: remove from cache
+            mutate("/api/email/templates", (current: EmailTemplate[] | undefined) => 
+              current ? current.filter((t) => t.id !== id) : [],
+              false
+            );
           }
         } catch (err) {
           console.error("Error deleting template:", err);
@@ -245,7 +218,7 @@ export default function TemplatesPage() {
               }),
             });
             if (updateRes.ok) {
-              fetchTemplates();
+              mutate("/api/email/templates");
             }
           } else {
             // Create new template (template was deleted entirely)
@@ -264,7 +237,7 @@ export default function TemplatesPage() {
               }),
             });
             if (createRes.ok) {
-              fetchTemplates();
+              mutate("/api/email/templates");
             }
           }
         } catch (err) {
@@ -323,11 +296,14 @@ export default function TemplatesPage() {
       
       if (res.ok) {
         const saved = await res.json();
-        if (editingTemplate) {
-          setTemplates(templates.map((t) => (t.id === saved.id ? saved : t)));
-        } else {
-          setTemplates([...templates, saved]);
-        }
+        // Optimistic update: update or add to cache
+        mutate("/api/email/templates", (current: EmailTemplate[] | undefined) => {
+          if (!current) return [saved];
+          if (editingTemplate) {
+            return current.map((t) => (t.id === saved.id ? saved : t));
+          }
+          return [...current, saved];
+        }, false);
         setIsCreating(false);
         setEditingTemplate(null);
       }

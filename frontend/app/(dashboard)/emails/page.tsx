@@ -4,11 +4,13 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Suspense } from "react";
+import useSWR, { mutate as globalMutate } from "swr";
 import { cn } from "@/lib/utils";
 import { usePlayer } from "@/lib/PlayerContext";
 import { useLanguage } from "@/lib/i18n";
 import { useUndoableState, useUndoRedoKey } from "@/lib/useUndoableState";
-import { getCache, setCache } from "@/lib/cache";
+import { fetcher } from "@/lib/swr-config";
+import { useLabelStore } from "@/store/label";
 
 interface Submission {
   id: string;
@@ -213,7 +215,6 @@ function CRMContent() {
   const [sent, setSent] = useState(false);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [labelName, setLabelName] = useState<string>("");
-  const [labelSlug, setLabelSlug] = useState<string>("");
   const [ownerEmail, setOwnerEmail] = useState<string>("");
   const [replyToEmail, setReplyToEmail] = useState<string>("");
   const [replyToInput, setReplyToInput] = useState<string>("");
@@ -252,61 +253,76 @@ function CRMContent() {
 
   const lastActiveFieldRef = useRef<"body" | "subject">("body");
 
+  // ─── SWR-backed data loading ────────────────────────────────────────────
+  //
+  // - /api/submissions → contact list. Cached and dedup'd with the inbox.
+  // - /api/labels/{slug} → global label config (layout already fetches it,
+  //   but we hit SWR's cache so no extra network request is made).
+  const labelSlug =
+    typeof window !== "undefined" ? localStorage.getItem("slug") : null;
+  const { data: labelData } = useSWR(
+    labelSlug ? `/api/labels/${labelSlug}` : null
+  );
+  const { data: submissionsData, error: submissionsError } = useSWR<Submission[]>(
+    "/api/submissions"
+  );
+
+  // Mirror label data into the global Zustand store so other pages can read
+  // the same label config without refetching.
+  const setLabelData = useLabelStore((s) => s.setLabelData);
   useEffect(() => {
-    const fetchData = async () => {
-      const slug = localStorage.getItem("slug");
-      if (slug) {
-        setLabelSlug(slug);
-        // Load cached label name from our main label cache key first
-        const cachedLabel = getCache<any>("tp_link_label_info", null);
-        if (cachedLabel?.name) {
-          setLabelName(cachedLabel.name);
-        }
-        // Always fetch fresh label config to get reply_to_email
-        try {
-          const res = await fetch(`/api/labels/${slug}`, { credentials: "include" });
-          if (res.ok) {
-            const data = await res.json();
-            setLabelName(data.name);
-            setOwnerEmail(data.owner_email || "");
-            const rt = data.reply_to_email || "";
-            setReplyToEmail(rt);
-            setReplyToInput(rt);
-          }
-        } catch { if (!cachedLabel?.name) setLabelName(slug); }
-      }
+    if (labelData) {
+      setLabelData(labelData);
+      setLabelName(labelData.name || labelSlug || "");
+      setOwnerEmail(labelData.owner_email || "");
+      const rt = labelData.reply_to_email || "";
+      setReplyToEmail(rt);
+      setReplyToInput(rt);
+    }
+  }, [labelData, labelSlug, setLabelData]);
 
-      // Load cached contacts to enable instant page interactivity
-      const cachedContacts = getCache<Contact[]>("tp_crm_contacts", []);
-      if (cachedContacts.length > 0) {
-        setContacts(cachedContacts);
-        setLoading(false);
-      }
+  // Map SWR submissions → Contact[].
+  useEffect(() => {
+    if (submissionsData) {
+      const resolved = submissionsData.filter((s) => s.status !== "pending");
+      const mapped: Contact[] = resolved.map((s) => ({
+        id: s.id,
+        name: s.producer_name || "Anónimo",
+        email: s.producer_email || "",
+        track: s.track_name || "Sin nombre",
+        status: s.status as "approved" | "rejected",
+        bpm: s.bpm != null ? String(Math.round(s.bpm)) : "—",
+        sent: s.human_email_sent ?? false,
+        mp3_path: s.mp3_path || null,
+        producer_instagram: s.producer_instagram || null,
+        producer_soundcloud: s.producer_soundcloud || null,
+      }));
+      setContacts(mapped);
+      setError(null);
+    }
+  }, [submissionsData]);
 
-      try {
-        const res = await fetch(`/api/submissions`, { credentials: "include" });
-        if (!res.ok) throw new Error(`Error ${res.status}`);
-        const data: Submission[] = await res.json();
-        const resolved = data.filter((s) => s.status !== "pending");
-        const mapped: Contact[] = resolved.map((s) => ({
-          id: s.id, name: s.producer_name || "Anónimo", email: s.producer_email || "",
-          track: s.track_name || "Sin nombre", status: s.status as "approved" | "rejected",
-          bpm: s.bpm != null ? String(Math.round(s.bpm)) : "—", sent: s.human_email_sent ?? false, mp3_path: s.mp3_path || null,
-          producer_instagram: s.producer_instagram || null,
-          producer_soundcloud: s.producer_soundcloud || null,
-        }));
-        setContacts(mapped);
-        setCache("tp_crm_contacts", mapped);
-      } catch (e) { 
-        if (cachedContacts.length === 0) {
-          setError(e instanceof Error ? e.message : t("inbox.error_unknown")); 
-        }
-      } finally { 
-        setLoading(false); 
-      }
-    };
-    fetchData();
-  }, []);
+  // Surface the submissions fetch error if we have no contacts to show.
+  useEffect(() => {
+    if (submissionsError && contacts.length === 0) {
+      setError(
+        submissionsError instanceof Error
+          ? submissionsError.message
+          : t("inbox.error_unknown")
+      );
+    }
+  }, [submissionsError, contacts.length, t]);
+
+  // Loading state: true until we have at least the label loaded and a
+  // first SWR response for submissions. SWR keeps the previous data
+  // available, so a refetch won't re-trigger the skeleton.
+  useEffect(() => {
+    if (labelData && submissionsData) {
+      setLoading(false);
+    } else if (submissionsError) {
+      setLoading(false);
+    }
+  }, [labelData, submissionsData, submissionsError]);
 
   useEffect(() => {
     if (highlightedId && contacts.length > 0) {
@@ -355,6 +371,13 @@ function CRMContent() {
     }
   };
 
+  // On-demand email log fetch for the currently selected contact.
+  // SWR handles dedup + cache — if the same contact is re-selected, this
+  // resolves instantly from memory.
+  const { data: sentLog } = useSWR<{ subject: string; body: string } | null>(
+    contact?.sent ? `/api/email/logs/${contact.id}` : null
+  );
+
   useEffect(() => {
     if (!contact) return;
 
@@ -362,37 +385,19 @@ function CRMContent() {
       // Clear inputs first so we don't show stale content while fetching
       setEmailSubject("");
       setEmailBody("");
-      
-      const fetchSentEmail = async () => {
-        try {
-          const res = await fetch(`/api/email/logs/${contact.id}`, { credentials: "include" });
-          if (res.ok) {
-            const data = await res.json();
-            setEmailSubject(data.subject || "");
-            setEmailBody(data.body || "");
-          } else {
-            // Fallback: use current template values or defaults
-            if (template) {
-              setEmailSubject(template.subject);
-              setEmailBody(template.body);
-            } else {
-              setEmailSubject("");
-              setEmailBody("");
-            }
-          }
-        } catch (e) {
-          console.error("Error fetching sent email log", e);
-          // Fallback: use current template values or defaults
-          if (template) {
-            setEmailSubject(template.subject);
-            setEmailBody(template.body);
-          } else {
-            setEmailSubject("");
-            setEmailBody("");
-          }
+
+      if (sentLog) {
+        setEmailSubject(sentLog.subject || "");
+        setEmailBody(sentLog.body || "");
+      } else if (sentLog === null) {
+        // Cache miss and SWR resolved to no data — fall back to template.
+        if (template) {
+          setEmailSubject(template.subject);
+          setEmailBody(template.body);
         }
-      };
-      fetchSentEmail();
+      } else {
+        // sentLog is undefined while SWR is still loading — keep inputs empty.
+      }
     } else {
       if (template) {
         setEmailSubject(template.subject);
@@ -402,7 +407,7 @@ function CRMContent() {
         setEmailBody("");
       }
     }
-  }, [contact?.id, contact?.sent, selectedTemplate, labelName]);
+  }, [contact?.id, contact?.sent, selectedTemplate, labelName, sentLog]);
 
   // Sync contenteditable HTML when text or contact details change (body)
   useEffect(() => {
@@ -529,7 +534,6 @@ function CRMContent() {
       setSent(true);
       setContacts((prev) => {
         const next = prev.map((c) => (c.id === contact.id ? { ...c, sent: true } : c));
-        setCache("tp_crm_contacts", next);
         return next;
       });
     } catch (e) { setSendError(e instanceof Error ? e.message : t("crm.send_error")); }
@@ -929,19 +933,14 @@ function CRMContent() {
     );
   };
 
-  const fetchTemplates = async () => {
-    try {
-      const res = await fetch(`/api/email/templates?lang=${lang}`, { credentials: "include" });
-      if (res.ok) {
-        const data = await res.json();
-        setDbTemplates(data);
-      }
-    } catch (e) { console.error("Error fetching templates", e); }
-  };
-
+  // SWR-backed templates for the inline "Tus Plantillas" tab. Fetches only
+  // when the user navigates to the templates tab (lazy + dedup'd).
+  const { data: dbTemplatesData, mutate: mutateDbTemplates } = useSWR<any[]>(
+    activeTab === "templates" ? `/api/email/templates?lang=${lang}` : null
+  );
   useEffect(() => {
-    if (activeTab === "templates") fetchTemplates();
-  }, [activeTab]);
+    if (dbTemplatesData) setDbTemplates(dbTemplatesData);
+  }, [dbTemplatesData]);
 
   const handleSaveTemplate = async () => {
     setSavingTemplate(true);
@@ -964,7 +963,10 @@ function CRMContent() {
         setTemplateType("rejection");
         templateSubjectState.reset();
         templateBodyState.reset();
-        fetchTemplates();
+        // Invalidate the templates cache so the new template shows up.
+        mutateDbTemplates();
+        // Also invalidate the dedicated /templates page cache.
+        globalMutate("/api/email/templates");
       }
     } catch (e) { console.error("Error saving template", e); }
     finally { setSavingTemplate(false); }

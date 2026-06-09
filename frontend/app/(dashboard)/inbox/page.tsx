@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, Suspense } from "react";
+import { useState, useEffect, useCallback, useRef, Suspense, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import useSWRInfinite from "swr/infinite";
+import { mutate as globalMutate } from "swr";
 import { cn } from "@/lib/utils";
-import { getCache, setCache } from "@/lib/cache";
 import { usePlayer } from "@/lib/PlayerContext";
 import TwoClickDelete from "@/components/TwoClickDelete";
 import { useLanguage } from "@/lib/i18n";
@@ -19,6 +20,8 @@ import {
 import { Clock, Mail, AlertTriangle, Trash2, RotateCcw, X } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { useUndoableState, useUndoRedoKey } from "@/lib/useUndoableState";
+import { fetcher } from "@/lib/swr-config";
+import { useLabelStore } from "@/store/label";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -803,31 +806,24 @@ function InboxContent() {
     </div>
   );
 
-  // Kanban board state
-  const [board, setBoard] = useState<BoardState>(() => {
-    return getCache<BoardState>("tp_inbox_board", {
-      inbox: [],
-      shortlist: [],
-      rejected: [],
-    });
+  // Kanban board state — backed by SWR for dedup + cache.
+  // We keep the legacy `board` shape so the rest of the render tree can
+  // keep reading it without changes.
+  const [board, setBoard] = useState<BoardState>({
+    inbox: [],
+    shortlist: [],
+    rejected: [],
   });
-  const [boardOffsets, setBoardOffsets] = useState({ inbox: 0, shortlist: 0, rejected: 0 });
   const [boardHasMore, setBoardHasMore] = useState({ inbox: true, shortlist: true, rejected: true });
   const [boardLoading, setBoardLoading] = useState<Record<string, boolean>>({});
 
-  // System filtered (auto_rejected)
-  const [systemItems, setSystemItems] = useState<SubmissionSummary[]>(() => {
-    return getCache<SubmissionSummary[]>("tp_inbox_system", []);
-  });
-  const [systemOffset, setSystemOffset] = useState(0);
+  // System filtered (auto_rejected) — also SWR-backed.
+  const [systemItems, setSystemItems] = useState<SubmissionSummary[]>([]);
   const [systemHasMore, setSystemHasMore] = useState(true);
   const [systemLoading, setSystemLoading] = useState(false);
 
-  // Trash (soft deleted)
-  const [trashItems, setTrashItems] = useState<SubmissionSummary[]>(() => {
-    return getCache<SubmissionSummary[]>("tp_inbox_trash", []);
-  });
-  const [trashOffset, setTrashOffset] = useState(0);
+  // Trash (soft deleted) — SWR-backed.
+  const [trashItems, setTrashItems] = useState<SubmissionSummary[]>([]);
   const [trashHasMore, setTrashHasMore] = useState(true);
   const [trashLoading, setTrashLoading] = useState(false);
 
@@ -950,23 +946,16 @@ useEffect(() => {
   const [retentionDays, setRetentionDays] = useState<number>(0);
   const [sonicSignature, setSonicSignature] = useState<any>(null);
   const [isFrozen, setIsFrozen] = useState<boolean>(false);
-
+  // Read label data from the global Zustand store — the dashboard layout
+  // has already fetched `/api/labels/{slug}` via SWR and mirrored it here.
+  // No duplicate fetch needed.
+  const labelData = useLabelStore((s) => s.labelData);
   useEffect(() => {
-    const fetchSignature = async () => {
-      const slug = localStorage.getItem("slug");
-      if (!slug) return;
-      try {
-        const res = await fetch(`/api/labels/${slug}`);
-        if (res.ok) {
-          const data = await res.json();
-          setSonicSignature(data.sonic_signature);
-          setLabelName(data.name || slug);
-          setIsFrozen(data.subscription_status === "frozen");
-        }
-      } catch (e) { /* silent */ }
-    };
-    fetchSignature();
-  }, []);
+    if (!labelData) return;
+    setSonicSignature(labelData.sonic_signature ?? null);
+    setLabelName(labelData.name || labelData.slug || "");
+    setIsFrozen(labelData.subscription_status === "frozen");
+  }, [labelData]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -1003,114 +992,156 @@ useEffect(() => {
     return headers;
   };
 
-  // ─── Fetch helpers ────────────────────────────────────────────────────────
+  // ─── SWR key builders + column hooks ────────────────────────────────────
+  //
+  // Each Kanban column has its own useSWRInfinite instance, with the page
+  // index as the SWR key. Pages are fetched lazily when the user clicks
+  // "Load more" or scrolls near the bottom of a column.
 
+  const inboxKey = (pageIndex: number, prev: SubmissionSummary[] | null) => {
+    if (prev && !prev.length) return null;
+    return `/api/submissions?status=inbox&offset=${pageIndex * PAGE_SIZE}&limit=${PAGE_SIZE}`;
+  };
+  const shortlistKey = (pageIndex: number, prev: SubmissionSummary[] | null) => {
+    if (prev && !prev.length) return null;
+    return `/api/submissions?status=shortlist&offset=${pageIndex * PAGE_SIZE}&limit=${PAGE_SIZE}`;
+  };
+  const rejectedKey = (pageIndex: number, prev: SubmissionSummary[] | null) => {
+    if (prev && !prev.length) return null;
+    return `/api/submissions?status=rejected&offset=${pageIndex * PAGE_SIZE}&limit=${PAGE_SIZE}`;
+  };
+  const systemKey = (pageIndex: number, prev: SubmissionSummary[] | null) => {
+    if (prev && !prev.length) return null;
+    return `/api/submissions?status=auto_rejected&offset=${pageIndex * PAGE_SIZE}&limit=${PAGE_SIZE}`;
+  };
+  const trashKey = (pageIndex: number, prev: SubmissionSummary[] | null) => {
+    if (prev && !prev.length) return null;
+    return `/api/submissions?include_deleted=true&offset=${pageIndex * PAGE_SIZE}&limit=${PAGE_SIZE}`;
+  };
+
+  const inboxSWR = useSWRInfinite<SubmissionSummary[]>(inboxKey, fetcher, {
+    revalidateFirstPage: false,
+  });
+  const shortlistSWR = useSWRInfinite<SubmissionSummary[]>(shortlistKey, fetcher, {
+    revalidateFirstPage: false,
+  });
+  const rejectedSWR = useSWRInfinite<SubmissionSummary[]>(rejectedKey, fetcher, {
+    revalidateFirstPage: false,
+  });
+  const systemSWR = useSWRInfinite<SubmissionSummary[]>(systemKey, fetcher, {
+    revalidateFirstPage: false,
+  });
+  const trashSWR = useSWRInfinite<SubmissionSummary[]>(trashKey, fetcher, {
+    revalidateFirstPage: false,
+  });
+
+  // Derive the legacy `board` shape from SWR data.
+  useEffect(() => {
+    setBoard({
+      inbox: inboxSWR.data?.flat() ?? [],
+      shortlist: shortlistSWR.data?.flat() ?? [],
+      rejected: rejectedSWR.data?.flat() ?? [],
+    });
+    setBoardHasMore({
+      inbox: (inboxSWR.data?.at(-1)?.length ?? 0) === PAGE_SIZE,
+      shortlist: (shortlistSWR.data?.at(-1)?.length ?? 0) === PAGE_SIZE,
+      rejected: (rejectedSWR.data?.at(-1)?.length ?? 0) === PAGE_SIZE,
+    });
+    setBoardLoading({
+      inbox: inboxSWR.isLoading || (inboxSWR.isValidating && !inboxSWR.data),
+      shortlist:
+        shortlistSWR.isLoading ||
+        (shortlistSWR.isValidating && !shortlistSWR.data),
+      rejected:
+        rejectedSWR.isLoading ||
+        (rejectedSWR.isValidating && !rejectedSWR.data),
+    });
+  }, [
+    inboxSWR.data,
+    inboxSWR.isLoading,
+    inboxSWR.isValidating,
+    shortlistSWR.data,
+    shortlistSWR.isLoading,
+    shortlistSWR.isValidating,
+    rejectedSWR.data,
+    rejectedSWR.isLoading,
+    rejectedSWR.isValidating,
+  ]);
+
+  useEffect(() => {
+    const allSystem = systemSWR.data?.flat() ?? [];
+    setSystemItems(allSystem);
+    setSystemHasMore(
+      (systemSWR.data?.at(-1)?.length ?? 0) === PAGE_SIZE
+    );
+    setSystemLoading(systemSWR.isLoading || (systemSWR.isValidating && !systemSWR.data));
+  }, [systemSWR.data, systemSWR.isLoading, systemSWR.isValidating]);
+
+  useEffect(() => {
+    const allTrashRaw = trashSWR.data?.flat() ?? [];
+    // Keep only soft-deleted items (matches prior behaviour).
+    const allTrash = allTrashRaw.filter((d) => d.deleted_at);
+    setTrashItems(allTrash);
+    setTrashHasMore(
+      (trashSWR.data?.at(-1)?.length ?? 0) === PAGE_SIZE
+    );
+    setTrashLoading(trashSWR.isLoading || (trashSWR.isValidating && !trashSWR.data));
+  }, [trashSWR.data, trashSWR.isLoading, trashSWR.isValidating]);
+
+  // Surface SWR errors as the legacy `fetchError` banner.
+  useEffect(() => {
+    const err =
+      inboxSWR.error ||
+      shortlistSWR.error ||
+      rejectedSWR.error ||
+      systemSWR.error ||
+      trashSWR.error;
+    if (err) {
+      setFetchError(err instanceof Error ? err.message : String(err));
+    } else {
+      setFetchError(null);
+    }
+  }, [
+    inboxSWR.error,
+    shortlistSWR.error,
+    rejectedSWR.error,
+    systemSWR.error,
+    trashSWR.error,
+  ]);
+
+  // Compatibility wrappers — preserve the legacy API used by the rest of
+  // the page so we don't have to touch every callsite.
   const fetchColumn = useCallback(
     async (column: "inbox" | "shortlist" | "rejected", append = false) => {
-      const statusMap: Record<"inbox" | "shortlist" | "rejected", string> = {
-        inbox: "inbox",
-        shortlist: "shortlist",
-        rejected: "rejected",
-      };
-      const offset = append ? boardOffsets[column] : 0;
-      const key = column;
-
-      setBoardLoading((p) => ({ ...p, [key]: true }));
-      try {
-        const res = await fetch(
-          `/api/submissions?status=${statusMap[column]}&offset=${offset}&limit=${PAGE_SIZE}`,
-          { credentials: "include", headers: getAuthHeaders() }
-        );
-        if (!res.ok) {
-          const errBody = await res.json().catch(() => ({}));
-          throw new Error(`[${column}] HTTP ${res.status}: ${errBody?.detail || res.statusText}`);
-        }
-        const data: SubmissionSummary[] = await res.json();
-        setFetchError(null);
-        setBoard((prev) => {
-          const updated = append ? [...prev[column], ...data] : data;
-          const next = { ...prev, [column]: updated };
-          setCache("tp_inbox_board", next);
-          return next;
-        });
-        setBoardOffsets((prev) => ({
-          ...prev,
-          [column]: append ? prev[column] + data.length : data.length,
-        }));
-        setBoardHasMore((prev) => ({
-          ...prev,
-          [column]: data.length === PAGE_SIZE,
-        }));
-      } catch (e) {
-        setFetchError(e instanceof Error ? e.message : "Error desconocido cargando submissions");
-      } finally {
-        setBoardLoading((p) => ({ ...p, [key]: false }));
+      const target =
+        column === "inbox"
+          ? inboxSWR
+          : column === "shortlist"
+            ? shortlistSWR
+            : rejectedSWR;
+      if (append) {
+        await target.setSize(target.size + 1);
+      } else {
+        await target.mutate();
       }
     },
-    [boardOffsets]
+    [inboxSWR, shortlistSWR, rejectedSWR]
   );
 
   const fetchSystem = useCallback(
     async (append = false) => {
-      const offset = append ? systemOffset : 0;
-      setSystemLoading(true);
-      try {
-        const res = await fetch(
-          `/api/submissions?status=auto_rejected&offset=${offset}&limit=${PAGE_SIZE}`,
-          { credentials: "include", headers: getAuthHeaders() }
-        );
-        if (!res.ok) {
-          const errBody = await res.json().catch(() => ({}));
-          throw new Error(`[system] HTTP ${res.status}: ${errBody?.detail || res.statusText}`);
-        }
-        const data: SubmissionSummary[] = await res.json();
-        setFetchError(null);
-        setSystemItems((prev) => {
-          const next = append ? [...prev, ...data] : data;
-          setCache("tp_inbox_system", next);
-          return next;
-        });
-        setSystemOffset(append ? offset + data.length : data.length);
-        setSystemHasMore(data.length === PAGE_SIZE);
-      } catch (e) {
-        setFetchError(e instanceof Error ? e.message : t("inbox.error_load_system"));
-      } finally {
-        setSystemLoading(false);
-      }
+      if (append) await systemSWR.setSize(systemSWR.size + 1);
+      else await systemSWR.mutate();
     },
-    [systemOffset]
+    [systemSWR]
   );
 
   const fetchTrash = useCallback(
     async (append = false) => {
-      const offset = append ? trashOffset : 0;
-      setTrashLoading(true);
-      try {
-        const res = await fetch(
-          `/api/submissions?include_deleted=true&offset=${offset}&limit=${PAGE_SIZE}`,
-          { credentials: "include", headers: getAuthHeaders() }
-        );
-        if (!res.ok) {
-          const errBody = await res.json().catch(() => ({}));
-          throw new Error(`[trash] HTTP ${res.status}: ${errBody?.detail || res.statusText}`);
-        }
-        const data: SubmissionSummary[] = await res.json();
-        // Keep only soft-deleted items
-        const deleted = data.filter((d) => d.deleted_at);
-        setTrashItems((prev) => {
-          const next = append ? [...prev, ...deleted] : deleted;
-          setCache("tp_inbox_trash", next);
-          return next;
-        });
-        setTrashOffset(append ? offset + deleted.length : deleted.length);
-        setTrashHasMore(deleted.length === PAGE_SIZE);
-      } catch (e) {
-        setFetchError(e instanceof Error ? e.message : t("inbox.error_load_trash"));
-      } finally {
-        setTrashLoading(false);
-      }
+      if (append) await trashSWR.setSize(trashSWR.size + 1);
+      else await trashSWR.mutate();
     },
-    [trashOffset]
+    [trashSWR]
   );
 
   const handleRefresh = async () => {
@@ -1139,14 +1170,10 @@ useEffect(() => {
   };
 
   // ─── Initial load ─────────────────────────────────────────────────────────
-
-  useEffect(() => {
-    fetchColumn("inbox");
-    fetchColumn("shortlist");
-    fetchColumn("rejected");
-    fetchSystem();
-    fetchTrash();
-  }, []);
+  //
+  // SWR fires automatically when a key is set. The five useSWRInfinite
+  // hooks above each fire their first page on mount, so no manual
+  // `fetchColumn()` chain is needed here.
 
   // ─── Infinite scroll handlers ─────────────────────────────────────────────
 
@@ -1253,29 +1280,62 @@ useEffect(() => {
     status: "inbox" | "shortlist" | "rejected",
     reason?: string
   ) => {
-    // Optimistic update: move card immediately to target column
-    const previousBoard = { ...board };
-    setBoard((prev) => {
-      const next = { ...prev };
-      // Remove from all columns
-      for (const col of ["inbox", "shortlist", "rejected"] as const) {
-        next[col] = next[col].filter((s) => s.id !== sub.id);
-      }
-      // Add to target column with updated status and rejection_reason if applicable
-      const updated = { ...sub, status };
-      if (status === "rejected" && reason) {
-        updated.rejection_reason = reason;
-      }
-      if (status === "shortlist") {
-        next.shortlist = [updated, ...next.shortlist];
-      } else if (status === "rejected") {
-        next.rejected = [updated, ...next.rejected];
-      } else if (status === "inbox") {
-        next.inbox = [updated, ...next.inbox];
-      }
-      setCache("tp_inbox_board", next);
+    // Optimistic update — mutate SWR keys for source + destination columns.
+    // We snapshot the current SWR data so we can roll back on API error.
+    const updated: SubmissionSummary = { ...sub, status };
+    if (status === "rejected" && reason) {
+      updated.rejection_reason = reason;
+    }
+
+    const snapshotInbox = inboxSWR.data;
+    const snapshotShortlist = shortlistSWR.data;
+    const snapshotRejected = rejectedSWR.data;
+
+    const moveItem = (pages: SubmissionSummary[][] | undefined) => {
+      if (!pages) return pages;
+      return pages.map((page) => page.filter((s) => s.id !== sub.id));
+    };
+    const addItemToFirstPage = (
+      pages: SubmissionSummary[][] | undefined,
+      item: SubmissionSummary
+    ) => {
+      const next = pages ? pages.map((p) => [...p]) : [[]];
+      if (next.length === 0) next.push([]);
+      next[0] = [item, ...next[0]];
       return next;
-    });
+    };
+
+    // Optimistically mutate the two affected columns.
+    const optimisticMutate = async (targetStatus: "inbox" | "shortlist" | "rejected") => {
+      if (targetStatus === "inbox") {
+        await inboxSWR.mutate(
+          (pages) => addItemToFirstPage(moveItem(pages), updated),
+          { revalidate: false }
+        );
+      } else if (targetStatus === "shortlist") {
+        await shortlistSWR.mutate(
+          (pages) => addItemToFirstPage(moveItem(pages), updated),
+          { revalidate: false }
+        );
+      } else {
+        await rejectedSWR.mutate(
+          (pages) => addItemToFirstPage(moveItem(pages), updated),
+          { revalidate: false }
+        );
+      }
+    };
+
+    // Always remove the item from any column that isn't the target.
+    if (status !== "inbox") {
+      await inboxSWR.mutate((pages) => moveItem(pages), { revalidate: false });
+    }
+    if (status !== "shortlist") {
+      await shortlistSWR.mutate((pages) => moveItem(pages), { revalidate: false });
+    }
+    if (status !== "rejected") {
+      await rejectedSWR.mutate((pages) => moveItem(pages), { revalidate: false });
+    }
+    await optimisticMutate(status);
 
     setActionLoading((p) => ({ ...p, [sub.id]: status }));
     try {
@@ -1293,13 +1353,15 @@ useEffect(() => {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.detail || `Error ${res.status}`);
       }
-
-      // Success: keep the optimistic update, just clear loading
-      // NOTE: email modal is now decoupled — user triggers it manually from the card
+      // Revalidate both columns to reconcile with server truth.
+      inboxSWR.mutate();
+      shortlistSWR.mutate();
+      rejectedSWR.mutate();
     } catch (e) {
-      // Revert optimistic update on error
-      setBoard(previousBoard);
-      setCache("tp_inbox_board", previousBoard);
+      // Roll back to the snapshots we took before the optimistic move.
+      await inboxSWR.mutate(snapshotInbox, { revalidate: false });
+      await shortlistSWR.mutate(snapshotShortlist, { revalidate: false });
+      await rejectedSWR.mutate(snapshotRejected, { revalidate: false });
       addToast({
         title: "Error",
         description: e instanceof Error ? e.message : t("inbox.error_unknown"),
@@ -1428,17 +1490,18 @@ useEffect(() => {
         throw new Error(err.detail || `Error ${res.status}`);
       }
 
-      // Mark human_email_sent locally across all state stores
-      const markSent = (s: SubmissionSummary) =>
-        s.id === subId ? { ...s, human_email_sent: true } : s;
-
-      setBoard((prev) => ({
-        inbox: prev.inbox.map(markSent),
-        shortlist: prev.shortlist.map(markSent),
-        rejected: prev.rejected.map(markSent),
-      }));
-      setSystemItems((prev) => prev.map(markSent));
-      setTrashItems((prev) => prev.map(markSent));
+      // Mark human_email_sent across all SWR caches so the badge shows
+      // immediately on every column. We don't trigger a revalidate here —
+      // we already trust the POST response.
+      const markSent = (pages?: SubmissionSummary[][]) =>
+        pages?.map((p) => p.map((s) => (s.id === subId ? { ...s, human_email_sent: true } : s)));
+      await Promise.all([
+        inboxSWR.mutate(markSent, { revalidate: false }),
+        shortlistSWR.mutate(markSent, { revalidate: false }),
+        rejectedSWR.mutate(markSent, { revalidate: false }),
+        systemSWR.mutate(markSent, { revalidate: false }),
+        trashSWR.mutate(markSent, { revalidate: false }),
+      ]);
       setDetailModal((prev) =>
         prev.submission?.id === subId
           ? { ...prev, submission: { ...prev.submission, human_email_sent: true } }
@@ -1494,15 +1557,19 @@ useEffect(() => {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      // Mark as downloaded in local state (original_path will be null server-side)
+      // Mark as downloaded across all SWR caches (original_path will be
+      // null server-side, so we mirror that locally to hide the badge).
       const updateSub = (s: SubmissionSummary) =>
         s.id === sub.id ? { ...s, hq_downloaded: true, original_path: null } : s;
-
-      setBoard((prev) => ({
-        inbox: prev.inbox.map(updateSub),
-        shortlist: prev.shortlist.map(updateSub),
-        rejected: prev.rejected.map(updateSub),
-      }));
+      const applyToPages = (pages?: SubmissionSummary[][]) =>
+        pages?.map((p) => p.map(updateSub));
+      await Promise.all([
+        inboxSWR.mutate(applyToPages, { revalidate: false }),
+        shortlistSWR.mutate(applyToPages, { revalidate: false }),
+        rejectedSWR.mutate(applyToPages, { revalidate: false }),
+        systemSWR.mutate(applyToPages, { revalidate: false }),
+        trashSWR.mutate(applyToPages, { revalidate: false }),
+      ]);
 
       addToast({ title: "HQ descargado y eliminado del servidor", variant: "success" });
     } catch (e) {
@@ -1531,34 +1598,22 @@ useEffect(() => {
         credentials: "include",
       });
       if (!res.ok) throw new Error(`Error ${res.status}`);
-      
+
       if (isHardDelete) {
-        // Remove permanently from trash
-        setTrashItems((prev) => {
-          const next = prev.filter((s) => s.id !== sub.id);
-          setCache("tp_inbox_trash", next);
-          return next;
-        });
+        // Remove permanently from trash — revalidate SWR to drop the row.
+        await trashSWR.mutate();
       } else {
-        // Soft delete: remove from board/system and move to trash locally
-        setBoard((prev) => {
-          const next = { ...prev };
-          for (const col of ["inbox", "shortlist", "rejected"] as const) {
-            next[col] = next[col].filter((s) => s.id !== sub.id);
-          }
-          setCache("tp_inbox_board", next);
-          return next;
-        });
-        setSystemItems((prev) => {
-          const next = prev.filter((s) => s.id !== sub.id);
-          setCache("tp_inbox_system", next);
-          return next;
-        });
-        setTrashItems((prev) => {
-          const next = [{ ...sub, deleted_at: new Date().toISOString() }, ...prev];
-          setCache("tp_inbox_trash", next);
-          return next;
-        });
+        // Soft delete: remove from board/system, prepend to trash via SWR.
+        const drop = (pages?: SubmissionSummary[][]) =>
+          pages?.map((p) => p.filter((s) => s.id !== sub.id));
+        await Promise.all([
+          inboxSWR.mutate(drop, { revalidate: false }),
+          shortlistSWR.mutate(drop, { revalidate: false }),
+          rejectedSWR.mutate(drop, { revalidate: false }),
+          systemSWR.mutate(drop, { revalidate: false }),
+        ]);
+        // Trash revalidation will pick up the soft-deleted row server-side.
+        await trashSWR.mutate();
         addToast({ title: t("inbox.kanban.sent_to_trash"), variant: "default" });
       }
     } catch (e) {
@@ -1592,36 +1647,21 @@ useEffect(() => {
           err.detail || t("inbox.kanban.restore_expired")
         );
       }
-      // Remove from trash
-      setTrashItems((prev) => {
-        const next = prev.filter((s) => s.id !== sub.id);
-        setCache("tp_inbox_trash", next);
-        return next;
-      });
-      
-      // Move back to its original status column or system tab
+      // Drop the row from the trash cache and revalidate the source column
+      // (board or system) so the restored track reappears.
+      const dropFromTrash = (pages?: SubmissionSummary[][]) =>
+        pages?.map((p) => p.filter((s) => s.id !== sub.id));
+      await trashSWR.mutate(dropFromTrash, { revalidate: false });
+
       if (sub.status === "auto_rejected") {
-        setSystemItems((prev) => {
-          const next = [{ ...sub, deleted_at: null }, ...prev].sort(
-            (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-          );
-          setCache("tp_inbox_system", next);
-          return next;
-        });
+        await systemSWR.mutate();
       } else {
         const targetCol = (["inbox", "shortlist", "rejected"].includes(sub.status)
           ? sub.status
           : "inbox") as "inbox" | "shortlist" | "rejected";
-        setBoard((prev) => {
-          const next = {
-            ...prev,
-            [targetCol]: [{ ...sub, deleted_at: null }, ...prev[targetCol]].sort(
-              (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-            ),
-          };
-          setCache("tp_inbox_board", next);
-          return next;
-        });
+        if (targetCol === "inbox") await inboxSWR.mutate();
+        else if (targetCol === "shortlist") await shortlistSWR.mutate();
+        else await rejectedSWR.mutate();
       }
       addToast({ title: "Demo restaurado correctamente", variant: "success" });
     } catch (e) {
@@ -1657,12 +1697,10 @@ useEffect(() => {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.detail || "Error al eliminar");
       }
-      
-      setTrashItems((prev) => {
-        const next = prev.filter((item) => item.id !== sub.id);
-        setCache("tp_inbox_trash", next);
-        return next;
-      });
+      // Drop the row from the trash cache.
+      const drop = (pages?: SubmissionSummary[][]) =>
+        pages?.map((p) => p.filter((item) => item.id !== sub.id));
+      await trashSWR.mutate(drop, { revalidate: false });
       addToast({ title: "Eliminado permanentemente", variant: "success" });
       setConfirmModal({ open: false, submission: null, loading: false });
     } catch (e) {
