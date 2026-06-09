@@ -230,16 +230,22 @@ async def list_templates(
     # If requesting defaults, return hardcoded originals
     if defaults:
         from app.services.email_service import get_fixed_template
-        lang = "es"
+        
+        # Get label's language preference
+        label = session.get(Label, label_id)
+        lang = label.lang if label else "es"
         
         rejection = get_fixed_template("rejection", lang)
         approval = get_fixed_template("approval", lang)
+        
+        rejection_name = "Rejection" if lang == "en" else "Rechazo"
+        approval_name = "Approval" if lang == "en" else "Aprobación"
         
         return [
             TemplateResponse(
                 id="default-rejection",
                 label_id=label_id,
-                name="Rechazo",
+                name=rejection_name,
                 template_type="rejection",
                 subject=rejection["subject"],
                 body=rejection["body"],
@@ -248,7 +254,7 @@ async def list_templates(
             TemplateResponse(
                 id="default-approval",
                 label_id=label_id,
-                name="Aprobación",
+                name=approval_name,
                 template_type="approval",
                 subject=approval["subject"],
                 body=approval["body"],
