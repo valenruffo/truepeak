@@ -513,6 +513,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
             const isActive = item.href === "/emails" 
               ? pathname.startsWith("/emails")
               : pathname === item.href;
+            const isOnSubPage = item.children && isActive && pathname !== item.href;
             const Icon = item.icon;
             
             return (
@@ -522,14 +523,17 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
                     "flex items-center gap-2.5 text-[13px] font-medium px-3 py-2 rounded mb-0.5 border border-transparent",
                     isActive ? "font-semibold" : "hover:border-zinc-600"
                   )}
-                  style={{ color: isActive ? "#10b981" : "var(--text-secondary)", background: isActive ? "rgba(16,185,129,0.08)" : "transparent" }}>
+                  style={{ color: isActive ? "#10b981" : "var(--text-secondary)", background: "transparent" }}>
                   <Icon className={cn("w-4 h-4", isActive ? "text-emerald-500" : "text-zinc-400")} />
                   <span>{item.label}</span>
                 </Link>
                 
                 {/* Sub-navigation items */}
                 {item.children && isActive && (
-                  <div className="ml-4 mt-1 space-y-0.5">
+                  <div className="ml-4 mt-1 space-y-0.5 relative">
+                    {/* Vertical connector line */}
+                    <div className="absolute top-0 bottom-0 w-px bg-zinc-700/50" style={{ left: "12px" }} />
+                    
                     {item.children.map((child) => {
                       const isChildActive = pathname === child.href;
                       return (
@@ -538,14 +542,18 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
                           href={child.href}
                           onClick={() => setSidebarOpen(false)}
                           className={cn(
-                            "block text-[12px] font-medium px-3 py-1.5 rounded border border-transparent",
+                            "block text-[12px] font-medium px-3 py-1.5 rounded border border-transparent relative",
                             isChildActive ? "font-semibold" : "hover:border-zinc-600"
                           )}
                           style={{ 
                             color: isChildActive ? "#10b981" : "var(--text-muted)",
-                            background: isChildActive ? "rgba(16,185,129,0.05)" : "transparent"
+                            background: "transparent"
                           }}
                         >
+                          {/* Horizontal connector arrow */}
+                          {isChildActive && (
+                            <div className="absolute -left-3 top-1/2 -translate-y-1/2 w-3 h-px bg-zinc-600" />
+                          )}
                           {child.label}
                         </Link>
                       );
