@@ -519,8 +519,8 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
               <div key={item.href}>
                 <Link href={item.href} onClick={() => setSidebarOpen(false)}
                   className={cn(
-                    "flex items-center gap-2.5 text-[13px] font-medium px-3 py-2 rounded transition-all duration-200 mb-0.5",
-                    isActive ? "font-semibold shadow-sm" : "hover:bg-white/5 hover:translate-x-0.5"
+                    "flex items-center gap-2.5 text-[13px] font-medium px-3 py-2 rounded transition-all duration-150 mb-0.5",
+                    isActive ? "font-semibold" : "hover:bg-white/[0.04] hover:border hover:border-white/[0.06]"
                   )}
                   style={{ color: isActive ? "#10b981" : "var(--text-secondary)", background: isActive ? "rgba(16,185,129,0.08)" : "transparent" }}>
                   <Icon className={cn("w-4 h-4", isActive ? "text-emerald-500" : "text-zinc-400")} />
@@ -538,8 +538,8 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
                           href={child.href}
                           onClick={() => setSidebarOpen(false)}
                           className={cn(
-                            "block text-[12px] font-medium px-3 py-1.5 rounded transition-all duration-200",
-                            isChildActive ? "font-semibold" : "hover:bg-white/5"
+                            "block text-[12px] font-medium px-3 py-1.5 rounded transition-all duration-150",
+                            isChildActive ? "font-semibold" : "hover:bg-white/[0.04] hover:border hover:border-white/[0.06]"
                           )}
                           style={{ 
                             color: isChildActive ? "#10b981" : "var(--text-muted)",
@@ -601,7 +601,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
         <div className="px-4 mb-3 mt-2 pt-3 border-t" style={{ borderColor: "var(--border)" }}>
           <button
             onClick={() => { setFeedbackOpen(true); setFeedbackSent(false); setFeedbackMsg(""); }}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded text-[12px] font-medium transition-all hover:bg-white/5"
+            className="w-full flex items-center gap-2 px-3 py-2 rounded text-[12px] font-medium transition-all duration-150 hover:bg-white/[0.04] hover:border hover:border-white/[0.06]"
             style={{ color: "var(--text-muted)" }}
           >
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
@@ -736,7 +736,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
             <Link
               href="/settings"
               onClick={() => setSidebarOpen(false)}
-              className="flex items-center gap-2.5 text-[13px] px-3.5 py-1.5 rounded transition-colors hover:bg-white/5"
+              className="flex items-center gap-2.5 text-[13px] px-3.5 py-1.5 rounded transition-all duration-150 hover:bg-white/[0.04] hover:border hover:border-white/[0.06]"
               style={{ color: "var(--text-muted)" }}
             >
               <Settings className="w-4 h-4 flex-shrink-0 text-zinc-500" />
@@ -751,7 +751,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
                 supabase.auth.signOut().catch(() => {});
                 router.push("/");
               }}
-              className="w-full flex items-center gap-2.5 text-left text-[13px] px-3.5 py-1.5 rounded transition-colors hover:bg-white/5"
+              className="w-full flex items-center gap-2.5 text-left text-[13px] px-3.5 py-1.5 rounded transition-all duration-150 hover:bg-white/[0.04] hover:border hover:border-white/[0.06]"
               style={{ color: "var(--text-muted)" }}
             >
               <LogOut className="w-4 h-4 flex-shrink-0 text-zinc-500" />
