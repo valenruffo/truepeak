@@ -846,6 +846,7 @@ function InboxContent() {
     sent: false,
     error: null,
   });
+  const [availableTemplates, setAvailableTemplates] = useState<EmailTemplate[]>([]);
 
   // Wire undo/redo for email composer (active when emailModal is open)
   useUndoRedoKey({
@@ -1323,21 +1324,26 @@ useEffect(() => {
     sub: SubmissionSummary,
     targetStatus: "shortlist" | "rejected"
   ) => {
-    // Only fetch templates if we don't already have content (first open)
+    // Fetch templates from API
+    let templates: EmailTemplate[] = [];
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch("/api/email/templates", {
+        credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (res.ok) templates = await res.json();
+    } catch {
+      // silent — will use empty list
+    }
+    setAvailableTemplates(templates);
+
+    // Only auto-fill if we don't already have content (first open)
     const hasExistingContent = emailSubject.trim() || emailBody.trim();
     const isSameSubmission = emailModal.submission?.id === sub.id;
     const isSameStatus = emailModal.targetStatus === targetStatus;
 
     if (!hasExistingContent || !isSameSubmission || !isSameStatus) {
-      // Fetch fixed templates
-      let templates: EmailTemplate[] = [];
-      try {
-        const res = await fetch(`/api/email/templates?lang=${lang}`);
-        if (res.ok) templates = await res.json();
-      } catch {
-        // silent — will use empty defaults
-      }
-
       const targetType =
         targetStatus === "shortlist" ? "approval" : "rejection";
       const match = templates.find((t) => t.template_type === targetType);
@@ -1374,6 +1380,32 @@ useEffect(() => {
         error: null,
       }));
     }
+  };
+
+  const handleTemplateChange = (templateId: string) => {
+    if (!templateId) {
+      // "Vacío" selected - clear editor
+      setEmailSubject("");
+      setEmailBody("");
+      return;
+    }
+
+    const template = availableTemplates.find((t) => t.id === templateId);
+    if (!template || !emailModal.submission) return;
+
+    const newSubject = replaceVariables(
+      cleanHtmlToPlainText(template.subject),
+      emailModal.submission,
+      labelName
+    );
+    const newBody = replaceVariables(
+      cleanHtmlToPlainText(template.body),
+      emailModal.submission,
+      labelName
+    );
+
+    setEmailSubject(newSubject);
+    setEmailBody(newBody);
   };
 
   const handleSendEmail = async () => {
@@ -3187,7 +3219,7 @@ useEffect(() => {
                         {emailModal.submission.producer_email}
                       </span>
                       <Link
-                        href="/crm"
+                        href="/emails"
                         className="text-[10px] font-medium hover:underline flex-shrink-0"
                         style={{ color: "#10b981" }}
                         title="Cambiar reply-to desde Emails"
@@ -3209,14 +3241,27 @@ useEffect(() => {
                     </div>
                   )}
 
-                  {/* Template indicator */}
+                  {/* Template selector */}
                   <div>
                     <label className="text-[10px] text-muted uppercase tracking-wider block mb-1">
                       Plantilla
                     </label>
-                    <div className="w-full rounded px-3 py-2 text-sm border text-muted" style={{ background: "var(--bg-card)", borderColor: "var(--border)" }}>
-                      {emailModal.targetStatus === "shortlist" ? "Aprobación" : "Rechazo"}
-                    </div>
+                    <select
+                      value={availableTemplates.find((t) => {
+                        const targetType = emailModal.targetStatus === "shortlist" ? "approval" : "rejection";
+                        return t.template_type === targetType;
+                      })?.id || ""}
+                      onChange={(e) => handleTemplateChange(e.target.value)}
+                      className="w-full rounded px-3 py-2 text-sm border outline-none transition-colors"
+                      style={{ background: "var(--bg-card)", borderColor: "var(--border)", color: "var(--text-primary)" }}
+                    >
+                      <option value="">Vacío</option>
+                      {availableTemplates.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   {/* Variable Chips */}

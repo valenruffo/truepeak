@@ -1,0 +1,379 @@
+"use client";
+
+import { useState, useEffect, useRef } from "react";
+import { Mail, Plus, Edit2, Trash2, X } from "lucide-react";
+import { useLanguage } from "@/lib/i18n";
+
+interface EmailTemplate {
+  id: string;
+  label_id: string;
+  name: string;
+  template_type: string;
+  subject: string;
+  body: string;
+}
+
+const variables = [
+  { key: "{producer}", label: "Productor" },
+  { key: "{track}", label: "Track" },
+  { key: "{bpm}", label: "BPM" },
+  { key: "{label}", label: "Sello" },
+  { key: "{lufs}", label: "LUFS" },
+  { key: "{phase_correlation}", label: "Fase" },
+  { key: "{musical_key}", label: "Tonalidad" },
+  { key: "{true_peak}", label: "True Peak" },
+  { key: "{crest_factor}", label: "Crest" },
+  { key: "{duration}", label: "Duración" },
+  { key: "{status}", label: "Status" },
+  { key: "{rejection_reason}", label: "Motivo" },
+];
+
+export default function TemplatesPage() {
+  const { t, lang } = useLanguage();
+  const [templates, setTemplates] = useState<EmailTemplate[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+  const [formData, setFormData] = useState({
+    name: "",
+    template_type: "custom",
+    subject_template: "",
+    body_template: "",
+  });
+
+  useEffect(() => {
+    fetchTemplates();
+  }, []);
+
+  const fetchTemplates = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch("/api/email/templates", {
+        credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setTemplates(data);
+      }
+    } catch (err) {
+      console.error("Error fetching templates:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreate = () => {
+    setFormData({
+      name: "",
+      template_type: "custom",
+      subject_template: "",
+      body_template: "",
+    });
+    setIsCreating(true);
+    setEditingTemplate(null);
+  };
+
+  const handleEdit = (template: EmailTemplate) => {
+    setFormData({
+      name: template.name,
+      template_type: template.template_type,
+      subject_template: template.subject,
+      body_template: template.body,
+    });
+    setEditingTemplate(template);
+    setIsCreating(false);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("¿Eliminar esta plantilla?")) return;
+    
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`/api/email/templates/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (res.ok) {
+        setTemplates(templates.filter((t) => t.id !== id));
+      }
+    } catch (err) {
+      console.error("Error deleting template:", err);
+    }
+  };
+
+  const handleSave = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const url = editingTemplate
+        ? `/api/email/templates/${editingTemplate.id}`
+        : "/api/email/templates";
+      const method = editingTemplate ? "PUT" : "POST";
+      
+      const res = await fetch(url, {
+        method,
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(formData),
+      });
+      
+      if (res.ok) {
+        const saved = await res.json();
+        if (editingTemplate) {
+          setTemplates(templates.map((t) => (t.id === saved.id ? saved : t)));
+        } else {
+          setTemplates([...templates, saved]);
+        }
+        setIsCreating(false);
+        setEditingTemplate(null);
+      }
+    } catch (err) {
+      console.error("Error saving template:", err);
+    }
+  };
+
+  const insertVariable = (variable: string, field: "subject" | "body") => {
+    const fieldName = field === "subject" ? "subject_template" : "body_template";
+    setFormData({
+      ...formData,
+      [fieldName]: formData[fieldName] + variable,
+    });
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="w-8 h-8 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6 max-w-6xl mx-auto">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-primary">Plantillas de Email</h1>
+          <p className="text-sm text-muted mt-1">
+            Crea y gestiona plantillas personalizadas para tus emails
+          </p>
+        </div>
+        <button
+          onClick={handleCreate}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500 text-black font-medium hover:bg-emerald-600 transition-colors"
+        >
+          <Plus className="w-4 h-4" />
+          Nueva Plantilla
+        </button>
+      </div>
+
+      {/* Templates List */}
+      <div className="grid gap-4">
+        {templates.map((template) => (
+          <div
+            key={template.id}
+            className="rounded-lg border p-4 hover:border-emerald-500/50 transition-colors"
+            style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}
+          >
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <h3 className="font-semibold text-primary">{template.name}</h3>
+                  <span
+                    className="text-[10px] font-mono px-2 py-0.5 rounded"
+                    style={{
+                      background:
+                        template.template_type === "rejection"
+                          ? "rgba(239,68,68,0.1)"
+                          : template.template_type === "approval"
+                          ? "rgba(16,185,129,0.1)"
+                          : "rgba(161,161,170,0.1)",
+                      color:
+                        template.template_type === "rejection"
+                          ? "#ef4444"
+                          : template.template_type === "approval"
+                          ? "#10b981"
+                          : "#a1a1aa",
+                    }}
+                  >
+                    {template.template_type}
+                  </span>
+                </div>
+                <div className="text-xs text-muted mb-1">
+                  <strong>Asunto:</strong> {template.subject}
+                </div>
+                <div className="text-xs text-muted line-clamp-2">
+                  <strong>Cuerpo:</strong> {template.body}
+                </div>
+              </div>
+              <div className="flex items-center gap-2 ml-4">
+                <button
+                  onClick={() => handleEdit(template)}
+                  className="p-2 rounded hover:bg-white/5 text-muted hover:text-primary transition-colors"
+                  title="Editar"
+                >
+                  <Edit2 className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => handleDelete(template.id)}
+                  className="p-2 rounded hover:bg-red-500/10 text-muted hover:text-red-500 transition-colors"
+                  title="Eliminar"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {templates.length === 0 && (
+        <div className="text-center py-12 text-muted">
+          <Mail className="w-12 h-12 mx-auto mb-4 opacity-50" />
+          <p className="text-sm">No hay plantillas creadas</p>
+          <p className="text-xs mt-1">Crea tu primera plantilla para comenzar</p>
+        </div>
+      )}
+
+      {/* Create/Edit Modal */}
+      {(isCreating || editingTemplate) && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.8)" }}
+          onClick={() => {
+            setIsCreating(false);
+            setEditingTemplate(null);
+          }}
+        >
+          <div
+            className="rounded-lg border max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+            style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div
+              className="flex items-center justify-between px-6 py-4 border-b"
+              style={{ borderColor: "var(--border)" }}
+            >
+              <h2 className="font-semibold text-lg text-primary">
+                {editingTemplate ? "Editar Plantilla" : "Nueva Plantilla"}
+              </h2>
+              <button
+                onClick={() => {
+                  setIsCreating(false);
+                  setEditingTemplate(null);
+                }}
+                className="p-2 rounded hover:bg-white/5 text-muted hover:text-primary transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-auto p-6 space-y-4">
+              {/* Name */}
+              <div>
+                <label className="text-xs font-medium text-muted block mb-1">Nombre</label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full px-3 py-2 rounded border text-sm"
+                  style={{ background: "var(--bg-card)", borderColor: "var(--border)", color: "var(--text-primary)" }}
+                  placeholder="Ej: Rechazo técnico"
+                />
+              </div>
+
+              {/* Type */}
+              <div>
+                <label className="text-xs font-medium text-muted block mb-1">Tipo</label>
+                <select
+                  value={formData.template_type}
+                  onChange={(e) => setFormData({ ...formData, template_type: e.target.value })}
+                  className="w-full px-3 py-2 rounded border text-sm"
+                  style={{ background: "var(--bg-card)", borderColor: "var(--border)", color: "var(--text-primary)" }}
+                >
+                  <option value="custom">Custom</option>
+                  <option value="rejection">Rechazo</option>
+                  <option value="approval">Aprobación</option>
+                </select>
+              </div>
+
+              {/* Subject */}
+              <div>
+                <label className="text-xs font-medium text-muted block mb-1">Asunto</label>
+                <input
+                  type="text"
+                  value={formData.subject_template}
+                  onChange={(e) => setFormData({ ...formData, subject_template: e.target.value })}
+                  className="w-full px-3 py-2 rounded border text-sm"
+                  style={{ background: "var(--bg-card)", borderColor: "var(--border)", color: "var(--text-primary)" }}
+                  placeholder="Resultado de análisis: {track}"
+                />
+              </div>
+
+              {/* Body */}
+              <div>
+                <label className="text-xs font-medium text-muted block mb-1">Cuerpo</label>
+                <textarea
+                  value={formData.body_template}
+                  onChange={(e) => setFormData({ ...formData, body_template: e.target.value })}
+                  rows={10}
+                  className="w-full px-3 py-2 rounded border text-sm resize-none"
+                  style={{ background: "var(--bg-card)", borderColor: "var(--border)", color: "var(--text-primary)" }}
+                  placeholder="Hola {producer},&#10;&#10;Gracias por enviar {track}..."
+                />
+              </div>
+
+              {/* Variable Chips */}
+              <div>
+                <label className="text-xs font-medium text-muted block mb-2">Variables disponibles</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {variables.map((v) => (
+                    <button
+                      key={v.key}
+                      onClick={() => insertVariable(v.key, "body")}
+                      className="text-[10px] px-2 py-1 rounded border hover:border-emerald-500 hover:bg-emerald-500/5 transition-colors"
+                      style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}
+                      title={`Insertar ${v.label}`}
+                    >
+                      +{v.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div
+              className="flex items-center justify-end gap-2 px-6 py-4 border-t"
+              style={{ borderColor: "var(--border)" }}
+            >
+              <button
+                onClick={() => {
+                  setIsCreating(false);
+                  setEditingTemplate(null);
+                }}
+                className="px-4 py-2 rounded text-sm font-medium hover:bg-white/5 transition-colors"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={!formData.name || !formData.subject_template || !formData.body_template}
+                className="px-4 py-2 rounded text-sm font-medium bg-emerald-500 text-black hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {editingTemplate ? "Guardar Cambios" : "Crear Plantilla"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
