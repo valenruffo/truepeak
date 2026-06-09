@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { Mail, Plus, Edit2, Trash2, X } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Mail, Plus, Edit2, Trash2, X, RotateCcw } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 
 interface EmailTemplate {
@@ -11,6 +11,7 @@ interface EmailTemplate {
   template_type: string;
   subject: string;
   body: string;
+  is_default?: boolean;
 }
 
 const variables = [
@@ -103,6 +104,44 @@ export default function TemplatesPage() {
     }
   };
 
+  const handleRestore = async (template: EmailTemplate) => {
+    if (!confirm("¿Restaurar esta plantilla a su versión original? Se perderán los cambios.")) return;
+    
+    // Fetch default templates to get original content
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch("/api/email/templates?defaults=true", {
+        credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (res.ok) {
+        const defaults = await res.json();
+        const original = defaults.find((d: EmailTemplate) => d.template_type === template.template_type);
+        if (original) {
+          const updateRes = await fetch(`/api/email/templates/${template.id}`, {
+            method: "PUT",
+            credentials: "include",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              name: original.name,
+              template_type: original.template_type,
+              subject_template: original.subject,
+              body_template: original.body,
+            }),
+          });
+          if (updateRes.ok) {
+            fetchTemplates();
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Error restoring template:", err);
+    }
+  };
+
   const handleSave = async () => {
     try {
       const token = localStorage.getItem("token");
@@ -136,12 +175,16 @@ export default function TemplatesPage() {
     }
   };
 
-  const insertVariable = (variable: string, field: "subject" | "body") => {
-    const fieldName = field === "subject" ? "subject_template" : "body_template";
+  const insertVariable = (variable: string) => {
     setFormData({
       ...formData,
-      [fieldName]: formData[fieldName] + variable,
+      body_template: formData.body_template + variable,
     });
+  };
+
+  // Render HTML preview (for default templates)
+  const renderPreview = (html: string) => {
+    return { __html: html };
   };
 
   if (loading) {
@@ -179,38 +222,39 @@ export default function TemplatesPage() {
             className="rounded-lg border p-4 hover:border-emerald-500/50 transition-colors"
             style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}
           >
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-2">
-                  <h3 className="font-semibold text-primary">{template.name}</h3>
-                  <span
-                    className="text-[10px] font-mono px-2 py-0.5 rounded"
-                    style={{
-                      background:
-                        template.template_type === "rejection"
-                          ? "rgba(239,68,68,0.1)"
-                          : template.template_type === "approval"
-                          ? "rgba(16,185,129,0.1)"
-                          : "rgba(161,161,170,0.1)",
-                      color:
-                        template.template_type === "rejection"
-                          ? "#ef4444"
-                          : template.template_type === "approval"
-                          ? "#10b981"
-                          : "#a1a1aa",
-                    }}
-                  >
-                    {template.template_type}
-                  </span>
-                </div>
-                <div className="text-xs text-muted mb-1">
-                  <strong>Asunto:</strong> {template.subject}
-                </div>
-                <div className="text-xs text-muted line-clamp-2">
-                  <strong>Cuerpo:</strong> {template.body}
-                </div>
+            <div className="flex items-start justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <h3 className="font-semibold text-primary">{template.name}</h3>
+                <span
+                  className="text-[10px] font-mono px-2 py-0.5 rounded"
+                  style={{
+                    background:
+                      template.template_type === "rejection"
+                        ? "rgba(239,68,68,0.1)"
+                        : template.template_type === "approval"
+                        ? "rgba(16,185,129,0.1)"
+                        : "rgba(161,161,170,0.1)",
+                    color:
+                      template.template_type === "rejection"
+                        ? "#ef4444"
+                        : template.template_type === "approval"
+                        ? "#10b981"
+                        : "#a1a1aa",
+                  }}
+                >
+                  {template.template_type}
+                </span>
               </div>
-              <div className="flex items-center gap-2 ml-4">
+              <div className="flex items-center gap-2">
+                {template.is_default && (
+                  <button
+                    onClick={() => handleRestore(template)}
+                    className="p-2 rounded hover:bg-white/5 text-muted hover:text-primary transition-colors"
+                    title="Restaurar original"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                  </button>
+                )}
                 <button
                   onClick={() => handleEdit(template)}
                   className="p-2 rounded hover:bg-white/5 text-muted hover:text-primary transition-colors"
@@ -226,6 +270,22 @@ export default function TemplatesPage() {
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
+            </div>
+
+            {/* Subject */}
+            <div className="mb-3">
+              <div className="text-[10px] font-medium text-muted uppercase tracking-wider mb-1">Asunto</div>
+              <div className="text-sm text-primary">{template.subject}</div>
+            </div>
+
+            {/* Body Preview */}
+            <div>
+              <div className="text-[10px] font-medium text-muted uppercase tracking-wider mb-1">Vista previa</div>
+              <div 
+                className="text-sm text-primary p-3 rounded border"
+                style={{ background: "var(--bg-secondary)", borderColor: "var(--border)" }}
+                dangerouslySetInnerHTML={renderPreview(template.body)}
+              />
             </div>
           </div>
         ))}
@@ -318,12 +378,12 @@ export default function TemplatesPage() {
 
               {/* Body */}
               <div>
-                <label className="text-xs font-medium text-muted block mb-1">Cuerpo</label>
+                <label className="text-xs font-medium text-muted block mb-1">Cuerpo (texto plano)</label>
                 <textarea
                   value={formData.body_template}
                   onChange={(e) => setFormData({ ...formData, body_template: e.target.value })}
                   rows={10}
-                  className="w-full px-3 py-2 rounded border text-sm resize-none"
+                  className="w-full px-3 py-2 rounded border text-sm resize-none font-mono"
                   style={{ background: "var(--bg-card)", borderColor: "var(--border)", color: "var(--text-primary)" }}
                   placeholder="Hola {producer},&#10;&#10;Gracias por enviar {track}..."
                 />
@@ -331,12 +391,12 @@ export default function TemplatesPage() {
 
               {/* Variable Chips */}
               <div>
-                <label className="text-xs font-medium text-muted block mb-2">Variables disponibles</label>
+                <label className="text-xs font-medium text-muted block mb-2">Variables disponibles (haz clic para insertar)</label>
                 <div className="flex flex-wrap gap-1.5">
                   {variables.map((v) => (
                     <button
                       key={v.key}
-                      onClick={() => insertVariable(v.key, "body")}
+                      onClick={() => insertVariable(v.key)}
                       className="text-[10px] px-2 py-1 rounded border hover:border-emerald-500 hover:bg-emerald-500/5 transition-colors"
                       style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}
                       title={`Insertar ${v.label}`}

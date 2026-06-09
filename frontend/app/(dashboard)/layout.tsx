@@ -501,7 +501,10 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
 
         <nav className="flex-1 px-2.5 pt-4 space-y-1">
           {navItems.map((item) => {
-            const isActive = pathname === item.href;
+            // Emails is active for both /emails and /emails/templates
+            const isActive = item.href === "/emails" 
+              ? pathname.startsWith("/emails")
+              : pathname === item.href;
             const Icon = item.icon;
             return (
               <Link key={item.href} href={item.href} onClick={() => setSidebarOpen(false)}

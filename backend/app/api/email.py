@@ -43,6 +43,7 @@ class TemplateResponse(BaseModel):
     subject: str
     body: str
     created_at: datetime | None = None
+    is_default: bool = False
 
 
 class CreateTemplateRequest(BaseModel):
@@ -215,27 +216,21 @@ async def get_email_logs(
 
 @router.get("/templates", response_model=list[TemplateResponse])
 async def list_templates(
+    defaults: bool = False,
     auth: dict = Depends(_get_label_from_token),
     session: Session = Depends(get_session),
 ):
     """Return email templates for the authenticated label.
     
-    Returns custom templates created by the label, plus 2 default templates
-    (rejection/approval) if no custom templates exist.
+    If defaults=true, return the hardcoded original templates (for restore).
+    Otherwise, return templates from DB with is_default flag.
     """
     label_id = auth["label_id"]
     
-    # Fetch custom templates for this label
-    templates = session.exec(
-        select(EmailTemplate)
-        .where(EmailTemplate.label_id == label_id)
-        .order_by(EmailTemplate.created_at.desc())
-    ).all()
-    
-    # If no templates exist, return 2 default templates (fallback)
-    if not templates:
+    # If requesting defaults, return hardcoded originals
+    if defaults:
         from app.services.email_service import get_fixed_template
-        lang = "es"  # Default to Spanish
+        lang = "es"
         
         rejection = get_fixed_template("rejection", lang)
         approval = get_fixed_template("approval", lang)
@@ -248,6 +243,7 @@ async def list_templates(
                 template_type="rejection",
                 subject=rejection["subject"],
                 body=rejection["body"],
+                is_default=True,
             ),
             TemplateResponse(
                 id="default-approval",
@@ -256,10 +252,18 @@ async def list_templates(
                 template_type="approval",
                 subject=approval["subject"],
                 body=approval["body"],
+                is_default=True,
             ),
         ]
     
-    # Return custom templates
+    # Fetch templates from DB
+    templates = session.exec(
+        select(EmailTemplate)
+        .where(EmailTemplate.label_id == label_id)
+        .order_by(EmailTemplate.created_at.desc())
+    ).all()
+    
+    # Return templates with is_default flag
     return [
         TemplateResponse(
             id=t.id,
@@ -269,6 +273,7 @@ async def list_templates(
             subject=t.subject_template,
             body=t.body_template,
             created_at=t.created_at,
+            is_default=(t.template_type in ["rejection", "approval"]),
         )
         for t in templates
     ]
