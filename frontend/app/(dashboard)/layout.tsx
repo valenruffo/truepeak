@@ -466,7 +466,15 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
     { href: "/config", label: t("dashboard.nav.config"), icon: Sliders },
     { href: "/link", label: t("dashboard.nav.link"), icon: Link2 },
     { href: "/inbox", label: role === "dj" ? "Promos" : "Demos", icon: Inbox },
-    { href: "/emails", label: "Emails", icon: Mail },
+    { 
+      href: "/emails", 
+      label: "Emails", 
+      icon: Mail,
+      children: [
+        { href: "/emails", label: "CRM" },
+        { href: "/emails/templates", label: "Templates" },
+      ]
+    },
     { href: "/guide", label: t("dashboard.nav.guide"), icon: BookOpen },
   ];
 
@@ -506,16 +514,45 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
               ? pathname.startsWith("/emails")
               : pathname === item.href;
             const Icon = item.icon;
+            
             return (
-              <Link key={item.href} href={item.href} onClick={() => setSidebarOpen(false)}
-                className={cn(
-                  "flex items-center gap-2.5 text-[13px] font-medium px-3 py-2 rounded transition-all duration-200 mb-0.5",
-                  isActive ? "font-semibold shadow-sm" : "hover:bg-white/5 hover:translate-x-0.5"
+              <div key={item.href}>
+                <Link href={item.href} onClick={() => setSidebarOpen(false)}
+                  className={cn(
+                    "flex items-center gap-2.5 text-[13px] font-medium px-3 py-2 rounded transition-all duration-200 mb-0.5",
+                    isActive ? "font-semibold shadow-sm" : "hover:bg-white/5 hover:translate-x-0.5"
+                  )}
+                  style={{ color: isActive ? "#10b981" : "var(--text-secondary)", background: isActive ? "rgba(16,185,129,0.08)" : "transparent" }}>
+                  <Icon className={cn("w-4 h-4", isActive ? "text-emerald-500" : "text-zinc-400")} />
+                  <span>{item.label}</span>
+                </Link>
+                
+                {/* Sub-navigation items */}
+                {item.children && isActive && (
+                  <div className="ml-4 mt-1 space-y-0.5">
+                    {item.children.map((child) => {
+                      const isChildActive = pathname === child.href;
+                      return (
+                        <Link
+                          key={child.href}
+                          href={child.href}
+                          onClick={() => setSidebarOpen(false)}
+                          className={cn(
+                            "block text-[12px] font-medium px-3 py-1.5 rounded transition-all duration-200",
+                            isChildActive ? "font-semibold" : "hover:bg-white/5"
+                          )}
+                          style={{ 
+                            color: isChildActive ? "#10b981" : "var(--text-muted)",
+                            background: isChildActive ? "rgba(16,185,129,0.05)" : "transparent"
+                          }}
+                        >
+                          {child.label}
+                        </Link>
+                      );
+                    })}
+                  </div>
                 )}
-                style={{ color: isActive ? "#10b981" : "var(--text-secondary)", background: isActive ? "rgba(16,185,129,0.08)" : "transparent" }}>
-                <Icon className={cn("w-4 h-4", isActive ? "text-emerald-500" : "text-zinc-400")} />
-                <span>{item.label}</span>
-              </Link>
+              </div>
             );
           })}
         </nav>
