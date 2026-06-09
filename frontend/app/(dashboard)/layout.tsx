@@ -530,32 +530,52 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
                 
                 {/* Sub-navigation items */}
                 {item.children && isActive && (
-                  <div className="ml-4 mt-1 space-y-0.5 relative">
-                    {/* Vertical connector line */}
-                    <div className="absolute top-0 bottom-0 w-px bg-zinc-700/50" style={{ left: "12px" }} />
-                    
-                    {item.children.map((child) => {
+                  <div className="ml-5 mt-1 space-y-0.5">
+                    {item.children.map((child, idx) => {
                       const isChildActive = pathname === child.href;
+                      const isLast = idx === item.children!.length - 1;
+                      const isFirst = idx === 0;
+                      const connectorColor = isChildActive ? "#10b981" : "rgba(63,63,70,0.6)";
                       return (
-                        <Link
-                          key={child.href}
-                          href={child.href}
-                          onClick={() => setSidebarOpen(false)}
-                          className={cn(
-                            "block text-[12px] font-medium px-3 py-1.5 rounded border border-transparent relative",
-                            isChildActive ? "font-semibold" : "hover:border-zinc-600"
-                          )}
-                          style={{ 
-                            color: isChildActive ? "#10b981" : "var(--text-muted)",
-                            background: "transparent"
-                          }}
-                        >
-                          {/* Horizontal connector arrow */}
-                          {isChildActive && (
-                            <div className="absolute -left-3 top-1/2 -translate-y-1/2 w-3 h-px bg-zinc-600" />
-                          )}
-                          {child.label}
-                        </Link>
+                        <div key={child.href} className="relative pl-3.5">
+                          {/* Vertical segment */}
+                          <div
+                            className="absolute w-px"
+                            style={{
+                              left: "0",
+                              top: isFirst ? "0" : "0",
+                              bottom: isLast ? "50%" : "0",
+                              background: connectorColor,
+                            }}
+                          />
+                          {/* Curved corner + horizontal arm */}
+                          <div
+                            className="absolute"
+                            style={{
+                              left: "0",
+                              top: "10px",
+                              width: "14px",
+                              height: "10px",
+                              borderLeft: `1px solid ${connectorColor}`,
+                              borderBottom: `1px solid ${connectorColor}`,
+                              borderBottomLeftRadius: "6px",
+                            }}
+                          />
+                          <Link
+                            href={child.href}
+                            onClick={() => setSidebarOpen(false)}
+                            className={cn(
+                              "block text-[12px] font-medium px-3 py-1.5 rounded border border-transparent",
+                              isChildActive ? "font-semibold" : "hover:border-zinc-600"
+                            )}
+                            style={{ 
+                              color: isChildActive ? "#10b981" : "var(--text-muted)",
+                              background: "transparent"
+                            }}
+                          >
+                            {child.label}
+                          </Link>
+                        </div>
                       );
                     })}
                   </div>
