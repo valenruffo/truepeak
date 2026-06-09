@@ -65,7 +65,8 @@ const renderVariableBadges = (text: string): string => {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
-  return escaped.replace(/\{(\w+)\}/g, '<span style="background: rgba(16,185,129,0.15); color: #10b981; border: 1px solid rgba(16,185,129,0.3); padding: 1px 5px; border-radius: 3px; font-size: 0.85em; font-weight: 500; font-family: monospace;">{$1}</span>');
+  // Replace newlines with <br> for proper display, add space around badges
+  return escaped.replace(/\{(\w+)\}/g, ' {$1} ').replace(/(\s)\{(\w+)\}(\s)/g, ' <span style="background: rgba(16,185,129,0.15); color: #10b981; border: 1px solid rgba(16,185,129,0.3); padding: 1px 6px; border-radius: 3px; font-size: 0.85em; font-weight: 500; font-family: monospace; white-space: nowrap;">{$2}</span> ');
 };
 
 export default function TemplatesPage() {
@@ -78,6 +79,12 @@ export default function TemplatesPage() {
   const [saving, setSaving] = useState(false);
   const [dragOverField, setDragOverField] = useState<"subject" | "body" | null>(null);
   const [dragPosition, setDragPosition] = useState<{ field: "subject" | "body"; y: number } | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  } | null>(null);
   const bodyEditorRef = useRef<HTMLDivElement>(null);
   const subjectEditorRef = useRef<HTMLDivElement>(null);
   const [formData, setFormData] = useState({
@@ -178,55 +185,94 @@ export default function TemplatesPage() {
     if (template && (template.template_type === "rejection" || template.template_type === "approval")) {
       return;
     }
-    
-    if (!confirm(lang === "es" ? "¿Eliminar esta plantilla?" : "Delete this template?")) return;
-    
-    try {
-      const token = localStorage.getItem("token");
-      const res = await fetch(`/api/email/templates/${id}`, {
-        method: "DELETE",
-        credentials: "include",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (res.ok) {
-        setTemplates(templates.filter((t) => t.id !== id));
-      }
-    } catch (err) {
-      console.error("Error deleting template:", err);
-    }
+
+    setConfirmDialog({
+      open: true,
+      title: isEn ? "Delete Template" : "Eliminar Plantilla",
+      message: isEn ? "Are you sure you want to delete this template? This action cannot be undone." : "¿Estás seguro de que quieres eliminar esta plantilla? Esta acción no se puede deshacer.",
+      onConfirm: async () => {
+        try {
+          const token = localStorage.getItem("token");
+          const res = await fetch(`/api/email/templates/${id}`, {
+            method: "DELETE",
+            credentials: "include",
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          });
+          if (res.ok) {
+            setTemplates(templates.filter((t) => t.id !== id));
+          }
+        } catch (err) {
+          console.error("Error deleting template:", err);
+        }
+        setConfirmDialog(null);
+      },
+    });
   };
 
-  const handleRestore = async (template: EmailTemplate) => {
-    const confirmMsg = lang === "es" 
-      ? "¿Restaurar esta plantilla a su versión original? Se perderán los cambios."
-      : "Restore this template to its original version? Changes will be lost.";
-    if (!confirm(confirmMsg)) return;
-    
-    try {
-      const token = localStorage.getItem("token");
-      const original = defaultTemplates.find((d) => d.template_type === template.template_type);
-      if (original) {
-        const updateRes = await fetch(`/api/email/templates/${template.id}`, {
-          method: "PUT",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({
-            name: original.name,
-            template_type: original.template_type,
-            subject_template: original.subject,
-            body_template: original.body,
-          }),
-        });
-        if (updateRes.ok) {
-          fetchTemplates();
+  const handleRestore = async (template: EmailTemplate | DefaultTemplate) => {
+    setConfirmDialog({
+      open: true,
+      title: isEn ? "Restore Template" : "Restaurar Plantilla",
+      message: isEn
+        ? "Restore this template to its original version? Your changes will be lost."
+        : "¿Restaurar esta plantilla a su versión original? Se perderán los cambios.",
+      onConfirm: async () => {
+        try {
+          const token = localStorage.getItem("token");
+          const original = defaultTemplates.find((d) => d.template_type === template.template_type);
+          if (!original) {
+            setConfirmDialog(null);
+            return;
+          }
+
+          // Check if template exists in DB
+          const existing = templates.find((t) => t.template_type === template.template_type);
+
+          if (existing) {
+            // Update existing template
+            const updateRes = await fetch(`/api/email/templates/${existing.id}`, {
+              method: "PUT",
+              credentials: "include",
+              headers: {
+                "Content-Type": "application/json",
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              },
+              body: JSON.stringify({
+                name: original.name,
+                template_type: original.template_type,
+                subject_template: original.subject,
+                body_template: original.body,
+              }),
+            });
+            if (updateRes.ok) {
+              fetchTemplates();
+            }
+          } else {
+            // Create new template (template was deleted entirely)
+            const createRes = await fetch(`/api/email/templates`, {
+              method: "POST",
+              credentials: "include",
+              headers: {
+                "Content-Type": "application/json",
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              },
+              body: JSON.stringify({
+                name: original.name,
+                template_type: original.template_type,
+                subject_template: original.subject,
+                body_template: original.body,
+              }),
+            });
+            if (createRes.ok) {
+              fetchTemplates();
+            }
+          }
+        } catch (err) {
+          console.error("Error restoring template:", err);
         }
-      }
-    } catch (err) {
-      console.error("Error restoring template:", err);
-    }
+        setConfirmDialog(null);
+      },
+    });
   };
 
   const getEditorText = (editorRef: React.RefObject<HTMLDivElement | null>): string => {
@@ -422,7 +468,7 @@ export default function TemplatesPage() {
         {templates.map((template) => {
           const isModified = isTemplateModified(template);
           const isDefault = template.template_type === "rejection" || template.template_type === "approval";
-          
+
           return (
             <div
               key={template.id}
@@ -496,9 +542,14 @@ export default function TemplatesPage() {
                 <div className="text-[10px] font-medium text-muted uppercase tracking-wider mb-1">
                   {isEn ? "Preview" : "Vista previa"}
                 </div>
-                <div 
-                  className="text-xs text-primary p-2 rounded border line-clamp-4"
-                  style={{ background: "var(--bg-secondary)", borderColor: "var(--border)" }}
+                <div
+                  className="text-xs text-primary p-3 rounded border line-clamp-4"
+                  style={{
+                    background: "var(--bg-secondary)",
+                    borderColor: "var(--border)",
+                    lineHeight: "1.7",
+                    wordSpacing: "0.05em"
+                  }}
                   dangerouslySetInnerHTML={{ __html: renderVariableBadges(stripHtml(template.body)) }}
                 />
               </div>
@@ -506,6 +557,61 @@ export default function TemplatesPage() {
           );
         })}
       </div>
+
+      {/* Missing Default Templates - templates that were deleted */}
+      {defaultTemplates.length > 0 && defaultTemplates.some(
+        (d) => !templates.some((t) => t.template_type === d.template_type)
+      ) && (
+        <div className="mt-6">
+          <h2 className="text-sm font-medium text-muted mb-2">
+            {isEn ? "Missing Default Templates" : "Plantillas Default Faltantes"}
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {defaultTemplates
+              .filter((d) => !templates.some((t) => t.template_type === d.template_type))
+              .map((missingTemplate) => (
+                <div
+                  key={`missing-${missingTemplate.template_type}`}
+                  className="rounded-lg border-2 border-dashed p-4 opacity-60"
+                  style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-sm text-muted">{missingTemplate.name}</h3>
+                      <span
+                        className="text-[9px] font-mono px-1.5 py-0.5 rounded"
+                        style={{
+                          background:
+                            missingTemplate.template_type === "rejection"
+                              ? "rgba(239,68,68,0.1)"
+                              : "rgba(16,185,129,0.1)",
+                          color:
+                            missingTemplate.template_type === "rejection"
+                              ? "#ef4444"
+                              : "#10b981",
+                        }}
+                      >
+                        {missingTemplate.template_type} (deleted)
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => handleRestore(missingTemplate)}
+                      className="p-1.5 rounded hover:bg-white/5 text-muted hover:text-emerald-500 transition-colors"
+                      title={isEn ? "Restore this template" : "Restaurar esta plantilla"}
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <p className="text-xs text-muted">
+                    {isEn 
+                      ? "This default template was deleted. Click the restore icon to recreate it."
+                      : "Esta plantilla default fue eliminada. Hacé clic en el ícono para restaurarla."}
+                  </p>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
 
       {templates.length === 0 && (
         <div className="text-center py-12 text-muted">
@@ -678,6 +784,59 @@ export default function TemplatesPage() {
                 {editingTemplate 
                   ? (isEn ? "Save Changes" : "Guardar Cambios")
                   : (isEn ? "Create Template" : "Crear Plantilla")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Dialog */}
+      {confirmDialog?.open && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.7)" }}
+          onClick={() => setConfirmDialog(null)}
+        >
+          <div
+            className="rounded-lg border max-w-md w-full overflow-hidden shadow-2xl"
+            style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className="flex items-center justify-between px-5 py-4 border-b"
+              style={{ borderColor: "var(--border)" }}
+            >
+              <h3 className="font-semibold text-base text-primary">
+                {confirmDialog.title}
+              </h3>
+              <button
+                onClick={() => setConfirmDialog(null)}
+                className="p-1.5 rounded hover:bg-white/5 text-muted hover:text-primary transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="px-5 py-4">
+              <p className="text-sm text-secondary leading-relaxed">
+                {confirmDialog.message}
+              </p>
+            </div>
+            <div
+              className="flex items-center justify-end gap-2 px-5 py-3 border-t"
+              style={{ borderColor: "var(--border)" }}
+            >
+              <button
+                onClick={() => setConfirmDialog(null)}
+                className="px-4 py-2 rounded text-sm font-medium hover:bg-white/5 transition-colors"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                {isEn ? "Cancel" : "Cancelar"}
+              </button>
+              <button
+                onClick={confirmDialog.onConfirm}
+                className="px-4 py-2 rounded text-sm font-medium bg-emerald-500 text-black hover:bg-emerald-600 transition-colors"
+              >
+                {isEn ? "Confirm" : "Confirmar"}
               </button>
             </div>
           </div>
