@@ -53,6 +53,8 @@ interface SubmissionSummary {
 
 interface EmailTemplate {
   id: string;
+  label_id?: string;
+  name: string;
   template_type: string;
   subject: string;
   body: string;
