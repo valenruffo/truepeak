@@ -12,7 +12,6 @@ interface EmailTemplate {
   subject: string;
   body: string;
   is_default?: boolean;
-  is_modified?: boolean;
 }
 
 interface DefaultTemplate {
@@ -38,12 +37,35 @@ const variables = [
   { key: "{rejection_reason}", label: "Reason" },
 ];
 
-// Replace {variable} with green badge HTML for preview
+// Strip HTML tags from template body
+const stripHtml = (html: string): string => {
+  if (!html) return "";
+  // Normalize {{variable}} to {variable}
+  let text = html.replace(/\{\{(\w+)\}\}/g, '{$1}');
+  // Remove HTML tags but keep content
+  text = text.replace(/<br\s*\/?>/gi, "\n");
+  text = text.replace(/<\/p>\s*<p>/gi, "\n\n");
+  text = text.replace(/<\/div>\s*<div>/gi, "\n\n");
+  text = text.replace(/<\/li>\s*<li>/gi, "\n");
+  text = text.replace(/<[^>]*>/g, "");
+  // Decode HTML entities
+  text = text.replace(/&amp;/g, "&")
+             .replace(/&lt;/g, "<")
+             .replace(/&gt;/g, ">")
+             .replace(/&quot;/g, '"')
+             .replace(/&#039;/g, "'")
+             .replace(/&nbsp;/g, " ");
+  return text.trim();
+};
+
+// Render variables as green badges for preview
 const renderVariableBadges = (text: string): string => {
   if (!text) return "";
-  // First normalize {{variable}} to {variable}
-  const normalized = text.replace(/\{\{(\w+)\}\}/g, '{$1}');
-  return normalized.replace(/\{(\w+)\}/g, '<span style="background: rgba(16,185,129,0.1); color: #10b981; border: 1px solid rgba(16,185,129,0.2); padding: 1px 4px; border-radius: 3px; font-size: 0.85em; font-weight: 500;">{$1}</span>');
+  const escaped = text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+  return escaped.replace(/\{(\w+)\}/g, '<span style="background: rgba(16,185,129,0.15); color: #10b981; border: 1px solid rgba(16,185,129,0.3); padding: 1px 5px; border-radius: 3px; font-size: 0.85em; font-weight: 500; font-family: monospace;">{$1}</span>');
 };
 
 export default function TemplatesPage() {
@@ -55,8 +77,9 @@ export default function TemplatesPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dragOverField, setDragOverField] = useState<"subject" | "body" | null>(null);
-  const bodyTextareaRef = useRef<HTMLTextAreaElement>(null);
-  const subjectInputRef = useRef<HTMLInputElement>(null);
+  const [dragPosition, setDragPosition] = useState<{ field: "subject" | "body"; y: number } | null>(null);
+  const bodyEditorRef = useRef<HTMLDivElement>(null);
+  const subjectEditorRef = useRef<HTMLDivElement>(null);
   const [formData, setFormData] = useState({
     name: "",
     template_type: "custom",
@@ -65,7 +88,6 @@ export default function TemplatesPage() {
   });
 
   useEffect(() => {
-    // Fetch defaults first, then templates
     fetchDefaultTemplates().then(() => {
       fetchTemplates();
     });
@@ -80,15 +102,7 @@ export default function TemplatesPage() {
       });
       if (res.ok) {
         const data = await res.json();
-        // Mark templates as modified if they differ from defaults
-        const templatesWithStatus = data.map((t: EmailTemplate) => {
-          const defaultTemplate = defaultTemplates.find((d) => d.template_type === t.template_type);
-          const isModified = defaultTemplate 
-            ? (t.subject !== defaultTemplate.subject || t.body !== defaultTemplate.body)
-            : false;
-          return { ...t, is_modified: isModified };
-        });
-        setTemplates(templatesWithStatus);
+        setTemplates(data);
       }
     } catch (err) {
       console.error("Error fetching templates:", err);
@@ -107,12 +121,19 @@ export default function TemplatesPage() {
       if (res.ok) {
         const data = await res.json();
         setDefaultTemplates(data);
-        return data;
       }
     } catch (err) {
       console.error("Error fetching default templates:", err);
     }
-    return [];
+  };
+
+  const isTemplateModified = (template: EmailTemplate): boolean => {
+    const defaultTemplate = defaultTemplates.find((d) => d.template_type === template.template_type);
+    if (!defaultTemplate) return false;
+    // Normalize both for comparison
+    const normalize = (text: string) => text.replace(/\{\{(\w+)\}\}/g, '{$1}').trim();
+    return normalize(template.subject) !== normalize(defaultTemplate.subject) || 
+           normalize(template.body) !== normalize(defaultTemplate.body);
   };
 
   const handleCreate = () => {
@@ -124,23 +145,40 @@ export default function TemplatesPage() {
     });
     setIsCreating(true);
     setEditingTemplate(null);
+    // Clear editors after state update
+    setTimeout(() => {
+      if (subjectEditorRef.current) subjectEditorRef.current.innerHTML = "";
+      if (bodyEditorRef.current) bodyEditorRef.current.innerHTML = "";
+    }, 0);
   };
 
   const handleEdit = (template: EmailTemplate) => {
-    // Normalize {{variable}} to {variable}
-    const normalizeVars = (text: string) => text.replace(/\{\{(\w+)\}\}/g, '{$1}');
-    
     setFormData({
       name: template.name,
       template_type: template.template_type,
-      subject_template: normalizeVars(template.subject),
-      body_template: normalizeVars(template.body),
+      subject_template: template.subject,
+      body_template: template.body,
     });
     setEditingTemplate(template);
     setIsCreating(false);
+    // Populate editors with stripped HTML content
+    setTimeout(() => {
+      if (subjectEditorRef.current) {
+        subjectEditorRef.current.innerHTML = renderVariableBadges(stripHtml(template.subject));
+      }
+      if (bodyEditorRef.current) {
+        bodyEditorRef.current.innerHTML = renderVariableBadges(stripHtml(template.body));
+      }
+    }, 0);
   };
 
   const handleDelete = async (id: string) => {
+    // Don't allow deleting default templates
+    const template = templates.find((t) => t.id === id);
+    if (template && (template.template_type === "rejection" || template.template_type === "approval")) {
+      return;
+    }
+    
     if (!confirm(lang === "es" ? "¿Eliminar esta plantilla?" : "Delete this template?")) return;
     
     try {
@@ -191,9 +229,31 @@ export default function TemplatesPage() {
     }
   };
 
+  const getEditorText = (editorRef: React.RefObject<HTMLDivElement | null>): string => {
+    if (!editorRef.current) return "";
+    // Extract text content, converting variable badges back to {variable} format
+    const html = editorRef.current.innerHTML;
+    // Replace badge spans with {variable}
+    const text = html.replace(/<span[^>]*data-variable="(\{[^}]+\})"[^>]*>[^<]*<\/span>/g, '$1')
+                     .replace(/<span[^>]*>\{(\w+)\}<\/span>/g, '{$1}')
+                     .replace(/<br\s*\/?>/gi, "\n")
+                     .replace(/<div>/gi, "\n")
+                     .replace(/<\/div>/gi, "")
+                     .replace(/<[^>]*>/g, "")
+                     .replace(/&nbsp;/g, " ")
+                     .replace(/&amp;/g, "&")
+                     .replace(/&lt;/g, "<")
+                     .replace(/&gt;/g, ">");
+    return text.trim();
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
+      // Get text content from contentEditable editors
+      const subjectText = getEditorText(subjectEditorRef);
+      const bodyText = getEditorText(bodyEditorRef);
+      
       const token = localStorage.getItem("token");
       const url = editingTemplate
         ? `/api/email/templates/${editingTemplate.id}`
@@ -207,7 +267,12 @@ export default function TemplatesPage() {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          name: formData.name,
+          template_type: formData.template_type,
+          subject_template: subjectText,
+          body_template: bodyText,
+        }),
       });
       
       if (res.ok) {
@@ -227,53 +292,96 @@ export default function TemplatesPage() {
     }
   };
 
-  // Drag & Drop handlers
+  // Drag & Drop handlers with visual preview
   const handleDragStart = (e: React.DragEvent, variable: string) => {
     e.dataTransfer.setData("text/plain", variable);
     e.dataTransfer.effectAllowed = "copy";
   };
 
-  const handleDragOver = (e: React.DragEvent, field: "subject" | "body") => {
+  const handleDragOver = (e: React.DragEvent, field: "subject" | "body", editorRef: React.RefObject<HTMLDivElement | null>) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = "copy";
-    setDragOverField(field);
+    
+    if (editorRef.current) {
+      const rect = editorRef.current.getBoundingClientRect();
+      const y = e.clientY - rect.top;
+      setDragOverField(field);
+      setDragPosition({ field, y });
+    }
   };
 
   const handleDragLeave = () => {
     setDragOverField(null);
+    setDragPosition(null);
   };
 
-  const handleDrop = (e: React.DragEvent, field: "subject" | "body") => {
+  const handleDrop = (e: React.DragEvent, field: "subject" | "body", editorRef: React.RefObject<HTMLDivElement | null>) => {
     e.preventDefault();
     const variable = e.dataTransfer.getData("text/plain");
-    if (variable && variables.some(v => v.key === variable)) {
-      insertVariable(variable, field);
+    
+    if (variable && variables.some(v => v.key === variable) && editorRef.current) {
+      // Create badge element
+      const span = document.createElement("span");
+      span.setAttribute("data-variable", variable);
+      span.setAttribute("contenteditable", "false");
+      span.style.cssText = "background: rgba(16,185,129,0.15); color: #10b981; border: 1px solid rgba(16,185,129,0.3); padding: 1px 5px; border-radius: 3px; font-size: 0.85em; font-weight: 500; font-family: monospace; display: inline-block; margin: 0 2px;";
+      span.textContent = variable;
+      
+      // Find insertion point based on mouse position
+      const range = document.caretRangeFromPoint?.(e.clientX, e.clientY);
+      
+      if (range) {
+        range.insertNode(span);
+        // Add space after
+        const space = document.createTextNode(" ");
+        span.after(space);
+        range.setStartAfter(space);
+        range.setEndAfter(space);
+      } else {
+        // Fallback: append to end
+        editorRef.current.appendChild(span);
+        const space = document.createTextNode(" ");
+        span.after(space);
+      }
+      
+      editorRef.current.focus();
     }
+    
     setDragOverField(null);
+    setDragPosition(null);
   };
 
   const insertVariable = (variable: string, field: "subject" | "body") => {
-    if (field === "subject" && subjectInputRef.current) {
-      const input = subjectInputRef.current;
-      const start = input.selectionStart || input.value.length;
-      const end = input.selectionEnd || input.value.length;
-      const newValue = input.value.substring(0, start) + variable + input.value.substring(end);
-      setFormData({ ...formData, subject_template: newValue });
-      setTimeout(() => {
-        input.focus();
-        input.setSelectionRange(start + variable.length, start + variable.length);
-      }, 0);
-    } else if (field === "body" && bodyTextareaRef.current) {
-      const textarea = bodyTextareaRef.current;
-      const start = textarea.selectionStart || textarea.value.length;
-      const end = textarea.selectionEnd || textarea.value.length;
-      const newValue = textarea.value.substring(0, start) + variable + textarea.value.substring(end);
-      setFormData({ ...formData, body_template: newValue });
-      setTimeout(() => {
-        textarea.focus();
-        textarea.setSelectionRange(start + variable.length, start + variable.length);
-      }, 0);
+    const editorRef = field === "subject" ? subjectEditorRef : bodyEditorRef;
+    if (!editorRef.current) return;
+    
+    editorRef.current.focus();
+    
+    const span = document.createElement("span");
+    span.setAttribute("data-variable", variable);
+    span.setAttribute("contenteditable", "false");
+    span.style.cssText = "background: rgba(16,185,129,0.15); color: #10b981; border: 1px solid rgba(16,185,129,0.3); padding: 1px 5px; border-radius: 3px; font-size: 0.85em; font-weight: 500; font-family: monospace; display: inline-block; margin: 0 2px;";
+    span.textContent = variable;
+    
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      if (editorRef.current.contains(range.commonAncestorContainer)) {
+        range.insertNode(span);
+        const space = document.createTextNode(" ");
+        span.after(space);
+        range.setStartAfter(space);
+        range.setEndAfter(space);
+        sel.removeAllRanges();
+        sel.addRange(range);
+        return;
+      }
     }
+    
+    // Fallback: append to end
+    editorRef.current.appendChild(span);
+    const space = document.createTextNode(" ");
+    span.after(space);
   };
 
   if (loading) {
@@ -287,7 +395,7 @@ export default function TemplatesPage() {
   const isEn = lang === "en";
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-6 max-w-6xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -309,79 +417,94 @@ export default function TemplatesPage() {
         </button>
       </div>
 
-      {/* Templates List - Compact */}
-      <div className="grid gap-3">
-        {templates.map((template) => (
-          <div
-            key={template.id}
-            className="rounded-lg border p-3 hover:border-emerald-500/50 transition-colors"
-            style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}
-          >
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <h3 className="font-semibold text-sm text-primary">{template.name}</h3>
-                <span
-                  className="text-[9px] font-mono px-1.5 py-0.5 rounded"
-                  style={{
-                    background:
-                      template.template_type === "rejection"
-                        ? "rgba(239,68,68,0.1)"
-                        : template.template_type === "approval"
-                        ? "rgba(16,185,129,0.1)"
-                        : "rgba(161,161,170,0.1)",
-                    color:
-                      template.template_type === "rejection"
-                        ? "#ef4444"
-                        : template.template_type === "approval"
-                        ? "#10b981"
-                        : "#a1a1aa",
-                  }}
-                >
-                  {template.template_type}
-                </span>
-              </div>
-              <div className="flex items-center gap-1">
-                {/* Show restore button ONLY if template has been modified */}
-                {template.is_modified && (
-                  <button
-                    onClick={() => handleRestore(template)}
-                    className="p-1.5 rounded hover:bg-white/5 text-muted hover:text-primary transition-colors"
-                    title={isEn ? "Restore original" : "Restaurar original"}
+      {/* Templates Grid - 2 columns */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {templates.map((template) => {
+          const isModified = isTemplateModified(template);
+          const isDefault = template.template_type === "rejection" || template.template_type === "approval";
+          
+          return (
+            <div
+              key={template.id}
+              className="rounded-lg border p-4 hover:border-emerald-500/50 transition-colors"
+              style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}
+            >
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-semibold text-sm text-primary">{template.name}</h3>
+                  <span
+                    className="text-[9px] font-mono px-1.5 py-0.5 rounded"
+                    style={{
+                      background:
+                        template.template_type === "rejection"
+                          ? "rgba(239,68,68,0.1)"
+                          : template.template_type === "approval"
+                          ? "rgba(16,185,129,0.1)"
+                          : "rgba(161,161,170,0.1)",
+                      color:
+                        template.template_type === "rejection"
+                          ? "#ef4444"
+                          : template.template_type === "approval"
+                          ? "#10b981"
+                          : "#a1a1aa",
+                    }}
                   >
-                    <RotateCcw className="w-3.5 h-3.5" />
+                    {template.template_type}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1">
+                  {/* Show restore button ONLY if template has been modified */}
+                  {isModified && (
+                    <button
+                      onClick={() => handleRestore(template)}
+                      className="p-1.5 rounded hover:bg-white/5 text-muted hover:text-primary transition-colors"
+                      title={isEn ? "Restore original" : "Restaurar original"}
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleEdit(template)}
+                    className="p-1.5 rounded hover:bg-white/5 text-muted hover:text-primary transition-colors"
+                    title={isEn ? "Edit" : "Editar"}
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
                   </button>
-                )}
-                <button
-                  onClick={() => handleEdit(template)}
-                  className="p-1.5 rounded hover:bg-white/5 text-muted hover:text-primary transition-colors"
-                  title={isEn ? "Edit" : "Editar"}
-                >
-                  <Edit2 className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={() => handleDelete(template.id)}
-                  className="p-1.5 rounded hover:bg-red-500/10 text-muted hover:text-red-500 transition-colors"
-                  title={isEn ? "Delete" : "Eliminar"}
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+                  {/* Only show delete for non-default templates */}
+                  {!isDefault && (
+                    <button
+                      onClick={() => handleDelete(template.id)}
+                      className="p-1.5 rounded hover:bg-red-500/10 text-muted hover:text-red-500 transition-colors"
+                      title={isEn ? "Delete" : "Eliminar"}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Subject */}
+              <div className="mb-2">
+                <div className="text-[10px] font-medium text-muted uppercase tracking-wider mb-1">
+                  {isEn ? "Subject" : "Asunto"}
+                </div>
+                <div className="text-xs text-primary">{template.subject}</div>
+              </div>
+
+              {/* Body Preview with variable badges */}
+              <div>
+                <div className="text-[10px] font-medium text-muted uppercase tracking-wider mb-1">
+                  {isEn ? "Preview" : "Vista previa"}
+                </div>
+                <div 
+                  className="text-xs text-primary p-2 rounded border line-clamp-4"
+                  style={{ background: "var(--bg-secondary)", borderColor: "var(--border)" }}
+                  dangerouslySetInnerHTML={{ __html: renderVariableBadges(stripHtml(template.body)) }}
+                />
               </div>
             </div>
-
-            {/* Subject - inline */}
-            <div className="text-xs text-muted mb-1">
-              <span className="font-medium">{isEn ? "Subject:" : "Asunto:"}</span>{" "}
-              <span className="text-primary">{template.subject}</span>
-            </div>
-
-            {/* Body Preview - truncated with variable badges */}
-            <div 
-              className="text-xs text-primary p-2 rounded border line-clamp-3"
-              style={{ background: "var(--bg-secondary)", borderColor: "var(--border)" }}
-              dangerouslySetInnerHTML={{ __html: renderVariableBadges(template.body) }}
-            />
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {templates.length === 0 && (
@@ -466,49 +589,45 @@ export default function TemplatesPage() {
                 </select>
               </div>
 
-              {/* Subject with drag & drop */}
+              {/* Subject with contentEditable and drag & drop */}
               <div>
                 <label className="text-xs font-medium text-muted block mb-1">
                   {isEn ? "Subject" : "Asunto"}
                 </label>
-                <input
-                  ref={subjectInputRef}
-                  type="text"
-                  value={formData.subject_template}
-                  onChange={(e) => setFormData({ ...formData, subject_template: e.target.value })}
-                  onDragOver={(e) => handleDragOver(e, "subject")}
+                <div
+                  ref={subjectEditorRef}
+                  contentEditable
+                  suppressContentEditableWarning
+                  onDragOver={(e) => handleDragOver(e, "subject", subjectEditorRef)}
                   onDragLeave={handleDragLeave}
-                  onDrop={(e) => handleDrop(e, "subject")}
-                  className="w-full px-3 py-2 rounded border text-sm"
+                  onDrop={(e) => handleDrop(e, "subject", subjectEditorRef)}
+                  className="w-full px-3 py-2 rounded border text-sm min-h-[36px] outline-none"
                   style={{ 
                     background: "var(--bg-card)", 
                     borderColor: dragOverField === "subject" ? "#10b981" : "var(--border)", 
                     color: "var(--text-primary)" 
                   }}
-                  placeholder={isEn ? "Analysis result: {track}" : "Resultado de análisis: {track}"}
                 />
               </div>
 
-              {/* Body with drag & drop */}
+              {/* Body with contentEditable and drag & drop */}
               <div>
                 <label className="text-xs font-medium text-muted block mb-1">
-                  {isEn ? "Body (plain text)" : "Cuerpo (texto plano)"}
+                  {isEn ? "Body" : "Cuerpo"}
                 </label>
-                <textarea
-                  ref={bodyTextareaRef}
-                  value={formData.body_template}
-                  onChange={(e) => setFormData({ ...formData, body_template: e.target.value })}
-                  onDragOver={(e) => handleDragOver(e, "body")}
+                <div
+                  ref={bodyEditorRef}
+                  contentEditable
+                  suppressContentEditableWarning
+                  onDragOver={(e) => handleDragOver(e, "body", bodyEditorRef)}
                   onDragLeave={handleDragLeave}
-                  onDrop={(e) => handleDrop(e, "body")}
-                  rows={8}
-                  className="w-full px-3 py-2 rounded border text-sm resize-none font-mono"
+                  onDrop={(e) => handleDrop(e, "body", bodyEditorRef)}
+                  className="w-full px-3 py-2 rounded border text-sm min-h-[150px] outline-none"
                   style={{ 
                     background: "var(--bg-card)", 
                     borderColor: dragOverField === "body" ? "#10b981" : "var(--border)", 
                     color: "var(--text-primary)" 
                   }}
-                  placeholder={isEn ? "Hi {producer},\n\nThanks for sending {track}..." : "Hola {producer},\n\nGracias por enviar {track}..."}
                 />
               </div>
 
@@ -552,7 +671,7 @@ export default function TemplatesPage() {
               </button>
               <button
                 onClick={handleSave}
-                disabled={!formData.name || !formData.subject_template || !formData.body_template || saving}
+                disabled={!formData.name || saving}
                 className="px-4 py-2 rounded text-sm font-medium bg-emerald-500 text-black hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {saving && <Loader2 className="w-4 h-4 animate-spin" />}
