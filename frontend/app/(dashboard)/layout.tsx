@@ -535,30 +535,30 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
                       const isChildActive = pathname === child.href;
                       const isLast = idx === item.children!.length - 1;
                       const isFirst = idx === 0;
-                      const connectorColor = isChildActive ? "#10b981" : "rgba(63,63,70,0.6)";
+                      const connectorColor = isChildActive ? "#10b981" : "rgba(63,63,70,0.5)";
                       return (
-                        <div key={child.href} className="relative pl-3.5">
-                          {/* Vertical segment */}
+                        <div key={child.href} className="relative pl-4">
+                          {/* Vertical segment: full height for non-last, half for last */}
                           <div
                             className="absolute w-px"
                             style={{
                               left: "0",
-                              top: isFirst ? "0" : "0",
-                              bottom: isLast ? "50%" : "0",
+                              top: "0",
+                              height: isLast ? "50%" : "100%",
                               background: connectorColor,
                             }}
                           />
-                          {/* Curved corner + horizontal arm */}
+                          {/* Curved corner connecting vertical to horizontal */}
                           <div
                             className="absolute"
                             style={{
                               left: "0",
-                              top: "10px",
-                              width: "14px",
-                              height: "10px",
-                              borderLeft: `1px solid ${connectorColor}`,
-                              borderBottom: `1px solid ${connectorColor}`,
-                              borderBottomLeftRadius: "6px",
+                              top: "11px",
+                              width: "16px",
+                              height: "12px",
+                              borderLeft: `1.5px solid ${connectorColor}`,
+                              borderBottom: `1.5px solid ${connectorColor}`,
+                              borderBottomLeftRadius: "8px",
                             }}
                           />
                           <Link
