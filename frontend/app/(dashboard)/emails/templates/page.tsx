@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Mail, Plus, Edit2, Trash2, X, RotateCcw, Loader2 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 
@@ -38,10 +38,12 @@ const variables = [
   { key: "{rejection_reason}", label: "Reason" },
 ];
 
-// Replace {variable} with green badge HTML
+// Replace {variable} with green badge HTML for preview
 const renderVariableBadges = (text: string): string => {
   if (!text) return "";
-  return text.replace(/\{(\w+)\}/g, '<span style="background: rgba(16,185,129,0.1); color: #10b981; border: 1px solid rgba(16,185,129,0.2); padding: 2px 6px; border-radius: 4px; font-size: 0.85em; font-weight: 500;">{$1}</span>');
+  // First normalize {{variable}} to {variable}
+  const normalized = text.replace(/\{\{(\w+)\}\}/g, '{$1}');
+  return normalized.replace(/\{(\w+)\}/g, '<span style="background: rgba(16,185,129,0.1); color: #10b981; border: 1px solid rgba(16,185,129,0.2); padding: 1px 4px; border-radius: 3px; font-size: 0.85em; font-weight: 500;">{$1}</span>');
 };
 
 export default function TemplatesPage() {
@@ -52,6 +54,9 @@ export default function TemplatesPage() {
   const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [dragOverField, setDragOverField] = useState<"subject" | "body" | null>(null);
+  const bodyTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const subjectInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     name: "",
     template_type: "custom",
@@ -60,8 +65,10 @@ export default function TemplatesPage() {
   });
 
   useEffect(() => {
-    fetchTemplates();
-    fetchDefaultTemplates();
+    // Fetch defaults first, then templates
+    fetchDefaultTemplates().then(() => {
+      fetchTemplates();
+    });
   }, []);
 
   const fetchTemplates = async () => {
@@ -100,10 +107,12 @@ export default function TemplatesPage() {
       if (res.ok) {
         const data = await res.json();
         setDefaultTemplates(data);
+        return data;
       }
     } catch (err) {
       console.error("Error fetching default templates:", err);
     }
+    return [];
   };
 
   const handleCreate = () => {
@@ -118,11 +127,14 @@ export default function TemplatesPage() {
   };
 
   const handleEdit = (template: EmailTemplate) => {
+    // Normalize {{variable}} to {variable}
+    const normalizeVars = (text: string) => text.replace(/\{\{(\w+)\}\}/g, '{$1}');
+    
     setFormData({
       name: template.name,
       template_type: template.template_type,
-      subject_template: template.subject,
-      body_template: template.body,
+      subject_template: normalizeVars(template.subject),
+      body_template: normalizeVars(template.body),
     });
     setEditingTemplate(template);
     setIsCreating(false);
@@ -215,11 +227,53 @@ export default function TemplatesPage() {
     }
   };
 
-  const insertVariable = (variable: string) => {
-    setFormData({
-      ...formData,
-      body_template: formData.body_template + variable,
-    });
+  // Drag & Drop handlers
+  const handleDragStart = (e: React.DragEvent, variable: string) => {
+    e.dataTransfer.setData("text/plain", variable);
+    e.dataTransfer.effectAllowed = "copy";
+  };
+
+  const handleDragOver = (e: React.DragEvent, field: "subject" | "body") => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+    setDragOverField(field);
+  };
+
+  const handleDragLeave = () => {
+    setDragOverField(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, field: "subject" | "body") => {
+    e.preventDefault();
+    const variable = e.dataTransfer.getData("text/plain");
+    if (variable && variables.some(v => v.key === variable)) {
+      insertVariable(variable, field);
+    }
+    setDragOverField(null);
+  };
+
+  const insertVariable = (variable: string, field: "subject" | "body") => {
+    if (field === "subject" && subjectInputRef.current) {
+      const input = subjectInputRef.current;
+      const start = input.selectionStart || input.value.length;
+      const end = input.selectionEnd || input.value.length;
+      const newValue = input.value.substring(0, start) + variable + input.value.substring(end);
+      setFormData({ ...formData, subject_template: newValue });
+      setTimeout(() => {
+        input.focus();
+        input.setSelectionRange(start + variable.length, start + variable.length);
+      }, 0);
+    } else if (field === "body" && bodyTextareaRef.current) {
+      const textarea = bodyTextareaRef.current;
+      const start = textarea.selectionStart || textarea.value.length;
+      const end = textarea.selectionEnd || textarea.value.length;
+      const newValue = textarea.value.substring(0, start) + variable + textarea.value.substring(end);
+      setFormData({ ...formData, body_template: newValue });
+      setTimeout(() => {
+        textarea.focus();
+        textarea.setSelectionRange(start + variable.length, start + variable.length);
+      }, 0);
+    }
   };
 
   if (loading) {
@@ -233,7 +287,7 @@ export default function TemplatesPage() {
   const isEn = lang === "en";
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="p-6 max-w-4xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -243,7 +297,7 @@ export default function TemplatesPage() {
           <p className="text-sm text-muted mt-1">
             {isEn 
               ? "Create and manage custom email templates"
-              : "Crea y gestiona plantillas personalizadas para tus emails"}
+              : "Crea y gestiona plantillas personalizadas"}
           </p>
         </div>
         <button
@@ -255,19 +309,19 @@ export default function TemplatesPage() {
         </button>
       </div>
 
-      {/* Templates List */}
-      <div className="grid gap-4">
+      {/* Templates List - Compact */}
+      <div className="grid gap-3">
         {templates.map((template) => (
           <div
             key={template.id}
-            className="rounded-lg border p-4 hover:border-emerald-500/50 transition-colors"
+            className="rounded-lg border p-3 hover:border-emerald-500/50 transition-colors"
             style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}
           >
-            <div className="flex items-start justify-between mb-3">
+            <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                <h3 className="font-semibold text-primary">{template.name}</h3>
+                <h3 className="font-semibold text-sm text-primary">{template.name}</h3>
                 <span
-                  className="text-[10px] font-mono px-2 py-0.5 rounded"
+                  className="text-[9px] font-mono px-1.5 py-0.5 rounded"
                   style={{
                     background:
                       template.template_type === "rejection"
@@ -286,53 +340,46 @@ export default function TemplatesPage() {
                   {template.template_type}
                 </span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
                 {/* Show restore button ONLY if template has been modified */}
                 {template.is_modified && (
                   <button
                     onClick={() => handleRestore(template)}
-                    className="p-2 rounded hover:bg-white/5 text-muted hover:text-primary transition-colors"
+                    className="p-1.5 rounded hover:bg-white/5 text-muted hover:text-primary transition-colors"
                     title={isEn ? "Restore original" : "Restaurar original"}
                   >
-                    <RotateCcw className="w-4 h-4" />
+                    <RotateCcw className="w-3.5 h-3.5" />
                   </button>
                 )}
                 <button
                   onClick={() => handleEdit(template)}
-                  className="p-2 rounded hover:bg-white/5 text-muted hover:text-primary transition-colors"
+                  className="p-1.5 rounded hover:bg-white/5 text-muted hover:text-primary transition-colors"
                   title={isEn ? "Edit" : "Editar"}
                 >
-                  <Edit2 className="w-4 h-4" />
+                  <Edit2 className="w-3.5 h-3.5" />
                 </button>
                 <button
                   onClick={() => handleDelete(template.id)}
-                  className="p-2 rounded hover:bg-red-500/10 text-muted hover:text-red-500 transition-colors"
+                  className="p-1.5 rounded hover:bg-red-500/10 text-muted hover:text-red-500 transition-colors"
                   title={isEn ? "Delete" : "Eliminar"}
                 >
-                  <Trash2 className="w-4 h-4" />
+                  <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
 
-            {/* Subject */}
-            <div className="mb-3">
-              <div className="text-[10px] font-medium text-muted uppercase tracking-wider mb-1">
-                {isEn ? "Subject" : "Asunto"}
-              </div>
-              <div className="text-sm text-primary">{template.subject}</div>
+            {/* Subject - inline */}
+            <div className="text-xs text-muted mb-1">
+              <span className="font-medium">{isEn ? "Subject:" : "Asunto:"}</span>{" "}
+              <span className="text-primary">{template.subject}</span>
             </div>
 
-            {/* Body Preview with variable badges */}
-            <div>
-              <div className="text-[10px] font-medium text-muted uppercase tracking-wider mb-1">
-                {isEn ? "Preview" : "Vista previa"}
-              </div>
-              <div 
-                className="text-sm text-primary p-3 rounded border whitespace-pre-wrap"
-                style={{ background: "var(--bg-secondary)", borderColor: "var(--border)" }}
-                dangerouslySetInnerHTML={{ __html: renderVariableBadges(template.body) }}
-              />
-            </div>
+            {/* Body Preview - truncated with variable badges */}
+            <div 
+              className="text-xs text-primary p-2 rounded border line-clamp-3"
+              style={{ background: "var(--bg-secondary)", borderColor: "var(--border)" }}
+              dangerouslySetInnerHTML={{ __html: renderVariableBadges(template.body) }}
+            />
           </div>
         ))}
       </div>
@@ -419,52 +466,70 @@ export default function TemplatesPage() {
                 </select>
               </div>
 
-              {/* Subject */}
+              {/* Subject with drag & drop */}
               <div>
                 <label className="text-xs font-medium text-muted block mb-1">
                   {isEn ? "Subject" : "Asunto"}
                 </label>
                 <input
+                  ref={subjectInputRef}
                   type="text"
                   value={formData.subject_template}
                   onChange={(e) => setFormData({ ...formData, subject_template: e.target.value })}
+                  onDragOver={(e) => handleDragOver(e, "subject")}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(e) => handleDrop(e, "subject")}
                   className="w-full px-3 py-2 rounded border text-sm"
-                  style={{ background: "var(--bg-card)", borderColor: "var(--border)", color: "var(--text-primary)" }}
+                  style={{ 
+                    background: "var(--bg-card)", 
+                    borderColor: dragOverField === "subject" ? "#10b981" : "var(--border)", 
+                    color: "var(--text-primary)" 
+                  }}
                   placeholder={isEn ? "Analysis result: {track}" : "Resultado de análisis: {track}"}
                 />
               </div>
 
-              {/* Body */}
+              {/* Body with drag & drop */}
               <div>
                 <label className="text-xs font-medium text-muted block mb-1">
                   {isEn ? "Body (plain text)" : "Cuerpo (texto plano)"}
                 </label>
                 <textarea
+                  ref={bodyTextareaRef}
                   value={formData.body_template}
                   onChange={(e) => setFormData({ ...formData, body_template: e.target.value })}
-                  rows={10}
+                  onDragOver={(e) => handleDragOver(e, "body")}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(e) => handleDrop(e, "body")}
+                  rows={8}
                   className="w-full px-3 py-2 rounded border text-sm resize-none font-mono"
-                  style={{ background: "var(--bg-card)", borderColor: "var(--border)", color: "var(--text-primary)" }}
+                  style={{ 
+                    background: "var(--bg-card)", 
+                    borderColor: dragOverField === "body" ? "#10b981" : "var(--border)", 
+                    color: "var(--text-primary)" 
+                  }}
                   placeholder={isEn ? "Hi {producer},\n\nThanks for sending {track}..." : "Hola {producer},\n\nGracias por enviar {track}..."}
                 />
               </div>
 
-              {/* Variable Chips */}
+              {/* Variable Chips with drag & drop */}
               <div>
                 <label className="text-xs font-medium text-muted block mb-2">
-                  {isEn ? "Available variables (click to insert)" : "Variables disponibles (haz clic para insertar)"}
+                  {isEn ? "Available variables (drag or click to insert)" : "Variables disponibles (arrastrá o hacé clic para insertar)"}
                 </label>
                 <div className="flex flex-wrap gap-1.5">
                   {variables.map((v) => (
-                    <button
+                    <span
                       key={v.key}
-                      onClick={() => insertVariable(v.key)}
-                      className="text-[10px] px-2 py-1 rounded border hover:border-emerald-500 hover:bg-emerald-500/5 transition-colors"
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, v.key)}
+                      onClick={() => insertVariable(v.key, dragOverField || "body")}
+                      className="text-[10px] px-2 py-1 rounded border cursor-grab active:cursor-grabbing hover:border-emerald-500 hover:bg-emerald-500/5 transition-colors select-none"
                       style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}
                       title={`Insert ${v.label}`}
                     >
                       +{v.label}
-                    </button>
+                    </span>
                   ))}
                 </div>
               </div>
