@@ -4,6 +4,7 @@ Pipeline: analyze → compare against sonic signature → convert/delete → cle
 Every WAV file is guaranteed to be cleaned up — never leaves orphan files.
 """
 
+import asyncio
 import math
 import os
 import json
@@ -15,7 +16,12 @@ from typing import Any, Callable, Awaitable
 from app.audio.analyzer import analyze_audio
 from app.audio.converter import convert_to_mp3
 from app.audio.exceptions import AudioAnalysisError, ConversionError, FileCleanupError
-from app.services.r2 import upload_file_to_r2, upload_bytes_to_r2
+from app.services.r2 import (
+    delete_file_from_r2,
+    download_file_with_progress,
+    upload_bytes_to_r2,
+    upload_file_to_r2,
+)
 
 
 def calculate_technical_status(
@@ -199,23 +205,44 @@ def _safe_remove(file_path: str) -> None:
 
 
 async def process_submission(
-    file_path: str,
     submission_id: str,
     label_id: str,
     sonic_signature: dict[str, Any],
     on_progress: Callable[[str, int], Awaitable[None]] | None = None,
+    *,
+    r2_key: str | None = None,
+    file_path: str | None = None,
 ) -> dict[str, Any]:
     """Process a single audio submission through the zero-storage lifecycle.
 
-    Steps:
-        1. Analyze audio file (BPM, LUFS, phase correlation, musical key).
-        2. Compare results against sonic signature rules and severity logic.
-        3. Convert WAV to MP3 preview locally (bypassed if auto_rejected).
-        4. Upload WAV original, MP3 preview, and waveform peaks JSON to R2 (bypassed if auto_rejected).
-        5. Clean up all local files (WAV, MP3) from the server immediately.
-    
+    Two entry modes are supported:
+        - r2_key:  the file is already on R2 (3-phase flow). The lifecycle
+                   downloads it to /tmp and proceeds.
+        - file_path: the file is already on local disk (legacy fallback from
+                   /api/upload). The lifecycle uses it directly.
+
+    Pipeline (Phase 2 of upload-progress-improvement):
+        1. Acquire the file (download from R2 OR use the local file).
+        2. Analyze audio (BPM, LUFS, phase correlation, musical key).
+        3. Compare results against sonic signature rules and severity logic.
+        4. Convert WAV to MP3 preview asynchronously with sub-progress.
+        5. Upload MP3 preview and waveform JSON in PARALLEL to R2.
+           (The original WAV is already on R2 — uploaded directly by the
+           frontend via the presigned URL — so we skip re-uploading it.)
+        6. Clean up all local files (WAV, MP3) from the server immediately.
+
     If on_progress is provided, it's called with (stage_label, percent) at each step.
+    The progress events span 0%..95% in roughly:
+        0..50%  — frontend-side direct R2 upload (out of band)
+        50..60% — downloading original from R2 (or skipped in legacy mode)
+        60..80% — analyzing + converting to MP3
+        80..95% — parallel upload of MP3 + JSON
     """
+    if (r2_key is None) == (file_path is None):
+        raise ValueError(
+            "process_submission requires exactly one of r2_key or file_path"
+        )
+
     async def _progress(stage: str, pct: int):
         if on_progress:
             await on_progress(stage, pct)
@@ -224,20 +251,66 @@ async def process_submission(
     mp3_temp_path: str | None = None
     r2_mp3_url: str | None = None
     r2_original_path: str | None = None
+    r2_mp3_key: str | None = None
+    r2_peaks_key: str | None = None
+    status: str = "inbox"
+    rejection_reason: str | None = None
+    downloaded_file_path: str | None = None
 
     try:
-        # Step 1: Analyze audio (emits its own intermediate progress: 15→22→28→33→37→40)
-        metrics = await analyze_audio(file_path, on_progress=on_progress)
+        # Step 1: Acquire the file.
+        if r2_key is not None:
+            # Download from R2 to /tmp with progress events.
+            ext = Path(r2_key).suffix.lower() or ".wav"
+            downloaded_file_path = f"/tmp/{submission_id}{ext}"
+            await _progress("Descargando original...", 50)
+            download_loop = asyncio.get_event_loop()
 
-        # Step 2: Compare against sonic signature and compute technical status
-        await _progress("Evaluando firma sónica...", 40)
+            def _bridge(transferred: int, total: int) -> None:
+                # Map the download's 0..100% onto the overall 50..60% slice.
+                if total <= 0:
+                    return
+                sub = int((transferred / total) * 100)
+                sub = max(0, min(100, sub))
+                overall = 50 + int(sub * 0.10)  # 50..60
+                # Marshal onto the main event loop.
+                try:
+                    future = asyncio.run_coroutine_threadsafe(
+                        _progress("Descargando original...", overall),
+                        download_loop,
+                    )
+                    # Don't block the boto3 worker thread; if the loop is gone,
+                    # the future is silently discarded.
+                    future.result(timeout=0.1)
+                except Exception:  # noqa: BLE001
+                    pass
+
+            await download_file_with_progress(r2_key, downloaded_file_path, on_progress=_bridge)
+            await _progress("Descargando original...", 60)
+            file_path = downloaded_file_path
+        else:
+            # Legacy: the file is already on local disk; jump to 60%.
+            await _progress("Procesando audio...", 60)
+
+        # Step 2: Analyze audio. The analyzer emits its own intermediate
+        # progress in the 15..40 range; remap that onto the 60..72 slice
+        # of the overall bar so the UI never goes backwards.
+        async def _analysis_progress(stage: str, sub_pct: int) -> None:
+            sub_pct = max(0, min(40, sub_pct))
+            overall = 60 + int((sub_pct / 40) * 12)  # 60..72
+            await _progress(stage, overall)
+
+        metrics = await analyze_audio(file_path, on_progress=_analysis_progress)
+
+        # Step 3: Compare against sonic signature and compute technical status
+        await _progress("Evaluando firma sónica...", 72)
         status_tecnico, alertas = calculate_technical_status(metrics, sonic_signature)
         auto_reject_enabled = sonic_signature.get("auto_reject_enabled", True)
 
         is_critical = (status_tecnico == "critico")
         has_structural_alerts = any(
-            keyword in alert.lower() 
-            for alert in alertas 
+            keyword in alert.lower()
+            for alert in alertas
             for keyword in ["peak", "crest", "fase", "phase", "rango dinámico"]
         )
 
@@ -250,8 +323,11 @@ async def process_submission(
 
         # Check if auto rejected to bypass uploads and mp3 conversion
         if status == "auto_rejected":
-            # Bypass R2 storage and conversion, clean up local WAV file and return
-            _safe_remove(file_path)
+            # Bypass R2 storage and conversion, clean up local WAV file and return.
+            # Only clean up what we own (the downloaded file); the legacy
+            # file_path is owned by the caller.
+            if downloaded_file_path and os.path.exists(downloaded_file_path):
+                _safe_remove(downloaded_file_path)
             return {
                 "status": status,
                 "status_tecnico": status_tecnico,
@@ -263,53 +339,113 @@ async def process_submission(
                 "peaks": metrics.get("peaks"),
             }
 
-        # Step 3: Convert to MP3 locally in /tmp
-        await _progress("Convirtiendo a MP3...", 60)
-        ext = Path(file_path).suffix.lower()
+        # Step 4: Convert to MP3 locally in /tmp (async, with sub-progress).
+        await _progress("Convirtiendo a MP3...", 73)
         mp3_temp_path = f"/tmp/{submission_id}.mp3"
-        
+
+        # We wrap _convert_to_mp3 in a coroutine that knows how to remap
+        # the 0..99 sub-progress onto 73..80 overall.
+        duration_sec = metrics.get("duration") or None
+
+        async def _remapped_progress(stage: str, sub_pct: int) -> None:
+            sub_pct = max(0, min(99, sub_pct))
+            overall = 73 + int(sub_pct * 0.07)  # 73..79
+            await _progress(stage, overall)
+
         try:
-            convert_to_mp3(file_path, mp3_temp_path, bitrate="320k")
+            await convert_to_mp3(
+                file_path,
+                mp3_temp_path,
+                bitrate="320k",
+                duration_seconds=duration_sec,
+                on_progress=_remapped_progress,
+            )
         except ConversionError as e:
             # Conversion failed — treat as rejected and raise
             status = "auto_rejected"
             rejection_reason = f"conversion_failed: {e}"
             raise AudioAnalysisError(f"Audio conversion failed: {e}") from e
 
-        # Step 4: Upload combo (original, preview.mp3, waveform.json) to R2
-        await _progress("Subiendo original a R2...", 70)
-        r2_original_key = f"tracks/{submission_id}/original{ext}"
+        # Step 5: Upload results to R2. In the new flow, the original WAV
+        # is already on R2 (uploaded via the presigned URL) so we only need
+        # to push the MP3 preview and the waveform JSON. In the legacy
+        # fallback the file arrived via multipart, so we must also upload
+        # the original to keep HQ retention working.
         r2_mp3_key = f"tracks/{submission_id}/preview.mp3"
         r2_peaks_key = f"tracks/{submission_id}/waveform.json"
-
-        # Determine original content type
-        orig_content_type = "audio/wav"
-        if ext == ".flac":
+        ext = Path(file_path).suffix.lower() or ".wav"
+        r2_original_key = f"tracks/{submission_id}/original{ext}"
+        # Content-type for the original
+        if ext == ".wav":
+            orig_content_type = "audio/wav"
+        elif ext == ".flac":
             orig_content_type = "audio/flac"
         elif ext in (".aiff", ".aif"):
             orig_content_type = "audio/aiff"
+        else:
+            orig_content_type = "application/octet-stream"
 
-        # Upload files to R2 with progress between each
-        await upload_file_to_r2(file_path, r2_original_key, orig_content_type)
-        await _progress("Subiendo preview MP3...", 80)
-        await upload_file_to_r2(mp3_temp_path, r2_mp3_key, "audio/mpeg")
-
-        # Upload peaks waveform JSON
         peaks = metrics.get("peaks", [])
         duration = metrics.get("duration", 0.0)
         peaks_data = json.dumps({"peaks": peaks, "duration": duration}).encode("utf-8")
-        await _progress("Guardando waveform...", 90)
-        await upload_bytes_to_r2(peaks_data, r2_peaks_key, "application/json")
+
+        await _progress("Subiendo assets a R2...", 80)
+
+        async def _upload_mp3() -> None:
+            await upload_file_to_r2(mp3_temp_path, r2_mp3_key, "audio/mpeg")
+
+        async def _upload_json() -> None:
+            await upload_bytes_to_r2(peaks_data, r2_peaks_key, "application/json")
+
+        async def _upload_original() -> None:
+            await upload_file_to_r2(file_path, r2_original_key, orig_content_type)
+
+        # Build the list of parallel uploads. The original is only
+        # uploaded in legacy mode (the new 3-phase flow already has it).
+        upload_tasks = [_upload_mp3(), _upload_json()]
+        if r2_key is None:
+            upload_tasks.append(_upload_original())
+
+        # Run uploads in parallel. If any fail, asyncio.gather propagates
+        # the first exception and we clean up below.
+        await asyncio.gather(*upload_tasks)
+
+        await _progress("Subiendo assets a R2...", 90)
 
         # Set R2 paths for DB persistence
         public_url_base = os.getenv("CLOUDFLARE_R2_PUBLIC_URL", "").rstrip("/")
         r2_mp3_url = f"{public_url_base}/{r2_mp3_key}"
         r2_original_path = r2_original_key
 
+    except Exception:
+        # Rollback partial uploads so we don't leave orphan objects.
+        # Only delete the keys we created ourselves — in the new flow the
+        # original WAV is the user's file and must NOT be deleted.
+        if r2_mp3_key is not None:
+            try:
+                await delete_file_from_r2(r2_mp3_key)
+            except Exception:  # noqa: BLE001
+                pass
+        if r2_peaks_key is not None:
+            try:
+                await delete_file_from_r2(r2_peaks_key)
+            except Exception:  # noqa: BLE001
+                pass
+        # In legacy mode, the original was uploaded by US, so we can
+        # safely clean it up on failure. In the new flow, the user owns
+        # the object and we leave it alone.
+        if r2_key is None and r2_original_path is not None:
+            try:
+                await delete_file_from_r2(r2_original_path)
+            except Exception:  # noqa: BLE001
+                pass
+        raise
     finally:
-        # Step 5: ALWAYS clean up local files
-        if os.path.exists(file_path):
-            _safe_remove(file_path)
+        # Step 6: ALWAYS clean up local files
+        # Only remove the file we created (downloaded from R2). In legacy
+        # mode the caller owns file_path and is responsible for cleanup.
+        if downloaded_file_path and os.path.exists(downloaded_file_path):
+            _safe_remove(downloaded_file_path)
         if mp3_temp_path and os.path.exists(mp3_temp_path):
             _safe_remove(mp3_temp_path)
 

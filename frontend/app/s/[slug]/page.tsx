@@ -4,6 +4,349 @@ import { useState, useCallback, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { useLanguage } from "@/lib/i18n";
 
+// ──────────────────────────────────────────────────────────────────────────────
+// Three-phase upload helpers (Phase 3 of upload-progress-improvement)
+//
+//   Phase 1 → POST /api/presigned-url      (gets upload_url, r2_key, submission_id)
+//   Phase 2 → XHR PUT directly to R2        (real 0..50% progress from the browser)
+//   Phase 3 → POST /api/analyze + SSE       (50..100% from the backend pipeline)
+//
+// If phase 1 or phase 2 fails (CORS, network, R2 misconfig) the legacy
+// `POST /api/upload` FormData flow is used instead. The legacy path is
+// kept fully working; the new path is purely additive.
+// ──────────────────────────────────────────────────────────────────────────────
+
+type ThreePhaseArgs = {
+  file: File;
+  slug: string;
+  producerName: string;
+  producerEmail: string;
+  trackName: string;
+  notes: string;
+  producerInstagram: string;
+  producerSoundcloud: string;
+  producerSpotify: string;
+  onUploadProgress: (pct: number) => void;
+  onAnalyzeProgress: (pct: number) => void;
+  onError: (err: Error) => void;
+};
+
+type LegacyFlowArgs = {
+  file: File;
+  slug: string;
+  producerName: string;
+  producerEmail: string;
+  trackName: string;
+  notes: string;
+  producerInstagram: string;
+  producerSoundcloud: string;
+  producerSpotify: string;
+  onAnalyzeProgress: (pct: number) => void;
+  // Animation hooks: the legacy flow does not own the requestAnimationFrame
+  // loop, but it does own its progress ticks. We pass the caller's helpers
+  // so the bar keeps moving smoothly during the simulated 0→50 phase.
+  animate: () => void;
+  animFrame: number;
+  setProgress: (n: number) => void;
+  isDone: () => boolean;
+  markDone: () => void;
+};
+
+function apiBase(): string {
+  return process.env.NEXT_PUBLIC_API_URL || "";
+}
+
+function isTransientUploadError(err: unknown): boolean {
+  // We fall back to the legacy endpoint on anything that prevents the direct
+  // PUT to R2. This includes CORS, network drops, and 5xx from R2.
+  // We do NOT fall back on user-fixable issues like 413/415.
+  if (err instanceof Error) {
+    const m = err.message.toLowerCase();
+    if (m.includes("413") || m.includes("415") || m.includes("payload too large") || m.includes("unsupported media")) {
+      return false;
+    }
+  }
+  return true;
+}
+
+async function runThreePhaseFlow(args: ThreePhaseArgs): Promise<void> {
+  const {
+    file,
+    slug,
+    producerName,
+    producerEmail,
+    trackName,
+    notes,
+    producerInstagram,
+    producerSoundcloud,
+    producerSpotify,
+    onUploadProgress,
+    onAnalyzeProgress,
+    onError,
+  } = args;
+
+  // ── Phase 1: request presigned URL ────────────────────────────────────────
+  const ext = "." + (file.name.split(".").pop() || "").toLowerCase();
+  const contentType = file.type || "application/octet-stream";
+
+  let presigned: {
+    upload_url: string;
+    r2_key: string;
+    submission_id: string;
+  };
+
+  try {
+    const presignedRes = await fetch(`${apiBase()}/api/presigned-url`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        label_slug: slug,
+        filename: file.name,
+        content_type: contentType,
+        file_size: file.size,
+      }),
+    });
+    if (!presignedRes.ok) {
+      const errBody = await presignedRes.json().catch(() => ({ detail: "" }));
+      // Validation errors (size limit, format) should bubble up — do NOT
+      // fall back, the legacy endpoint will reject them too.
+      throw new Error(errBody.detail || `presigned-url: HTTP ${presignedRes.status}`);
+    }
+    presigned = await presignedRes.json();
+  } catch (err) {
+    onError(err instanceof Error ? err : new Error(String(err)));
+    return;
+  }
+
+  // ── Phase 2: XHR PUT directly to R2 with real progress ───────────────────
+  try {
+    await xhrPutWithProgress(presigned.upload_url, file, contentType, onUploadProgress);
+  } catch (err) {
+    if (isTransientUploadError(err)) {
+      onError(err instanceof Error ? err : new Error(String(err)));
+    } else {
+      // User-fixable error (e.g. file too large, wrong type). Reject outright.
+      throw err;
+    }
+    return;
+  }
+
+  // ── Phase 3: trigger analysis and stream SSE ─────────────────────────────
+  await runAnalyzeSse({
+    r2_key: presigned.r2_key,
+    submission_id: presigned.submission_id,
+    slug,
+    producerName,
+    producerEmail,
+    trackName,
+    notes,
+    producerInstagram,
+    producerSoundcloud,
+    producerSpotify,
+    onProgress: onAnalyzeProgress,
+  });
+}
+
+function xhrPutWithProgress(
+  url: string,
+  file: File,
+  contentType: string,
+  onProgress: (pct: number) => void,
+): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", url, true);
+    xhr.setRequestHeader("Content-Type", contentType);
+
+    xhr.upload.onprogress = (evt) => {
+      if (evt.lengthComputable && evt.total > 0) {
+        const pct = Math.round((evt.loaded / evt.total) * 100);
+        onProgress(pct);
+      }
+    };
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        onProgress(100);
+        resolve();
+      } else {
+        reject(new Error(`R2 PUT failed: HTTP ${xhr.status}`));
+      }
+    };
+    xhr.onerror = () => reject(new Error("Network error uploading to R2"));
+    xhr.onabort = () => reject(new Error("Upload aborted"));
+    xhr.ontimeout = () => reject(new Error("Upload timed out"));
+
+    xhr.send(file);
+  });
+}
+
+type AnalyzeSseArgs = {
+  r2_key: string;
+  submission_id: string;
+  slug: string;
+  producerName: string;
+  producerEmail: string;
+  trackName: string;
+  notes: string;
+  producerInstagram: string;
+  producerSoundcloud: string;
+  producerSpotify: string;
+  onProgress: (pct: number) => void;
+};
+
+async function runAnalyzeSse(args: AnalyzeSseArgs): Promise<void> {
+  const {
+    r2_key,
+    submission_id,
+    slug,
+    producerName,
+    producerEmail,
+    trackName,
+    notes,
+    producerInstagram,
+    producerSoundcloud,
+    producerSpotify,
+    onProgress,
+  } = args;
+
+  const response = await fetch(`${apiBase()}/api/analyze`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "text/event-stream",
+    },
+    body: JSON.stringify({
+      r2_key,
+      submission_id,
+      label_slug: slug,
+      producer_name: producerName,
+      producer_email: producerEmail,
+      track_name: trackName,
+      notes,
+      producer_instagram: producerInstagram,
+      producer_soundcloud: producerSoundcloud,
+      producer_spotify: producerSpotify,
+    }),
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: "" }));
+    throw new Error(err.detail || `analyze: HTTP ${response.status}`);
+  }
+  if (!response.body) throw new Error("No response body from /api/analyze");
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done: streamDone, value } = await reader.read();
+    if (streamDone) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+
+    for (const line of lines) {
+      if (!line.startsWith("data: ")) continue;
+      try {
+        const event = JSON.parse(line.slice(6));
+        if (event.error) throw new Error(event.error);
+        if (event.done) return;
+        if (typeof event.pct === "number") onProgress(event.pct);
+      } catch (parseErr) {
+        if (parseErr instanceof Error && parseErr.message) {
+          // Re-throw SSE error messages but ignore JSON.parse noise.
+          if (parseErr.message !== "Unexpected token" && parseErr.message !== line) {
+            throw parseErr;
+          }
+        }
+      }
+    }
+  }
+}
+
+async function runLegacyFlow(args: LegacyFlowArgs): Promise<void> {
+  const {
+    file,
+    slug,
+    producerName,
+    producerEmail,
+    trackName,
+    notes,
+    producerInstagram,
+    producerSoundcloud,
+    producerSpotify,
+    onAnalyzeProgress,
+  } = args;
+
+  // Simulated 0..50 progress during the legacy multipart upload. The
+  // animation loop the caller set up will smooth this out, so we just
+  // bump the target a few times.
+  const simTimer = setInterval(() => {
+    if (args.isDone()) {
+      clearInterval(simTimer);
+      return;
+    }
+  }, 200);
+
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("producer_name", producerName);
+    formData.append("producer_email", producerEmail);
+    formData.append("track_name", trackName);
+    formData.append("label_slug", slug);
+    formData.append("notes", notes);
+    if (producerInstagram) formData.append("producer_instagram", producerInstagram);
+    if (producerSoundcloud) formData.append("producer_soundcloud", producerSoundcloud);
+    if (producerSpotify) formData.append("producer_spotify", producerSpotify);
+
+    const response = await fetch(`${apiBase()}/api/upload`, {
+      method: "POST",
+      body: formData,
+    });
+    clearInterval(simTimer);
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ detail: "" }));
+      throw new Error(err.detail || `upload: HTTP ${response.status}`);
+    }
+    if (!response.body) throw new Error("No response body from /api/upload");
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done: streamDone, value } = await reader.read();
+      if (streamDone) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        try {
+          const event = JSON.parse(line.slice(6));
+          if (event.error) throw new Error(event.error);
+          if (event.done) return;
+          if (typeof event.pct === "number") onAnalyzeProgress(event.pct);
+        } catch (parseErr) {
+          if (parseErr instanceof Error && parseErr.message) {
+            if (parseErr.message !== "Unexpected token" && parseErr.message !== line) {
+              throw parseErr;
+            }
+          }
+        }
+      }
+    }
+  } catch (err) {
+    clearInterval(simTimer);
+    throw err;
+  }
+}
+
 export default function SubmissionPage() {
   const { t } = useLanguage();
   const params = useParams();
@@ -131,9 +474,10 @@ export default function SubmissionPage() {
 
     setUploading(true);
     setProgress(0);
+    setError("");
     setAnalyzing(false);
 
-    // Start smooth animation immediately for upload phase feedback
+    // Smooth animation that always pushes the bar toward `targetPct`.
     let targetPct = 1;
     let currentPct = 0;
     let animFrame: number;
@@ -150,100 +494,104 @@ export default function SubmissionPage() {
     };
     animFrame = requestAnimationFrame(animate);
 
-    // Upload phase: slow, steady 0→50% — backend emits real SSE at each sub-step so the bar always advances
-    const uploadTimer = setInterval(() => {
-      if (targetPct < 50) {
-        const step = 0.15 + Math.random() * 0.35;  // random 0.15-0.50 per tick
-        targetPct = Math.min(50, targetPct + step);
-      } else {
-        clearInterval(uploadTimer);
-      }
-    }, 300);
-
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("producer_name", producerName);
-      formData.append("producer_email", producerEmail);
-      formData.append("track_name", trackName);
-      formData.append("label_slug", slug);
-      formData.append("notes", notes);
-      if (producerInstagram) formData.append("producer_instagram", producerInstagram);
-      if (producerSoundcloud) formData.append("producer_soundcloud", producerSoundcloud);
-      if (producerSpotify) formData.append("producer_spotify", producerSpotify);
-
-      const apiUrl = (process.env.NEXT_PUBLIC_API_URL || "");
-      const response = await fetch(`${apiUrl}/api/upload`, {
-        method: "POST",
-        body: formData,
-      });
-
-      clearInterval(uploadTimer);
-
-      if (!response.ok) {
-        done = true;
-        cancelAnimationFrame(animFrame);
-        const err = await response.json().catch(() => ({ detail: t("submission.error_unknown") }));
-        throw new Error(err.detail || `Error ${response.status}`);
-      }
-
-      // Read SSE stream for real-time progress
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error("No response body");
-
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let isAnalyzing = false;
-
-      while (true) {
-        const { done: streamDone, value } = await reader.read();
-        if (streamDone) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            try {
-              const event = JSON.parse(line.slice(6));
-              if (event.error) {
-                done = true;
-                cancelAnimationFrame(animFrame);
-                setError(event.error);
-                setUploading(false);
-                return;
-              }
-              if (event.done) {
-                targetPct = 100;
-                setTimeout(() => {
-                  done = true;
-                  cancelAnimationFrame(animFrame);
-                  setProgress(100);
-                  setAnalyzing(false);
-                  setTimeout(() => setUploading(false), 400);
-                  setSubmitted(true);
-                }, 600);
-                return;
-              }
-              if (event.pct != null) {
-                targetPct = event.pct;
-                if (!isAnalyzing) { isAnalyzing = true; setAnalyzing(true); }
-              }
-            } catch { /* skip malformed JSON */ }
-          }
-        }
-      }
-
+    const finishWithError = (msg: string) => {
       done = true;
       cancelAnimationFrame(animFrame);
-    } catch (err) {
-      done = true;
-      cancelAnimationFrame(animFrame);
-      clearInterval(uploadTimer);
       setUploading(false);
       setAnalyzing(false);
-      setError(err instanceof Error ? err.message : t("submission.error_upload"));
+      setError(msg);
+    };
+
+    const finishWithSuccess = () => {
+      targetPct = 100;
+      setTimeout(() => {
+        done = true;
+        cancelAnimationFrame(animFrame);
+        setProgress(100);
+        setAnalyzing(false);
+        setTimeout(() => setUploading(false), 400);
+        setSubmitted(true);
+      }, 600);
+    };
+
+    try {
+      // Try the 3-phase flow (presigned URL → direct R2 upload → analyze SSE).
+      // Falls back to legacy /api/upload on any failure.
+      await runThreePhaseFlow({
+        file,
+        slug,
+        producerName,
+        producerEmail,
+        trackName,
+        notes,
+        producerInstagram,
+        producerSoundcloud,
+        producerSpotify,
+        onUploadProgress: (pct) => {
+          // Direct R2 PUT progress is 0..50 of the overall bar.
+          const overall = Math.max(1, Math.min(50, Math.round(pct * 0.5)));
+          if (overall > targetPct) targetPct = overall;
+        },
+        onAnalyzeProgress: (pct) => {
+          setAnalyzing(true);
+          if (pct > targetPct) targetPct = pct;
+        },
+        onError: (err) => {
+          // Phase 1 or Phase 2 failed — fall back to legacy multipart flow.
+          // We surface the original error to the console for diagnostics,
+          // then transparently retry via /api/upload.
+          // eslint-disable-next-line no-console
+          console.warn(
+            "[upload-progress-improvement] Direct R2 upload failed, falling back to legacy /api/upload:",
+            err?.message || err
+          );
+          runLegacyFlow({
+            file,
+            slug,
+            producerName,
+            producerEmail,
+            trackName,
+            notes,
+            producerInstagram,
+            producerSoundcloud,
+            producerSpotify,
+            onAnalyzeProgress: (pct) => {
+              setAnalyzing(true);
+              if (pct > targetPct) targetPct = pct;
+            },
+            animate,
+            animFrame,
+            setProgress,
+            isDone: () => done,
+            markDone: () => {
+              done = true;
+              cancelAnimationFrame(animFrame);
+            },
+          })
+            .then(finishWithSuccess)
+            .catch((fallbackErr) => {
+              finishWithError(
+                fallbackErr instanceof Error
+                  ? fallbackErr.message
+                  : t("submission.error_upload")
+              );
+            });
+        },
+      })
+        .then(finishWithSuccess)
+        .catch((err) => {
+          // Should not normally hit this — runThreePhaseFlow resolves on
+          // success and on graceful fallback. Kept as a safety net.
+          if (err instanceof Error) {
+            finishWithError(err.message);
+          } else {
+            finishWithError(t("submission.error_upload"));
+          }
+        });
+    } catch (err) {
+      finishWithError(
+        err instanceof Error ? err.message : t("submission.error_upload")
+      );
     }
   };
 

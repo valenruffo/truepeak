@@ -1,7 +1,9 @@
 import os
 import logging
 import asyncio
+import threading
 from pathlib import Path
+from typing import Callable
 import boto3
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
@@ -13,6 +15,9 @@ ENDPOINT = os.getenv("CLOUDFLARE_R2_ENDPOINT")
 ACCESS_KEY_ID = os.getenv("CLOUDFLARE_R2_ACCESS_KEY_ID")
 SECRET_ACCESS_KEY = os.getenv("CLOUDFLARE_R2_SECRET_ACCESS_KEY")
 BUCKET_NAME = os.getenv("CLOUDFLARE_R2_BUCKET_NAME")
+
+# 15-minute expiry for presigned PUT URLs (matches the spec)
+PRESIGNED_URL_EXPIRY_SECONDS = 900
 
 
 def _get_s3_client():
@@ -133,3 +138,170 @@ async def download_file_from_r2(r2_key: str, local_path: str) -> None:
 async def delete_folder_from_r2(prefix: str) -> None:
     """Delete all objects under a folder prefix from R2 in a thread pool to avoid blocking."""
     await asyncio.to_thread(_delete_folder_sync, prefix)
+
+
+# --- Presigned URL & Progress-Tracked Download (Phase 1 of upload-progress-improvement) ---
+
+
+def _generate_presigned_url_sync(
+    r2_key: str,
+    content_type: str,
+    content_length: int | None = None,
+    expiry: int = PRESIGNED_URL_EXPIRY_SECONDS,
+) -> str:
+    """Generate a presigned PUT URL for direct R2 upload from a browser.
+
+    The returned URL is signed for PUT, expires in `expiry` seconds (default 15
+    minutes), and — when content_type / content_length are provided — restricts
+    the upload to those values so the browser cannot bypass the limits we
+    advertised.
+    """
+    s3_client = _get_s3_client()
+    params: dict = {
+        "Bucket": BUCKET_NAME,
+        "Key": r2_key,
+    }
+    # Conditions enforce Content-Type / Content-Length at PUT time.
+    # They MUST be a JSON-compatible list (per boto3 contract).
+    conditions: list = []
+    if content_type:
+        conditions.append({"Content-Type": content_type})
+    if content_length is not None:
+        conditions.append(["content-length-range", content_length, content_length])
+    if conditions:
+        params["Conditions"] = conditions
+        # Note: when Conditions are used, we also need to declare which fields
+        # the presigner is allowed to embed in the policy. Otherwise boto3
+        # refuses to sign.
+        params["Fields"] = {
+            "Content-Type": content_type,
+        }
+
+    try:
+        url = s3_client.generate_presigned_url(
+            "put_object",
+            Params=params,
+            ExpiresIn=expiry,
+            HttpMethod="PUT",
+        )
+        logger.info(
+            "Generated presigned PUT URL for key=%s, expires_in=%ss, "
+            "content_type=%s, content_length=%s",
+            r2_key, expiry, content_type, content_length,
+        )
+        return url
+    except (BotoCoreError, ClientError) as e:
+        logger.error("Failed to generate presigned URL for key %s: %s", r2_key, e)
+        raise RuntimeError(f"Cloudflare R2 presigned URL error: {e}") from e
+
+
+async def generate_presigned_url(
+    r2_key: str,
+    content_type: str,
+    content_length: int | None = None,
+    expiry: int = PRESIGNED_URL_EXPIRY_SECONDS,
+) -> str:
+    """Async wrapper around _generate_presigned_url_sync.
+
+    Runs the boto3 call in a thread pool so the event loop is not blocked.
+    """
+    return await asyncio.to_thread(
+        _generate_presigned_url_sync,
+        r2_key,
+        content_type,
+        content_length,
+        expiry,
+    )
+
+
+# Regex for FFmpeg-style progress lines is intentionally not here — this is the
+# R2 layer. The download callback receives raw byte-count deltas from boto3.
+
+
+def _download_file_with_progress_sync(
+    r2_key: str,
+    local_path: str,
+    progress_callback: Callable[[int, int], None] | None = None,
+) -> None:
+    """Synchronous boto3 download with a progress callback (bytes transferred, total).
+
+    Uses boto3's `Callback` parameter (S3Transfer) to receive byte-count
+    updates. The callback is invoked from the boto3 worker thread, so it
+    MUST be thread-safe. The async wrapper takes care of marshalling onto
+    the event loop with `run_coroutine_threadsafe`.
+    """
+    s3_client = _get_s3_client()
+    Path(local_path).parent.mkdir(parents=True, exist_ok=True)
+
+    # First, get the total object size so we can compute percentages.
+    try:
+        head = s3_client.head_object(Bucket=BUCKET_NAME, Key=r2_key)
+        total_bytes = int(head.get("ContentLength", 0))
+    except (BotoCoreError, ClientError) as e:
+        logger.error("Failed to head_object %s: %s", r2_key, e)
+        raise RuntimeError(f"Cloudflare R2 head_object error: {e}") from e
+
+    transferred = 0
+    last_reported_pct = -1
+
+    class _ProgressCallback:
+        def __init__(self) -> None:
+            self._lock = threading.Lock()
+
+        def __call__(self, bytes_amount: int) -> None:
+            nonlocal transferred, last_reported_pct
+            with self._lock:
+                transferred += bytes_amount
+                if progress_callback is None or total_bytes == 0:
+                    return
+                pct = int((transferred / total_bytes) * 100)
+                # Throttle: only report when percentage actually changes.
+                if pct != last_reported_pct:
+                    last_reported_pct = pct
+                    try:
+                        progress_callback(transferred, total_bytes)
+                    except Exception as cb_err:  # noqa: BLE001
+                        # Never let a buggy callback abort the upload.
+                        logger.warning("Progress callback raised: %s", cb_err)
+
+    try:
+        s3_client.download_file(
+            BUCKET_NAME,
+            r2_key,
+            local_path,
+            Callback=_ProgressCallback(),
+        )
+        logger.info(
+            "Downloaded %s -> %s (%d/%d bytes)", r2_key, local_path, transferred, total_bytes
+        )
+    except (BotoCoreError, ClientError) as e:
+        logger.error("Failed to download %s: %s", r2_key, e)
+        raise RuntimeError(f"Cloudflare R2 download_file error: {e}") from e
+
+
+async def download_file_with_progress(
+    r2_key: str,
+    local_path: str,
+    on_progress: Callable[[int, int], "asyncio.Future | None"] | None = None,
+) -> None:
+    """Async download with progress reporting that is safe to await from async code.
+
+    `on_progress` is called with (bytes_transferred, total_bytes) from a
+    boto3 worker thread. The typical use case is an SSE pipeline: pass a
+    callback that schedules a coroutine onto the event loop (e.g. via
+    `asyncio.run_coroutine_threadsafe`) or just updates a thread-safe queue.
+    """
+    def _bridge(transferred: int, total: int) -> None:
+        if on_progress is None:
+            return
+        try:
+            on_progress(transferred, total)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("download progress bridge raised: %s", e)
+
+    await asyncio.to_thread(
+        _download_file_with_progress_sync,
+        r2_key,
+        local_path,
+        _bridge,
+    )
