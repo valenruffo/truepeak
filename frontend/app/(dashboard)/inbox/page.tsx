@@ -419,12 +419,6 @@ function resolvePlaceholders(text: string, sub: SubmissionSummary, labelName: st
     .replace(/\{rejection_reason\}/g, sub.rejection_reason || "");
 }
 
-function formatDuration(seconds: number): string {
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  return `${mins}:${secs.toString().padStart(2, "0")}`;
-}
-
 function statusLabel(status: string, role: "label" | "dj", t: (key: any) => string): string {
   const prefix = role === "dj" ? "inbox.kanban_dj" : "inbox.kanban";
   switch (status) {
