@@ -1,3 +1,10 @@
+import { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Política de Privacidad",
+  description: "Política de Privacidad de True Peak. Conocé cómo recopilamos, usamos y protegemos tus datos personales y archivos de audio.",
+};
+
 export default function PrivacyPolicy() {
   return (
     <div className="min-h-screen py-28 px-6" style={{ background: "#09090b", color: "#fafafa" }}>

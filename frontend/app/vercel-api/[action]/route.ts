@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-// Fallback to the token provided by the user if env var is missing
-const POLAR_ACCESS_TOKEN = process.env.POLAR_ACCESS_TOKEN;
-if (!POLAR_ACCESS_TOKEN) throw new Error("POLAR_ACCESS_TOKEN is not configured");
+const POLAR_ACCESS_TOKEN = process.env.POLAR_ACCESS_TOKEN || "";
 const POLAR_ORGANIZATION_ID = process.env.POLAR_ORGANIZATION_ID || "2c074a1d-a013-4d40-bc73-82157dcaaa74";
 const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://164.152.194.196:8000";
 const ADMIN_API_KEY = process.env.ADMIN_API_KEY || "";

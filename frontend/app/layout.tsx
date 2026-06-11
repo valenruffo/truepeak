@@ -23,9 +23,37 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "True Peak | Automated Demo Submission & A&R Workflow",
+  metadataBase: new URL("https://www.truepeak.space"),
+  title: {
+    default: "True Peak | Automated Demo Submission & A&R Workflow",
+    template: "%s | True Peak",
+  },
   description:
     "Streamline your music label's inbox. Automatically screen track demos for digital clipping, phase issues, and dynamic range with an automated Kanban CRM.",
+  keywords: [
+    "music production",
+    "demo submission",
+    "A&R workflow",
+    "audio analysis",
+    "record label CRM",
+    "audio clipping detection",
+    "music label inbox",
+  ],
+  openGraph: {
+    title: "True Peak | Automated Demo Submission & A&R Workflow",
+    description:
+      "Streamline your music label's inbox. Automatically screen track demos for digital clipping, phase issues, and dynamic range with an automated Kanban CRM.",
+    url: "https://www.truepeak.space",
+    siteName: "True Peak",
+    locale: "en_US",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "True Peak | Automated Demo Submission & A&R Workflow",
+    description:
+      "Streamline your music label's inbox. Automatically screen track demos for digital clipping, phase issues, and dynamic range with an automated Kanban CRM.",
+  },
   icons: {
     icon: "/favicon.ico",
     shortcut: "/favicon.ico",

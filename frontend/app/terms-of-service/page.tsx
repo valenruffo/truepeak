@@ -1,3 +1,10 @@
+import { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Términos de Servicio",
+  description: "Términos de Servicio de True Peak. Reglas, derechos y responsabilidades de los usuarios al utilizar la plataforma.",
+};
+
 export default function TermsOfService() {
   return (
     <div className="min-h-screen py-28 px-6" style={{ background: "#09090b", color: "#fafafa" }}>

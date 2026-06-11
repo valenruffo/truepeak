@@ -1,0 +1,32 @@
+# True Peak
+
+> True Peak is an automated A&R assistant and music label demo submission inbox. It processes audio uploads, performs DSP engineering checks (such as tempo, loudness, clipping, phase, and scale), and organizes tracks inside a visual Kanban workflow.
+
+## Key Features
+- **DSP Audio Analysis:** In-browser and backend detection of BPM, integrated LUFS, stereo phase correlation, dynamic range (Crest Factor), digital clipping (True Peak), and musical key (Camelot Wheel).
+- **Sonic Signature Rules:** Fully customizable filters allowing labels to define expected BPM, LUFS target, scale, and format rules.
+- **Automated Rejection:** Automatically rejects tracks that violate critical technical limits, giving producers immediate feedback.
+- **Integrated Kanban Board:** Visually track submissions from Inbox to Shortlist, Approved, and Rejected stages.
+- **Automated CRM & Emailing:** Quick contact with producers via pre-built templates containing auto-filled variables.
+- **Lossless Audio Streaming:** Online Web Player to audit submitted WAV and FLAC masters in high quality.
+
+## Tech Stack
+- **Frontend:** React, Next.js (App Router), Tailwind CSS, Framer Motion, Radix UI.
+- **Backend:** Python, FastAPI, SQLAlchemy, PostgreSQL, Pytest.
+- **DSP Analysis:** Web Audio API (frontend simulation) and specialized python modules (backend).
+
+## Pricing Tiers
+- **Free:** $0/mo. Up to 10 submissions/month, basic analysis, personal link, lightweight preview streaming.
+- **Indie:** $29/mo. Up to 100 submissions/month, DSP and structural filters, 100 emails/month, 7 days of HQ lossless storage.
+- **Pro:** $79/mo. Up to 500 submissions/month, Camelot Wheel harmonic filter, 500 emails/month, 14 days of HQ lossless storage.
+
+## Key Links & Navigation
+- **Homepage:** https://www.truepeak.space/
+- **How it Works:** https://www.truepeak.space/#how-it-works
+- **Features:** https://www.truepeak.space/#features
+- **Pricing:** https://www.truepeak.space/#pricing
+- **Terms of Service:** https://www.truepeak.space/terms-of-service
+- **Privacy Policy:** https://www.truepeak.space/privacy-policy
+- **Refund Policy:** https://www.truepeak.space/refund-policy
+- **Login:** https://www.truepeak.space/login
+- **Register:** https://www.truepeak.space/register

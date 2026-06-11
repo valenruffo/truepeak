@@ -1,3 +1,10 @@
+import { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Política de Reembolso",
+  description: "Política de Reembolso de True Peak. Conocé las condiciones para solicitar reembolsos de suscripción de nuestros planes.",
+};
+
 export default function RefundPolicy() {
   return (
     <div className="min-h-screen py-28 px-6" style={{ background: "#09090b", color: "#fafafa" }}>

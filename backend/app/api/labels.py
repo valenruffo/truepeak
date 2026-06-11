@@ -332,6 +332,17 @@ async def lookup_email(
     return {"email": label.owner_email}
 
 
+@router.get("/public/slugs", response_model=list[str])
+async def get_public_slugs(
+    session: Session = Depends(get_session),
+):
+    """Retrieve all active label slugs (subscription_status != 'frozen')."""
+    labels = session.exec(
+        select(Label).where(Label.subscription_status != "frozen")
+    ).all()
+    return [label.slug for label in labels]
+
+
 @router.get("/{slug}", response_model=LabelConfig)
 async def get_label_config(
     slug: str,
