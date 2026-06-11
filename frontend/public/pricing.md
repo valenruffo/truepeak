@@ -17,7 +17,7 @@ True Peak helps music labels and DJs filter and screen track demos automatically
 ---
 
 ## 2. Indie Plan
-**Price:** $29 / month  
+**Price:** $25 / month  
 *Designed for active indie labels and touring DJs.*
 
 ### Features & Limits:
@@ -33,7 +33,7 @@ True Peak helps music labels and DJs filter and screen track demos automatically
 ---
 
 ## 3. Pro Plan
-**Price:** $79 / month  
+**Price:** $49 / month  
 *For professional record labels and busy promotional agencies.*
 
 ### Features & Limits:

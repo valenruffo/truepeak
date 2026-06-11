@@ -17,8 +17,8 @@
 
 ## Pricing Tiers
 - **Free:** $0/mo. Up to 10 submissions/month, basic analysis, personal link, lightweight preview streaming.
-- **Indie:** $29/mo. Up to 100 submissions/month, DSP and structural filters, 100 emails/month, 7 days of HQ lossless storage.
-- **Pro:** $79/mo. Up to 500 submissions/month, Camelot Wheel harmonic filter, 500 emails/month, 14 days of HQ lossless storage.
+- **Indie:** $25/mo. Up to 100 submissions/month, DSP and structural filters, 100 emails/month, 7 days of HQ lossless storage.
+- **Pro:** $49/mo. Up to 500 submissions/month, Camelot Wheel harmonic filter, 500 emails/month, 14 days of HQ lossless storage.
 
 ## Key Links & Navigation
 - **Homepage:** https://www.truepeak.space/
