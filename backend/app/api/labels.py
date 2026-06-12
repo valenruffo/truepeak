@@ -15,7 +15,7 @@ from slowapi.util import get_remote_address
 from sqlmodel import Session, select, func
 
 from app.database import get_session
-from app.models import Label, Submission
+from app.models import Label, Submission, Notification
 from app.services.auth import verify_token
 from app.services.r2 import upload_bytes_to_r2
 
@@ -778,6 +778,66 @@ async def get_me_secure(
         "polar_customer_id": label.polar_customer_id,
         "polar_subscription_id": label.polar_subscription_id
     }
+
+
+class NotificationResponse(BaseModel):
+    id: str
+    title: str
+    message: str
+    created_at: str
+    read: bool
+
+
+@router.get("/me/notifications", response_model=list[NotificationResponse])
+async def get_me_notifications(
+    auth: dict = Depends(_get_label_from_token),
+    session: Session = Depends(get_session),
+):
+    """Get recent notifications for the authenticated label."""
+    label_id = auth["label_id"]
+
+    # Run expiration checks so they are fresh
+    from app.services.expiration import check_and_process_expirations
+    await check_and_process_expirations(label_id, session)
+
+    query = (
+        select(Notification)
+        .where(Notification.label_id == label_id)
+        .order_by(Notification.created_at.desc())
+    )
+    notifications = session.exec(query).all()
+
+    return [
+        NotificationResponse(
+            id=n.id,
+            title=n.title,
+            message=n.message,
+            created_at=n.created_at.isoformat(),
+            read=n.read,
+        )
+        for n in notifications
+    ]
+
+
+@router.post("/me/notifications/read")
+async def mark_notifications_as_read(
+    auth: dict = Depends(_get_label_from_token),
+    session: Session = Depends(get_session),
+):
+    """Mark all notifications for the label as read."""
+    label_id = auth["label_id"]
+    from sqlmodel import update
+
+    stmt = (
+        update(Notification)
+        .where(Notification.label_id == label_id)
+        .where(Notification.read == False)
+        .values(read=True)
+    )
+    session.exec(stmt)
+    session.commit()
+
+    return {"status": "ok"}
 
 
 @router.get("/{slug}/billing", response_model=BillingDetails)

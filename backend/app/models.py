@@ -69,6 +69,9 @@ class Label(SQLModel, table=True):
 
     submissions: list["Submission"] = Relationship(back_populates="label")
     email_templates: list["EmailTemplate"] = Relationship(back_populates="label")
+    notifications: list["Notification"] = Relationship(
+        back_populates="label", sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
 
 
 class Submission(SQLModel, table=True):
@@ -151,3 +154,21 @@ class EmailTemplate(SQLModel, table=True):
     )
 
     label: Label = Relationship(back_populates="email_templates")
+
+
+class Notification(SQLModel, table=True):
+    """Notification message for the dashboard."""
+
+    __tablename__ = "notification"
+
+    id: str = Field(default_factory=lambda: str(uuid4()), primary_key=True)
+    label_id: str = Field(foreign_key="label.id", index=True)
+    title: str
+    message: str
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC),
+    )
+    read: bool = Field(default=False)
+    unique_key: str | None = Field(default=None, index=True, unique=True)
+
+    label: Label = Relationship(back_populates="notifications")

@@ -6,14 +6,15 @@ import Link from "next/link";
 import useSWR from "swr";
 import { cn } from "@/lib/utils";
 import { PlayerProvider, usePlayer, type PlayerTrack } from "@/lib/PlayerContext";
-import { ToastProvider } from "@/components/ui/toast";
+import { ToastProvider, useToast } from "@/components/ui/toast";
 import { useLanguage } from "@/lib/i18n";
 import { useTheme } from "@/lib/theme";
-import { Music, Clock, AlertTriangle, Sliders, Link2, Inbox, Mail, BookOpen, Settings, LogOut } from "lucide-react";
+import { Music, Clock, AlertTriangle, Sliders, Link2, Inbox, Mail, BookOpen, Settings, LogOut, Bell } from "lucide-react";
 import WaveSurfer from "wavesurfer.js";
 import { supabase } from "@/lib/supabase";
 import { SWRProvider } from "@/lib/swr-config";
 import { useLabelStore, type LabelConfig } from "@/store/label";
+import { getNotifications, markNotificationsAsRead, type Notification } from "@/lib/api";
 
 function PlayerBar() {
   const { currentTrack, isPlaying, progress, duration, volume, hasTracks, togglePlay, prevTrack, nextTrack, setVolume, seekTo, formatTime, audioRef } = usePlayer();
@@ -246,6 +247,134 @@ function PlayerBar() {
     </div>
   );
 }
+
+
+function NotificationBell() {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
+  const { lang } = useLanguage();
+  const { addToast } = useToast();
+  const shownToastsRef = useRef<Set<string>>(new Set());
+
+  const labelSlug = typeof window !== "undefined" ? localStorage.getItem("slug") : null;
+  const swrKey = labelSlug ? "/api/labels/me/notifications" : null;
+
+  const { data: notifications, mutate } = useSWR<Notification[]>(
+    swrKey,
+    getNotifications,
+    {
+      refreshInterval: 15000, // Refresh every 15s
+    }
+  );
+
+  const unreadCount = notifications ? notifications.filter((n) => !n.read).length : 0;
+
+  // Sync toasts for new unread notifications
+  useEffect(() => {
+    if (!notifications) return;
+    notifications.forEach((n) => {
+      if (!n.read && !shownToastsRef.current.has(n.id)) {
+        shownToastsRef.current.add(n.id);
+        addToast({
+          title: n.title,
+          description: n.message,
+          variant: n.title.toLowerCase().includes("expirada") || n.title.toLowerCase().includes("eliminada") ? "destructive" : "default",
+        });
+      }
+    });
+  }, [notifications, addToast]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleOpenToggle = async () => {
+    if (!isOpen) {
+      setIsOpen(true);
+      try {
+        await markNotificationsAsRead();
+        mutate();
+      } catch (err) {
+        console.error("Failed to mark notifications as read:", err);
+      }
+    } else {
+      setIsOpen(false);
+    }
+  };
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        onClick={handleOpenToggle}
+        className="relative p-2.5 rounded-full hover:bg-white/5 transition-all cursor-pointer flex items-center justify-center border"
+        style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}
+      >
+        <Bell className="w-4 h-4 text-zinc-400 hover:text-white transition-colors" />
+        {unreadCount > 0 && (
+          <span className="absolute -top-1 -right-1 flex h-4.5 w-4.5 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white leading-none shadow-[0_0_8px_rgba(239,68,68,0.5)]">
+            {unreadCount}
+          </span>
+        )}
+      </button>
+
+      {isOpen && (
+        <div
+          className="absolute right-0 mt-2.5 w-80 rounded-xl border p-4 shadow-2xl z-50 animate-in fade-in slide-in-from-top-2"
+          style={{
+            background: "var(--bg-card)",
+            borderColor: "var(--border)",
+            boxShadow: "0 12px 30px -10px rgba(0,0,0,0.8)",
+          }}
+        >
+          <div className="flex justify-between items-center mb-3.5 pb-2 border-b" style={{ borderColor: "var(--border)" }}>
+            <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+              {lang === "es" ? "Notificaciones" : "Notifications"}
+            </span>
+            {unreadCount > 0 && (
+              <span className="text-[10px] text-emerald-400 font-medium">
+                {lang === "es" ? `${unreadCount} nuevas` : `${unreadCount} new`}
+              </span>
+            )}
+          </div>
+
+          <div className="max-h-64 overflow-y-auto space-y-2.5 pr-1" style={{ scrollbarWidth: "thin" }}>
+            {!notifications || notifications.length === 0 ? (
+              <div className="text-xs text-zinc-500 text-center py-6">
+                {lang === "es" ? "No hay notificaciones" : "No notifications"}
+              </div>
+            ) : (
+              notifications.map((n) => (
+                <div
+                  key={n.id}
+                  className="p-3 rounded-lg border text-xs transition-all"
+                  style={{
+                    background: n.read ? "transparent" : "rgba(16,185,129,0.02)",
+                    borderColor: n.read ? "var(--border)" : "rgba(16,185,129,0.15)",
+                  }}
+                >
+                  <div className="flex justify-between items-start mb-1 gap-2">
+                    <span className="font-semibold text-zinc-100">{n.title}</span>
+                    <span className="text-[9px] text-zinc-500 whitespace-nowrap">
+                      {new Date(n.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-zinc-400 leading-normal">{n.message}</p>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 function DashboardInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -817,6 +946,11 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
 
       <main className="flex-1 pt-12 md:pt-0" style={{ marginLeft: "0", paddingBottom: "96px" }}>
         <div className="mx-auto max-w-6xl px-3 md:px-6 py-4 md:py-8 md:ml-[200px]">
+          {/* Top header row with Notification Bell */}
+          <div className="flex justify-end items-center mb-6">
+            <NotificationBell />
+          </div>
+
           {/* Frozen State Banner */}
           {subscriptionStatus === "frozen" && (
             <div

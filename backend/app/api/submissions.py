@@ -142,6 +142,9 @@ async def list_submissions(
     """List submissions with optional filters. Requires label owner auth."""
     label_id = auth["label_id"]
 
+    from app.services.expiration import check_and_process_expirations
+    await check_and_process_expirations(label_id, session)
+
     query = select(Submission).where(
         Submission.label_id == label_id,
     )
