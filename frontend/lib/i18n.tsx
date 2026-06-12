@@ -144,6 +144,7 @@ const translations = {
     "login.submit": "Iniciar sesión",
     "login.submitting": "Ingresando...",
     "login.error": "Error al iniciar sesión",
+    "login.profile_not_found": "El perfil de usuario no existe. Por favor, registrate primero.",
 
     // Register
     "register.back": "Volver al inicio",
@@ -772,6 +773,7 @@ const translations = {
     "login.submit": "Sign in",
     "login.submitting": "Signing in...",
     "login.error": "Error signing in",
+    "login.profile_not_found": "User profile does not exist. Please register first.",
 
     // Register
     "register.back": "Back to home",

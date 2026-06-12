@@ -36,7 +36,9 @@ async function request<T>(
     const error = await response.json().catch(() => ({
       detail: response.statusText,
     }));
-    throw new Error(error.detail ?? `API error: ${response.status}`);
+    const err = new Error(error.detail ?? `API error: ${response.status}`);
+    (err as any).status = response.status;
+    throw err;
   }
 
   return response.json() as Promise<T>;
