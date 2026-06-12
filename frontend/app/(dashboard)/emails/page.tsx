@@ -17,7 +17,7 @@ interface Submission {
   producer_name: string;
   producer_email: string | null;
   track_name: string;
-  status: "pending" | "approved" | "rejected";
+  status: string;
   bpm: number | null;
   lufs: number | null;
   phase_correlation: number | null;
@@ -284,13 +284,15 @@ function CRMContent() {
   // Map SWR submissions → Contact[].
   useEffect(() => {
     if (submissionsData) {
-      const resolved = submissionsData.filter((s) => s.status !== "pending");
+      const resolved = submissionsData.filter(
+        (s) => s.status !== "pending" && s.status !== "inbox" && s.status !== "critico"
+      );
       const mapped: Contact[] = resolved.map((s) => ({
         id: s.id,
         name: s.producer_name || "Anónimo",
         email: s.producer_email || "",
         track: s.track_name || "Sin nombre",
-        status: s.status as "approved" | "rejected",
+        status: (s.status === "rejected" || s.status === "auto_rejected") ? "rejected" : "approved",
         bpm: s.bpm != null ? String(Math.round(s.bpm)) : "—",
         sent: s.human_email_sent ?? false,
         mp3_path: s.mp3_path || null,
