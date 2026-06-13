@@ -944,10 +944,10 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <main className="flex-1 pt-12 md:pt-0" style={{ marginLeft: "0", paddingBottom: "96px" }}>
+      <main className="flex-1 pt-12 md:pt-0 relative" style={{ marginLeft: "0", paddingBottom: "96px" }}>
         <div className="mx-auto max-w-6xl px-3 md:px-6 py-4 md:py-8 md:ml-[200px]">
           {/* Top header row with Notification Bell */}
-          <div className="flex justify-end items-center mb-6">
+          <div className="absolute top-4 right-4 md:top-6 md:right-6 z-30">
             <NotificationBell />
           </div>
 
