@@ -2555,12 +2555,26 @@ useEffect(() => {
       {filteredTrashItems.length > 0 ? (
         filteredTrashItems.map((d) => {
           const deletedAt = d.deleted_at ? new Date(d.deleted_at) : null;
-          const hoursAgo = deletedAt
-            ? Math.floor(
-                (Date.now() - deletedAt.getTime()) / (1000 * 60 * 60)
-              )
-            : null;
-          const canRestore = hoursAgo !== null && hoursAgo < 24;
+          const isExpiredSoftDelete = retentionDays > 0 && d.deleted_at && d.created_at &&
+            (new Date(d.deleted_at).getTime() - new Date(d.created_at).getTime() >= retentionDays * 24 * 60 * 60 * 1000 - 60000);
+
+          let canRestore = false;
+          let timeLabel = "—";
+
+          if (deletedAt) {
+            if (isExpiredSoftDelete) {
+              const elapsedMin = Math.floor((Date.now() - deletedAt.getTime()) / 60000);
+              const timeLeftMin = Math.max(0, 30 - elapsedMin);
+              canRestore = timeLeftMin > 0;
+              timeLabel = canRestore ? `Expira en ${timeLeftMin} min` : "Expirado";
+            } else {
+              const elapsedHr = Math.floor((Date.now() - deletedAt.getTime()) / 3600000);
+              const timeLeftHr = Math.max(0, 24 - elapsedHr);
+              canRestore = timeLeftHr > 0;
+              timeLabel = canRestore ? `Expira en ${timeLeftHr}h` : "Expirado";
+            }
+          }
+
           const isLoading = actionLoading[d.id];
 
           return (
@@ -2595,11 +2609,7 @@ useEffect(() => {
                 </span>
               </div>
               <div className="col-span-3 text-center text-muted text-[11px]">
-                {hoursAgo !== null
-                  ? hoursAgo < 1
-                    ? "Hace menos de 1h"
-                    : `Hace ${hoursAgo}h`
-                  : "—"}
+                {timeLabel}
               </div>
               <div 
                 className="col-span-3 text-right flex items-center justify-end gap-1.5"

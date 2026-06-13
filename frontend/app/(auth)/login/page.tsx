@@ -48,23 +48,11 @@ export default function LoginPage() {
       let me;
       try {
         me = await getMe();
-      } catch (meErr) {
-        // Profile missing in Postgres. Auto-create it!
-        const baseName = identifier.split("@")[0] || "sello";
-        const slug = baseName.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "");
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ""}/api/labels/register-profile`, {
-          method: "POST",
-          headers: { 
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${authData.session.access_token}`
-          },
-          credentials: "include",
-          body: JSON.stringify({ name: baseName, slug, role: "label_owner" }),
-        });
-        if (!res.ok) {
-          throw new Error("No se pudo auto-crear tu perfil. Por favor, registrate de nuevo.");
+      } catch (meErr: any) {
+        if (meErr.status === 404) {
+          throw new Error(t("login.profile_not_found"));
         }
-        me = await res.json();
+        throw meErr;
       }
       
       localStorage.setItem("slug", me.slug);

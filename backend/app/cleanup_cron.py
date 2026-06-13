@@ -34,55 +34,14 @@ async def cleanup_async():
     purged_accounts = 0
 
     with Session(engine) as session:
-        # ── Rule 1: Hard delete tracks with deleted_at > 24h ──
-        cutoff = now - timedelta(hours=24)
-        statement = select(Submission).where(Submission.deleted_at != None).where(Submission.deleted_at < cutoff)
-        old_deleted = session.exec(statement).all()
-
-        for sub in old_deleted:
-            # Delete folder from R2
+        # Run expiration, warning, and deletion processing for all labels
+        from app.services.expiration import check_and_process_expirations
+        labels = session.exec(select(Label)).all()
+        for label in labels:
             try:
-                await delete_folder_from_r2(f"tracks/{sub.id}/")
-                deleted_files += 1
+                await check_and_process_expirations(label.id, session)
             except Exception as e:
-                logger.error(f"Failed to delete folder tracks/{sub.id}/ from R2: {e}")
-
-            session.delete(sub)
-            deleted_rows += 1
-
-        if deleted_rows > 0:
-            session.commit()
-            logger.info(f"[CLEANUP] Hard deleted {deleted_rows} tracks, removed {deleted_files} files from R2")
-
-        # ── Rule 2: Clean HQ files (WAV/FLAC) past retention period ──
-        labels_with_retention = session.exec(select(Label).where(Label.hq_retention_days > 0)).all()
-
-        for label in labels_with_retention:
-            retention = label.hq_retention_days
-            cutoff_date = now - timedelta(days=retention)
-
-            statement = select(Submission).where(
-                Submission.label_id == label.id,
-                Submission.deleted_at == None,
-                Submission.original_path != None,
-                Submission.created_at < cutoff_date
-            )
-            old_submissions = session.exec(statement).all()
-
-            for sub in old_submissions:
-                try:
-                    await delete_file_from_r2(sub.original_path)
-                    deleted_files += 1
-                except Exception as e:
-                    logger.error(f"Failed to delete HQ file {sub.original_path} from R2: {e}")
-                
-                sub.original_path = None
-                session.add(sub)
-                hq_cleaned += 1
-
-        if hq_cleaned > 0:
-            session.commit()
-            logger.info(f"[HQ] Removed HQ files for {hq_cleaned} expired tracks")
+                logger.error(f"Error processing expirations for label {label.id}: {e}")
 
         # ── Rule 3: Dead Account Warning (15 Days) ──
         warning_cutoff = now - timedelta(days=15)

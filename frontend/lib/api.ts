@@ -36,7 +36,9 @@ async function request<T>(
     const error = await response.json().catch(() => ({
       detail: response.statusText,
     }));
-    throw new Error(error.detail ?? `API error: ${response.status}`);
+    const err = new Error(error.detail ?? `API error: ${response.status}`);
+    (err as any).status = response.status;
+    throw err;
   }
 
   return response.json() as Promise<T>;
@@ -253,6 +255,24 @@ export async function getTemplates(): Promise<EmailTemplate[]> {
  */
 export async function getMe(): Promise<any> {
   return request<any>("/api/labels/me/secure");
+}
+
+export interface Notification {
+  id: string;
+  title: string;
+  message: string;
+  created_at: string;
+  read: boolean;
+}
+
+export async function getNotifications(): Promise<Notification[]> {
+  return request<Notification[]>("/api/labels/me/notifications");
+}
+
+export async function markNotificationsAsRead(): Promise<{ status: string }> {
+  return request<{ status: string }>("/api/labels/me/notifications/read", {
+    method: "POST",
+  });
 }
 
 
