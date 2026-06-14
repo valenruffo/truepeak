@@ -275,4 +275,132 @@ export async function markNotificationsAsRead(): Promise<{ status: string }> {
   });
 }
 
+// --- Waitlist and App Mode APIs ---
+
+export interface WaitlistEntry {
+  id: string;
+  email: string;
+  created_at: string;
+  source: string;
+}
+
+export interface AppModeResponse {
+  mode: "beta" | "prod";
+}
+
+export interface WaitlistResponse {
+  total: number;
+  entries: WaitlistEntry[];
+}
+
+/**
+ * Join the waitlist (Public)
+ */
+export async function joinWaitlist(email: string): Promise<{ status: string }> {
+  const response = await fetch(`${BASE_URL}/api/waitlist`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ email, company: "" }), // company is empty for honeypot
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({
+      detail: response.statusText,
+    }));
+    throw new Error(error.detail ?? `Waitlist signup failed: ${response.status}`);
+  }
+
+  return response.json() as Promise<{ status: string }>;
+}
+
+/**
+ * Get current application mode (Public)
+ */
+export async function getAppMode(): Promise<AppModeResponse> {
+  const response = await fetch(`${BASE_URL}/api/config/app-mode`, {
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to fetch app mode: ${response.status}`);
+  }
+  return response.json() as Promise<AppModeResponse>;
+}
+
+/**
+ * Update application mode (Admin)
+ */
+export async function updateAppMode(
+  mode: "beta" | "prod",
+  adminPassword: string
+): Promise<{ status: string; mode: "beta" | "prod" }> {
+  const response = await fetch(`${BASE_URL}/api/config/app-mode`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Admin-Password": adminPassword,
+    },
+    body: JSON.stringify({ mode }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({
+      detail: response.statusText,
+    }));
+    throw new Error(error.detail ?? `Failed to update mode: ${response.status}`);
+  }
+
+  return response.json() as Promise<{ status: string; mode: "beta" | "prod" }>;
+}
+
+/**
+ * Get waitlist entries (Admin, Paginated)
+ */
+export async function getWaitlist(
+  adminPassword: string,
+  page: number = 1,
+  perPage: number = 20
+): Promise<WaitlistResponse> {
+  const params = new URLSearchParams({
+    page: page.toString(),
+    per_page: perPage.toString(),
+  });
+  const response = await fetch(`${BASE_URL}/api/admin/waitlist?${params.toString()}`, {
+    headers: {
+      "X-Admin-Password": adminPassword,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({
+      detail: response.statusText,
+    }));
+    throw new Error(error.detail ?? `Failed to fetch waitlist: ${response.status}`);
+  }
+
+  return response.json() as Promise<WaitlistResponse>;
+}
+
+/**
+ * Export waitlist entries as CSV file blob (Admin)
+ */
+export async function exportWaitlistCsv(adminPassword: string): Promise<Blob> {
+  const response = await fetch(`${BASE_URL}/api/admin/waitlist/export`, {
+    headers: {
+      "X-Admin-Password": adminPassword,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({
+      detail: response.statusText,
+    }));
+    throw new Error(error.detail ?? `Failed to export waitlist: ${response.status}`);
+  }
+
+  return response.blob();
+}
+
+
 

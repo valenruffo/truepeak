@@ -4,19 +4,28 @@ import os
 from typing import Generator
 
 from sqlmodel import SQLModel, create_engine, Session
+# Import models to register them in SQLModel metadata for table creation
+from app.models import WaitlistEntry, AppConfig
 
 # Supabase PostgreSQL URL
 DATABASE_URL = os.getenv("POSTGRES_URL")
 if not DATABASE_URL:
     raise RuntimeError("POSTGRES_URL environment variable is required")
 
-# Enable connection pooling for production
-engine = create_engine(
-    DATABASE_URL, 
-    echo=False,
-    pool_size=10,
-    max_overflow=20
-)
+# Enable connection pooling for production, handle SQLite locally/for testing
+if DATABASE_URL.startswith("sqlite"):
+    engine = create_engine(
+        DATABASE_URL,
+        echo=False,
+        connect_args={"check_same_thread": False}
+    )
+else:
+    engine = create_engine(
+        DATABASE_URL, 
+        echo=False,
+        pool_size=10,
+        max_overflow=20
+    )
 
 migrations = [
     "ALTER TABLE submission ADD COLUMN status_tecnico VARCHAR(50) DEFAULT 'optimo'",

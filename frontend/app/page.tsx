@@ -5,6 +5,9 @@ import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import WhatsAppBubble from "@/components/WhatsAppBubble";
 import { useLanguage } from "@/lib/i18n";
+import useSWR from "swr";
+import { getAppMode } from "@/lib/api";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 // ─── Icon Components ─────────────────────────────────────────────────────────
 
@@ -1675,43 +1678,190 @@ function Features() {
   );
 }
 
-// ─── Pricing ──────────────────────────────────────────────────────────────────
+function WaitlistModal({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+  const { t } = useLanguage();
+  const [email, setEmail] = useState("");
+  const [company, setCompany] = useState(""); // Honeypot field
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
+  const [errorMsg, setErrorMsg] = useState("");
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !email.includes("@")) {
+      setStatus("error");
+      setErrorMsg(t("pricing.waitlist_error") || "Email inválido");
+      return;
+    }
+    setLoading(false);
+    setLoading(true);
+    setStatus("idle");
+    try {
+      const response = await fetch("/api/waitlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, company }),
+      });
+      if (response.ok) {
+        setStatus("success");
+        setEmail("");
+        setCompany("");
+      } else {
+        const errData = await response.json().catch(() => ({}));
+        setStatus("error");
+        setErrorMsg(errData.detail || t("pricing.waitlist_error") || "Error registrando email");
+      }
+    } catch (err) {
+      setStatus("error");
+      setErrorMsg(t("pricing.waitlist_error") || "Error registrando email");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogHeader className="relative pr-8">
+        <button
+          onClick={() => onOpenChange(false)}
+          className="absolute right-0 top-0 text-zinc-400 hover:text-white transition-colors p-1"
+          aria-label="Cerrar"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+        <DialogTitle className="text-xl font-bold tracking-tight text-white mt-2">
+          {t("pricing.waitlist_title")}
+        </DialogTitle>
+        <DialogDescription className="text-sm text-zinc-400 mt-2">
+          {status === "success" 
+            ? t("pricing.waitlist_success") 
+            : t("pricing.waitlist_email_placeholder")}
+        </DialogDescription>
+      </DialogHeader>
+
+      <DialogContent>
+        {status === "success" ? (
+          <div className="flex flex-col items-center justify-center py-6 text-center">
+            <div className="w-12 h-12 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center mb-4">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+            </div>
+            <p className="text-emerald-400 font-medium">{t("pricing.waitlist_success")}</p>
+            <button
+              onClick={() => {
+                onOpenChange(false);
+                setStatus("idle");
+              }}
+              className="mt-6 px-4 py-2 text-sm bg-zinc-800 text-white border border-zinc-700 rounded hover:bg-zinc-700 transition-colors"
+            >
+              Cerrar
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4 mt-2">
+            <div className="relative">
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder={t("pricing.waitlist_email_placeholder") || "tu@email.com"}
+                className="w-full px-3 py-2.5 rounded bg-zinc-900 border border-zinc-850 text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+              />
+            </div>
+
+            {/* Honeypot field (hidden from user) */}
+            <div className="hidden" aria-hidden="true">
+              <input
+                type="text"
+                name="company"
+                value={company}
+                onChange={(e) => setCompany(e.target.value)}
+                placeholder="Company Name"
+                tabIndex={-1}
+                autoComplete="off"
+              />
+            </div>
+
+            {status === "error" && (
+              <p className="text-xs text-red-500 mt-1">{errorMsg}</p>
+            )}
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => onOpenChange(false)}
+                className="px-4 py-2 text-sm bg-transparent text-zinc-400 hover:text-white transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={loading}
+                className="px-4 py-2 text-sm font-medium bg-emerald-500 text-zinc-950 rounded hover:bg-emerald-400 disabled:opacity-50 transition-all"
+              >
+                {loading ? "..." : t("pricing.waitlist_submit") || "Enviar"}
+              </button>
+            </div>
+          </form>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 function Pricing() {
   const { t } = useLanguage();
+  const [modalOpen, setModalOpen] = useState(false);
+
+  // Fetch app mode with SWR, defaulting to env var or 'beta'
+  const { data } = useSWR("/api/config/app-mode", getAppMode, {
+    fallbackData: { mode: (process.env.NEXT_PUBLIC_APP_MODE as "beta" | "prod") || "beta" },
+    revalidateOnFocus: true,
+    refreshInterval: 30000,
+  });
+  const mode = data?.mode || "beta";
+
   const tiers = [
     {
       name: t("pricing.free"),
       price: t("pricing.free_price"),
-      cta: t("pricing.free_cta"),
+      cta: mode === "prod" ? "Get Started" : t("pricing.free_cta"),
       href: "/register",
       border: "var(--border)",
       bg: "var(--bg-secondary)",
       btnStyle: { border: "1px solid var(--border)", color: "var(--text-primary)" } as React.CSSProperties,
       features: [0, 1, 2, 3],
       keyPrefix: "pricing.free",
+      isFree: true,
     },
     {
       name: t("pricing.indie"),
       price: t("pricing.indie_price"),
-      cta: t("pricing.indie_cta"),
-      href: "/register",
+      cta: mode === "prod" ? "Get Started" : t("pricing.indie_cta"),
+      href: mode === "prod" ? (process.env.NEXT_PUBLIC_POLAR_CHECKOUT_INDIE || "#") : "#",
       border: "#10b981",
       bg: "var(--bg-secondary)",
       btnStyle: { background: "#10b981", color: "#09090b" } as React.CSSProperties,
       features: [0, 1, 2, 3, 4, 5, 6],
       keyPrefix: "pricing.indie",
+      isFree: false,
     },
     {
       name: t("pricing.pro"),
       price: t("pricing.pro_price"),
-      cta: t("pricing.pro_cta"),
-      href: "/register",
+      cta: mode === "prod" ? "Get Started" : t("pricing.pro_cta"),
+      href: mode === "prod" ? (process.env.NEXT_PUBLIC_POLAR_CHECKOUT_PRO || "#") : "#",
       border: "var(--border)",
       bg: "var(--bg-secondary)",
       btnStyle: { border: "1px solid var(--border)", color: "var(--text-primary)" } as React.CSSProperties,
       features: [0, 1, 2, 3, 4, 5, 6],
       keyPrefix: "pricing.pro",
+      isFree: false,
     },
   ];
 

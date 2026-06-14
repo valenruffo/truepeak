@@ -172,3 +172,25 @@ class Notification(SQLModel, table=True):
     unique_key: str | None = Field(default=None, index=True, unique=True)
 
     label: Label = Relationship(back_populates="notifications")
+
+
+class WaitlistEntry(SQLModel, table=True):
+    """Waitlist entries for private beta access."""
+
+    __tablename__ = "waitlist_entry"
+
+    id: str = Field(default_factory=lambda: str(uuid4()), primary_key=True)
+    email: str = Field(unique=True, index=True)
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC),
+    )
+    source: str = Field(default="landing")
+
+
+class AppConfig(SQLModel, table=True):
+    """Global dynamic application configuration parameters."""
+
+    __tablename__ = "app_config"
+
+    key: str = Field(primary_key=True, index=True)
+    value: str

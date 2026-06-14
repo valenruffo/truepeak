@@ -77,10 +77,12 @@ app.include_router(upload_router)
 from app.api.submissions import router as submissions_router
 from app.api.labels import router as labels_router
 from app.api.email import router as email_router
+from app.api.waitlist import router as waitlist_router
 
 app.include_router(submissions_router)
 app.include_router(labels_router)
 app.include_router(email_router)
+app.include_router(waitlist_router)
 
 # Phase 6: Health check router
 from app.api.health import router as health_router
