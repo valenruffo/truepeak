@@ -1679,7 +1679,6 @@ function Features() {
 }
 
 function WaitlistModal({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
-  const { t } = useLanguage();
   const [email, setEmail] = useState("");
   const [company, setCompany] = useState(""); // Honeypot field
   const [loading, setLoading] = useState(false);
@@ -1690,10 +1689,9 @@ function WaitlistModal({ open, onOpenChange }: { open: boolean; onOpenChange: (o
     e.preventDefault();
     if (!email || !email.includes("@")) {
       setStatus("error");
-      setErrorMsg(t("pricing.waitlist_error") || "Email inválido");
+      setErrorMsg("Please enter a valid email address.");
       return;
     }
-    setLoading(false);
     setLoading(true);
     setStatus("idle");
     try {
@@ -1709,11 +1707,11 @@ function WaitlistModal({ open, onOpenChange }: { open: boolean; onOpenChange: (o
       } else {
         const errData = await response.json().catch(() => ({}));
         setStatus("error");
-        setErrorMsg(errData.detail || t("pricing.waitlist_error") || "Error registrando email");
+        setErrorMsg(errData.detail || "Error registering email. Please try again.");
       }
     } catch (err) {
       setStatus("error");
-      setErrorMsg(t("pricing.waitlist_error") || "Error registrando email");
+      setErrorMsg("Error registering email. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -1725,20 +1723,20 @@ function WaitlistModal({ open, onOpenChange }: { open: boolean; onOpenChange: (o
         <button
           onClick={() => onOpenChange(false)}
           className="absolute right-0 top-0 text-zinc-400 hover:text-white transition-colors p-1"
-          aria-label="Cerrar"
+          aria-label="Close"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <line x1="18" y1="6" x2="6" y2="18"></line>
             <line x1="6" y1="6" x2="18" y2="18"></line>
           </svg>
         </button>
-        <DialogTitle className="text-xl font-bold tracking-tight text-white mt-2">
-          {t("pricing.waitlist_title")}
+        <DialogTitle className="text-xl font-bold tracking-tight text-white mt-2 font-sans">
+          Request early access to Closed Beta
         </DialogTitle>
-        <DialogDescription className="text-sm text-zinc-400 mt-2">
+        <DialogDescription className="text-sm text-zinc-400 mt-2 font-sans">
           {status === "success" 
-            ? t("pricing.waitlist_success") 
-            : t("pricing.waitlist_email_placeholder")}
+            ? "You have successfully joined the waitlist!" 
+            : "Enter your email to request early access."}
         </DialogDescription>
       </DialogHeader>
 
@@ -1750,15 +1748,15 @@ function WaitlistModal({ open, onOpenChange }: { open: boolean; onOpenChange: (o
                 <polyline points="20 6 9 17 4 12"></polyline>
               </svg>
             </div>
-            <p className="text-emerald-400 font-medium">{t("pricing.waitlist_success")}</p>
+            <p className="text-emerald-400 font-medium font-sans">You have successfully joined the waitlist!</p>
             <button
               onClick={() => {
                 onOpenChange(false);
                 setStatus("idle");
               }}
-              className="mt-6 px-4 py-2 text-sm bg-zinc-800 text-white border border-zinc-700 rounded hover:bg-zinc-700 transition-colors"
+              className="mt-6 px-4 py-2 text-sm bg-zinc-800 text-white border border-zinc-700 rounded hover:bg-zinc-700 transition-colors font-sans"
             >
-              Cerrar
+              Close
             </button>
           </div>
         ) : (
@@ -1769,8 +1767,8 @@ function WaitlistModal({ open, onOpenChange }: { open: boolean; onOpenChange: (o
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder={t("pricing.waitlist_email_placeholder") || "tu@email.com"}
-                className="w-full px-3 py-2.5 rounded bg-zinc-900 border border-zinc-850 text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                placeholder="your@email.com"
+                className="w-full px-3 py-2.5 rounded bg-zinc-900 border border-zinc-850 text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors font-sans"
               />
             </div>
 
@@ -1788,23 +1786,23 @@ function WaitlistModal({ open, onOpenChange }: { open: boolean; onOpenChange: (o
             </div>
 
             {status === "error" && (
-              <p className="text-xs text-red-500 mt-1">{errorMsg}</p>
+              <p className="text-xs text-red-500 mt-1 font-sans">{errorMsg}</p>
             )}
 
             <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"
                 onClick={() => onOpenChange(false)}
-                className="px-4 py-2 text-sm bg-transparent text-zinc-400 hover:text-white transition-colors"
+                className="px-4 py-2 text-sm bg-transparent text-zinc-400 hover:text-white transition-colors font-sans"
               >
-                Cancelar
+                Cancel
               </button>
               <button
                 type="submit"
                 disabled={loading}
-                className="px-4 py-2 text-sm font-medium bg-emerald-500 text-zinc-950 rounded hover:bg-emerald-400 disabled:opacity-50 transition-all"
+                className="px-4 py-2 text-sm font-medium bg-emerald-500 text-zinc-950 rounded hover:bg-emerald-400 disabled:opacity-50 transition-all font-sans"
               >
-                {loading ? "..." : t("pricing.waitlist_submit") || "Enviar"}
+                {loading ? "Submitting..." : "Join the waitlist"}
               </button>
             </div>
           </form>
@@ -1830,7 +1828,7 @@ function Pricing() {
     {
       name: t("pricing.free"),
       price: t("pricing.free_price"),
-      cta: mode === "prod" ? "Get Started" : t("pricing.free_cta"),
+      cta: mode === "prod" ? "Get Started" : "Join Waitlist",
       href: "/register",
       border: "var(--border)",
       bg: "var(--bg-secondary)",
@@ -1842,8 +1840,8 @@ function Pricing() {
     {
       name: t("pricing.indie"),
       price: t("pricing.indie_price"),
-      cta: mode === "prod" ? "Get Started" : t("pricing.indie_cta"),
-      href: mode === "prod" ? (process.env.NEXT_PUBLIC_POLAR_CHECKOUT_INDIE || "#") : "#",
+      cta: mode === "prod" ? "Get Started" : "Join Waitlist",
+      href: mode === "prod" ? (process.env.NEXT_PUBLIC_POLAR_CHECKOUT_INDIE || "https://buy.polar.sh/polar_cl_HmWbpa6oeLs6vcSucDQR5rlWXMPsne5p33MOi2RZPFg") : "#",
       border: "#10b981",
       bg: "var(--bg-secondary)",
       btnStyle: { background: "#10b981", color: "#09090b" } as React.CSSProperties,
@@ -1854,8 +1852,8 @@ function Pricing() {
     {
       name: t("pricing.pro"),
       price: t("pricing.pro_price"),
-      cta: mode === "prod" ? "Get Started" : t("pricing.pro_cta"),
-      href: mode === "prod" ? (process.env.NEXT_PUBLIC_POLAR_CHECKOUT_PRO || "#") : "#",
+      cta: mode === "prod" ? "Get Started" : "Join Waitlist",
+      href: mode === "prod" ? (process.env.NEXT_PUBLIC_POLAR_CHECKOUT_PRO || "https://buy.polar.sh/polar_cl_4u3xFxj5G4klKE5jhYIDGMXmhyL7kjaTQe9Ux34e9Wb") : "#",
       border: "var(--border)",
       bg: "var(--bg-secondary)",
       btnStyle: { border: "1px solid var(--border)", color: "var(--text-primary)" } as React.CSSProperties,
@@ -1866,7 +1864,7 @@ function Pricing() {
   ];
 
   return (
-    <section id="pricing" className="min-h-screen flex flex-col justify-center py-20 px-6" style={{ borderTop: "1px solid var(--border)" }}>
+    <section id="pricing" className="min-h-screen flex flex-col justify-center py-20 px-6 font-sans" style={{ borderTop: "1px solid var(--border)" }}>
       <div className="max-w-5xl mx-auto">
         <div className="mb-12 text-center">
           <div className="text-xs font-mono uppercase tracking-wider mb-3" style={{ color: "var(--text-muted)" }}>{t("pricing.section_label")}</div>
@@ -1877,30 +1875,40 @@ function Pricing() {
 
         <div className="grid md:grid-cols-3 gap-4">
           {tiers.map((tier) => (
-            <div key={tier.name} className="p-6 rounded border" style={{ background: tier.bg, borderColor: tier.border }}>
-              <div className="flex items-baseline justify-between mb-6">
-                <span className="text-xs font-mono uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>{tier.name}</span>
-                <div className="flex items-baseline gap-1">
-                  <span className="font-bold text-3xl" style={{ color: "var(--text-primary)" }}>{tier.price}</span>
-                  <span className="text-xs" style={{ color: "var(--text-muted)" }}>{t("pricing.per_month")}</span>
+            <div key={tier.name} className="p-6 rounded border flex flex-col justify-between" style={{ background: tier.bg, borderColor: tier.border }}>
+              <div>
+                <div className="flex items-baseline justify-between mb-6">
+                  <span className="text-xs font-mono uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>{tier.name}</span>
+                  <div className="flex items-baseline gap-1">
+                    <span className="font-bold text-3xl" style={{ color: "var(--text-primary)" }}>{tier.price}</span>
+                    <span className="text-xs" style={{ color: "var(--text-muted)" }}>{t("pricing.per_month")}</span>
+                  </div>
                 </div>
+
+                <ul className="space-y-3 mb-8">
+                  {tier.features.map((i) => (
+                    <li key={i} className="flex items-start gap-2 text-sm" style={{ color: "var(--text-muted)" }}>
+                      <span style={{ color: "#10b981", flexShrink: 0, marginTop: "2px" }}><IconCheck /></span>
+                      {t(`${tier.keyPrefix}.${i}` as any)}
+                    </li>
+                  ))}
+                </ul>
               </div>
 
-              <ul className="space-y-3 mb-8">
-                {tier.features.map((i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm" style={{ color: "var(--text-muted)" }}>
-                    <span style={{ color: "#10b981", flexShrink: 0, marginTop: "2px" }}><IconCheck /></span>
-                    {t(`${tier.keyPrefix}.${i}` as any)}
-                  </li>
-                ))}
-              </ul>
-
-              {tier.href.startsWith("/") ? (
-                <Link href={tier.href} className="w-full py-2.5 text-sm font-medium rounded transition-all hover:opacity-90 block text-center cursor-pointer" style={tier.btnStyle}>
+              {mode === "beta" ? (
+                <button
+                  onClick={() => setModalOpen(true)}
+                  className="w-full py-2.5 text-sm font-medium rounded transition-all hover:opacity-90 block text-center cursor-pointer font-sans"
+                  style={tier.btnStyle}
+                >
+                  {tier.cta}
+                </button>
+              ) : tier.href.startsWith("/") ? (
+                <Link href={tier.href} className="w-full py-2.5 text-sm font-medium rounded transition-all hover:opacity-90 block text-center cursor-pointer font-sans" style={tier.btnStyle}>
                   {tier.cta}
                 </Link>
               ) : (
-                <a href={tier.href} target="_blank" rel="noopener noreferrer" className="w-full py-2.5 text-sm font-medium rounded transition-all hover:opacity-90 block text-center cursor-pointer" style={tier.btnStyle}>
+                <a href={tier.href} target="_blank" rel="noopener noreferrer" className="w-full py-2.5 text-sm font-medium rounded transition-all hover:opacity-90 block text-center cursor-pointer font-sans" style={tier.btnStyle}>
                   {tier.cta}
                 </a>
               )}
@@ -1908,6 +1916,7 @@ function Pricing() {
           ))}
         </div>
       </div>
+      <WaitlistModal open={modalOpen} onOpenChange={setModalOpen} />
     </section>
   );
 }
