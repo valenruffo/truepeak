@@ -12,7 +12,9 @@ from slowapi.util import get_remote_address
 from sqlmodel import Session, select, func
 
 from app.database import get_session
-from app.models import WaitlistEntry, AppConfig
+from app.models import WaitlistEntry, AppConfig, Label
+from app.api.labels import _apply_plan_limits
+from app.services.auth import sync_user_to_supabase
 
 router = APIRouter(tags=["waitlist"])
 limiter = Limiter(key_func=get_remote_address)
@@ -161,3 +163,128 @@ def export_waitlist_csv(
     )
     response.headers["Content-Disposition"] = "attachment; filename=waitlist.csv"
     return response
+
+
+# --- Admin User Management Endpoints ---
+
+class AdminUserResponse(BaseModel):
+    id: str
+    name: str
+    slug: str
+    email: str
+    plan: str
+    status: str
+    created_at: datetime
+    track_limit: int
+    email_limit: int
+    hq_retention_days: int
+    role: str
+
+
+class UserStatusUpdate(BaseModel):
+    plan: str | None = None
+    subscription_status: str | None = None
+
+
+@router.get("/api/admin/users", response_model=list[AdminUserResponse])
+def get_admin_users(
+    session: Session = Depends(get_session),
+    _ = Depends(verify_admin_password)
+):
+    """Retrieve all user record labels ordered by creation date."""
+    labels = session.exec(
+        select(Label).order_by(Label.created_at.desc())
+    ).all()
+    
+    return [
+        AdminUserResponse(
+            id=label.id,
+            name=label.name,
+            slug=label.slug,
+            email=label.owner_email,
+            plan=label.plan or "free",
+            status=label.subscription_status or "active",
+            created_at=label.created_at,
+            track_limit=label.max_tracks_month,
+            email_limit=label.max_emails_month,
+            hq_retention_days=label.hq_retention_days,
+            role=label.role or "label_owner"
+        )
+        for label in labels
+    ]
+
+
+@router.put("/api/admin/users/{user_id}/status")
+def update_user_status(
+    user_id: str,
+    req: UserStatusUpdate,
+    session: Session = Depends(get_session),
+    _ = Depends(verify_admin_password)
+):
+    """Update a user label's plan and/or subscription status and apply relevant limits."""
+    label = session.exec(select(Label).where(Label.id == user_id)).first()
+    if not label:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    plan_changed = False
+    status_changed = False
+    
+    if req.plan is not None:
+        plan_lower = req.plan.lower()
+        if plan_lower not in ("free", "indie", "pro"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid plan. Must be 'free', 'indie', or 'pro'."
+            )
+        if label.plan != plan_lower:
+            label.plan = plan_lower
+            _apply_plan_limits(label, plan_lower)
+            plan_changed = True
+        
+    if req.subscription_status is not None:
+        status_lower = req.subscription_status.lower()
+        if status_lower not in ("active", "frozen", "canceled", "suspended"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid subscription status. Must be 'active', 'frozen', 'canceled', or 'suspended'."
+            )
+        if label.subscription_status != status_lower:
+            label.subscription_status = status_lower
+            status_changed = True
+            if status_lower == "active":
+                label.frozen_at = None
+            elif status_lower in ("frozen", "suspended"):
+                label.frozen_at = datetime.now(UTC)
+            
+    if plan_changed or status_changed:
+        try:
+            sync_user_to_supabase(
+                user_id=label.id,
+                plan=label.plan,
+                suspended=(label.subscription_status == "suspended"),
+                raise_on_error=True
+            )
+        except Exception as e:
+            session.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Supabase synchronization failed: {str(e)}"
+            )
+
+    label.updated_at = datetime.now(UTC)
+    session.add(label)
+    session.commit()
+    session.refresh(label)
+    
+    return {
+        "id": label.id,
+        "plan": label.plan,
+        "subscription_status": label.subscription_status,
+        "frozen_at": label.frozen_at.isoformat() if label.frozen_at else None,
+        "track_limit": label.max_tracks_month,
+        "email_limit": label.max_emails_month,
+        "hq_retention_days": label.hq_retention_days,
+    }

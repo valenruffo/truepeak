@@ -175,12 +175,27 @@ class TestTrashRestoreR2(unittest.TestCase):
 
         asyncio.run(run())
 
+    @patch("app.services.expiration.delete_folder_from_r2", new_callable=AsyncMock)
     @patch("app.cleanup_cron.delete_folder_from_r2", new_callable=AsyncMock)
     @patch("app.cleanup_cron.Session")
-    def test_cleanup_cron_r2_integration(self, mock_session_cls, mock_delete_folder):
+    def test_cleanup_cron_r2_integration(self, mock_session_cls, mock_delete_folder, mock_delete_folder_exp):
         async def run():
             mock_session = MagicMock(spec=Session)
             mock_session_cls.return_value.__enter__.return_value = mock_session
+
+            label_test = Label(
+                id="label_test",
+                name="Test Label",
+                slug="test-label",
+                owner_email="test@example.com",
+                hq_retention_days=7,
+            )
+
+            def mock_get(model_cls, ident):
+                if model_cls == Label and ident == "label_test":
+                    return label_test
+                return None
+            mock_session.get.side_effect = mock_get
 
             old_deleted_sub = Submission(
                 id="sub_old_deleted",
@@ -208,17 +223,19 @@ class TestTrashRestoreR2(unittest.TestCase):
                 status="inbox",
             )
             mock_session.exec.side_effect = [
-                MagicMock(all=lambda: [old_deleted_sub]),  # Rule 1
-                MagicMock(all=lambda: []),  # Rule 2
-                MagicMock(all=lambda: []),  # Rule 3
-                MagicMock(all=lambda: []),  # Rule 4
-                MagicMock(all=lambda: [dead_label]),  # Rule 5 (dead labels)
-                MagicMock(all=lambda: [dead_sub]),  # Rule 5 (subs for dead label)
+                MagicMock(all=lambda: [label_test]),  # 1. labels list
+                MagicMock(all=lambda: []),            # 2. active subs for label_test
+                MagicMock(all=lambda: [old_deleted_sub]),  # 3. deleted subs for label_test
+                MagicMock(all=lambda: []),            # 4. Rule 3
+                MagicMock(all=lambda: []),            # 5. Rule 4
+                MagicMock(all=lambda: [dead_label]),  # 6. Rule 5 (dead labels)
+                MagicMock(all=lambda: [dead_sub]),    # 7. Rule 5 (subs for dead label)
             ]
             await cleanup_async()
-            mock_delete_folder.assert_any_call("tracks/sub_old_deleted/")
+            mock_delete_folder_exp.assert_any_call("tracks/sub_old_deleted/")
             mock_delete_folder.assert_any_call("tracks/sub_dead/")
-            self.assertEqual(mock_delete_folder.call_count, 2)
+            self.assertEqual(mock_delete_folder.call_count, 1)
+            self.assertEqual(mock_delete_folder_exp.call_count, 1)
             mock_session.delete.assert_any_call(old_deleted_sub)
             mock_session.delete.assert_any_call(dead_sub)
 

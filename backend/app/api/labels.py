@@ -16,7 +16,7 @@ from sqlmodel import Session, select, func
 
 from app.database import get_session
 from app.models import Label, Submission, Notification
-from app.services.auth import verify_token
+from app.services.auth import verify_token, sync_user_to_supabase
 from app.services.r2 import upload_bytes_to_r2
 
 router = APIRouter(prefix="/api/labels", tags=["labels"])
@@ -27,7 +27,7 @@ limiter = Limiter(key_func=get_remote_address)
 PLAN_LIMITS = {
     "free":  {"max_tracks_month": 10,  "max_emails_month": 0,   "hq_retention_days": 0},
     "indie": {"max_tracks_month": 100, "max_emails_month": 100, "hq_retention_days": 7},
-    "pro":   {"max_tracks_month": 500, "max_emails_month": 500, "hq_retention_days": 14},
+    "pro":   {"max_tracks_month": 1000, "max_emails_month": 500, "hq_retention_days": 14},
 }
 
 
@@ -1255,6 +1255,12 @@ async def admin_update_label_plan_by_email(
         session.add(label)
         session.commit()
         session.refresh(label)
+        sync_user_to_supabase(
+            user_id=label.id,
+            plan=label.plan,
+            suspended=(label.subscription_status == "suspended"),
+            raise_on_error=False
+        )
         return {"id": label.id, "slug": label.slug, "plan": label.plan, "auto_created": True}
 
     label.plan = body.plan.lower()
@@ -1264,6 +1270,13 @@ async def admin_update_label_plan_by_email(
     session.add(label)
     session.commit()
     session.refresh(label)
+
+    sync_user_to_supabase(
+        user_id=label.id,
+        plan=label.plan,
+        suspended=(label.subscription_status == "suspended"),
+        raise_on_error=False
+    )
 
     return {"id": label.id, "slug": label.slug, "plan": label.plan}
 
@@ -1288,6 +1301,13 @@ async def admin_update_label_plan(
     session.add(label)
     session.commit()
     session.refresh(label)
+
+    sync_user_to_supabase(
+        user_id=label.id,
+        plan=label.plan,
+        suspended=(label.subscription_status == "suspended"),
+        raise_on_error=False
+    )
 
     role = label.role if label.role != "label" else "label_owner"
     return LabelConfig(

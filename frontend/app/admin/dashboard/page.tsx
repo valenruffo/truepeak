@@ -3,7 +3,16 @@
 import { useState, useEffect } from "react";
 import useSWR from "swr";
 import { motion, AnimatePresence } from "framer-motion";
-import { getAppMode, updateAppMode, getWaitlist, exportWaitlistCsv, WaitlistEntry } from "@/lib/api";
+import { 
+  getAppMode, 
+  updateAppMode, 
+  getWaitlist, 
+  exportWaitlistCsv, 
+  WaitlistEntry, 
+  AdminUser, 
+  getAdminUsers, 
+  updateUserStatus 
+} from "@/lib/api";
 
 export default function AdminDashboard() {
   const [password, setPassword] = useState<string>("");
@@ -16,6 +25,7 @@ export default function AdminDashboard() {
   const perPage = 15;
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [activeTab, setActiveTab] = useState<"waitlist" | "users">("waitlist");
 
   // Load password from sessionStorage if exists
   useEffect(() => {
@@ -42,14 +52,24 @@ export default function AdminDashboard() {
     }
   );
 
+  // Fetch Admin Users (requires password)
+  const { data: usersData, error: usersError, mutate: mutateUsers } = useSWR(
+    isLoggedIn && password && activeTab === "users" ? ["/api/admin/users", password] : null,
+    () => getAdminUsers(password),
+    {
+      revalidateOnFocus: true,
+      errorRetryCount: 1,
+    }
+  );
+
   // Handle wrong session storage password
   useEffect(() => {
-    if (waitlistError && waitlistError.status === 401) {
+    if ((waitlistError && (waitlistError as any).status === 401) || (usersError && (usersError as any).status === 401)) {
       sessionStorage.removeItem("admin_password");
       setIsLoggedIn(false);
       setLoginError("Sesión expirada o contraseña incorrecta");
     }
-  }, [waitlistError]);
+  }, [waitlistError, usersError]);
 
   // Show auto-dismissing toast
   const showToast = (message: string, type: "success" | "error" = "success") => {
@@ -109,6 +129,32 @@ export default function AdminDashboard() {
       showToast(err.message || "Error al exportar CSV", "error");
     } finally {
       setExporting(false);
+    }
+  };
+
+  const handleUpdateUser = async (userId: string, update: { plan?: string; subscription_status?: string }) => {
+    try {
+      // Optimistic SWR mutation
+      if (usersData) {
+        const updatedUsers = usersData.map((u) => {
+          if (u.id === userId) {
+            return {
+              ...u,
+              ...(update.plan ? { plan: update.plan } : {}),
+              ...(update.subscription_status ? { status: update.subscription_status } : {}),
+            };
+          }
+          return u;
+        });
+        mutateUsers(updatedUsers, false);
+      }
+
+      await updateUserStatus(userId, update, password);
+      mutateUsers(); // Revalidate with actual server response
+      showToast("Usuario actualizado correctamente.");
+    } catch (err: any) {
+      mutateUsers(); // Revert mutation
+      showToast(err.message || "Error al actualizar el usuario", "error");
     }
   };
 
@@ -270,78 +316,196 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Waitlist Data Table Card */}
-        <div className="rounded-xl border border-zinc-800 bg-zinc-950/20 overflow-hidden shadow-lg">
-          <div className="p-5 border-b border-zinc-800 bg-zinc-950/40 flex items-center justify-between">
-            <h3 className="font-semibold text-sm tracking-tight text-white">Lista de Contactos</h3>
-            <span className="text-xs font-mono px-2 py-0.5 rounded bg-zinc-900 text-zinc-400 border border-zinc-850">
-              Pág. {page} de {totalPages}
-            </span>
-          </div>
+        {/* Navigation Tabs */}
+        <div className="flex border-b border-zinc-800 gap-6">
+          <button
+            onClick={() => {
+              setActiveTab("waitlist");
+              setPage(1);
+            }}
+            className={`pb-3 text-sm font-semibold border-b-2 transition-all cursor-pointer ${
+              activeTab === "waitlist"
+                ? "border-emerald-500 text-white"
+                : "border-transparent text-zinc-400 hover:text-zinc-200"
+            }`}
+          >
+            Waitlist ({totalEntries})
+          </button>
+          <button
+            onClick={() => setActiveTab("users")}
+            className={`pb-3 text-sm font-semibold border-b-2 transition-all cursor-pointer ${
+              activeTab === "users"
+                ? "border-emerald-500 text-white"
+                : "border-transparent text-zinc-400 hover:text-zinc-200"
+            }`}
+          >
+            Usuarios ({usersData ? usersData.length : "-"})
+          </button>
+        </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm text-zinc-350">
-              <thead className="text-xs font-mono uppercase tracking-wider bg-zinc-950/50 border-b border-zinc-800/80 text-zinc-500">
-                <tr>
-                  <th className="py-3.5 px-6 font-semibold">Email</th>
-                  <th className="py-3.5 px-6 font-semibold">Fecha de Registro</th>
-                  <th className="py-3.5 px-6 font-semibold">Origen</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-850 bg-zinc-950/10">
-                {entries.length === 0 ? (
+        {/* Dynamic Table Card */}
+        {activeTab === "waitlist" ? (
+          <div className="rounded-xl border border-zinc-800 bg-zinc-950/20 overflow-hidden shadow-lg">
+            <div className="p-5 border-b border-zinc-800 bg-zinc-950/40 flex items-center justify-between">
+              <h3 className="font-semibold text-sm tracking-tight text-white">Lista de Contactos</h3>
+              <span className="text-xs font-mono px-2 py-0.5 rounded bg-zinc-900 text-zinc-400 border border-zinc-850">
+                Pág. {page} de {totalPages}
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm text-zinc-350">
+                <thead className="text-xs font-mono uppercase tracking-wider bg-zinc-950/50 border-b border-zinc-800/80 text-zinc-500">
                   <tr>
-                    <td colSpan={3} className="py-12 text-center text-zinc-550 font-medium">
-                      No hay registros en la waitlist aún.
-                    </td>
+                    <th className="py-3.5 px-6 font-semibold">Email</th>
+                    <th className="py-3.5 px-6 font-semibold">Fecha de Registro</th>
+                    <th className="py-3.5 px-6 font-semibold">Origen</th>
                   </tr>
-                ) : (
-                  entries.map((entry) => (
-                    <tr key={entry.id} className="hover:bg-zinc-900/30 transition-colors">
-                      <td className="py-4 px-6 font-medium text-white">{entry.email}</td>
-                      <td className="py-4 px-6 text-zinc-400">
-                        {entry.created_at 
-                          ? new Date(entry.created_at).toLocaleString("es-AR", {
-                              day: "2-digit",
-                              month: "2-digit",
-                              year: "numeric",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })
-                          : "-"}
-                      </td>
-                      <td className="py-4 px-6">
-                        <span className="text-xs font-mono bg-zinc-900 text-emerald-400/80 px-2 py-0.5 rounded border border-emerald-950">
-                          {entry.source}
-                        </span>
+                </thead>
+                <tbody className="divide-y divide-zinc-850 bg-zinc-950/10">
+                  {entries.length === 0 ? (
+                    <tr>
+                      <td colSpan={3} className="py-12 text-center text-zinc-550 font-medium">
+                        No hay registros en la waitlist aún.
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Table Pagination Footer */}
-          {totalPages > 1 && (
-            <div className="p-4 border-t border-zinc-800/60 bg-zinc-950/40 flex items-center justify-between">
-              <button
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-                disabled={page === 1}
-                className="px-3 py-1.5 text-xs font-semibold rounded border border-zinc-800 hover:border-zinc-700 disabled:opacity-30 disabled:hover:border-zinc-800 text-zinc-400 hover:text-white transition-all cursor-pointer"
-              >
-                Anterior
-              </button>
-              <button
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
-                className="px-3 py-1.5 text-xs font-semibold rounded border border-zinc-800 hover:border-zinc-700 disabled:opacity-30 disabled:hover:border-zinc-800 text-zinc-400 hover:text-white transition-all cursor-pointer"
-              >
-                Siguiente
-              </button>
+                  ) : (
+                    entries.map((entry) => (
+                      <tr key={entry.id} className="hover:bg-zinc-900/30 transition-colors">
+                        <td className="py-4 px-6 font-medium text-white">{entry.email}</td>
+                        <td className="py-4 px-6 text-zinc-400">
+                          {entry.created_at 
+                            ? new Date(entry.created_at).toLocaleString("es-AR", {
+                                day: "2-digit",
+                                month: "2-digit",
+                                year: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })
+                            : "-"}
+                        </td>
+                        <td className="py-4 px-6">
+                          <span className="text-xs font-mono bg-zinc-900 text-emerald-400/80 px-2 py-0.5 rounded border border-emerald-950">
+                            {entry.source}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
-          )}
-        </div>
+
+            {/* Table Pagination Footer */}
+            {totalPages > 1 && (
+              <div className="p-4 border-t border-zinc-800/60 bg-zinc-950/40 flex items-center justify-between">
+                <button
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                  className="px-3 py-1.5 text-xs font-semibold rounded border border-zinc-800 hover:border-zinc-700 disabled:opacity-30 disabled:hover:border-zinc-800 text-zinc-400 hover:text-white transition-all cursor-pointer"
+                >
+                  Anterior
+                </button>
+                <button
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages}
+                  className="px-3 py-1.5 text-xs font-semibold rounded border border-zinc-800 hover:border-zinc-700 disabled:opacity-30 disabled:hover:border-zinc-800 text-zinc-400 hover:text-white transition-all cursor-pointer"
+                >
+                  Siguiente
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-zinc-800 bg-zinc-950/20 overflow-hidden shadow-lg">
+            <div className="p-5 border-b border-zinc-800 bg-zinc-950/40 flex items-center justify-between">
+              <h3 className="font-semibold text-sm tracking-tight text-white">Lista de Usuarios</h3>
+              <span className="text-xs font-mono px-2 py-0.5 rounded bg-zinc-900 text-zinc-400 border border-zinc-850">
+                Total: {usersData?.length || 0}
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm text-zinc-350">
+                <thead className="text-xs font-mono uppercase tracking-wider bg-zinc-950/50 border-b border-zinc-800/80 text-zinc-500">
+                  <tr>
+                    <th className="py-3.5 px-6 font-semibold">Sello / Slug</th>
+                    <th className="py-3.5 px-6 font-semibold">Email</th>
+                    <th className="py-3.5 px-6 font-semibold">Plan</th>
+                    <th className="py-3.5 px-6 font-semibold">Status</th>
+                    <th className="py-3.5 px-6 font-semibold">Límite Tracks</th>
+                    <th className="py-3.5 px-6 font-semibold">Fecha Registro</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-850 bg-zinc-950/10">
+                  {!usersData ? (
+                    <tr>
+                      <td colSpan={6} className="py-12 text-center text-zinc-500 font-medium">
+                        Cargando usuarios...
+                      </td>
+                    </tr>
+                  ) : usersData.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-12 text-center text-zinc-500 font-medium">
+                        No hay usuarios registrados aún.
+                      </td>
+                    </tr>
+                  ) : (
+                    usersData.map((user) => (
+                      <tr key={user.id} className="hover:bg-zinc-900/30 transition-colors">
+                        <td className="py-4 px-6 font-medium text-white">
+                          <div className="font-semibold">{user.name}</div>
+                          <div className="text-xs font-mono text-zinc-500">/{user.slug}</div>
+                        </td>
+                        <td className="py-4 px-6 text-zinc-300 font-mono text-xs">{user.email}</td>
+                        <td className="py-4 px-6">
+                          <select
+                            value={user.plan}
+                            onChange={(e) => handleUpdateUser(user.id, { plan: e.target.value })}
+                            className="bg-zinc-900 border border-zinc-800 text-xs text-white rounded px-2.5 py-1.5 focus:outline-none focus:border-emerald-500 transition-colors font-mono cursor-pointer"
+                          >
+                            <option value="free">FREE</option>
+                            <option value="indie">INDIE</option>
+                            <option value="pro">PRO</option>
+                          </select>
+                        </td>
+                        <td className="py-4 px-6">
+                          <select
+                            value={user.status}
+                            onChange={(e) => handleUpdateUser(user.id, { subscription_status: e.target.value })}
+                            className={`bg-zinc-900 border text-xs rounded px-2.5 py-1.5 focus:outline-none transition-colors font-mono cursor-pointer ${
+                              user.status === "active" ? "border-emerald-500/30 text-emerald-400" :
+                              user.status === "suspended" ? "border-red-500 text-red-500 bg-red-950/20" :
+                              user.status === "frozen" ? "border-blue-500/30 text-blue-400" :
+                              "border-zinc-800 text-zinc-400"
+                            }`}
+                          >
+                            <option value="active">ACTIVE</option>
+                            <option value="frozen">FROZEN</option>
+                            <option value="canceled">CANCELED</option>
+                            <option value="suspended">SUSPENDED</option>
+                          </select>
+                        </td>
+                        <td className="py-4 px-6 font-mono text-xs text-zinc-400">
+                          {user.track_limit} / mes
+                        </td>
+                        <td className="py-4 px-6 text-zinc-450 text-xs">
+                          {user.created_at
+                            ? new Date(user.created_at).toLocaleDateString("es-AR", {
+                                day: "2-digit",
+                                month: "2-digit",
+                                year: "numeric",
+                              })
+                            : "-"}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

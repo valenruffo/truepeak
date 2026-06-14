@@ -198,6 +198,7 @@ class TestValidationSeverity(unittest.TestCase):
         import datetime
 
         mock_session = MagicMock(spec=Session)
+        mock_session.get.return_value = None
         
         # Mock some submissions returned by the query
         sub_inbox = Submission(

@@ -402,5 +402,75 @@ export async function exportWaitlistCsv(adminPassword: string): Promise<Blob> {
   return response.blob();
 }
 
+export interface AdminUser {
+  id: string;
+  name: string;
+  slug: string;
+  email: string;
+  plan: string;
+  status: string;
+  created_at: string;
+  track_limit: number;
+  email_limit: number;
+  hq_retention_days: number;
+  role: string;
+}
+
+/**
+ * Get all labels / users (Admin)
+ */
+export async function getAdminUsers(adminPassword: string): Promise<AdminUser[]> {
+  const response = await fetch(`${BASE_URL}/api/admin/users`, {
+    headers: {
+      "X-Admin-Password": adminPassword,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({
+      detail: response.statusText,
+    }));
+    throw new Error(error.detail ?? `Failed to fetch users: ${response.status}`);
+  }
+
+  return response.json() as Promise<AdminUser[]>;
+}
+
+/**
+ * Update user subscription plan and/or status (Admin)
+ */
+export async function updateUserStatus(
+  userId: string,
+  statusUpdate: { plan?: string; subscription_status?: string },
+  adminPassword: string
+): Promise<{
+  id: string;
+  plan: string;
+  subscription_status: string;
+  frozen_at: string | null;
+  track_limit: number;
+  email_limit: number;
+  hq_retention_days: number;
+}> {
+  const response = await fetch(`${BASE_URL}/api/admin/users/${userId}/status`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Admin-Password": adminPassword,
+    },
+    body: JSON.stringify(statusUpdate),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({
+      detail: response.statusText,
+    }));
+    throw new Error(error.detail ?? `Failed to update user status: ${response.status}`);
+  }
+
+  return response.json() as Promise<any>;
+}
+
+
 
 
