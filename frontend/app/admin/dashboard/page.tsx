@@ -43,6 +43,25 @@ function formatRelativeTime(iso: string | null | undefined): string {
 
 const PLAN_ORDER: Record<string, number> = { free: 0, indie: 1, pro: 2 };
 
+// Convert a Supabase label row to AdminUser shape (for Realtime events)
+function labelRowToAdminUser(row: any): AdminUser {
+  return {
+    id: row.id,
+    name: row.name || "",
+    slug: row.slug || "",
+    email: row.owner_email || "",
+    plan: row.plan || "free",
+    status: row.subscription_status || "active",
+    created_at: row.created_at || new Date().toISOString(),
+    track_limit: row.max_tracks_month || 10,
+    email_limit: row.max_emails_month || 0,
+    hq_retention_days: row.hq_retention_days || 0,
+    role: row.role || "label_owner",
+    total_submissions: 0, // Realtime payload doesn't include this
+    last_submission_at: null,
+  };
+}
+
 const planBadgeClass = (plan: string) => {
   switch (plan) {
     case "indie":
