@@ -54,7 +54,7 @@ export default function AdminDashboard() {
 
   // Fetch Admin Users (requires password)
   const { data: usersData, error: usersError, mutate: mutateUsers } = useSWR(
-    isLoggedIn && password && activeTab === "users" ? ["/api/admin/users", password] : null,
+    isLoggedIn && password ? ["/api/admin/users", password] : null,
     () => getAdminUsers(password),
     {
       revalidateOnFocus: true,
