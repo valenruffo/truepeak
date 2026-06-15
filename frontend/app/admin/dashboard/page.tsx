@@ -88,27 +88,6 @@ const statusBadgeClass = (status: string) => {
   }
 };
 
-// Convert a label row from a Supabase Realtime payload to our AdminUser shape.
-function labelRowToAdminUser(row: any): AdminUser {
-  return {
-    id: row.id,
-    name: row.name,
-    slug: row.slug,
-    email: row.owner_email,
-    plan: row.plan || "free",
-    status: row.subscription_status || "active",
-    created_at: row.created_at,
-    track_limit: row.max_tracks_month,
-    email_limit: row.max_emails_month,
-    hq_retention_days: row.hq_retention_days,
-    role: row.role || "label_owner",
-    // Realtime payloads do not include the aggregated columns — leave them blank;
-    // SWR's 30s revalidation will repopulate them.
-    total_submissions: 0,
-    last_submission_at: null,
-  };
-}
-
 export default function AdminDashboard() {
   const [password, setPassword] = useState<string>("");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
