@@ -414,6 +414,8 @@ export interface AdminUser {
   email_limit: number;
   hq_retention_days: number;
   role: string;
+  total_submissions: number;
+  last_submission_at: string | null;
 }
 
 /**
@@ -451,6 +453,7 @@ export async function updateUserStatus(
   track_limit: number;
   email_limit: number;
   hq_retention_days: number;
+  supabase_sync_ok: boolean;
 }> {
   const response = await fetch(`${BASE_URL}/api/admin/users/${userId}/status`, {
     method: "PUT",
@@ -469,6 +472,86 @@ export async function updateUserStatus(
   }
 
   return response.json() as Promise<any>;
+}
+
+export interface AdminActivityResponse {
+  total_submissions: number;
+  last_submission_at: string | null;
+  emails_sent_this_month: number;
+  max_emails_month: number;
+}
+
+export interface RecentActivityEntry {
+  id: string;
+  label_id: string;
+  producer_name: string;
+  track_title: string;
+  status: string;
+  created_at: string | null;
+}
+
+export interface RecentActivityResponse {
+  total: number;
+  page: number;
+  per_page: number;
+  entries: RecentActivityEntry[];
+}
+
+/**
+ * Get activity metrics for a single label (Admin)
+ */
+export async function getAdminActivity(
+  labelId: string,
+  adminPassword: string
+): Promise<AdminActivityResponse> {
+  const response = await fetch(
+    `${BASE_URL}/api/admin/activity?label_id=${encodeURIComponent(labelId)}`,
+    {
+      headers: {
+        "X-Admin-Password": adminPassword,
+      },
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({
+      detail: response.statusText,
+    }));
+    throw new Error(error.detail ?? `Failed to fetch activity: ${response.status}`);
+  }
+
+  return response.json() as Promise<AdminActivityResponse>;
+}
+
+/**
+ * Get recent submissions across all labels, paginated (Admin)
+ */
+export async function getRecentActivity(
+  page: number = 1,
+  perPage: number = 20,
+  adminPassword: string
+): Promise<RecentActivityResponse> {
+  const params = new URLSearchParams({
+    page: page.toString(),
+    per_page: perPage.toString(),
+  });
+  const response = await fetch(
+    `${BASE_URL}/api/admin/recent-activity?${params.toString()}`,
+    {
+      headers: {
+        "X-Admin-Password": adminPassword,
+      },
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({
+      detail: response.statusText,
+    }));
+    throw new Error(error.detail ?? `Failed to fetch recent activity: ${response.status}`);
+  }
+
+  return response.json() as Promise<RecentActivityResponse>;
 }
 
 

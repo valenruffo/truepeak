@@ -1,31 +1,109 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import useSWR from "swr";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
-  getAppMode, 
-  updateAppMode, 
-  getWaitlist, 
-  exportWaitlistCsv, 
-  WaitlistEntry, 
-  AdminUser, 
-  getAdminUsers, 
-  updateUserStatus 
+import { supabase } from "@/lib/supabase";
+import {
+  getAppMode,
+  updateAppMode,
+  getWaitlist,
+  exportWaitlistCsv,
+  WaitlistEntry,
+  AdminUser,
+  getAdminUsers,
+  updateUserStatus,
+  getRecentActivity,
+  RecentActivityEntry,
 } from "@/lib/api";
+
+type Tab = "waitlist" | "users" | "activity";
+type SortKey = "newest" | "oldest" | "plan" | "submissions";
+
+// --- Helpers ---
+
+function formatRelativeTime(iso: string | null | undefined): string {
+  if (!iso) return "Never";
+  const date = new Date(iso);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffSec = Math.floor(diffMs / 1000);
+  if (diffSec < 60) return "just now";
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin} minute${diffMin === 1 ? "" : "s"} ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr} hour${diffHr === 1 ? "" : "s"} ago`;
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffDay < 30) return `${diffDay} day${diffDay === 1 ? "" : "s"} ago`;
+  const diffMonth = Math.floor(diffDay / 30);
+  if (diffMonth < 12) return `${diffMonth} month${diffMonth === 1 ? "" : "s"} ago`;
+  const diffYear = Math.floor(diffMonth / 12);
+  return `${diffYear} year${diffYear === 1 ? "" : "s"} ago`;
+}
+
+const PLAN_ORDER: Record<string, number> = { free: 0, indie: 1, pro: 2 };
+
+const planBadgeClass = (plan: string) => {
+  switch (plan) {
+    case "indie":
+      return "bg-blue-500/15 border-blue-500/30 text-blue-300";
+    case "pro":
+      return "bg-emerald-500/15 border-emerald-500/30 text-emerald-300";
+    case "free":
+    default:
+      return "bg-zinc-700/40 border-zinc-600/40 text-zinc-300";
+  }
+};
+
+const statusBadgeClass = (status: string) => {
+  switch (status) {
+    case "active":
+      return "bg-emerald-500/15 border-emerald-500/30 text-emerald-300";
+    case "frozen":
+      return "bg-yellow-500/15 border-yellow-500/30 text-yellow-300";
+    case "canceled":
+    case "suspended":
+      return "bg-red-500/15 border-red-500/30 text-red-300";
+    default:
+      return "bg-zinc-700/40 border-zinc-600/40 text-zinc-300";
+  }
+};
+
+// Convert a label row from a Supabase Realtime payload to our AdminUser shape.
+function labelRowToAdminUser(row: any): AdminUser {
+  return {
+    id: row.id,
+    name: row.name,
+    slug: row.slug,
+    email: row.owner_email,
+    plan: row.plan || "free",
+    status: row.subscription_status || "active",
+    created_at: row.created_at,
+    track_limit: row.max_tracks_month,
+    email_limit: row.max_emails_month,
+    hq_retention_days: row.hq_retention_days,
+    role: row.role || "label_owner",
+    // Realtime payloads do not include the aggregated columns — leave them blank;
+    // SWR's 30s revalidation will repopulate them.
+    total_submissions: 0,
+    last_submission_at: null,
+  };
+}
 
 export default function AdminDashboard() {
   const [password, setPassword] = useState<string>("");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [loginError, setLoginError] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
-  
+
   // Dashboard state
   const [page, setPage] = useState(1);
   const perPage = 15;
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [exporting, setExporting] = useState(false);
-  const [activeTab, setActiveTab] = useState<"waitlist" | "users">("waitlist");
+  const [activeTab, setActiveTab] = useState<Tab>("waitlist");
+  const [search, setSearch] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("newest");
 
   // Load password from sessionStorage if exists
   useEffect(() => {
@@ -52,24 +130,95 @@ export default function AdminDashboard() {
     }
   );
 
-  // Fetch Admin Users (requires password)
+  // Fetch Admin Users (requires password). 30s SWR fallback for Realtime drops.
   const { data: usersData, error: usersError, mutate: mutateUsers } = useSWR(
     isLoggedIn && password ? ["/api/admin/users", password] : null,
     () => getAdminUsers(password),
     {
       revalidateOnFocus: true,
+      refreshInterval: 30000,
       errorRetryCount: 1,
     }
   );
 
+  // Recent activity (paginated, 20 per page)
+  const [activityPage, setActivityPage] = useState(1);
+  const { data: activityData, error: activityError, mutate: mutateActivity } = useSWR(
+    isLoggedIn && password ? ["/api/admin/recent-activity", activityPage, password] : null,
+    () => getRecentActivity(activityPage, 20, password),
+    {
+      revalidateOnFocus: true,
+      refreshInterval: 30000,
+      errorRetryCount: 1,
+    }
+  );
+
+  // Supabase Realtime: subscribe to label table changes while logged in.
+  // Falls back to SWR refreshInterval (30s) when the channel is dropped.
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    const channel = supabase
+      .channel("admin-labels")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "label" },
+        (payload) => {
+          if (!mutateUsers) return;
+          mutateUsers(
+            (current) => {
+              if (!current) return current;
+              if (payload.eventType === "INSERT") {
+                const newUser = labelRowToAdminUser(payload.new);
+                // Avoid duplicates if the optimistic list already has it.
+                if (current.some((u) => u.id === newUser.id)) {
+                  return current.map((u) => (u.id === newUser.id ? { ...u, ...newUser } : u));
+                }
+                return [newUser, ...current];
+              }
+              if (payload.eventType === "UPDATE") {
+                const updated = labelRowToAdminUser(payload.new);
+                return current.map((u) => (u.id === updated.id ? { ...u, ...updated } : u));
+              }
+              if (payload.eventType === "DELETE") {
+                const deletedId = (payload.old as any)?.id;
+                if (!deletedId) return current;
+                return current.filter((u) => u.id !== deletedId);
+              }
+              return current;
+            },
+            { revalidate: false }
+          );
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [isLoggedIn, mutateUsers]);
+
+  // Track first Realtime event timestamp — if 30s elapse without a heartbeat we
+  // trigger a SWR revalidate as a safety net.
+  const lastEventRef = useRef<number>(Date.now());
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    const interval = setInterval(() => {
+      if (Date.now() - lastEventRef.current > 30000) {
+        mutateUsers();
+      }
+      lastEventRef.current = Date.now();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [isLoggedIn, mutateUsers]);
+
   // Handle wrong session storage password
   useEffect(() => {
-    if ((waitlistError && (waitlistError as any).status === 401) || (usersError && (usersError as any).status === 401)) {
+    if ((waitlistError && (waitlistError as any).status === 401) || (usersError && (usersError as any).status === 401) || (activityError && (activityError as any).status === 401)) {
       sessionStorage.removeItem("admin_password");
       setIsLoggedIn(false);
       setLoginError("Sesión expirada o contraseña incorrecta");
     }
-  }, [waitlistError, usersError]);
+  }, [waitlistError, usersError, activityError]);
 
   // Show auto-dismissing toast
   const showToast = (message: string, type: "success" | "error" = "success") => {
@@ -149,9 +298,13 @@ export default function AdminDashboard() {
         mutateUsers(updatedUsers, false);
       }
 
-      await updateUserStatus(userId, update, password);
+      const result = await updateUserStatus(userId, update, password);
       mutateUsers(); // Revalidate with actual server response
-      showToast("Usuario actualizado correctamente.");
+      if (result && result.supabase_sync_ok === false) {
+        showToast("Etiqueta actualizada, pero la sincronización con Supabase falló.", "error");
+      } else {
+        showToast("Usuario actualizado correctamente.");
+      }
     } catch (err: any) {
       mutateUsers(); // Revert mutation
       showToast(err.message || "Error al actualizar el usuario", "error");
@@ -205,6 +358,38 @@ export default function AdminDashboard() {
   const entries: WaitlistEntry[] = waitlistData?.entries || [];
   const totalEntries = waitlistData?.total || 0;
   const totalPages = Math.ceil(totalEntries / perPage) || 1;
+  const activityEntries: RecentActivityEntry[] = activityData?.entries || [];
+  const activityTotal = activityData?.total || 0;
+  const activityTotalPages = Math.ceil(activityTotal / 20) || 1;
+
+  // Client-side filtering + sorting for the users list.
+  const visibleUsers = useMemo(() => {
+    if (!usersData) return [] as AdminUser[];
+    const q = search.trim().toLowerCase();
+    const filtered = q
+      ? usersData.filter(
+          (u) =>
+            u.name.toLowerCase().includes(q) ||
+            u.email.toLowerCase().includes(q) ||
+            u.slug.toLowerCase().includes(q)
+        )
+      : usersData;
+    const sorted = [...filtered].sort((a, b) => {
+      switch (sortKey) {
+        case "newest":
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        case "oldest":
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        case "plan":
+          return (PLAN_ORDER[a.plan] ?? 99) - (PLAN_ORDER[b.plan] ?? 99);
+        case "submissions":
+          return (b.total_submissions ?? 0) - (a.total_submissions ?? 0);
+        default:
+          return 0;
+      }
+    });
+    return sorted;
+  }, [usersData, search, sortKey]);
 
   return (
     <div className="min-h-screen bg-[#09090b] text-white font-sans p-6 md:p-8">
@@ -259,7 +444,7 @@ export default function AdminDashboard() {
             <div>
               <span className="text-xs font-mono uppercase tracking-wider text-zinc-400">Modo de Aplicación</span>
               <p className="text-xs text-zinc-500 mt-1 leading-relaxed">
-                {currentMode === "beta" 
+                {currentMode === "beta"
                   ? "BETA: Captura emails de waitlist en los 3 planes."
                   : "PROD: Redirige directamente al checkout de Polar."}
               </p>
@@ -341,6 +526,16 @@ export default function AdminDashboard() {
           >
             Usuarios ({usersData ? usersData.length : "-"})
           </button>
+          <button
+            onClick={() => setActiveTab("activity")}
+            className={`pb-3 text-sm font-semibold border-b-2 transition-all cursor-pointer ${
+              activeTab === "activity"
+                ? "border-emerald-500 text-white"
+                : "border-transparent text-zinc-400 hover:text-zinc-200"
+            }`}
+          >
+            Actividad ({activityTotal})
+          </button>
         </div>
 
         {/* Dynamic Table Card */}
@@ -374,7 +569,7 @@ export default function AdminDashboard() {
                       <tr key={entry.id} className="hover:bg-zinc-900/30 transition-colors">
                         <td className="py-4 px-6 font-medium text-white">{entry.email}</td>
                         <td className="py-4 px-6 text-zinc-400">
-                          {entry.created_at 
+                          {entry.created_at
                             ? new Date(entry.created_at).toLocaleString("es-AR", {
                                 day: "2-digit",
                                 month: "2-digit",
@@ -416,13 +611,33 @@ export default function AdminDashboard() {
               </div>
             )}
           </div>
-        ) : (
+        ) : activeTab === "users" ? (
           <div className="rounded-xl border border-zinc-800 bg-zinc-950/20 overflow-hidden shadow-lg">
-            <div className="p-5 border-b border-zinc-800 bg-zinc-950/40 flex items-center justify-between">
+            <div className="p-5 border-b border-zinc-800 bg-zinc-950/40 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <h3 className="font-semibold text-sm tracking-tight text-white">Lista de Usuarios</h3>
-              <span className="text-xs font-mono px-2 py-0.5 rounded bg-zinc-900 text-zinc-400 border border-zinc-850">
-                Total: {usersData?.length || 0}
-              </span>
+              <div className="flex flex-col gap-2 md:flex-row md:items-center">
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Buscar por nombre, email o slug"
+                  className="bg-zinc-900 border border-zinc-800 text-xs text-white rounded px-2.5 py-1.5 focus:outline-none focus:border-emerald-500 transition-colors font-mono w-full md:w-64 placeholder-zinc-600"
+                />
+                <select
+                  value={sortKey}
+                  onChange={(e) => setSortKey(e.target.value as SortKey)}
+                  className="bg-zinc-900 border border-zinc-800 text-xs text-white rounded px-2.5 py-1.5 focus:outline-none focus:border-emerald-500 transition-colors font-mono cursor-pointer"
+                  aria-label="Ordenar usuarios"
+                >
+                  <option value="newest">Más recientes</option>
+                  <option value="oldest">Más antiguos</option>
+                  <option value="plan">Plan (free → pro)</option>
+                  <option value="submissions">Más submissions</option>
+                </select>
+                <span className="text-xs font-mono px-2 py-0.5 rounded bg-zinc-900 text-zinc-400 border border-zinc-850 whitespace-nowrap">
+                  Mostrando {visibleUsers.length} / {usersData?.length || 0}
+                </span>
+              </div>
             </div>
 
             <div className="overflow-x-auto">
@@ -433,25 +648,26 @@ export default function AdminDashboard() {
                     <th className="py-3.5 px-6 font-semibold">Email</th>
                     <th className="py-3.5 px-6 font-semibold">Plan</th>
                     <th className="py-3.5 px-6 font-semibold">Status</th>
+                    <th className="py-3.5 px-6 font-semibold">Submissions</th>
+                    <th className="py-3.5 px-6 font-semibold">Última Actividad</th>
                     <th className="py-3.5 px-6 font-semibold">Límite Tracks</th>
-                    <th className="py-3.5 px-6 font-semibold">Fecha Registro</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-850 bg-zinc-950/10">
                   {!usersData ? (
                     <tr>
-                      <td colSpan={6} className="py-12 text-center text-zinc-500 font-medium">
+                      <td colSpan={7} className="py-12 text-center text-zinc-500 font-medium">
                         Cargando usuarios...
                       </td>
                     </tr>
-                  ) : usersData.length === 0 ? (
+                  ) : visibleUsers.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-12 text-center text-zinc-500 font-medium">
-                        No hay usuarios registrados aún.
+                      <td colSpan={7} className="py-12 text-center text-zinc-500 font-medium">
+                        {search ? `Sin resultados para "${search}"` : "No hay usuarios registrados aún."}
                       </td>
                     </tr>
                   ) : (
-                    usersData.map((user) => (
+                    visibleUsers.map((user) => (
                       <tr key={user.id} className="hover:bg-zinc-900/30 transition-colors">
                         <td className="py-4 px-6 font-medium text-white">
                           <div className="font-semibold">{user.name}</div>
@@ -459,42 +675,106 @@ export default function AdminDashboard() {
                         </td>
                         <td className="py-4 px-6 text-zinc-300 font-mono text-xs">{user.email}</td>
                         <td className="py-4 px-6">
-                          <select
-                            value={user.plan}
-                            onChange={(e) => handleUpdateUser(user.id, { plan: e.target.value })}
-                            className="bg-zinc-900 border border-zinc-800 text-xs text-white rounded px-2.5 py-1.5 focus:outline-none focus:border-emerald-500 transition-colors font-mono cursor-pointer"
-                          >
-                            <option value="free">FREE</option>
-                            <option value="indie">INDIE</option>
-                            <option value="pro">PRO</option>
-                          </select>
+                          <div className="flex items-center gap-2">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded border text-[10px] font-mono uppercase tracking-wider ${planBadgeClass(user.plan)}`}>
+                              {user.plan}
+                            </span>
+                            <select
+                              value={user.plan}
+                              onChange={(e) => handleUpdateUser(user.id, { plan: e.target.value })}
+                              className="bg-zinc-900 border border-zinc-800 text-xs text-white rounded px-2 py-1 focus:outline-none focus:border-emerald-500 transition-colors font-mono cursor-pointer"
+                              aria-label={`Cambiar plan de ${user.name}`}
+                            >
+                              <option value="free">FREE</option>
+                              <option value="indie">INDIE</option>
+                              <option value="pro">PRO</option>
+                            </select>
+                          </div>
                         </td>
                         <td className="py-4 px-6">
-                          <select
-                            value={user.status}
-                            onChange={(e) => handleUpdateUser(user.id, { subscription_status: e.target.value })}
-                            className={`bg-zinc-900 border text-xs rounded px-2.5 py-1.5 focus:outline-none transition-colors font-mono cursor-pointer ${
-                              user.status === "active" ? "border-emerald-500/30 text-emerald-400" :
-                              user.status === "suspended" ? "border-red-500 text-red-500 bg-red-950/20" :
-                              user.status === "frozen" ? "border-blue-500/30 text-blue-400" :
-                              "border-zinc-800 text-zinc-400"
-                            }`}
-                          >
-                            <option value="active">ACTIVE</option>
-                            <option value="frozen">FROZEN</option>
-                            <option value="canceled">CANCELED</option>
-                            <option value="suspended">SUSPENDED</option>
-                          </select>
+                          <div className="flex items-center gap-2">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded border text-[10px] font-mono uppercase tracking-wider ${statusBadgeClass(user.status)}`}>
+                              {user.status}
+                            </span>
+                            <select
+                              value={user.status}
+                              onChange={(e) => handleUpdateUser(user.id, { subscription_status: e.target.value })}
+                              className="bg-zinc-900 border border-zinc-800 text-xs text-white rounded px-2 py-1 focus:outline-none focus:border-emerald-500 transition-colors font-mono cursor-pointer"
+                              aria-label={`Cambiar status de ${user.name}`}
+                            >
+                              <option value="active">ACTIVE</option>
+                              <option value="frozen">FROZEN</option>
+                              <option value="canceled">CANCELED</option>
+                              <option value="suspended">SUSPENDED</option>
+                            </select>
+                          </div>
+                        </td>
+                        <td className="py-4 px-6 font-mono text-xs text-zinc-300">
+                          {user.total_submissions ?? 0}
+                        </td>
+                        <td className="py-4 px-6 text-zinc-400 text-xs">
+                          {formatRelativeTime(user.last_submission_at)}
                         </td>
                         <td className="py-4 px-6 font-mono text-xs text-zinc-400">
                           {user.track_limit} / mes
                         </td>
-                        <td className="py-4 px-6 text-zinc-450 text-xs">
-                          {user.created_at
-                            ? new Date(user.created_at).toLocaleDateString("es-AR", {
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-xl border border-zinc-800 bg-zinc-950/20 overflow-hidden shadow-lg">
+            <div className="p-5 border-b border-zinc-800 bg-zinc-950/40 flex items-center justify-between">
+              <h3 className="font-semibold text-sm tracking-tight text-white">Actividad Reciente</h3>
+              <span className="text-xs font-mono px-2 py-0.5 rounded bg-zinc-900 text-zinc-400 border border-zinc-850">
+                Pág. {activityPage} de {activityTotalPages}
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm text-zinc-350">
+                <thead className="text-xs font-mono uppercase tracking-wider bg-zinc-950/50 border-b border-zinc-800/80 text-zinc-500">
+                  <tr>
+                    <th className="py-3.5 px-6 font-semibold">Productor</th>
+                    <th className="py-3.5 px-6 font-semibold">Track</th>
+                    <th className="py-3.5 px-6 font-semibold">Status</th>
+                    <th className="py-3.5 px-6 font-semibold">Fecha</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-850 bg-zinc-950/10">
+                  {!activityData ? (
+                    <tr>
+                      <td colSpan={4} className="py-12 text-center text-zinc-500 font-medium">
+                        Cargando actividad...
+                      </td>
+                    </tr>
+                  ) : activityEntries.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="py-12 text-center text-zinc-500 font-medium">
+                        No hay submissions recientes.
+                      </td>
+                    </tr>
+                  ) : (
+                    activityEntries.map((entry) => (
+                      <tr key={entry.id} className="hover:bg-zinc-900/30 transition-colors">
+                        <td className="py-4 px-6 font-medium text-white">{entry.producer_name}</td>
+                        <td className="py-4 px-6 text-zinc-300">{entry.track_title}</td>
+                        <td className="py-4 px-6">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded border text-[10px] font-mono uppercase tracking-wider bg-zinc-700/40 border-zinc-600/40 text-zinc-300">
+                            {entry.status}
+                          </span>
+                        </td>
+                        <td className="py-4 px-6 text-zinc-400 text-xs">
+                          {entry.created_at
+                            ? new Date(entry.created_at).toLocaleString("es-AR", {
                                 day: "2-digit",
                                 month: "2-digit",
                                 year: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
                               })
                             : "-"}
                         </td>
@@ -504,6 +784,25 @@ export default function AdminDashboard() {
                 </tbody>
               </table>
             </div>
+
+            {activityTotalPages > 1 && (
+              <div className="p-4 border-t border-zinc-800/60 bg-zinc-950/40 flex items-center justify-between">
+                <button
+                  onClick={() => setActivityPage((p) => Math.max(1, p - 1))}
+                  disabled={activityPage === 1}
+                  className="px-3 py-1.5 text-xs font-semibold rounded border border-zinc-800 hover:border-zinc-700 disabled:opacity-30 disabled:hover:border-zinc-800 text-zinc-400 hover:text-white transition-all cursor-pointer"
+                >
+                  Anterior
+                </button>
+                <button
+                  onClick={() => setActivityPage((p) => Math.min(activityTotalPages, p + 1))}
+                  disabled={activityPage === activityTotalPages}
+                  className="px-3 py-1.5 text-xs font-semibold rounded border border-zinc-800 hover:border-zinc-700 disabled:opacity-30 disabled:hover:border-zinc-800 text-zinc-400 hover:text-white transition-all cursor-pointer"
+                >
+                  Siguiente
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
