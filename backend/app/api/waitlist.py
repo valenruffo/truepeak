@@ -12,9 +12,9 @@ from slowapi.util import get_remote_address
 from sqlmodel import Session, select, func
 
 from app.database import get_session
-from app.models import WaitlistEntry, AppConfig, Label
+from app.models import WaitlistEntry, AppConfig, Label, Submission
 from app.api.labels import _apply_plan_limits
-from app.services.auth import sync_user_to_supabase
+from app.services.auth import sync_plan_to_supabase
 
 router = APIRouter(tags=["waitlist"])
 limiter = Limiter(key_func=get_remote_address)
@@ -179,6 +179,8 @@ class AdminUserResponse(BaseModel):
     email_limit: int
     hq_retention_days: int
     role: str
+    total_submissions: int = 0
+    last_submission_at: datetime | None = None
 
 
 class UserStatusUpdate(BaseModel):
@@ -191,11 +193,29 @@ def get_admin_users(
     session: Session = Depends(get_session),
     _ = Depends(verify_admin_password)
 ):
-    """Retrieve all user record labels ordered by creation date."""
+    """Retrieve all user record labels ordered by creation date.
+
+    Each row is enriched with the submission count and most recent submission
+    timestamp via a single grouped query (no N+1).
+    """
     labels = session.exec(
         select(Label).order_by(Label.created_at.desc())
     ).all()
-    
+
+    # Aggregate submission counts and last timestamps in a single query.
+    rows = session.exec(
+        select(
+            Submission.label_id,
+            func.count(Submission.id),
+            func.max(Submission.created_at),
+        ).group_by(Submission.label_id)
+    ).all()
+
+    activity_by_label: dict[str, tuple[int, datetime | None]] = {
+        label_id: (int(count or 0), last_at)
+        for label_id, count, last_at in rows
+    }
+
     return [
         AdminUserResponse(
             id=label.id,
@@ -208,7 +228,9 @@ def get_admin_users(
             track_limit=label.max_tracks_month,
             email_limit=label.max_emails_month,
             hq_retention_days=label.hq_retention_days,
-            role=label.role or "label_owner"
+            role=label.role or "label_owner",
+            total_submissions=activity_by_label.get(label.id, (0, None))[0],
+            last_submission_at=activity_by_label.get(label.id, (0, None))[1],
         )
         for label in labels
     ]
@@ -221,17 +243,23 @@ def update_user_status(
     session: Session = Depends(get_session),
     _ = Depends(verify_admin_password)
 ):
-    """Update a user label's plan and/or subscription status and apply relevant limits."""
+    """Update a user label's plan and/or subscription status and apply relevant limits.
+
+    On success, propagates the change to Supabase Auth user_metadata. The label-table
+    update is authoritative; if the Supabase sync fails, the endpoint returns
+    ``supabase_sync_ok=False`` so the dashboard can flag the partial success without
+    rolling back the local change.
+    """
     label = session.exec(select(Label).where(Label.id == user_id)).first()
     if not label:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found"
         )
-    
+
     plan_changed = False
     status_changed = False
-    
+
     if req.plan is not None:
         plan_lower = req.plan.lower()
         if plan_lower not in ("free", "indie", "pro"):
@@ -243,7 +271,7 @@ def update_user_status(
             label.plan = plan_lower
             _apply_plan_limits(label, plan_lower)
             plan_changed = True
-        
+
     if req.subscription_status is not None:
         status_lower = req.subscription_status.lower()
         if status_lower not in ("active", "frozen", "canceled", "suspended"):
@@ -258,27 +286,23 @@ def update_user_status(
                 label.frozen_at = None
             elif status_lower in ("frozen", "suspended"):
                 label.frozen_at = datetime.now(UTC)
-            
-    if plan_changed or status_changed:
-        try:
-            sync_user_to_supabase(
-                user_id=label.id,
-                plan=label.plan,
-                suspended=(label.subscription_status == "suspended"),
-                raise_on_error=True
-            )
-        except Exception as e:
-            session.rollback()
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Supabase synchronization failed: {str(e)}"
-            )
 
     label.updated_at = datetime.now(UTC)
     session.add(label)
     session.commit()
     session.refresh(label)
-    
+
+    supabase_sync_ok = True
+    if plan_changed or status_changed:
+        # Propagate to Supabase Auth. Failures are logged inside the helper and
+        # surfaced via supabase_sync_ok=False — the local label update stands.
+        supabase_sync_ok = sync_plan_to_supabase(
+            user_id=label.id,
+            plan=label.plan or "free",
+            subscription_status=label.subscription_status or "active",
+            max_tracks_month=label.max_tracks_month,
+        )
+
     return {
         "id": label.id,
         "plan": label.plan,
@@ -287,4 +311,77 @@ def update_user_status(
         "track_limit": label.max_tracks_month,
         "email_limit": label.max_emails_month,
         "hq_retention_days": label.hq_retention_days,
+        "supabase_sync_ok": supabase_sync_ok,
+    }
+
+
+# --- Admin Activity Endpoints ---
+
+
+@router.get("/api/admin/activity")
+def get_admin_activity(
+    label_id: str,
+    session: Session = Depends(get_session),
+    _ = Depends(verify_admin_password),
+):
+    """Aggregated activity metrics for a single label (admin only)."""
+    label = session.exec(select(Label).where(Label.id == label_id)).first()
+    if not label:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Label not found"
+        )
+
+    total_submissions = session.exec(
+        select(func.count(Submission.id)).where(Submission.label_id == label_id)
+    ).one()
+    last_at = session.exec(
+        select(func.max(Submission.created_at)).where(Submission.label_id == label_id)
+    ).one()
+
+    return {
+        "total_submissions": int(total_submissions or 0),
+        "last_submission_at": last_at.isoformat() if last_at else None,
+        "emails_sent_this_month": int(label.emails_sent_this_month or 0),
+        "max_emails_month": int(label.max_emails_month or 0),
+    }
+
+
+@router.get("/api/admin/recent-activity")
+def get_admin_recent_activity(
+    page: int = 1,
+    per_page: int = 20,
+    session: Session = Depends(get_session),
+    _ = Depends(verify_admin_password),
+):
+    """Paginated recent submissions across all labels, newest first (admin only)."""
+    page = max(1, page)
+    per_page = max(1, min(per_page, 100))
+    offset = (page - 1) * per_page
+
+    total = session.exec(select(func.count(Submission.id))).one()
+    rows = session.exec(
+        select(Submission)
+        .order_by(Submission.created_at.desc())
+        .offset(offset)
+        .limit(per_page)
+    ).all()
+
+    entries = [
+        {
+            "id": row.id,
+            "label_id": row.label_id,
+            "producer_name": row.producer_name,
+            "track_title": row.track_name,
+            "status": row.status,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+        }
+        for row in rows
+    ]
+
+    return {
+        "total": int(total or 0),
+        "page": page,
+        "per_page": per_page,
+        "entries": entries,
     }

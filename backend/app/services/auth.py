@@ -2,6 +2,7 @@
 
 import os
 import logging
+import time
 import httpx
 from jose import JWTError
 
@@ -88,3 +89,93 @@ def sync_user_to_supabase(
         if raise_on_error:
             raise
         logger.error(f"HTTP error syncing user to Supabase: {str(e)}")
+
+
+def sync_plan_to_supabase(
+    user_id: str,
+    plan: str,
+    subscription_status: str,
+    max_tracks_month: int,
+    max_retries: int = 3,
+) -> bool:
+    """Propagate plan + subscription_status + max_tracks_month to Supabase Auth user_metadata.
+
+    Writes the admin-visible plan to ``user_metadata`` (not ``app_metadata``) so the frontend
+    can read it directly from the Supabase session. Failures are logged but do not raise:
+    the caller should treat the response as partial success when this returns False.
+    """
+    if not SUPABASE_SERVICE_ROLE_KEY or not SUPABASE_URL:
+        logger.warning(
+            "Supabase credentials missing. Skipping sync_plan_to_supabase for user_id=%s",
+            user_id,
+        )
+        return False
+
+    payload = {
+        "user_metadata": {
+            "plan": plan,
+            "subscription_status": subscription_status,
+            "max_tracks_month": max_tracks_month,
+        }
+    }
+    headers = {
+        "apikey": SUPABASE_SERVICE_ROLE_KEY,
+        "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
+        "Content-Type": "application/json",
+    }
+    url = f"{SUPABASE_URL}/auth/v1/admin/users/{user_id}"
+
+    backoff = 0.5
+    for attempt in range(1, max_retries + 1):
+        try:
+            with httpx.Client() as client:
+                response = client.put(url, json=payload, headers=headers, timeout=5.0)
+
+            if 200 <= response.status_code < 300:
+                logger.info(
+                    "Synced plan=%s status=%s to Supabase for user_id=%s",
+                    plan,
+                    subscription_status,
+                    user_id,
+                )
+                return True
+
+            if response.status_code == 429 and attempt < max_retries:
+                logger.warning(
+                    "Supabase Admin API rate-limited (attempt %d/%d) for user_id=%s; backing off %.2fs",
+                    attempt,
+                    max_retries,
+                    user_id,
+                    backoff,
+                )
+                time.sleep(backoff)
+                backoff *= 2
+                continue
+
+            logger.error(
+                "Failed to sync plan to Supabase for user_id=%s: %s %s",
+                user_id,
+                response.status_code,
+                response.text,
+            )
+            return False
+        except httpx.HTTPError as e:
+            if attempt < max_retries:
+                logger.warning(
+                    "HTTP error syncing plan to Supabase (attempt %d/%d) for user_id=%s: %s",
+                    attempt,
+                    max_retries,
+                    user_id,
+                    str(e),
+                )
+                time.sleep(backoff)
+                backoff *= 2
+                continue
+            logger.error(
+                "HTTP error syncing plan to Supabase for user_id=%s after %d retries: %s",
+                user_id,
+                max_retries,
+                str(e),
+            )
+            return False
+    return False

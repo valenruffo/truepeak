@@ -219,8 +219,9 @@ class TestWaitlistAndConfig(unittest.TestCase):
         response = client.put("/api/admin/users/lbl-1/status", json={"plan": "indie"}, headers={"X-Admin-Password": "wrong"})
         self.assertEqual(response.status_code, 401)
 
-    @patch("app.api.waitlist.sync_user_to_supabase")
+    @patch("app.api.waitlist.sync_plan_to_supabase")
     def test_update_user_status_success(self, mock_sync):
+        mock_sync.return_value = True
         label = Label(id="lbl-3", name="Label 3", slug="label-3", owner_email="label3@test.com", plan="free", subscription_status="active")
         self.session.add(label)
         self.session.commit()
@@ -239,6 +240,7 @@ class TestWaitlistAndConfig(unittest.TestCase):
         self.assertEqual(data["track_limit"], 1000)
         self.assertEqual(data["email_limit"], 500)
         self.assertEqual(data["hq_retention_days"], 14)
+        self.assertTrue(data["supabase_sync_ok"])
 
         # Re-fetch from database to verify
         self.session.expire_all()
@@ -265,8 +267,13 @@ class TestWaitlistAndConfig(unittest.TestCase):
         self.assertIsNone(db_label.frozen_at)
         self.assertEqual(db_label.subscription_status, "active")
 
-        # Verify sync was called correctly
-        mock_sync.assert_any_call(user_id="lbl-3", plan="pro", suspended=False, raise_on_error=True)
+        # Verify sync was called with the new signature
+        mock_sync.assert_any_call(
+            user_id="lbl-3",
+            plan="pro",
+            subscription_status="frozen",
+            max_tracks_month=1000,
+        )
 
     def test_update_user_status_invalid(self):
         label = Label(id="lbl-4", name="Label 4", slug="label-4", owner_email="label4@test.com", plan="free", subscription_status="active")
@@ -373,23 +380,263 @@ class TestWaitlistAndConfig(unittest.TestCase):
                 "SUPABASE_SERVICE_ROLE_KEY is missing. Skipping sync_user_to_supabase."
             )
 
-    @patch("app.api.waitlist.sync_user_to_supabase")
-    def test_update_user_status_rollback_on_sync_failure(self, mock_sync):
-        mock_sync.side_effect = Exception("Supabase connection failed")
-        
-        label = Label(id="lbl-rollback-test", name="Rollback Test", slug="rollback-test", owner_email="rollback@test.com", plan="free", subscription_status="active")
+    @patch("app.api.waitlist.sync_plan_to_supabase")
+    def test_update_user_status_partial_success_on_sync_failure(self, mock_sync):
+        """When the Supabase sync fails the label table update MUST stand and the
+        response MUST report ``supabase_sync_ok=False`` (no rollback)."""
+        mock_sync.return_value = False
+
+        label = Label(
+            id="lbl-partial-test",
+            name="Partial Test",
+            slug="partial-test",
+            owner_email="partial@test.com",
+            plan="free",
+            subscription_status="active",
+        )
         self.session.add(label)
         self.session.commit()
-        
+
         response = client.put(
-            "/api/admin/users/lbl-rollback-test/status",
+            "/api/admin/users/lbl-partial-test/status",
             json={"subscription_status": "suspended"},
-            headers={"X-Admin-Password": "test-admin-secret"}
+            headers={"X-Admin-Password": "test-admin-secret"},
         )
-        self.assertEqual(response.status_code, 500)
-        self.assertIn("Supabase synchronization failed", response.json()["detail"])
-        
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["subscription_status"], "suspended")
+        self.assertFalse(body["supabase_sync_ok"])
+
         self.session.expire_all()
-        db_label = self.session.exec(select(Label).where(Label.id == "lbl-rollback-test")).first()
-        self.assertEqual(db_label.subscription_status, "active")
-        self.assertEqual(db_label.plan, "free")
+        db_label = self.session.exec(select(Label).where(Label.id == "lbl-partial-test")).first()
+        # Local change persists even though Supabase sync failed
+        self.assertEqual(db_label.subscription_status, "suspended")
+        self.assertIsNotNone(db_label.frozen_at)
+
+
+# --- Tests for sync_plan_to_supabase ---
+
+class TestSyncPlanToSupabase(unittest.TestCase):
+    @patch("app.services.auth.httpx.Client")
+    def test_sync_plan_to_supabase_success(self, mock_client_cls):
+        from app.services.auth import sync_plan_to_supabase
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_client.put.return_value = mock_response
+        mock_client_cls.return_value.__enter__.return_value = mock_client
+
+        with patch("app.services.auth.SUPABASE_SERVICE_ROLE_KEY", "test-role-key"), \
+             patch("app.services.auth.SUPABASE_URL", "https://test.supabase.co"):
+            ok = sync_plan_to_supabase(
+                user_id="user-123",
+                plan="indie",
+                subscription_status="active",
+                max_tracks_month=100,
+            )
+
+        self.assertTrue(ok)
+        mock_client.put.assert_called_once_with(
+            "https://test.supabase.co/auth/v1/admin/users/user-123",
+            json={
+                "user_metadata": {
+                    "plan": "indie",
+                    "subscription_status": "active",
+                    "max_tracks_month": 100,
+                }
+            },
+            headers={
+                "apikey": "test-role-key",
+                "Authorization": "Bearer test-role-key",
+                "Content-Type": "application/json",
+            },
+            timeout=5.0,
+        )
+
+    @patch("app.services.auth.httpx.Client")
+    def test_sync_plan_to_supabase_returns_false_on_500(self, mock_client_cls):
+        from app.services.auth import sync_plan_to_supabase
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.status_code = 500
+        mock_response.text = "internal error"
+        mock_client.put.return_value = mock_response
+        mock_client_cls.return_value.__enter__.return_value = mock_client
+
+        with patch("app.services.auth.SUPABASE_SERVICE_ROLE_KEY", "test-role-key"), \
+             patch("app.services.auth.SUPABASE_URL", "https://test.supabase.co"):
+            ok = sync_plan_to_supabase(
+                user_id="user-x",
+                plan="pro",
+                subscription_status="frozen",
+                max_tracks_month=1000,
+            )
+
+        self.assertFalse(ok)
+        # No retries on a non-429 5xx — exactly one PUT attempt.
+        self.assertEqual(mock_client.put.call_count, 1)
+
+    @patch("app.services.auth.httpx.Client")
+    def test_sync_plan_to_supabase_retries_on_429(self, mock_client_cls):
+        from app.services.auth import sync_plan_to_supabase
+        mock_client = MagicMock()
+        rate_limited = MagicMock(status_code=429, text="too many")
+        ok_resp = MagicMock(status_code=200, text="ok")
+        mock_client.put.side_effect = [rate_limited, ok_resp]
+        mock_client_cls.return_value.__enter__.return_value = mock_client
+
+        with patch("app.services.auth.SUPABASE_SERVICE_ROLE_KEY", "test-role-key"), \
+             patch("app.services.auth.SUPABASE_URL", "https://test.supabase.co"), \
+             patch("app.services.auth.time.sleep") as mock_sleep:
+            ok = sync_plan_to_supabase(
+                user_id="user-rl",
+                plan="free",
+                subscription_status="active",
+                max_tracks_month=10,
+            )
+
+        self.assertTrue(ok)
+        self.assertEqual(mock_client.put.call_count, 2)
+        # Backoff sleeps between retries
+        self.assertTrue(mock_sleep.called)
+
+    def test_sync_plan_to_supabase_missing_credentials_returns_false(self):
+        from app.services.auth import sync_plan_to_supabase
+        with patch("app.services.auth.SUPABASE_SERVICE_ROLE_KEY", ""), \
+             patch("app.services.auth.SUPABASE_URL", ""):
+            self.assertFalse(sync_plan_to_supabase(
+                user_id="u", plan="free", subscription_status="active", max_tracks_month=10,
+            ))
+
+
+# --- Tests for activity endpoints ---
+
+class TestAdminActivityEndpoint(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        SQLModel.metadata.create_all(engine)
+        app.dependency_overrides[get_session] = override_get_session
+
+    @classmethod
+    def tearDownClass(cls):
+        SQLModel.metadata.drop_all(engine)
+        app.dependency_overrides.pop(get_session, None)
+
+    def setUp(self):
+        self.session = next(override_get_session())
+
+    def tearDown(self):
+        self.session.rollback()
+        from app.models import Submission
+        for s in self.session.exec(select(Submission)).all():
+            self.session.delete(s)
+        for l in self.session.exec(select(Label)).all():
+            self.session.delete(l)
+        self.session.commit()
+        self.session.close()
+
+    def test_admin_activity_requires_auth(self):
+        response = client.get("/api/admin/activity?label_id=anything")
+        self.assertEqual(response.status_code, 401)
+
+    def test_admin_activity_returns_404_for_missing_label(self):
+        response = client.get(
+            "/api/admin/activity?label_id=missing",
+            headers={"X-Admin-Password": "test-admin-secret"},
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_admin_activity_with_submissions(self):
+        from app.models import Submission
+        label = Label(
+            id="act-1", name="Act 1", slug="act-1", owner_email="act1@test.com",
+            max_emails_month=100, emails_sent_this_month=30, max_tracks_month=10,
+        )
+        self.session.add(label)
+        self.session.commit()
+
+        for i in range(3):
+            self.session.add(Submission(
+                id=f"sub-{i}", label_id=label.id,
+                producer_name=f"p{i}", producer_email=f"p{i}@t.com",
+                track_name=f"t{i}", status="inbox",
+            ))
+        self.session.commit()
+
+        response = client.get(
+            "/api/admin/activity?label_id=act-1",
+            headers={"X-Admin-Password": "test-admin-secret"},
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["total_submissions"], 3)
+        self.assertIsNotNone(data["last_submission_at"])
+        self.assertEqual(data["emails_sent_this_month"], 30)
+        self.assertEqual(data["max_emails_month"], 100)
+
+    def test_admin_activity_with_no_submissions(self):
+        label = Label(
+            id="act-2", name="Act 2", slug="act-2", owner_email="act2@test.com",
+            max_emails_month=0, emails_sent_this_month=0, max_tracks_month=10,
+        )
+        self.session.add(label)
+        self.session.commit()
+
+        response = client.get(
+            "/api/admin/activity?label_id=act-2",
+            headers={"X-Admin-Password": "test-admin-secret"},
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["total_submissions"], 0)
+        self.assertIsNone(data["last_submission_at"])
+        self.assertEqual(data["emails_sent_this_month"], 0)
+        self.assertEqual(data["max_emails_month"], 0)
+
+    def test_admin_recent_activity_pagination(self):
+        from app.models import Submission
+        label = Label(id="act-3", name="Act 3", slug="act-3", owner_email="act3@test.com")
+        self.session.add(label)
+        self.session.commit()
+
+        # Insert 25 submissions so we can test pagination
+        for i in range(25):
+            self.session.add(Submission(
+                id=f"sub-{i:02d}", label_id=label.id,
+                producer_name=f"p{i}", producer_email=f"p{i}@t.com",
+                track_name=f"t{i}", status="inbox",
+            ))
+        self.session.commit()
+
+        # Page 1: 20 entries
+        r1 = client.get(
+            "/api/admin/recent-activity?page=1&per_page=20",
+            headers={"X-Admin-Password": "test-admin-secret"},
+        )
+        self.assertEqual(r1.status_code, 200)
+        body = r1.json()
+        self.assertEqual(body["total"], 25)
+        self.assertEqual(len(body["entries"]), 20)
+        self.assertEqual(body["page"], 1)
+        self.assertEqual(body["per_page"], 20)
+
+        # Page 2: remaining 5
+        r2 = client.get(
+            "/api/admin/recent-activity?page=2&per_page=20",
+            headers={"X-Admin-Password": "test-admin-secret"},
+        )
+        self.assertEqual(r2.status_code, 200)
+        self.assertEqual(len(r2.json()["entries"]), 5)
+
+        # Beyond available pages: empty
+        r3 = client.get(
+            "/api/admin/recent-activity?page=4&per_page=20",
+            headers={"X-Admin-Password": "test-admin-secret"},
+        )
+        self.assertEqual(r3.status_code, 200)
+        self.assertEqual(r3.json()["entries"], [])
+        self.assertEqual(r3.json()["total"], 25)
+
+    def test_admin_recent_activity_requires_auth(self):
+        response = client.get("/api/admin/recent-activity?page=1&per_page=20")
+        self.assertEqual(response.status_code, 401)
