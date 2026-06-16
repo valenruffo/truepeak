@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
-import useSWR from "swr";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/lib/supabase";
 import {
@@ -16,13 +15,6 @@ import {
   getRecentActivity,
   RecentActivityEntry,
 } from "@/lib/api";
-
-// Simple fetcher for admin dashboard (no supabase dependency)
-const adminFetcher = async (url: string) => {
-  const res = await fetch(url, { credentials: "include" });
-  if (!res.ok) throw new Error(`Failed to fetch ${url}`);
-  return res.json();
-};
 
 type Tab = "waitlist" | "users" | "activity";
 type SortKey = "newest" | "oldest" | "plan" | "submissions";
@@ -119,48 +111,62 @@ export default function AdminDashboard() {
     }
   }, []);
 
-  // Fetch App Mode (public, but admin can toggle it)
-  const { data: modeData, mutate: mutateMode } = useSWR("/api/config/app-mode", getAppMode, {
-    fetcher: adminFetcher,
-    revalidateOnFocus: true,
-  });
+  // App Mode (public, but admin can toggle it)
+  const [modeData, setModeData] = useState<{ mode: string } | null>(null);
+  const fetchMode = async () => {
+    try {
+      const data = await getAppMode();
+      setModeData(data);
+    } catch (e) { /* ignore */ }
+  };
+  useEffect(() => { fetchMode(); }, []);
   const currentMode = modeData?.mode || "beta";
 
-  // Fetch Waitlist Entries (requires password)
-  const { data: waitlistData, error: waitlistError, mutate: mutateWaitlist } = useSWR(
-    isLoggedIn && password ? ["/api/admin/waitlist", page, password] : null,
-    () => getWaitlist(password, page, perPage),
-    {
-      fetcher: adminFetcher,
-      revalidateOnFocus: true,
-      errorRetryCount: 1,
+  // Waitlist Entries (requires password)
+  const [waitlistData, setWaitlistData] = useState<{ entries: WaitlistEntry[]; total: number } | null>(null);
+  const [waitlistError, setWaitlistError] = useState<Error | null>(null);
+  const fetchWaitlist = async () => {
+    if (!isLoggedIn || !password) return;
+    try {
+      const data = await getWaitlist(password, page, perPage);
+      setWaitlistData(data);
+      setWaitlistError(null);
+    } catch (e) {
+      setWaitlistError(e as Error);
     }
-  );
+  };
+  useEffect(() => { fetchWaitlist(); }, [isLoggedIn, password, page]);
 
-  // Fetch Admin Users (requires password). 30s SWR fallback for Realtime drops.
-  const { data: usersData, error: usersError, mutate: mutateUsers } = useSWR(
-    isLoggedIn && password ? ["/api/admin/users", password] : null,
-    () => getAdminUsers(password),
-    {
-      fetcher: adminFetcher,
-      revalidateOnFocus: true,
-      refreshInterval: 30000,
-      errorRetryCount: 1,
+  // Admin Users (requires password)
+  const [usersData, setUsersData] = useState<AdminUser[] | null>(null);
+  const [usersError, setUsersError] = useState<Error | null>(null);
+  const fetchUsers = async () => {
+    if (!isLoggedIn || !password) return;
+    try {
+      const data = await getAdminUsers(password);
+      setUsersData(data);
+      setUsersError(null);
+    } catch (e) {
+      setUsersError(e as Error);
     }
-  );
+  };
+  useEffect(() => { fetchUsers(); }, [isLoggedIn, password]);
 
   // Recent activity (paginated, 20 per page)
   const [activityPage, setActivityPage] = useState(1);
-  const { data: activityData, error: activityError, mutate: mutateActivity } = useSWR(
-    isLoggedIn && password ? ["/api/admin/recent-activity", activityPage, password] : null,
-    () => getRecentActivity(activityPage, 20, password),
-    {
-      fetcher: adminFetcher,
-      revalidateOnFocus: true,
-      refreshInterval: 30000,
-      errorRetryCount: 1,
+  const [activityData, setActivityData] = useState<{ entries: RecentActivityEntry[]; total: number; page: number; per_page: number } | null>(null);
+  const [activityError, setActivityError] = useState<Error | null>(null);
+  const fetchActivity = async () => {
+    if (!isLoggedIn || !password) return;
+    try {
+      const data = await getRecentActivity(activityPage, 20, password);
+      setActivityData(data);
+      setActivityError(null);
+    } catch (e) {
+      setActivityError(e as Error);
     }
-  );
+  };
+  useEffect(() => { fetchActivity(); }, [isLoggedIn, password, activityPage]);
 
   // Supabase Realtime: subscribe to label table changes while logged in.
   // Falls back to SWR refreshInterval (30s) when the channel is dropped.
@@ -175,31 +181,26 @@ export default function AdminDashboard() {
           "postgres_changes",
           { event: "*", schema: "public", table: "label" },
           (payload) => {
-            if (!mutateUsers) return;
-            mutateUsers(
-              (current) => {
-                if (!current) return current;
-                if (payload.eventType === "INSERT") {
-                  const newUser = labelRowToAdminUser(payload.new);
-                  // Avoid duplicates if the optimistic list already has it.
-                  if (current.some((u) => u.id === newUser.id)) {
-                    return current.map((u) => (u.id === newUser.id ? { ...u, ...newUser } : u));
-                  }
-                  return [newUser, ...current];
+            setUsersData((current) => {
+              if (!current) return current;
+              if (payload.eventType === "INSERT") {
+                const newUser = labelRowToAdminUser(payload.new);
+                if (current.some((u: AdminUser) => u.id === newUser.id)) {
+                  return current.map((u: AdminUser) => (u.id === newUser.id ? { ...u, ...newUser } : u));
                 }
-                if (payload.eventType === "UPDATE") {
-                  const updated = labelRowToAdminUser(payload.new);
-                  return current.map((u) => (u.id === updated.id ? { ...u, ...updated } : u));
-                }
-                if (payload.eventType === "DELETE") {
-                  const deletedId = (payload.old as any)?.id;
-                  if (!deletedId) return current;
-                  return current.filter((u) => u.id !== deletedId);
-                }
-                return current;
-              },
-              { revalidate: false }
-            );
+                return [newUser, ...current];
+              }
+              if (payload.eventType === "UPDATE") {
+                const updated = labelRowToAdminUser(payload.new);
+                return current.map((u: AdminUser) => (u.id === updated.id ? { ...u, ...updated } : u));
+              }
+              if (payload.eventType === "DELETE") {
+                const deletedId = (payload.old as any)?.id;
+                if (!deletedId) return current;
+                return current.filter((u: AdminUser) => u.id !== deletedId);
+              }
+              return current;
+            });
           }
         )
         .subscribe();
@@ -212,21 +213,21 @@ export default function AdminDashboard() {
         supabase.removeChannel(channel);
       }
     };
-  }, [isLoggedIn, mutateUsers]);
+  }, [isLoggedIn, fetchUsers]);
 
   // Track first Realtime event timestamp — if 30s elapse without a heartbeat we
-  // trigger a SWR revalidate as a safety net.
+  // trigger a revalidate as a safety net.
   const lastEventRef = useRef<number>(Date.now());
   useEffect(() => {
     if (!isLoggedIn) return;
     const interval = setInterval(() => {
       if (Date.now() - lastEventRef.current > 30000) {
-        mutateUsers();
+        fetchUsers();
       }
       lastEventRef.current = Date.now();
     }, 30000);
     return () => clearInterval(interval);
-  }, [isLoggedIn, mutateUsers]);
+  }, [isLoggedIn, fetchUsers]);
 
   // Handle wrong session storage password
   useEffect(() => {
@@ -271,7 +272,7 @@ export default function AdminDashboard() {
     const nextMode = currentMode === "beta" ? "prod" : "beta";
     try {
       await updateAppMode(nextMode, password);
-      mutateMode({ mode: nextMode }, false);
+      setModeData({ mode: nextMode });
       showToast(`Modo cambiado a ${nextMode.toUpperCase()} correctamente.`);
     } catch (err: any) {
       showToast(err.message || "Error al actualizar el modo", "error");
@@ -300,7 +301,7 @@ export default function AdminDashboard() {
 
   const handleUpdateUser = async (userId: string, update: { plan?: string; subscription_status?: string }) => {
     try {
-      // Optimistic SWR mutation
+      // Optimistic update
       if (usersData) {
         const updatedUsers = usersData.map((u) => {
           if (u.id === userId) {
@@ -312,18 +313,18 @@ export default function AdminDashboard() {
           }
           return u;
         });
-        mutateUsers(updatedUsers, false);
+        setUsersData(updatedUsers);
       }
 
       const result = await updateUserStatus(userId, update, password);
-      mutateUsers(); // Revalidate with actual server response
+      await fetchUsers(); // Revalidate with actual server response
       if (result && result.supabase_sync_ok === false) {
         showToast("Etiqueta actualizada, pero la sincronización con Supabase falló.", "error");
       } else {
         showToast("Usuario actualizado correctamente.");
       }
     } catch (err: any) {
-      mutateUsers(); // Revert mutation
+      await fetchUsers(); // Revert / revalidate
       showToast(err.message || "Error al actualizar el usuario", "error");
     }
   };
