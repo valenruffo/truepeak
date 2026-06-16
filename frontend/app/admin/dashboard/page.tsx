@@ -242,10 +242,10 @@ export default function AdminDashboard() {
   // ===================== LOGIN SCREEN =====================
   if (!isLoggedIn) {
     return (
-      <div style={{ minHeight: "100vh", background: "#09090b", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "system-ui" }}>
-        <div style={{ width: 320, padding: 32, background: "#18181b", borderRadius: 8, border: "1px solid #27272a" }}>
-          <h1 style={{ marginBottom: 8, fontSize: 20, fontWeight: 600 }}>Admin Login</h1>
-          <p style={{ marginBottom: 16, fontSize: 12, color: "#a1a1aa" }}>Restricted access</p>
+      <div className="min-h-screen bg-[#09090b] text-white flex items-center justify-center font-body">
+        <div className="w-80 p-8 bg-[#18181b] rounded-lg border border-zinc-800">
+          <h1 className="text-xl font-semibold mb-2">Admin Login</h1>
+          <p className="text-xs text-zinc-400 mb-4">Restricted access</p>
           <input
             type="password"
             value={password}
@@ -253,10 +253,14 @@ export default function AdminDashboard() {
             onKeyDown={(e) => e.key === "Enter" && !loginLoading && handleLogin()}
             placeholder="Password"
             disabled={loginLoading}
-            style={{ width: "100%", padding: "8px 12px", background: "#27272a", border: "1px solid #3f3f46", color: "white", borderRadius: 6, marginBottom: 8, fontSize: 14 }}
+            className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 text-white rounded-md mb-2 text-sm focus:outline-none focus:border-emerald-500 transition-colors"
           />
-          {loginError && <p style={{ color: "#ef4444", fontSize: 12, marginBottom: 8 }}>{loginError}</p>}
-          <button onClick={handleLogin} disabled={loginLoading} style={{ width: "100%", padding: "10px", background: loginLoading ? "#065f46" : "#10b981", color: "white", border: "none", borderRadius: 6, cursor: loginLoading ? "wait" : "pointer", fontWeight: 500, fontSize: 14 }}>
+          {loginError && <p className="text-red-500 text-xs mb-2">{loginError}</p>}
+          <button
+            onClick={handleLogin}
+            disabled={loginLoading}
+            className="w-full py-2.5 bg-emerald-500 hover:bg-emerald-600 disabled:bg-emerald-800 text-white rounded-md font-medium text-sm transition-colors cursor-pointer disabled:cursor-wait"
+          >
             {loginLoading ? "Logging in..." : "Login"}
           </button>
         </div>
@@ -271,56 +275,56 @@ export default function AdminDashboard() {
   const activityTotalPages = Math.max(1, Math.ceil(activityTotal / 20));
 
   return (
-    <div style={{ minHeight: "100vh", background: "#09090b", color: "white", fontFamily: "system-ui", padding: "24px 32px" }}>
+    <div className="min-h-screen bg-[#09090b] text-white font-body p-6 md:p-8">
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+      <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 600, margin: 0 }}>Admin Dashboard</h1>
-          <p style={{ fontSize: 12, color: "#a1a1aa", margin: "4px 0 0" }}>True Peak · {currentMode.toUpperCase()}</p>
+          <h1 className="text-2xl font-semibold">Admin Dashboard</h1>
+          <p className="text-xs text-zinc-400 mt-1">True Peak · {currentMode.toUpperCase()}</p>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={handleToggleMode} style={{ padding: "8px 12px", background: "#27272a", border: "1px solid #3f3f46", color: "white", borderRadius: 6, cursor: "pointer", fontSize: 12 }}>
+        <div className="flex gap-2">
+          <button
+            onClick={handleToggleMode}
+            className="px-3 py-2 bg-zinc-800 border border-zinc-700 hover:border-zinc-600 text-white rounded-md text-xs font-medium transition-colors cursor-pointer"
+          >
             {currentMode === "beta" ? "Switch to PROD" : "Switch to BETA"}
           </button>
-          <button onClick={handleLogout} style={{ padding: "8px 12px", background: "#27272a", border: "1px solid #3f3f46", color: "white", borderRadius: 6, cursor: "pointer", fontSize: 12 }}>
+          <button
+            onClick={handleLogout}
+            className="px-3 py-2 bg-zinc-800 border border-zinc-700 hover:border-zinc-600 text-white rounded-md text-xs font-medium transition-colors cursor-pointer"
+          >
             Logout
           </button>
         </div>
       </div>
 
       {/* Stat cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 24 }}>
-        <div style={{ padding: 16, background: "#18181b", borderRadius: 8, border: "1px solid #27272a" }}>
-          <p style={{ fontSize: 11, color: "#a1a1aa", margin: 0, textTransform: "uppercase" }}>App Mode</p>
-          <p style={{ fontSize: 20, fontWeight: 600, margin: "4px 0 0" }}>{currentMode.toUpperCase()}</p>
+      <div className="grid grid-cols-3 gap-3 mb-6">
+        <div className="p-4 bg-[#18181b] rounded-lg border border-zinc-800">
+          <p className="text-[11px] text-zinc-400 uppercase mb-1">App Mode</p>
+          <p className="text-xl font-semibold">{currentMode.toUpperCase()}</p>
         </div>
-        <div style={{ padding: 16, background: "#18181b", borderRadius: 8, border: "1px solid #27272a" }}>
-          <p style={{ fontSize: 11, color: "#a1a1aa", margin: 0, textTransform: "uppercase" }}>Waitlist</p>
-          <p style={{ fontSize: 20, fontWeight: 600, margin: "4px 0 0" }}>{waitlistTotal}</p>
+        <div className="p-4 bg-[#18181b] rounded-lg border border-zinc-800">
+          <p className="text-[11px] text-zinc-400 uppercase mb-1">Waitlist</p>
+          <p className="text-xl font-semibold">{waitlistTotal}</p>
         </div>
-        <div style={{ padding: 16, background: "#18181b", borderRadius: 8, border: "1px solid #27272a" }}>
-          <p style={{ fontSize: 11, color: "#a1a1aa", margin: 0, textTransform: "uppercase" }}>Users</p>
-          <p style={{ fontSize: 20, fontWeight: 600, margin: "4px 0 0" }}>{usersData?.length ?? 0}</p>
+        <div className="p-4 bg-[#18181b] rounded-lg border border-zinc-800">
+          <p className="text-[11px] text-zinc-400 uppercase mb-1">Users</p>
+          <p className="text-xl font-semibold">{usersData?.length ?? 0}</p>
         </div>
       </div>
 
       {/* Tabs */}
-      <div style={{ display: "flex", gap: 4, marginBottom: 16, borderBottom: "1px solid #27272a" }}>
+      <div className="flex gap-1 mb-4 border-b border-zinc-800">
         {(["waitlist", "users", "activity"] as Tab[]).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            style={{
-              padding: "10px 16px",
-              background: "transparent",
-              border: "none",
-              color: activeTab === tab ? "#10b981" : "#a1a1aa",
-              borderBottom: activeTab === tab ? "2px solid #10b981" : "2px solid transparent",
-              cursor: "pointer",
-              fontSize: 13,
-              fontWeight: activeTab === tab ? 600 : 400,
-              textTransform: "capitalize",
-            }}
+            className={`px-4 py-2.5 text-sm font-medium transition-colors cursor-pointer ${
+              activeTab === tab
+                ? "text-emerald-400 border-b-2 border-emerald-500"
+                : "text-zinc-400 hover:text-zinc-200"
+            }`}
           >
             {tab}
           </button>
@@ -330,40 +334,56 @@ export default function AdminDashboard() {
       {/* Waitlist tab */}
       {activeTab === "waitlist" && (
         <div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-            <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>Waitlist ({waitlistTotal})</h2>
-            <button onClick={handleExportCSV} disabled={exporting} style={{ padding: "6px 12px", background: "#27272a", border: "1px solid #3f3f46", color: "white", borderRadius: 6, cursor: exporting ? "wait" : "pointer", fontSize: 12 }}>
+          <div className="flex justify-between items-center mb-3">
+            <h2 className="text-base font-semibold">Waitlist ({waitlistTotal})</h2>
+            <button
+              onClick={handleExportCSV}
+              disabled={exporting}
+              className="px-3 py-1.5 bg-zinc-800 border border-zinc-700 hover:border-zinc-600 text-white rounded-md text-xs font-medium transition-colors cursor-pointer disabled:cursor-wait disabled:opacity-50"
+            >
               {exporting ? "Exporting..." : "Export CSV"}
             </button>
           </div>
-          <div style={{ background: "#18181b", borderRadius: 8, border: "1px solid #27272a", overflow: "hidden" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <div className="bg-[#18181b] rounded-lg border border-zinc-800 overflow-hidden">
+            <table className="w-full">
               <thead>
-                <tr style={{ background: "#1f1f23" }}>
-                  <th style={{ padding: 12, textAlign: "left", fontSize: 11, color: "#a1a1aa", textTransform: "uppercase" }}>Email</th>
-                  <th style={{ padding: 12, textAlign: "left", fontSize: 11, color: "#a1a1aa", textTransform: "uppercase" }}>Source</th>
-                  <th style={{ padding: 12, textAlign: "left", fontSize: 11, color: "#a1a1aa", textTransform: "uppercase" }}>Date</th>
+                <tr className="bg-[#1f1f23]">
+                  <th className="px-3 py-3 text-left text-[11px] text-zinc-400 uppercase">Email</th>
+                  <th className="px-3 py-3 text-left text-[11px] text-zinc-400 uppercase">Source</th>
+                  <th className="px-3 py-3 text-left text-[11px] text-zinc-400 uppercase">Date</th>
                 </tr>
               </thead>
               <tbody>
                 {waitlistData?.entries.map((entry) => (
-                  <tr key={entry.id} style={{ borderTop: "1px solid #27272a" }}>
-                    <td style={{ padding: 12, fontSize: 13 }}>{entry.email}</td>
-                    <td style={{ padding: 12, fontSize: 12, color: "#a1a1aa" }}>{entry.source || "—"}</td>
-                    <td style={{ padding: 12, fontSize: 12, color: "#71717a" }}>{new Date(entry.created_at).toLocaleDateString()}</td>
+                  <tr key={entry.id} className="border-t border-zinc-800">
+                    <td className="px-3 py-3 text-sm">{entry.email}</td>
+                    <td className="px-3 py-3 text-xs text-zinc-400">{entry.source || "—"}</td>
+                    <td className="px-3 py-3 text-xs text-zinc-500">{new Date(entry.created_at).toLocaleDateString()}</td>
                   </tr>
                 ))}
                 {(!waitlistData || waitlistData.entries.length === 0) && (
-                  <tr><td colSpan={3} style={{ padding: 24, textAlign: "center", color: "#71717a", fontSize: 13 }}>No waitlist entries</td></tr>
+                  <tr><td colSpan={3} className="px-6 py-6 text-center text-zinc-500 text-sm">No waitlist entries</td></tr>
                 )}
               </tbody>
             </table>
           </div>
           {waitlistTotalPages > 1 && (
-            <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 12 }}>
-              <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} style={{ padding: "6px 12px", background: "#27272a", border: "1px solid #3f3f46", color: "white", borderRadius: 6, cursor: page === 1 ? "not-allowed" : "pointer", opacity: page === 1 ? 0.5 : 1, fontSize: 12 }}>Anterior</button>
-              <span style={{ padding: "6px 12px", fontSize: 12, color: "#a1a1aa" }}>Page {page} of {waitlistTotalPages}</span>
-              <button onClick={() => setPage((p) => Math.min(waitlistTotalPages, p + 1))} disabled={page === waitlistTotalPages} style={{ padding: "6px 12px", background: "#27272a", border: "1px solid #3f3f46", color: "white", borderRadius: 6, cursor: page === waitlistTotalPages ? "not-allowed" : "pointer", opacity: page === waitlistTotalPages ? 0.5 : 1, fontSize: 12 }}>Siguiente</button>
+            <div className="flex justify-center gap-2 mt-3">
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="px-3 py-1.5 bg-zinc-800 border border-zinc-700 hover:border-zinc-600 text-white rounded-md text-xs font-medium transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Anterior
+              </button>
+              <span className="px-3 py-1.5 text-xs text-zinc-400">Page {page} of {waitlistTotalPages}</span>
+              <button
+                onClick={() => setPage((p) => Math.min(waitlistTotalPages, p + 1))}
+                disabled={page === waitlistTotalPages}
+                className="px-3 py-1.5 bg-zinc-800 border border-zinc-700 hover:border-zinc-600 text-white rounded-md text-xs font-medium transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Siguiente
+              </button>
             </div>
           )}
         </div>
@@ -372,54 +392,64 @@ export default function AdminDashboard() {
       {/* Users tab */}
       {activeTab === "users" && (
         <div>
-          <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center" }}>
+          <div className="flex gap-2 mb-3 items-center">
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by name, email, slug..."
-              style={{ flex: 1, padding: "8px 12px", background: "#27272a", border: "1px solid #3f3f46", color: "white", borderRadius: 6, fontSize: 13 }}
+              className="flex-1 px-3 py-2 bg-zinc-800 border border-zinc-700 text-white rounded-md text-sm focus:outline-none focus:border-emerald-500 transition-colors"
             />
-            <select value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)} style={{ padding: "8px 12px", background: "#27272a", border: "1px solid #3f3f46", color: "white", borderRadius: 6, fontSize: 13 }}>
+            <select
+              value={sortKey}
+              onChange={(e) => setSortKey(e.target.value as SortKey)}
+              className="px-3 py-2 bg-zinc-800 border border-zinc-700 text-white rounded-md text-sm focus:outline-none focus:border-emerald-500 transition-colors cursor-pointer"
+            >
               <option value="newest">Newest</option>
               <option value="oldest">Oldest</option>
               <option value="plan">Plan</option>
               <option value="submissions">Most Submissions</option>
             </select>
           </div>
-          <div style={{ background: "#18181b", borderRadius: 8, border: "1px solid #27272a", overflow: "hidden" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <div className="bg-[#18181b] rounded-lg border border-zinc-800 overflow-hidden">
+            <table className="w-full">
               <thead>
-                <tr style={{ background: "#1f1f23" }}>
-                  <th style={{ padding: 12, textAlign: "left", fontSize: 11, color: "#a1a1aa", textTransform: "uppercase" }}>Name</th>
-                  <th style={{ padding: 12, textAlign: "left", fontSize: 11, color: "#a1a1aa", textTransform: "uppercase" }}>Email</th>
-                  <th style={{ padding: 12, textAlign: "left", fontSize: 11, color: "#a1a1aa", textTransform: "uppercase" }}>Plan</th>
-                  <th style={{ padding: 12, textAlign: "left", fontSize: 11, color: "#a1a1aa", textTransform: "uppercase" }}>Status</th>
-                  <th style={{ padding: 12, textAlign: "left", fontSize: 11, color: "#a1a1aa", textTransform: "uppercase" }}>Submissions</th>
-                  <th style={{ padding: 12, textAlign: "left", fontSize: 11, color: "#a1a1aa", textTransform: "uppercase" }}>Last Active</th>
+                <tr className="bg-[#1f1f23]">
+                  <th className="px-3 py-3 text-left text-[11px] text-zinc-400 uppercase">Name</th>
+                  <th className="px-3 py-3 text-left text-[11px] text-zinc-400 uppercase">Email</th>
+                  <th className="px-3 py-3 text-left text-[11px] text-zinc-400 uppercase">Plan</th>
+                  <th className="px-3 py-3 text-left text-[11px] text-zinc-400 uppercase">Status</th>
+                  <th className="px-3 py-3 text-left text-[11px] text-zinc-400 uppercase">Submissions</th>
+                  <th className="px-3 py-3 text-left text-[11px] text-zinc-400 uppercase">Last Active</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredUsers.map((user) => (
-                  <tr key={user.id} style={{ borderTop: "1px solid #27272a" }}>
-                    <td style={{ padding: 12, fontSize: 13, fontWeight: 500 }}>{user.name}</td>
-                    <td style={{ padding: 12, fontSize: 13, color: "#a1a1aa" }}>{user.email}</td>
-                    <td style={{ padding: 12 }}>
+                  <tr key={user.id} className="border-t border-zinc-800">
+                    <td className="px-3 py-3 text-sm font-medium">{user.name}</td>
+                    <td className="px-3 py-3 text-sm text-zinc-400">{user.email}</td>
+                    <td className="px-3 py-3">
                       <select
                         value={user.plan}
                         onChange={(e) => handleUpdateUser(user.id, { plan: e.target.value })}
-                        style={{ padding: "4px 8px", background: "#27272a", border: `1px solid ${user.plan === "indie" ? "#3b82f6" : user.plan === "pro" ? "#10b981" : "#3f3f46"}`, color: user.plan === "indie" ? "#93c5fd" : user.plan === "pro" ? "#6ee7b7" : "#d4d4d8", borderRadius: 4, fontSize: 12, cursor: "pointer" }}
+                        className={`px-2 py-1 bg-zinc-800 border rounded text-xs cursor-pointer transition-colors ${
+                          user.plan === "indie"
+                            ? "border-blue-500/50 text-blue-300"
+                            : user.plan === "pro"
+                            ? "border-emerald-500/50 text-emerald-300"
+                            : "border-zinc-700 text-zinc-300"
+                        }`}
                       >
                         <option value="free">Free</option>
                         <option value="indie">Indie</option>
                         <option value="pro">Pro</option>
                       </select>
                     </td>
-                    <td style={{ padding: 12 }}>
+                    <td className="px-3 py-3">
                       <select
                         value={user.status}
                         onChange={(e) => handleUpdateUser(user.id, { subscription_status: e.target.value })}
-                        style={{ padding: "4px 8px", background: "#27272a", border: "1px solid #3f3f46", color: "white", borderRadius: 4, fontSize: 12, cursor: "pointer" }}
+                        className={`px-2 py-1 bg-zinc-800 border border-zinc-700 rounded text-xs cursor-pointer transition-colors ${statusBadgeClass(user.status)}`}
                       >
                         <option value="active">Active</option>
                         <option value="frozen">Frozen</option>
@@ -427,12 +457,12 @@ export default function AdminDashboard() {
                         <option value="suspended">Suspended</option>
                       </select>
                     </td>
-                    <td style={{ padding: 12, fontSize: 13, color: "#a1a1aa" }}>{user.total_submissions ?? 0}</td>
-                    <td style={{ padding: 12, fontSize: 12, color: "#71717a" }}>{formatRelativeTime(user.last_submission_at)}</td>
+                    <td className="px-3 py-3 text-sm text-zinc-400">{user.total_submissions ?? 0}</td>
+                    <td className="px-3 py-3 text-xs text-zinc-500">{formatRelativeTime(user.last_submission_at)}</td>
                   </tr>
                 ))}
                 {filteredUsers.length === 0 && (
-                  <tr><td colSpan={6} style={{ padding: 24, textAlign: "center", color: "#71717a", fontSize: 13 }}>No users found</td></tr>
+                  <tr><td colSpan={6} className="px-6 py-6 text-center text-zinc-500 text-sm">No users found</td></tr>
                 )}
               </tbody>
             </table>
@@ -443,39 +473,51 @@ export default function AdminDashboard() {
       {/* Activity tab */}
       {activeTab === "activity" && (
         <div>
-          <h2 style={{ fontSize: 16, fontWeight: 600, margin: "0 0 12px" }}>Recent Activity ({activityTotal})</h2>
-          <div style={{ background: "#18181b", borderRadius: 8, border: "1px solid #27272a", overflow: "hidden" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <h2 className="text-base font-semibold mb-3">Recent Activity ({activityTotal})</h2>
+          <div className="bg-[#18181b] rounded-lg border border-zinc-800 overflow-hidden">
+            <table className="w-full">
               <thead>
-                <tr style={{ background: "#1f1f23" }}>
-                  <th style={{ padding: 12, textAlign: "left", fontSize: 11, color: "#a1a1aa", textTransform: "uppercase" }}>Producer</th>
-                  <th style={{ padding: 12, textAlign: "left", fontSize: 11, color: "#a1a1aa", textTransform: "uppercase" }}>Track</th>
-                  <th style={{ padding: 12, textAlign: "left", fontSize: 11, color: "#a1a1aa", textTransform: "uppercase" }}>Status</th>
-                  <th style={{ padding: 12, textAlign: "left", fontSize: 11, color: "#a1a1aa", textTransform: "uppercase" }}>Date</th>
+                <tr className="bg-[#1f1f23]">
+                  <th className="px-3 py-3 text-left text-[11px] text-zinc-400 uppercase">Producer</th>
+                  <th className="px-3 py-3 text-left text-[11px] text-zinc-400 uppercase">Track</th>
+                  <th className="px-3 py-3 text-left text-[11px] text-zinc-400 uppercase">Status</th>
+                  <th className="px-3 py-3 text-left text-[11px] text-zinc-400 uppercase">Date</th>
                 </tr>
               </thead>
               <tbody>
                 {activityData?.entries.map((entry) => (
-                  <tr key={entry.id} style={{ borderTop: "1px solid #27272a" }}>
-                    <td style={{ padding: 12, fontSize: 13 }}>{entry.producer_name}</td>
-                    <td style={{ padding: 12, fontSize: 13, color: "#a1a1aa" }}>{entry.track_title}</td>
-                    <td style={{ padding: 12, fontSize: 12 }}>
-                      <span style={{ padding: "2px 8px", background: "#27272a", borderRadius: 4, color: "#a1a1aa" }}>{entry.status}</span>
+                  <tr key={entry.id} className="border-t border-zinc-800">
+                    <td className="px-3 py-3 text-sm">{entry.producer_name}</td>
+                    <td className="px-3 py-3 text-sm text-zinc-400">{entry.track_title}</td>
+                    <td className="px-3 py-3">
+                      <span className="px-2 py-1 bg-zinc-800 rounded text-xs text-zinc-400">{entry.status}</span>
                     </td>
-                    <td style={{ padding: 12, fontSize: 12, color: "#71717a" }}>{entry.created_at ? new Date(entry.created_at).toLocaleString() : "—"}</td>
+                    <td className="px-3 py-3 text-xs text-zinc-500">{entry.created_at ? new Date(entry.created_at).toLocaleString() : "—"}</td>
                   </tr>
                 ))}
                 {(!activityData || activityData.entries.length === 0) && (
-                  <tr><td colSpan={4} style={{ padding: 24, textAlign: "center", color: "#71717a", fontSize: 13 }}>No recent activity</td></tr>
+                  <tr><td colSpan={4} className="px-6 py-6 text-center text-zinc-500 text-sm">No recent activity</td></tr>
                 )}
               </tbody>
             </table>
           </div>
           {activityTotalPages > 1 && (
-            <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 12 }}>
-              <button onClick={() => setActivityPage((p) => Math.max(1, p - 1))} disabled={activityPage === 1} style={{ padding: "6px 12px", background: "#27272a", border: "1px solid #3f3f46", color: "white", borderRadius: 6, cursor: activityPage === 1 ? "not-allowed" : "pointer", opacity: activityPage === 1 ? 0.5 : 1, fontSize: 12 }}>Anterior</button>
-              <span style={{ padding: "6px 12px", fontSize: 12, color: "#a1a1aa" }}>Page {activityPage} of {activityTotalPages}</span>
-              <button onClick={() => setActivityPage((p) => Math.min(activityTotalPages, p + 1))} disabled={activityPage === activityTotalPages} style={{ padding: "6px 12px", background: "#27272a", border: "1px solid #3f3f46", color: "white", borderRadius: 6, cursor: activityPage === activityTotalPages ? "not-allowed" : "pointer", opacity: activityPage === activityTotalPages ? 0.5 : 1, fontSize: 12 }}>Siguiente</button>
+            <div className="flex justify-center gap-2 mt-3">
+              <button
+                onClick={() => setActivityPage((p) => Math.max(1, p - 1))}
+                disabled={activityPage === 1}
+                className="px-3 py-1.5 bg-zinc-800 border border-zinc-700 hover:border-zinc-600 text-white rounded-md text-xs font-medium transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Anterior
+              </button>
+              <span className="px-3 py-1.5 text-xs text-zinc-400">Page {activityPage} of {activityTotalPages}</span>
+              <button
+                onClick={() => setActivityPage((p) => Math.min(activityTotalPages, p + 1))}
+                disabled={activityPage === activityTotalPages}
+                className="px-3 py-1.5 bg-zinc-800 border border-zinc-700 hover:border-zinc-600 text-white rounded-md text-xs font-medium transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Siguiente
+              </button>
             </div>
           )}
         </div>
@@ -483,7 +525,13 @@ export default function AdminDashboard() {
 
       {/* Toast */}
       {toast && (
-        <div style={{ position: "fixed", top: 24, left: "50%", transform: "translateX(-50%)", padding: "12px 20px", background: toast.type === "success" ? "#064e3b" : "#7f1d1d", border: `1px solid ${toast.type === "success" ? "#10b981" : "#ef4444"}`, color: "white", borderRadius: 8, fontSize: 13, fontWeight: 500, zIndex: 100, boxShadow: "0 10px 25px rgba(0,0,0,0.5)" }}>
+        <div
+          className={`fixed top-6 left-1/2 -translate-x-1/2 px-5 py-3 rounded-lg border text-sm font-medium shadow-xl z-50 ${
+            toast.type === "success"
+              ? "bg-emerald-950/80 border-emerald-500/30 text-emerald-300"
+              : "bg-red-950/80 border-red-500/30 text-red-300"
+          }`}
+        >
           {toast.message}
         </div>
       )}
