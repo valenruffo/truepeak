@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from "react";
 import useSWR from "swr";
+import { SWRProvider } from "@/lib/swr-config";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/lib/supabase";
 import {
@@ -398,6 +399,7 @@ export default function AdminDashboard() {
   }, [usersData, search, sortKey]);
 
   return (
+    <SWRProvider>
     <div className="min-h-screen bg-[#09090b] text-white font-sans p-6 md:p-8">
       {/* Toast Alert */}
       <AnimatePresence>
@@ -813,5 +815,6 @@ export default function AdminDashboard() {
         )}
       </div>
     </div>
+    </SWRProvider>
   );
 }
