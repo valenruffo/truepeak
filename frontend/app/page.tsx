@@ -1846,8 +1846,8 @@ function Pricing() {
     },
     {
       name: t("pricing.indie"),
-      price: t("pricing.indie_price"),
-      originalPrice: "$25",
+      price: mode === "beta" ? "$12.50" : t("pricing.indie_price"),
+      originalPrice: mode === "beta" ? "$25" : null,
       cta: mode === "prod" ? "Get Started" : "Join Waitlist",
       href: mode === "prod" ? (process.env.NEXT_PUBLIC_POLAR_CHECKOUT_INDIE || "https://buy.polar.sh/polar_cl_HmWbpa6oeLs6vcSucDQR5rlWXMPsne5p33MOi2RZPFg") : "#",
       border: "#10b981",
@@ -1857,7 +1857,7 @@ function Pricing() {
       keyPrefix: "pricing.indie",
       isFree: false,
       planInterest: "indie",
-      scarcityBadge: mode === "beta" ? "BETA: 50% OFF" : null,
+      scarcityBadge: mode === "beta" ? "BETA - 50% OFF" : null,
     },
     {
       name: t("pricing.pro"),
