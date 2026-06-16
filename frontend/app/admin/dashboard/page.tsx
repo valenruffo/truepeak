@@ -35,24 +35,6 @@ function formatRelativeTime(iso: string | null | undefined): string {
   return `${Math.floor(diffDay / 30)} month${Math.floor(diffDay / 30) === 1 ? "" : "s"} ago`;
 }
 
-const planBadgeClass = (plan: string) => {
-  switch (plan) {
-    case "indie": return "bg-blue-500/15 border-blue-500/30 text-blue-300";
-    case "pro": return "bg-emerald-500/15 border-emerald-500/30 text-emerald-300";
-    default: return "bg-zinc-700/40 border-zinc-600/40 text-zinc-300";
-  }
-};
-
-const statusBadgeClass = (status: string) => {
-  switch (status) {
-    case "active": return "bg-emerald-500/15 border-emerald-500/30 text-emerald-300";
-    case "frozen": return "bg-yellow-500/15 border-yellow-500/30 text-yellow-300";
-    case "canceled":
-    case "suspended": return "bg-red-500/15 border-red-500/30 text-red-300";
-    default: return "bg-zinc-700/40 border-zinc-600/40 text-zinc-300";
-  }
-};
-
 export default function AdminDashboard() {
   const [password, setPassword] = useState<string>("");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -242,10 +224,10 @@ export default function AdminDashboard() {
   // ===================== LOGIN SCREEN =====================
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen bg-[#09090b] text-white flex items-center justify-center font-body">
-        <div className="w-80 p-8 bg-[#18181b] rounded-lg border border-zinc-800">
-          <h1 className="text-xl font-semibold mb-2">Admin Login</h1>
-          <p className="text-xs text-zinc-400 mb-4">Restricted access</p>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--bg-main)" }}>
+        <div className="rounded border p-8 w-80" style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}>
+          <div className="text-xs font-mono uppercase tracking-wider text-muted mb-2">Admin Access</div>
+          <h1 className="font-display font-semibold text-2xl mb-6">Login</h1>
           <input
             type="password"
             value={password}
@@ -253,13 +235,18 @@ export default function AdminDashboard() {
             onKeyDown={(e) => e.key === "Enter" && !loginLoading && handleLogin()}
             placeholder="Password"
             disabled={loginLoading}
-            className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 text-white rounded-md mb-2 text-sm focus:outline-none focus:border-emerald-500 transition-colors"
+            className="w-full px-3 py-2 rounded border text-sm mb-3 focus:outline-none focus:border-emerald-500 transition-colors"
+            style={{ background: "var(--bg-input)", borderColor: "var(--border)", color: "var(--text-primary)" }}
           />
-          {loginError && <p className="text-red-500 text-xs mb-2">{loginError}</p>}
+          {loginError && <p className="text-xs text-red-500 mb-3">{loginError}</p>}
           <button
             onClick={handleLogin}
             disabled={loginLoading}
-            className="w-full py-2.5 bg-emerald-500 hover:bg-emerald-600 disabled:bg-emerald-800 text-white rounded-md font-medium text-sm transition-colors cursor-pointer disabled:cursor-wait"
+            className="w-full py-2.5 rounded font-medium text-sm transition-colors cursor-pointer disabled:cursor-wait"
+            style={{
+              background: loginLoading ? "rgba(16,185,129,0.3)" : "#10b981",
+              color: "white",
+            }}
           >
             {loginLoading ? "Logging in..." : "Login"}
           </button>
@@ -275,23 +262,26 @@ export default function AdminDashboard() {
   const activityTotalPages = Math.max(1, Math.ceil(activityTotal / 20));
 
   return (
-    <div className="min-h-screen bg-[#09090b] text-white font-body p-6 md:p-8">
+    <div className="max-w-6xl mx-auto px-6 py-12" style={{ background: "var(--bg-main)" }}>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-semibold">Admin Dashboard</h1>
-          <p className="text-xs text-zinc-400 mt-1">True Peak · {currentMode.toUpperCase()}</p>
+          <div className="text-xs font-mono uppercase tracking-wider text-muted mb-1">Admin</div>
+          <h1 className="font-display font-semibold text-2xl">Dashboard</h1>
+          <p className="text-xs text-muted mt-1">True Peak · {currentMode.toUpperCase()}</p>
         </div>
         <div className="flex gap-2">
           <button
             onClick={handleToggleMode}
-            className="px-3 py-2 bg-zinc-800 border border-zinc-700 hover:border-zinc-600 text-white rounded-md text-xs font-medium transition-colors cursor-pointer"
+            className="px-3 py-2 rounded border text-xs font-medium transition-colors cursor-pointer"
+            style={{ borderColor: "var(--border)", background: "var(--bg-card)", color: "var(--text-secondary)" }}
           >
             {currentMode === "beta" ? "Switch to PROD" : "Switch to BETA"}
           </button>
           <button
             onClick={handleLogout}
-            className="px-3 py-2 bg-zinc-800 border border-zinc-700 hover:border-zinc-600 text-white rounded-md text-xs font-medium transition-colors cursor-pointer"
+            className="px-3 py-2 rounded border text-xs font-medium transition-colors cursor-pointer"
+            style={{ borderColor: "var(--border)", background: "var(--bg-card)", color: "var(--text-secondary)" }}
           >
             Logout
           </button>
@@ -299,31 +289,31 @@ export default function AdminDashboard() {
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-3 gap-3 mb-6">
-        <div className="p-4 bg-[#18181b] rounded-lg border border-zinc-800">
-          <p className="text-[11px] text-zinc-400 uppercase mb-1">App Mode</p>
-          <p className="text-xl font-semibold">{currentMode.toUpperCase()}</p>
+      <div className="grid grid-cols-3 gap-4 mb-8">
+        <div className="rounded border p-6" style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}>
+          <div className="text-xs font-mono uppercase tracking-wider text-muted mb-2">App Mode</div>
+          <p className="font-display font-semibold text-2xl">{currentMode.toUpperCase()}</p>
         </div>
-        <div className="p-4 bg-[#18181b] rounded-lg border border-zinc-800">
-          <p className="text-[11px] text-zinc-400 uppercase mb-1">Waitlist</p>
-          <p className="text-xl font-semibold">{waitlistTotal}</p>
+        <div className="rounded border p-6" style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}>
+          <div className="text-xs font-mono uppercase tracking-wider text-muted mb-2">Waitlist</div>
+          <p className="font-display font-semibold text-2xl">{waitlistTotal}</p>
         </div>
-        <div className="p-4 bg-[#18181b] rounded-lg border border-zinc-800">
-          <p className="text-[11px] text-zinc-400 uppercase mb-1">Users</p>
-          <p className="text-xl font-semibold">{usersData?.length ?? 0}</p>
+        <div className="rounded border p-6" style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}>
+          <div className="text-xs font-mono uppercase tracking-wider text-muted mb-2">Users</div>
+          <p className="font-display font-semibold text-2xl">{usersData?.length ?? 0}</p>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-4 border-b border-zinc-800">
+      <div className="flex gap-6 mb-6 border-b" style={{ borderColor: "var(--border)" }}>
         {(["waitlist", "users", "activity"] as Tab[]).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2.5 text-sm font-medium transition-colors cursor-pointer ${
+            className={`pb-3 text-sm font-medium transition-colors cursor-pointer ${
               activeTab === tab
-                ? "text-emerald-400 border-b-2 border-emerald-500"
-                : "text-zinc-400 hover:text-zinc-200"
+                ? "text-emerald-500 border-b-2 border-emerald-500"
+                : "text-muted hover:text-primary"
             }`}
           >
             {tab}
@@ -334,53 +324,56 @@ export default function AdminDashboard() {
       {/* Waitlist tab */}
       {activeTab === "waitlist" && (
         <div>
-          <div className="flex justify-between items-center mb-3">
-            <h2 className="text-base font-semibold">Waitlist ({waitlistTotal})</h2>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="font-display font-semibold text-lg">Waitlist ({waitlistTotal})</h2>
             <button
               onClick={handleExportCSV}
               disabled={exporting}
-              className="px-3 py-1.5 bg-zinc-800 border border-zinc-700 hover:border-zinc-600 text-white rounded-md text-xs font-medium transition-colors cursor-pointer disabled:cursor-wait disabled:opacity-50"
+              className="px-3 py-1.5 rounded border text-xs font-medium transition-colors cursor-pointer disabled:cursor-wait disabled:opacity-50"
+              style={{ borderColor: "var(--border)", background: "var(--bg-card)", color: "var(--text-secondary)" }}
             >
               {exporting ? "Exporting..." : "Export CSV"}
             </button>
           </div>
-          <div className="bg-[#18181b] rounded-lg border border-zinc-800 overflow-hidden">
+          <div className="rounded border overflow-hidden" style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}>
             <table className="w-full">
               <thead>
-                <tr className="bg-[#1f1f23]">
-                  <th className="px-3 py-3 text-left text-[11px] text-zinc-400 uppercase">Email</th>
-                  <th className="px-3 py-3 text-left text-[11px] text-zinc-400 uppercase">Source</th>
-                  <th className="px-3 py-3 text-left text-[11px] text-zinc-400 uppercase">Date</th>
+                <tr style={{ background: "var(--bg-hover)" }}>
+                  <th className="px-4 py-3 text-left text-xs font-mono uppercase tracking-wider text-muted">Email</th>
+                  <th className="px-4 py-3 text-left text-xs font-mono uppercase tracking-wider text-muted">Source</th>
+                  <th className="px-4 py-3 text-left text-xs font-mono uppercase tracking-wider text-muted">Date</th>
                 </tr>
               </thead>
               <tbody>
                 {waitlistData?.entries.map((entry) => (
-                  <tr key={entry.id} className="border-t border-zinc-800">
-                    <td className="px-3 py-3 text-sm">{entry.email}</td>
-                    <td className="px-3 py-3 text-xs text-zinc-400">{entry.source || "—"}</td>
-                    <td className="px-3 py-3 text-xs text-zinc-500">{new Date(entry.created_at).toLocaleDateString()}</td>
+                  <tr key={entry.id} className="border-t" style={{ borderColor: "var(--border)" }}>
+                    <td className="px-4 py-3 text-sm" style={{ color: "var(--text-primary)" }}>{entry.email}</td>
+                    <td className="px-4 py-3 text-xs" style={{ color: "var(--text-muted)" }}>{entry.source || "—"}</td>
+                    <td className="px-4 py-3 text-xs" style={{ color: "var(--text-muted)" }}>{new Date(entry.created_at).toLocaleDateString()}</td>
                   </tr>
                 ))}
                 {(!waitlistData || waitlistData.entries.length === 0) && (
-                  <tr><td colSpan={3} className="px-6 py-6 text-center text-zinc-500 text-sm">No waitlist entries</td></tr>
+                  <tr><td colSpan={3} className="px-6 py-8 text-center text-sm" style={{ color: "var(--text-muted)" }}>No waitlist entries</td></tr>
                 )}
               </tbody>
             </table>
           </div>
           {waitlistTotalPages > 1 && (
-            <div className="flex justify-center gap-2 mt-3">
+            <div className="flex justify-center gap-2 mt-4">
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page === 1}
-                className="px-3 py-1.5 bg-zinc-800 border border-zinc-700 hover:border-zinc-600 text-white rounded-md text-xs font-medium transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                className="px-3 py-1.5 rounded border text-xs font-medium transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                style={{ borderColor: "var(--border)", background: "var(--bg-card)", color: "var(--text-secondary)" }}
               >
                 Anterior
               </button>
-              <span className="px-3 py-1.5 text-xs text-zinc-400">Page {page} of {waitlistTotalPages}</span>
+              <span className="px-3 py-1.5 text-xs" style={{ color: "var(--text-muted)" }}>Page {page} of {waitlistTotalPages}</span>
               <button
                 onClick={() => setPage((p) => Math.min(waitlistTotalPages, p + 1))}
                 disabled={page === waitlistTotalPages}
-                className="px-3 py-1.5 bg-zinc-800 border border-zinc-700 hover:border-zinc-600 text-white rounded-md text-xs font-medium transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                className="px-3 py-1.5 rounded border text-xs font-medium transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                style={{ borderColor: "var(--border)", background: "var(--bg-card)", color: "var(--text-secondary)" }}
               >
                 Siguiente
               </button>
@@ -392,18 +385,20 @@ export default function AdminDashboard() {
       {/* Users tab */}
       {activeTab === "users" && (
         <div>
-          <div className="flex gap-2 mb-3 items-center">
+          <div className="flex gap-3 mb-4 items-center">
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by name, email, slug..."
-              className="flex-1 px-3 py-2 bg-zinc-800 border border-zinc-700 text-white rounded-md text-sm focus:outline-none focus:border-emerald-500 transition-colors"
+              className="flex-1 px-3 py-2 rounded border text-sm focus:outline-none focus:border-emerald-500 transition-colors"
+              style={{ background: "var(--bg-input)", borderColor: "var(--border)", color: "var(--text-primary)" }}
             />
             <select
               value={sortKey}
               onChange={(e) => setSortKey(e.target.value as SortKey)}
-              className="px-3 py-2 bg-zinc-800 border border-zinc-700 text-white rounded-md text-sm focus:outline-none focus:border-emerald-500 transition-colors cursor-pointer"
+              className="px-3 py-2 rounded border text-sm focus:outline-none focus:border-emerald-500 transition-colors cursor-pointer"
+              style={{ background: "var(--bg-input)", borderColor: "var(--border)", color: "var(--text-primary)" }}
             >
               <option value="newest">Newest</option>
               <option value="oldest">Oldest</option>
@@ -411,45 +406,49 @@ export default function AdminDashboard() {
               <option value="submissions">Most Submissions</option>
             </select>
           </div>
-          <div className="bg-[#18181b] rounded-lg border border-zinc-800 overflow-hidden">
+          <div className="rounded border overflow-hidden" style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}>
             <table className="w-full">
               <thead>
-                <tr className="bg-[#1f1f23]">
-                  <th className="px-3 py-3 text-left text-[11px] text-zinc-400 uppercase">Name</th>
-                  <th className="px-3 py-3 text-left text-[11px] text-zinc-400 uppercase">Email</th>
-                  <th className="px-3 py-3 text-left text-[11px] text-zinc-400 uppercase">Plan</th>
-                  <th className="px-3 py-3 text-left text-[11px] text-zinc-400 uppercase">Status</th>
-                  <th className="px-3 py-3 text-left text-[11px] text-zinc-400 uppercase">Submissions</th>
-                  <th className="px-3 py-3 text-left text-[11px] text-zinc-400 uppercase">Last Active</th>
+                <tr style={{ background: "var(--bg-hover)" }}>
+                  <th className="px-4 py-3 text-left text-xs font-mono uppercase tracking-wider text-muted">Name</th>
+                  <th className="px-4 py-3 text-left text-xs font-mono uppercase tracking-wider text-muted">Email</th>
+                  <th className="px-4 py-3 text-left text-xs font-mono uppercase tracking-wider text-muted">Plan</th>
+                  <th className="px-4 py-3 text-left text-xs font-mono uppercase tracking-wider text-muted">Status</th>
+                  <th className="px-4 py-3 text-left text-xs font-mono uppercase tracking-wider text-muted">Submissions</th>
+                  <th className="px-4 py-3 text-left text-xs font-mono uppercase tracking-wider text-muted">Last Active</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredUsers.map((user) => (
-                  <tr key={user.id} className="border-t border-zinc-800">
-                    <td className="px-3 py-3 text-sm font-medium">{user.name}</td>
-                    <td className="px-3 py-3 text-sm text-zinc-400">{user.email}</td>
-                    <td className="px-3 py-3">
+                  <tr key={user.id} className="border-t" style={{ borderColor: "var(--border)" }}>
+                    <td className="px-4 py-3 text-sm font-medium" style={{ color: "var(--text-primary)" }}>{user.name}</td>
+                    <td className="px-4 py-3 text-sm" style={{ color: "var(--text-muted)" }}>{user.email}</td>
+                    <td className="px-4 py-3">
                       <select
                         value={user.plan}
                         onChange={(e) => handleUpdateUser(user.id, { plan: e.target.value })}
-                        className={`px-2 py-1 bg-zinc-800 border rounded text-xs cursor-pointer transition-colors ${
-                          user.plan === "indie"
-                            ? "border-blue-500/50 text-blue-300"
-                            : user.plan === "pro"
-                            ? "border-emerald-500/50 text-emerald-300"
-                            : "border-zinc-700 text-zinc-300"
-                        }`}
+                        className="px-2 py-1 rounded border text-xs cursor-pointer transition-colors"
+                        style={{
+                          background: "var(--bg-input)",
+                          borderColor: user.plan === "indie" ? "#3b82f6" : user.plan === "pro" ? "#10b981" : "var(--border)",
+                          color: user.plan === "indie" ? "#93c5fd" : user.plan === "pro" ? "#6ee7b7" : "var(--text-secondary)",
+                        }}
                       >
                         <option value="free">Free</option>
                         <option value="indie">Indie</option>
                         <option value="pro">Pro</option>
                       </select>
                     </td>
-                    <td className="px-3 py-3">
+                    <td className="px-4 py-3">
                       <select
                         value={user.status}
                         onChange={(e) => handleUpdateUser(user.id, { subscription_status: e.target.value })}
-                        className={`px-2 py-1 bg-zinc-800 border border-zinc-700 rounded text-xs cursor-pointer transition-colors ${statusBadgeClass(user.status)}`}
+                        className="px-2 py-1 rounded border text-xs cursor-pointer transition-colors"
+                        style={{
+                          background: "var(--bg-input)",
+                          borderColor: "var(--border)",
+                          color: user.status === "active" ? "#10b981" : user.status === "frozen" ? "#eab308" : "#ef4444",
+                        }}
                       >
                         <option value="active">Active</option>
                         <option value="frozen">Frozen</option>
@@ -457,12 +456,12 @@ export default function AdminDashboard() {
                         <option value="suspended">Suspended</option>
                       </select>
                     </td>
-                    <td className="px-3 py-3 text-sm text-zinc-400">{user.total_submissions ?? 0}</td>
-                    <td className="px-3 py-3 text-xs text-zinc-500">{formatRelativeTime(user.last_submission_at)}</td>
+                    <td className="px-4 py-3 text-sm" style={{ color: "var(--text-muted)" }}>{user.total_submissions ?? 0}</td>
+                    <td className="px-4 py-3 text-xs" style={{ color: "var(--text-muted)" }}>{formatRelativeTime(user.last_submission_at)}</td>
                   </tr>
                 ))}
                 {filteredUsers.length === 0 && (
-                  <tr><td colSpan={6} className="px-6 py-6 text-center text-zinc-500 text-sm">No users found</td></tr>
+                  <tr><td colSpan={6} className="px-6 py-8 text-center text-sm" style={{ color: "var(--text-muted)" }}>No users found</td></tr>
                 )}
               </tbody>
             </table>
@@ -473,48 +472,50 @@ export default function AdminDashboard() {
       {/* Activity tab */}
       {activeTab === "activity" && (
         <div>
-          <h2 className="text-base font-semibold mb-3">Recent Activity ({activityTotal})</h2>
-          <div className="bg-[#18181b] rounded-lg border border-zinc-800 overflow-hidden">
+          <h2 className="font-display font-semibold text-lg mb-4">Recent Activity ({activityTotal})</h2>
+          <div className="rounded border overflow-hidden" style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}>
             <table className="w-full">
               <thead>
-                <tr className="bg-[#1f1f23]">
-                  <th className="px-3 py-3 text-left text-[11px] text-zinc-400 uppercase">Producer</th>
-                  <th className="px-3 py-3 text-left text-[11px] text-zinc-400 uppercase">Track</th>
-                  <th className="px-3 py-3 text-left text-[11px] text-zinc-400 uppercase">Status</th>
-                  <th className="px-3 py-3 text-left text-[11px] text-zinc-400 uppercase">Date</th>
+                <tr style={{ background: "var(--bg-hover)" }}>
+                  <th className="px-4 py-3 text-left text-xs font-mono uppercase tracking-wider text-muted">Producer</th>
+                  <th className="px-4 py-3 text-left text-xs font-mono uppercase tracking-wider text-muted">Track</th>
+                  <th className="px-4 py-3 text-left text-xs font-mono uppercase tracking-wider text-muted">Status</th>
+                  <th className="px-4 py-3 text-left text-xs font-mono uppercase tracking-wider text-muted">Date</th>
                 </tr>
               </thead>
               <tbody>
                 {activityData?.entries.map((entry) => (
-                  <tr key={entry.id} className="border-t border-zinc-800">
-                    <td className="px-3 py-3 text-sm">{entry.producer_name}</td>
-                    <td className="px-3 py-3 text-sm text-zinc-400">{entry.track_title}</td>
-                    <td className="px-3 py-3">
-                      <span className="px-2 py-1 bg-zinc-800 rounded text-xs text-zinc-400">{entry.status}</span>
+                  <tr key={entry.id} className="border-t" style={{ borderColor: "var(--border)" }}>
+                    <td className="px-4 py-3 text-sm" style={{ color: "var(--text-primary)" }}>{entry.producer_name}</td>
+                    <td className="px-4 py-3 text-sm" style={{ color: "var(--text-muted)" }}>{entry.track_title}</td>
+                    <td className="px-4 py-3">
+                      <span className="px-2 py-1 rounded text-xs" style={{ background: "var(--bg-hover)", color: "var(--text-muted)" }}>{entry.status}</span>
                     </td>
-                    <td className="px-3 py-3 text-xs text-zinc-500">{entry.created_at ? new Date(entry.created_at).toLocaleString() : "—"}</td>
+                    <td className="px-4 py-3 text-xs" style={{ color: "var(--text-muted)" }}>{entry.created_at ? new Date(entry.created_at).toLocaleString() : "—"}</td>
                   </tr>
                 ))}
                 {(!activityData || activityData.entries.length === 0) && (
-                  <tr><td colSpan={4} className="px-6 py-6 text-center text-zinc-500 text-sm">No recent activity</td></tr>
+                  <tr><td colSpan={4} className="px-6 py-8 text-center text-sm" style={{ color: "var(--text-muted)" }}>No recent activity</td></tr>
                 )}
               </tbody>
             </table>
           </div>
           {activityTotalPages > 1 && (
-            <div className="flex justify-center gap-2 mt-3">
+            <div className="flex justify-center gap-2 mt-4">
               <button
                 onClick={() => setActivityPage((p) => Math.max(1, p - 1))}
                 disabled={activityPage === 1}
-                className="px-3 py-1.5 bg-zinc-800 border border-zinc-700 hover:border-zinc-600 text-white rounded-md text-xs font-medium transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                className="px-3 py-1.5 rounded border text-xs font-medium transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                style={{ borderColor: "var(--border)", background: "var(--bg-card)", color: "var(--text-secondary)" }}
               >
                 Anterior
               </button>
-              <span className="px-3 py-1.5 text-xs text-zinc-400">Page {activityPage} of {activityTotalPages}</span>
+              <span className="px-3 py-1.5 text-xs" style={{ color: "var(--text-muted)" }}>Page {activityPage} of {activityTotalPages}</span>
               <button
                 onClick={() => setActivityPage((p) => Math.min(activityTotalPages, p + 1))}
                 disabled={activityPage === activityTotalPages}
-                className="px-3 py-1.5 bg-zinc-800 border border-zinc-700 hover:border-zinc-600 text-white rounded-md text-xs font-medium transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                className="px-3 py-1.5 rounded border text-xs font-medium transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                style={{ borderColor: "var(--border)", background: "var(--bg-card)", color: "var(--text-secondary)" }}
               >
                 Siguiente
               </button>
