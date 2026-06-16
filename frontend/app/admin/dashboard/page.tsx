@@ -155,43 +155,51 @@ export default function AdminDashboard() {
   // Falls back to SWR refreshInterval (30s) when the channel is dropped.
   useEffect(() => {
     if (!isLoggedIn) return;
-    const channel = supabase
-      .channel("admin-labels")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "label" },
-        (payload) => {
-          if (!mutateUsers) return;
-          mutateUsers(
-            (current) => {
-              if (!current) return current;
-              if (payload.eventType === "INSERT") {
-                const newUser = labelRowToAdminUser(payload.new);
-                // Avoid duplicates if the optimistic list already has it.
-                if (current.some((u) => u.id === newUser.id)) {
-                  return current.map((u) => (u.id === newUser.id ? { ...u, ...newUser } : u));
+    
+    let channel: any;
+    try {
+      channel = supabase
+        .channel("admin-labels")
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "label" },
+          (payload) => {
+            if (!mutateUsers) return;
+            mutateUsers(
+              (current) => {
+                if (!current) return current;
+                if (payload.eventType === "INSERT") {
+                  const newUser = labelRowToAdminUser(payload.new);
+                  // Avoid duplicates if the optimistic list already has it.
+                  if (current.some((u) => u.id === newUser.id)) {
+                    return current.map((u) => (u.id === newUser.id ? { ...u, ...newUser } : u));
+                  }
+                  return [newUser, ...current];
                 }
-                return [newUser, ...current];
-              }
-              if (payload.eventType === "UPDATE") {
-                const updated = labelRowToAdminUser(payload.new);
-                return current.map((u) => (u.id === updated.id ? { ...u, ...updated } : u));
-              }
-              if (payload.eventType === "DELETE") {
-                const deletedId = (payload.old as any)?.id;
-                if (!deletedId) return current;
-                return current.filter((u) => u.id !== deletedId);
-              }
-              return current;
-            },
-            { revalidate: false }
-          );
-        }
-      )
-      .subscribe();
+                if (payload.eventType === "UPDATE") {
+                  const updated = labelRowToAdminUser(payload.new);
+                  return current.map((u) => (u.id === updated.id ? { ...u, ...updated } : u));
+                }
+                if (payload.eventType === "DELETE") {
+                  const deletedId = (payload.old as any)?.id;
+                  if (!deletedId) return current;
+                  return current.filter((u) => u.id !== deletedId);
+                }
+                return current;
+              },
+              { revalidate: false }
+            );
+          }
+        )
+        .subscribe();
+    } catch (error) {
+      console.error("Failed to subscribe to Realtime:", error);
+    }
 
     return () => {
-      supabase.removeChannel(channel);
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
     };
   }, [isLoggedIn, mutateUsers]);
 
