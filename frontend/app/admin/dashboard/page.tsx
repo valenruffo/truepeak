@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from "react";
 import useSWR from "swr";
-import { SWRProvider } from "@/lib/swr-config";
+import { fetcher } from "@/lib/swr-config";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/lib/supabase";
 import {
@@ -115,6 +115,7 @@ export default function AdminDashboard() {
 
   // Fetch App Mode (public, but admin can toggle it)
   const { data: modeData, mutate: mutateMode } = useSWR("/api/config/app-mode", getAppMode, {
+    fetcher,
     revalidateOnFocus: true,
   });
   const currentMode = modeData?.mode || "beta";
@@ -124,6 +125,7 @@ export default function AdminDashboard() {
     isLoggedIn && password ? ["/api/admin/waitlist", page, password] : null,
     () => getWaitlist(password, page, perPage),
     {
+      fetcher,
       revalidateOnFocus: true,
       errorRetryCount: 1,
     }
@@ -134,6 +136,7 @@ export default function AdminDashboard() {
     isLoggedIn && password ? ["/api/admin/users", password] : null,
     () => getAdminUsers(password),
     {
+      fetcher,
       revalidateOnFocus: true,
       refreshInterval: 30000,
       errorRetryCount: 1,
@@ -146,6 +149,7 @@ export default function AdminDashboard() {
     isLoggedIn && password ? ["/api/admin/recent-activity", activityPage, password] : null,
     () => getRecentActivity(activityPage, 20, password),
     {
+      fetcher,
       revalidateOnFocus: true,
       refreshInterval: 30000,
       errorRetryCount: 1,
@@ -399,7 +403,6 @@ export default function AdminDashboard() {
   }, [usersData, search, sortKey]);
 
   return (
-    <SWRProvider>
     <div className="min-h-screen bg-[#09090b] text-white font-sans p-6 md:p-8">
       {/* Toast Alert */}
       <AnimatePresence>
@@ -815,6 +818,5 @@ export default function AdminDashboard() {
         )}
       </div>
     </div>
-    </SWRProvider>
   );
 }
