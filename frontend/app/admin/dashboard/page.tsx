@@ -340,16 +340,16 @@ export default function AdminDashboard() {
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ background: "#1f1f23" }}>
-                  <th style={{ padding: 12, textAlign: "left", fontSize: 11, color: "#a1a1aa", textTransform: "uppercase" }}>Name</th>
                   <th style={{ padding: 12, textAlign: "left", fontSize: 11, color: "#a1a1aa", textTransform: "uppercase" }}>Email</th>
+                  <th style={{ padding: 12, textAlign: "left", fontSize: 11, color: "#a1a1aa", textTransform: "uppercase" }}>Source</th>
                   <th style={{ padding: 12, textAlign: "left", fontSize: 11, color: "#a1a1aa", textTransform: "uppercase" }}>Date</th>
                 </tr>
               </thead>
               <tbody>
                 {waitlistData?.entries.map((entry) => (
                   <tr key={entry.id} style={{ borderTop: "1px solid #27272a" }}>
-                    <td style={{ padding: 12, fontSize: 13 }}>{entry.name || "—"}</td>
-                    <td style={{ padding: 12, fontSize: 13, color: "#a1a1aa" }}>{entry.email}</td>
+                    <td style={{ padding: 12, fontSize: 13 }}>{entry.email}</td>
+                    <td style={{ padding: 12, fontSize: 12, color: "#a1a1aa" }}>{entry.source || "—"}</td>
                     <td style={{ padding: 12, fontSize: 12, color: "#71717a" }}>{new Date(entry.created_at).toLocaleDateString()}</td>
                   </tr>
                 ))}
