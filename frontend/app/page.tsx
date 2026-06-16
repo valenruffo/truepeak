@@ -1834,6 +1834,7 @@ function Pricing() {
     {
       name: t("pricing.free"),
       price: t("pricing.free_price"),
+      firstFreeText: null,
       cta: mode === "prod" ? "Get Started" : "Join Waitlist",
       href: "/register",
       border: "var(--border)",
@@ -1848,6 +1849,7 @@ function Pricing() {
       name: t("pricing.indie"),
       price: mode === "beta" ? "$12.50" : t("pricing.indie_price"),
       originalPrice: mode === "beta" ? "$25" : null,
+      firstFreeText: mode === "beta" ? "First 5 free" : null,
       cta: mode === "prod" ? "Get Started" : "Join Waitlist",
       href: mode === "prod" ? (process.env.NEXT_PUBLIC_POLAR_CHECKOUT_INDIE || "https://buy.polar.sh/polar_cl_HmWbpa6oeLs6vcSucDQR5rlWXMPsne5p33MOi2RZPFg") : "#",
       border: "#10b981",
@@ -1862,6 +1864,7 @@ function Pricing() {
     {
       name: t("pricing.pro"),
       price: t("pricing.pro_price"),
+      firstFreeText: null,
       cta: mode === "prod" ? "Get Started" : "Join Waitlist",
       href: mode === "prod" ? (process.env.NEXT_PUBLIC_POLAR_CHECKOUT_PRO || "https://buy.polar.sh/polar_cl_4u3xFxj5G4klKE5jhYIDGMXmhyL7kjaTQe9Ux34e9Wb") : "#",
       border: "var(--border)",
@@ -1903,6 +1906,9 @@ function Pricing() {
                       <span className="font-bold text-3xl" style={{ color: "var(--text-primary)" }}>{tier.price}</span>
                       <span className="text-xs" style={{ color: "var(--text-muted)" }}>{t("pricing.per_month")}</span>
                     </div>
+                    {tier.firstFreeText && (
+                      <span className="text-xs font-medium mt-1" style={{ color: "#10b981" }}>{tier.firstFreeText}</span>
+                    )}
                   </div>
                 </div>
 
