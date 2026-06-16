@@ -424,37 +424,26 @@ export default function AdminDashboard() {
                     <td className="px-4 py-3 text-sm font-medium" style={{ color: "var(--text-primary)" }}>{user.name}</td>
                     <td className="px-4 py-3 text-sm" style={{ color: "var(--text-muted)" }}>{user.email}</td>
                     <td className="px-4 py-3">
-                      <select
-                        value={user.plan}
-                        onChange={(e) => handleUpdateUser(user.id, { plan: e.target.value })}
-                        className="px-2 py-1 rounded border text-xs cursor-pointer transition-colors"
+                      <span
+                        className="px-2.5 py-1 rounded text-xs font-semibold uppercase tracking-wider"
                         style={{
-                          background: "var(--bg-input)",
-                          borderColor: user.plan === "indie" ? "#3b82f6" : user.plan === "pro" ? "#10b981" : "var(--border)",
-                          color: user.plan === "indie" ? "#93c5fd" : user.plan === "pro" ? "#6ee7b7" : "var(--text-secondary)",
+                          background: user.plan === "pro" ? "rgba(16,185,129,0.12)" : user.plan === "indie" ? "rgba(59,130,246,0.12)" : "rgba(161,161,170,0.1)",
+                          color: user.plan === "pro" || user.plan === "indie" ? (user.plan === "pro" ? "#10b981" : "#3b82f6") : "var(--text-secondary)",
                         }}
                       >
-                        <option value="free">Free</option>
-                        <option value="indie">Indie</option>
-                        <option value="pro">Pro</option>
-                      </select>
+                        {user.plan}
+                      </span>
                     </td>
                     <td className="px-4 py-3">
-                      <select
-                        value={user.status}
-                        onChange={(e) => handleUpdateUser(user.id, { subscription_status: e.target.value })}
-                        className="px-2 py-1 rounded border text-xs cursor-pointer transition-colors"
+                      <span
+                        className="px-2.5 py-1 rounded text-xs font-medium"
                         style={{
-                          background: "var(--bg-input)",
-                          borderColor: "var(--border)",
+                          background: user.status === "active" ? "rgba(16,185,129,0.1)" : user.status === "frozen" ? "rgba(234,179,8,0.1)" : "rgba(239,68,68,0.1)",
                           color: user.status === "active" ? "#10b981" : user.status === "frozen" ? "#eab308" : "#ef4444",
                         }}
                       >
-                        <option value="active">Active</option>
-                        <option value="frozen">Frozen</option>
-                        <option value="canceled">Canceled</option>
-                        <option value="suspended">Suspended</option>
-                      </select>
+                        {user.status}
+                      </span>
                     </td>
                     <td className="px-4 py-3 text-sm" style={{ color: "var(--text-muted)" }}>{user.total_submissions ?? 0}</td>
                     <td className="px-4 py-3 text-xs" style={{ color: "var(--text-muted)" }}>{formatRelativeTime(user.last_submission_at)}</td>
