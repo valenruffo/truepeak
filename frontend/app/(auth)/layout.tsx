@@ -2,10 +2,32 @@
 
 import { usePathname } from "next/navigation";
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { getAppMode } from "@/lib/api";
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isLogin = pathname === "/login";
+  const [isBeta, setIsBeta] = useState(false);
+
+  useEffect(() => {
+    getAppMode().then((data) => {
+      if (data?.mode === "beta") {
+        setIsBeta(true);
+      }
+    }).catch(() => {});
+  }, []);
+
+  // Redirect to landing in beta mode
+  useEffect(() => {
+    if (isBeta) {
+      window.location.href = "/";
+    }
+  }, [isBeta]);
+
+  if (isBeta) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center px-6" style={{ background: "#09090b" }}>

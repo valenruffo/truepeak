@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useLanguage } from "@/lib/i18n";
 import { supabase } from "@/lib/supabase";
-import { getMe } from "@/lib/api";
+import { getMe, getAppMode } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -15,6 +15,15 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Redirect to landing in beta mode
+  useEffect(() => {
+    getAppMode().then((data) => {
+      if (data?.mode === "beta") {
+        router.replace("/");
+      }
+    }).catch(() => {});
+  }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -177,6 +177,14 @@ async def register_label_profile(
     session: Session = Depends(get_session),
 ):
     """Create a Label profile after successful Supabase Auth signup, or recover orphaned profiles."""
+    
+    # Block registration in beta mode
+    from app.models import AppConfig
+    db_config = session.exec(select(AppConfig).where(AppConfig.key == "app_mode")).first()
+    app_mode = db_config.value if db_config else os.getenv("NEXT_PUBLIC_APP_MODE", "beta")
+    if app_mode == "beta":
+        raise HTTPException(status_code=403, detail="Registration is closed during beta. Please join the waitlist.")
+    
     label_id = auth.get("label_id")
     owner_email = auth.get("email")
 

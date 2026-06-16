@@ -209,7 +209,7 @@ function DemoSimulation() {
 
 // ─── Nav ──────────────────────────────────────────────────────────────────────
 
-function Nav() {
+function Nav({ mode }: { mode: "beta" | "prod" }) {
   const { t, lang, setLang } = useLanguage();
   const [scrolled, setScrolled] = useState(false);
 
@@ -218,6 +218,13 @@ function Nav() {
     window.addEventListener("scroll", handler);
     return () => window.removeEventListener("scroll", handler);
   }, []);
+
+  const scrollToPricing = (e: React.MouseEvent) => {
+    if (mode === "beta") {
+      e.preventDefault();
+      document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" });
+    }
+  };
 
   return (
     <nav
@@ -257,6 +264,7 @@ function Nav() {
           </button>
           <Link
             href="/login"
+            onClick={scrollToPricing}
             className="px-4 py-1.5 text-sm transition-colors rounded cursor-pointer"
             style={{ color: "var(--text-muted)", border: "1px solid var(--border)" }}
             onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text-primary)"; e.currentTarget.style.borderColor = "#52525b"; }}
@@ -266,6 +274,7 @@ function Nav() {
           </Link>
           <Link
             href="/register"
+            onClick={scrollToPricing}
             className="px-4 py-1.5 text-sm font-medium rounded transition-all hover:opacity-90 cursor-pointer"
             style={{ background: "#10b981", color: "#09090b" }}
           >
@@ -1982,8 +1991,16 @@ function SocialProof() {
 
 // ─── Footer ───────────────────────────────────────────────────────────────────
 
-function Footer() {
+function Footer({ mode }: { mode: "beta" | "prod" }) {
   const { t } = useLanguage();
+
+  const scrollToPricing = (e: React.MouseEvent) => {
+    if (mode === "beta") {
+      e.preventDefault();
+      document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" });
+    }
+  };
+
   return (
     <footer className="py-8 px-6" style={{ borderTop: "1px solid var(--border)" }}>
       <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
@@ -1994,10 +2011,10 @@ function Footer() {
         </div>
 
         <div className="flex items-center gap-6 text-xs" style={{ color: "var(--text-muted)" }}>
-          <Link href="/login" className="cursor-pointer" style={{ color: "var(--text-muted)" }} onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text-primary)")} onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}>
+          <Link href="/login" onClick={scrollToPricing} className="cursor-pointer" style={{ color: "var(--text-muted)" }} onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text-primary)")} onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}>
             {t("nav.login")}
           </Link>
-          <Link href="/register" className="cursor-pointer" style={{ color: "var(--text-muted)" }} onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text-primary)")} onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}>
+          <Link href="/register" onClick={scrollToPricing} className="cursor-pointer" style={{ color: "var(--text-muted)" }} onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text-primary)")} onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}>
             {t("nav.register")}
           </Link>
           <Link href="/terms-of-service" className="cursor-pointer" style={{ color: "var(--text-muted)" }} onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text-primary)")} onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}>
@@ -2015,6 +2032,12 @@ function Footer() {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function Home() {
+  const { data } = useSWR("/api/config/app-mode", getAppMode, {
+    fallbackData: { mode: (process.env.NEXT_PUBLIC_APP_MODE as "beta" | "prod") || "beta" },
+    revalidateOnFocus: false,
+  });
+  const mode = data?.mode || "beta";
+
   return (
     <div className="min-h-screen" style={{ background: "var(--bg-primary)", color: "var(--text-primary)" }}>
       <style>{`
@@ -2023,14 +2046,14 @@ export default function Home() {
           100% { top: 100%; }
         }
       `}</style>
-      <Nav />
+      <Nav mode={mode} />
       <Hero />
       <PersonaSelectorSection />
       <SocialProof />
       <HowItWorks />
       <Features />
       <Pricing />
-      <Footer />
+      <Footer mode={mode} />
       <WhatsAppBubble />
     </div>
   );
