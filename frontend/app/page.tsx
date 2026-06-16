@@ -1847,9 +1847,9 @@ function Pricing() {
     },
     {
       name: t("pricing.indie"),
-      price: mode === "beta" ? "$12.50" : t("pricing.indie_price"),
-      originalPrice: mode === "beta" ? "$25" : null,
-      firstFreeText: mode === "beta" ? "First 5 free" : null,
+      price: mode === "beta" ? "US$12.5" : t("pricing.indie_price"),
+      originalPrice: mode === "beta" ? "US$25" : null,
+      firstFreeText: mode === "beta" ? t("pricing.first_5_free") : null,
       cta: mode === "prod" ? "Get Started" : "Join Waitlist",
       href: mode === "prod" ? (process.env.NEXT_PUBLIC_POLAR_CHECKOUT_INDIE || "https://buy.polar.sh/polar_cl_HmWbpa6oeLs6vcSucDQR5rlWXMPsne5p33MOi2RZPFg") : "#",
       border: "#10b981",
@@ -1900,7 +1900,7 @@ function Pricing() {
                   <span className="text-xs font-mono uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>{tier.name}</span>
                   <div className="flex flex-col items-end">
                     {tier.originalPrice && (
-                      <span className="text-xs text-zinc-500 line-through">{tier.originalPrice}/mo</span>
+                      <span className="text-xs text-zinc-500 line-through">{tier.originalPrice}{t("pricing.per_month")}</span>
                     )}
                     <div className="flex items-baseline gap-1">
                       <span className="font-bold text-3xl" style={{ color: "var(--text-primary)" }}>{tier.price}</span>
