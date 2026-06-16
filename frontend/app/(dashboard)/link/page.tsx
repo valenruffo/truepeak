@@ -30,8 +30,8 @@ export default function LinkPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [editTitle, setEditTitle] = useState("Enviar demo");
-  const [editDescription, setEditDescription] = useState("Subí tu WAV. Analizamos BPM, LUFS, fase y headroom antes de que el sello lo escuche.");
+  const [editTitle, setEditTitle] = useState("Submit demo");
+  const [editDescription, setEditDescription] = useState("Upload your WAV. We analyze BPM, LUFS, phase and headroom before the label listens.");
   const [savingTexts, setSavingTexts] = useState(false);
   const [textsSaved, setTextsSaved] = useState(false);
   const [textsError, setTextsError] = useState<string | null>(null);
@@ -453,20 +453,20 @@ export default function LinkPage() {
                     onChange={(e) => setEditTitle(e.target.value)} 
                     className="w-full px-3 py-2 rounded-lg border text-xs bg-zinc-950/40 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500" 
                     style={{ borderColor: "var(--border)" }} 
-                    placeholder="Enviar demo" 
+                    placeholder={t("link.edit.title_placeholder")}
                   />
                 </div>
-                
+
                 <div>
                   <label className="text-xs font-semibold text-white mb-1.5 block">{t("link.edit.desc_label")}</label>
-                  <textarea 
-                    value={editDescription} 
-                    onChange={(e) => setEditDescription(e.target.value)} 
-                    className="w-full px-3 py-2 rounded-lg border text-xs bg-zinc-950/40 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500" 
-                    style={{ borderColor: "var(--border)" }} 
-                    placeholder="Subí tu WAV. Analizamos BPM, LUFS, fase y headroom..." 
-                    rows={3} 
-                    suppressHydrationWarning 
+                  <textarea
+                    value={editDescription}
+                    onChange={(e) => setEditDescription(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border text-xs bg-zinc-950/40 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
+                    style={{ borderColor: "var(--border)" }}
+                    placeholder={t("link.edit.description_placeholder")}
+                    rows={3}
+                    suppressHydrationWarning
                   />
                 </div>
 

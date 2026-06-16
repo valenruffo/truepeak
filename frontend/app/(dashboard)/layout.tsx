@@ -620,14 +620,14 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
   const navItems = [
     { href: "/config", label: t("dashboard.nav.config"), icon: Sliders },
     { href: "/link", label: t("dashboard.nav.link"), icon: Link2 },
-    { href: "/inbox", label: role === "dj" ? "Promos" : "Demos", icon: Inbox },
-    { 
-      href: "/emails", 
-      label: "Emails", 
+    { href: "/inbox", label: role === "dj" ? t("dashboard.section.promos") : t("dashboard.section.demos"), icon: Inbox },
+    {
+      href: "/emails",
+      label: t("dashboard.section.emails"),
       icon: Mail,
       children: [
-        { href: "/emails", label: "CRM" },
-        { href: "/emails/templates", label: "Templates" },
+        { href: "/emails", label: t("dashboard.section.crm") },
+        { href: "/emails/templates", label: t("dashboard.section.templates") },
       ]
     },
     { href: "/guide", label: t("dashboard.nav.guide"), icon: BookOpen },
@@ -908,7 +908,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
                 <div className="min-w-0 flex-1">
                   <div className="text-xs font-medium truncate" style={{ color: "var(--text-primary)" }}>{labelName}</div>
                   <div className="text-[9px] text-emerald-400 font-medium mt-0.5">
-                    {plan.toLowerCase() === "pro" ? "Plan Pro" : plan.toLowerCase() === "indie" ? "Plan Indie" : "Plan Free"}
+                    {plan.toLowerCase() === "pro" ? t("dashboard.plan_pro") : plan.toLowerCase() === "indie" ? t("dashboard.plan_indie") : t("dashboard.plan_free")}
                   </div>
                 </div>
               </div>

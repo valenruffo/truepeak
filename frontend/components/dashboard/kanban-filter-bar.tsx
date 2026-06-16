@@ -7,6 +7,7 @@ import { CalendarIcon, FilterX, Filter } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Slider } from "@/components/ui/slider";
 import { useEffect, useState } from "react";
+import { useLanguage } from "@/lib/i18n";
 
 const camelotKeys = [
   "1A", "1B", "2A", "2B", "3A", "3B", "4A", "4B",
@@ -15,6 +16,7 @@ const camelotKeys = [
 ];
 
 export function KanbanFilterBar({ sonicSignature }: { sonicSignature?: any }) {
+  const { t } = useLanguage();
   const {
     bpmMin,
     bpmMax,
@@ -76,7 +78,7 @@ export function KanbanFilterBar({ sonicSignature }: { sonicSignature?: any }) {
           }}
         >
           <Filter className="h-3.5 w-3.5 mr-0.5" />
-          Filtros
+          {t("inbox.filter_bar.title")}
           {activeFilterCount > 0 && (
             <span className="flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-bold ml-1.5" style={{ background: "#10b981", color: "#09090b" }}>
               {activeFilterCount}
@@ -88,7 +90,7 @@ export function KanbanFilterBar({ sonicSignature }: { sonicSignature?: any }) {
         {/* BPM Range Slider */}
         <div>
           <div className="flex justify-between items-center mb-1.5">
-            <span className="text-xs font-semibold text-primary">Rango de BPM</span>
+            <span className="text-xs font-semibold text-primary">{t("inbox.filter_bar.bpm_range")}</span>
             <span className="text-[10px] text-muted font-mono">{sliderValues[0]} - {sliderValues[1]}</span>
           </div>
           <div className="px-1 py-1">
@@ -112,7 +114,7 @@ export function KanbanFilterBar({ sonicSignature }: { sonicSignature?: any }) {
 
         {/* Camelot Key Grid */}
         <div className="border-t pt-3" style={{ borderColor: "var(--border-light)" }}>
-          <span className="text-xs font-semibold text-primary block mb-2">Tonalidad Camelot</span>
+          <span className="text-xs font-semibold text-primary block mb-2">{t("inbox.filter_bar.camelot_key")}</span>
           <div className="grid grid-cols-6 gap-1">
             {camelotKeys.map((key) => {
               const isSelected = tonalidades.includes(key);
@@ -136,26 +138,26 @@ export function KanbanFilterBar({ sonicSignature }: { sonicSignature?: any }) {
 
         {/* Date Filter */}
         <div className="border-t pt-3" style={{ borderColor: "var(--border-light)" }}>
-          <span className="text-xs font-semibold text-primary block mb-1.5">Fecha de Envío</span>
+          <span className="text-xs font-semibold text-primary block mb-1.5">{t("inbox.filter_bar.submission_date")}</span>
           <div className="flex flex-wrap gap-1">
             {[
-              { label: "7d", days: 7 },
-              { label: "15d", days: 15 },
-              { label: "30d", days: 30 },
-              { label: "3m", months: 3 },
-              { label: "Histórico", clear: true },
+              { label: "7d", days: 7, i18n: "inbox.filter_bar.date_7d" },
+              { label: "15d", days: 15, i18n: "inbox.filter_bar.date_15d" },
+              { label: "30d", days: 30, i18n: "inbox.filter_bar.date_30d" },
+              { label: "3m", months: 3, i18n: "inbox.filter_bar.date_3m" },
+              { label: "Histórico", clear: true, i18n: "inbox.filter_bar.date_historic" },
             ].map((option) => {
-              const displayLabel = option.clear ? "Todos" : option.label;
-              const isFullLabelActive = option.clear 
-                ? !fechaLabel 
+              const displayLabel = option.clear ? t("inbox.filter_bar.all") : option.label;
+              const isFullLabelActive = option.clear
+                ? !fechaLabel
                 : (fechaLabel && (
-                    fechaLabel.includes(option.label) || 
-                    (option.label === "7d" && fechaLabel.includes("7")) || 
-                    (option.label === "15d" && fechaLabel.includes("15")) || 
-                    (option.label === "30d" && fechaLabel.includes("30")) || 
+                    fechaLabel.includes(option.label) ||
+                    (option.label === "7d" && fechaLabel.includes("7")) ||
+                    (option.label === "15d" && fechaLabel.includes("15")) ||
+                    (option.label === "30d" && fechaLabel.includes("30")) ||
                     (option.label === "3m" && fechaLabel.includes("3"))
                   ));
-              
+
               return (
                 <button
                   key={option.label}
@@ -178,7 +180,7 @@ export function KanbanFilterBar({ sonicSignature }: { sonicSignature?: any }) {
                     if (option.months) past.setMonth(today.getMonth() - option.months);
                     setFechaInicio(past);
                     setFechaFin(today);
-                    setFechaLabel(`Últimos ${option.label === "3m" ? "3 meses" : option.label === "7d" ? "7 días" : option.label === "15d" ? "15 días" : "30 días"}`);
+                    setFechaLabel(t(option.i18n as any));
                   }}
                 >
                   {displayLabel}
@@ -190,12 +192,12 @@ export function KanbanFilterBar({ sonicSignature }: { sonicSignature?: any }) {
 
         {/* HQ Download Filter */}
         <div className="border-t pt-3" style={{ borderColor: "var(--border-light)" }}>
-          <span className="text-xs font-semibold text-primary block mb-1.5">HQ Descargado</span>
+          <span className="text-xs font-semibold text-primary block mb-1.5">{t("inbox.filter_bar.hq_downloaded")}</span>
           <div className="flex gap-1">
             {[
-              { label: "Todos", value: null },
-              { label: "✓ Descargados", value: true },
-              { label: "↓ Pendientes", value: false },
+              { label: t("inbox.filter_bar.all"), value: null },
+              { label: t("inbox.filter_bar.downloaded"), value: true },
+              { label: t("inbox.filter_bar.pending"), value: false },
             ].map((opt) => {
               const isActive = hqDownloaded === opt.value;
               return (
@@ -227,7 +229,7 @@ export function KanbanFilterBar({ sonicSignature }: { sonicSignature?: any }) {
               style={{ color: "var(--text-muted)" }}
             >
               <FilterX className="mr-1.5 h-3.5 w-3.5" />
-              <span className="hover:text-white transition-colors">Limpiar Filtros</span>
+              <span className="hover:text-white transition-colors">{t("inbox.filter_bar.clear")}</span>
             </Button>
           </div>
         )}

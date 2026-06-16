@@ -445,6 +445,7 @@ function statusLabel(status: string, role: "label" | "dj", t: (key: any) => stri
 }
 
 function ExpirationCountdown({ createdAt, retentionDays }: { createdAt: string, retentionDays: number }) {
+  const { t } = useLanguage();
   if (retentionDays === 0) return null; // Free plan tracks don't expire
   const created = new Date(createdAt).getTime();
   const expiresAt = created + retentionDays * 24 * 60 * 60 * 1000;
@@ -452,7 +453,7 @@ function ExpirationCountdown({ createdAt, retentionDays }: { createdAt: string, 
   const timeLeft = expiresAt - now;
 
   if (timeLeft <= 0) {
-    return <span className="text-red-500 font-medium">Expirado (Papelera)</span>;
+    return <span className="text-red-500 font-medium">{t("inbox.modal.expired")} (Papelera)</span>;
   }
 
   const days = Math.floor(timeLeft / (1000 * 60 * 60 * 24));
@@ -461,7 +462,7 @@ function ExpirationCountdown({ createdAt, retentionDays }: { createdAt: string, 
   const isWarning = days < 1;
   return (
     <span className={cn("flex items-center gap-1", isWarning ? "text-amber-500 font-medium" : "text-muted")}>
-      <Clock className="w-3.5 h-3.5" /> Expira en {days}d {hours}h
+      <Clock className="w-3.5 h-3.5" /> {t("inbox.modal.expires_in")} {days}d {hours}h
     </span>
   );
 }
@@ -1856,7 +1857,7 @@ useEffect(() => {
                   style={{
                     color: isPlayingThis ? "#10b981" : "var(--text-secondary)",
                   }}
-                  title="Reproducir"
+                  title={t("inbox.action.play")}
                 >
                   {isPlayingThis ? (
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
@@ -1875,7 +1876,7 @@ useEffect(() => {
                   <div
                     className="w-6 h-6 rounded flex items-center justify-center"
                     style={{ color: "#10b981" }}
-                    title="Email ya enviado al productor"
+                    title={t("inbox.modal.email_already_sent")}
                   >
                     <Mail className="w-4 h-4" />
                   </div>
@@ -1888,7 +1889,7 @@ useEffect(() => {
                     }}
                     className="w-6 h-6 rounded flex items-center justify-center transition-colors hover:bg-white/10"
                     style={{ color: "var(--text-muted)" }}
-                    title="Enviar email al productor"
+                    title={t("inbox.modal.email_tooltip")}
                   >
                     <Mail className="w-4 h-4" />
                   </button>
@@ -1899,7 +1900,7 @@ useEffect(() => {
                 <div
                   className="w-6 h-6 rounded flex items-center justify-center"
                   style={{ color: "#10b981" }}
-                  title="HQ descargado"
+                  title={t("inbox.hq_downloaded")}
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
                 </div>
@@ -1912,7 +1913,7 @@ useEffect(() => {
                   disabled={downloadLoading[sub.id]}
                   className="w-6 h-6 rounded flex items-center justify-center transition-colors hover:bg-white/10 disabled:opacity-50"
                   style={{ color: "#10b981" }}
-                  title="Descargar HQ (se elimina del servidor al descargar)"
+                  title={t("inbox.action.download_hq")}
                 >
                   {downloadLoading[sub.id] ? (
                     <div className="w-3 h-3 border border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
@@ -2165,7 +2166,7 @@ useEffect(() => {
                         color: isPlayingThis ? "#10b981" : "inherit",
                         border: isPlayingThis ? "1px solid #10b981" : "1px solid var(--border)",
                       }}
-                      title={isPlayingThis ? "Pausar" : "Reproducir"}
+                      title={isPlayingThis ? t("inbox.action.pause") : t("inbox.action.play")}
                     >
                       {isPlayingThis ? (
                         <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
@@ -2286,7 +2287,7 @@ useEffect(() => {
                       opacity: d.status === "inbox" ? 0.3 : 1,
                       pointerEvents: d.status === "inbox" ? "none" : "auto",
                     }}
-                    title="Mover a Inbox"
+                    title={lang === "es" ? "Mover a Inbox" : "Move to Inbox"}
                   >
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <polyline points="1 4 1 10 7 10" />
@@ -2300,7 +2301,7 @@ useEffect(() => {
                       <div
                         className="w-7 h-7 rounded flex items-center justify-center"
                         style={{ color: "#10b981" }}
-                        title="Email ya enviado al productor"
+                        title={t("inbox.modal.email_already_sent")}
                       >
                         <Mail className="w-3.5 h-3.5" />
                       </div>
@@ -2314,7 +2315,7 @@ useEffect(() => {
                         disabled={!!isLoading}
                         className="w-7 h-7 rounded flex items-center justify-center transition-colors hover:bg-white/5 disabled:opacity-50 border"
                         style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}
-                        title="Enviar email al productor"
+                        title={t("inbox.modal.email_tooltip")}
                       >
                         <Mail className="w-3.5 h-3.5" />
                       </button>
@@ -2328,7 +2329,7 @@ useEffect(() => {
                       disabled={downloadLoading[d.id] || !!isLoading}
                       className="w-7 h-7 rounded flex items-center justify-center transition-colors hover:bg-white/5 disabled:opacity-50 border"
                       style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}
-                      title="Descargar Original (HQ)"
+                      title={t("inbox.action.download_hq")}
                     >
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -2566,12 +2567,12 @@ useEffect(() => {
               const elapsedMin = Math.floor((Date.now() - deletedAt.getTime()) / 60000);
               const timeLeftMin = Math.max(0, 30 - elapsedMin);
               canRestore = timeLeftMin > 0;
-              timeLabel = canRestore ? `Expira en ${timeLeftMin} min` : "Expirado";
+              timeLabel = canRestore ? `${t("inbox.modal.expires_in")} ${timeLeftMin} min` : t("inbox.modal.expired");
             } else {
               const elapsedHr = Math.floor((Date.now() - deletedAt.getTime()) / 3600000);
               const timeLeftHr = Math.max(0, 24 - elapsedHr);
               canRestore = timeLeftHr > 0;
-              timeLabel = canRestore ? `Expira en ${timeLeftHr}h` : "Expirado";
+              timeLabel = canRestore ? `${t("inbox.modal.expires_in")} ${timeLeftHr}h` : t("inbox.modal.expired");
             }
           }
 
@@ -2635,14 +2636,14 @@ useEffect(() => {
                 >
                   {isLoading === "delete"
                     ? "..."
-                    : "ELIMINAR"}
+                    : t("inbox.modal.btn_delete")}
                 </button>
                 {!canRestore && (
                   <span
                     className="text-[10px] text-muted"
                     title={t("inbox.kanban.restore_expired")}
                   >
-                    Expirado
+                    {t("inbox.modal.expired")}
                   </span>
                 )}
               </div>
@@ -2962,11 +2963,11 @@ useEffect(() => {
                       <p className={cn("text-xl font-display font-semibold", metricValue(lufsState))}>{formatLufs(sub.lufs)}</p>
                     </div>
                     <div className={cn("p-3 rounded border transition-all", metricBorder(keyState))}>
-                      <p className={cn("text-[10px] uppercase tracking-wider mb-1 font-mono", metricLabel(keyState))}>Tonalidad</p>
+                      <p className={cn("text-[10px] uppercase tracking-wider mb-1 font-mono", metricLabel(keyState))}>{t("inbox.modal.key")}</p>
                       <p className={cn("text-xl font-display font-semibold", metricValue(keyState))}>{formatKey(sub.musical_key)}</p>
                     </div>
                     <div className={cn("p-3 rounded border transition-all", metricBorder(durationState))}>
-                      <p className={cn("text-[10px] uppercase tracking-wider mb-1 font-mono", metricLabel(durationState))}>Duración</p>
+                      <p className={cn("text-[10px] uppercase tracking-wider mb-1 font-mono", metricLabel(durationState))}>{t("inbox.modal.duration")}</p>
                       <p className={cn("text-xl font-display font-semibold", metricValue(durationState))}>{formatDuration(sub.duration)}</p>
                     </div>
                   </div>
@@ -2974,7 +2975,7 @@ useEffect(() => {
                   {/* Technical breakdown */}
                   <div className="space-y-3">
                     <h3 className="text-xs font-mono uppercase tracking-widest text-muted border-b pb-1.5" style={{ borderColor: "var(--border)" }}>
-                      Análisis Técnico
+                      {t("inbox.modal.tech_analysis")}
                     </h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3">
                       <div className={cn("flex justify-between items-center text-sm py-1 border-b border-white/[0.03] px-1 rounded", peakState === "critico" ? "bg-red-500/10" : peakState === "warning" ? "bg-amber-500/5" : "")}>
@@ -2986,11 +2987,11 @@ useEffect(() => {
                         <span className={cn("font-mono", crestState === "critico" ? "text-red-500" : crestState === "warning" ? "text-amber-500" : "")}>{formatCrest(sub.crest_factor)} dB</span>
                       </div>
                       <div className={cn("flex justify-between items-center text-sm py-1 border-b border-white/[0.03] px-1 rounded", phaseState === "critico" ? "bg-red-500/10" : phaseState === "warning" ? "bg-amber-500/5" : "")}>
-                        <span className={cn(phaseState === "critico" ? "text-red-400" : phaseState === "warning" ? "text-amber-400" : "text-muted")}>Correlación de Fase</span>
+                        <span className={cn(phaseState === "critico" ? "text-red-400" : phaseState === "warning" ? "text-amber-400" : "text-muted")}>{t("inbox.modal.phase_correlation")}</span>
                         <span className={cn("font-mono", phaseState === "critico" ? "text-red-500" : phaseState === "warning" ? "text-amber-500" : "")}>{sub.phase_correlation?.toFixed(2) ?? "—"}</span>
                       </div>
                       <div className="flex justify-between items-center text-sm py-1 border-b border-white/[0.03]">
-                        <span className="text-muted">Estado Actual</span>
+                        <span className="text-muted">{t("inbox.modal.current_status")}</span>
                         <span className="font-mono" style={{ color: statusBadgeColor(sub.status).color }}>
                           {statusLabel(sub.status, role, t).toUpperCase()}
                         </span>
@@ -3002,16 +3003,16 @@ useEffect(() => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
                     <div className="space-y-3">
                       <h3 className="text-xs font-mono uppercase tracking-widest text-muted border-b pb-1.5" style={{ borderColor: "var(--border)" }}>
-                        Contacto
+                        {t("inbox.modal.contact")}
                       </h3>
                       <div className="space-y-3">
                         <p className="text-sm">
-                          <span className="text-muted block text-[10px] uppercase mb-0.5">Email del productor</span>
+                          <span className="text-muted block text-[10px] uppercase mb-0.5">{t("inbox.modal.producer_email_label")}</span>
                           {sub.producer_email || t("crm.no_email")}
                         </p>
                         {sub.producer_instagram && (
                           <p className="text-sm">
-                            <span className="text-muted block text-[10px] uppercase mb-0.5">Instagram</span>
+                            <span className="text-muted block text-[10px] uppercase mb-0.5">{t("inbox.modal.instagram")}</span>
                             <a 
                               href={`https://instagram.com/${sub.producer_instagram.replace(/^@/, "")}`} 
                               target="_blank" 
@@ -3026,7 +3027,7 @@ useEffect(() => {
                         )}
                         {sub.producer_soundcloud && (
                           <p className="text-sm">
-                            <span className="text-muted block text-[10px] uppercase mb-0.5">SoundCloud</span>
+                            <span className="text-muted block text-[10px] uppercase mb-0.5">{t("inbox.modal.soundcloud")}</span>
                             <a 
                               href={`https://soundcloud.com/${sub.producer_soundcloud}`} 
                               target="_blank" 
@@ -3040,7 +3041,7 @@ useEffect(() => {
                           </p>
                         )}
                         <p className="text-sm">
-                          <span className="text-muted block text-[10px] uppercase mb-0.5">Recibido</span>
+                          <span className="text-muted block text-[10px] uppercase mb-0.5">{t("inbox.modal.received")}</span>
                           {new Date(sub.created_at).toLocaleString("es-AR")}
                         </p>
                       </div>
@@ -3048,10 +3049,10 @@ useEffect(() => {
 
                     <div className="space-y-3">
                       <h3 className="text-xs font-mono uppercase tracking-widest text-muted border-b pb-1.5" style={{ borderColor: "var(--border)" }}>
-                        Notas del Productor
+                        {t("inbox.modal.producer_notes")}
                       </h3>
                       <p className="text-sm text-secondary italic leading-relaxed">
-                        {sub.notes || "No se adjuntaron notas."}
+                        {sub.notes || t("inbox.modal.no_notes")}
                       </p>
                     </div>
                   </div>
@@ -3098,12 +3099,24 @@ useEffect(() => {
                         </div>
                         <p className="text-sm text-red-200/90 leading-relaxed font-medium">
                           {(() => {
-                            if (displayReason === "out_of_tempo") return `BPM fuera de rango. El track tiene ${sub.bpm} BPM y tu firma requiere entre ${bpmMin} y ${bpmMax} BPM.`;
-                            if (displayReason === "excessive_loudness") return `Volumen excesivo. El track mide ${sub.lufs} LUFS y tu límite máximo es ${lufsLimit} LUFS.`;
-                            if (displayReason === "inverted_phase") return `Falla de fase. La correlación es de ${sub.phase_correlation?.toFixed(2)}, por debajo del mínimo de ${phaseMin}.`;
-                            if (displayReason === "wrong_musical_key") return `Tonalidad incorrecta. El track está en ${formatKey(sub.musical_key)} y no coincide con tus escalas preferidas.`;
-                            if (displayReason === "digital_clipping") return `Clipping digital. El True Peak alcanzó ${formatPeak(sub.true_peak)} dB (máximo permitido: < 0 dB).`;
-                            if (displayReason === "low_dynamic_range") return `Rango dinámico insuficiente. El Crest Factor es de ${sub.crest_factor} dB (mínimo: ${sonicSignature?.crest_factor_min ?? 5.0} dB).`;
+                            if (displayReason === "out_of_tempo") return lang === "es"
+                              ? `BPM fuera de rango. El track tiene ${sub.bpm} BPM y tu firma requiere entre ${bpmMin} y ${bpmMax} BPM.`
+                              : `BPM out of range. The track is ${sub.bpm} BPM and your signature requires between ${bpmMin} and ${bpmMax} BPM.`;
+                            if (displayReason === "excessive_loudness") return lang === "es"
+                              ? `Volumen excesivo. El track mide ${sub.lufs} LUFS y tu límite máximo es ${lufsLimit} LUFS.`
+                              : `Excessive loudness. The track measures ${sub.lufs} LUFS and your max limit is ${lufsLimit} LUFS.`;
+                            if (displayReason === "inverted_phase") return lang === "es"
+                              ? `Falla de fase. La correlación es de ${sub.phase_correlation?.toFixed(2)}, por debajo del mínimo de ${phaseMin}.`
+                              : `Phase failure. The correlation is ${sub.phase_correlation?.toFixed(2)}, below the minimum of ${phaseMin}.`;
+                            if (displayReason === "wrong_musical_key") return lang === "es"
+                              ? `Tonalidad incorrecta. El track está en ${formatKey(sub.musical_key)} y no coincide con tus escalas preferidas.`
+                              : `Wrong key. The track is in ${formatKey(sub.musical_key)} and does not match your preferred scales.`;
+                            if (displayReason === "digital_clipping") return lang === "es"
+                              ? `Clipping digital. El True Peak alcanzó ${formatPeak(sub.true_peak)} dB (máximo permitido: < 0 dB).`
+                              : `Digital clipping. True Peak reached ${formatPeak(sub.true_peak)} dB (max allowed: < 0 dB).`;
+                            if (displayReason === "low_dynamic_range") return lang === "es"
+                              ? `Rango dinámico insuficiente. El Crest Factor es de ${sub.crest_factor} dB (mínimo: ${sonicSignature?.crest_factor_min ?? 5.0} dB).`
+                              : `Insufficient dynamic range. Crest Factor is ${sub.crest_factor} dB (minimum: ${sonicSignature?.crest_factor_min ?? 5.0} dB).`;
                             return displayReason || t("inbox.auto_rejected_reason");
                           })()}
                         </p>
@@ -3127,9 +3140,9 @@ useEffect(() => {
                     }}
                   >
                     {currentTrack?.id === detailModal.submission.id && isPlaying ? (
-                      <><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg> PAUSAR</>
+                      <><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg> {t("inbox.modal.btn_pause")}</>
                     ) : (
-                      <><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg> ESCUCHAR</>
+                      <><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg> {t("inbox.modal.btn_listen")}</>
                     )}
                   </button>
                 )}
@@ -3138,10 +3151,10 @@ useEffect(() => {
                     <div
                       className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium border cursor-not-allowed"
                       style={{ borderColor: "rgba(16,185,129,0.4)", color: "#10b981", background: "rgba(16,185,129,0.07)" }}
-                      title="Email ya enviado al productor"
+                      title={t("inbox.kanban.email_sent")}
                     >
                       <Mail className="w-4 h-4" />
-                      ENVIADO!
+                      {t("inbox.kanban.email_sent").toUpperCase()}!
                     </div>
                   ) : (
                     <button
@@ -3153,15 +3166,15 @@ useEffect(() => {
                       className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium border transition-colors hover:bg-white/5"
                       style={{ borderColor: "rgba(255,255,255,0.1)", color: "var(--text-secondary)" }}
                     >
-                      <Mail className="w-4 h-4" />
-                      ENVIAR MAIL
-                    </button>
+                        <Mail className="w-4 h-4" />
+                        {t("inbox.modal.btn_send_email")}
+                      </button>
                   )
                 )}
                 {detailModal.submission.hq_downloaded ? (
                   <div className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium border" style={{ borderColor: "rgba(16,185,129,0.3)", color: "#10b981" }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                    HQ DESCARGADO
+                    {t("inbox.hq_downloaded").toUpperCase()}
                   </div>
                 ) : detailModal.submission.original_path ? (
                   <button
@@ -3169,20 +3182,20 @@ useEffect(() => {
                     disabled={downloadLoading[detailModal.submission.id]}
                     className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium border transition-all hover:scale-105 disabled:opacity-50"
                     style={{ borderColor: "#10b981", color: "#10b981", background: "rgba(16,185,129,0.08)" }}
-                    title="El archivo original se eliminará del servidor tras la descarga"
+                    title={t("inbox.action.download_hq")}
                   >
                     {downloadLoading[detailModal.submission.id] ? (
                       <div className="w-4 h-4 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
                     ) : (
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                     )}
-                    DESCARGAR HQ
+                    {t("inbox.modal.btn_download_hq")}
                   </button>
                 ) : detailModal.submission.status === "shortlist" ? (
                   <div className="flex items-center gap-2 px-4 py-2 rounded-full text-sm border" style={{ borderColor: "rgba(255,255,255,0.08)", color: "var(--text-muted)" }}
-                    title="El archivo de alta calidad expiró. Contactá al productor para solicitar el HQ original">
+                    title={t("inbox.modal.expired")}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                    HQ EXPIRADO
+                    HQ {t("inbox.modal.expired").toUpperCase()}
                   </div>
                 ) : null}
               </div>
