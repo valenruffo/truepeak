@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useMemo, useRef } from "react";
 import useSWR from "swr";
-import { fetcher } from "@/lib/swr-config";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/lib/supabase";
 import {
@@ -17,6 +16,13 @@ import {
   getRecentActivity,
   RecentActivityEntry,
 } from "@/lib/api";
+
+// Simple fetcher for admin dashboard (no supabase dependency)
+const adminFetcher = async (url: string) => {
+  const res = await fetch(url, { credentials: "include" });
+  if (!res.ok) throw new Error(`Failed to fetch ${url}`);
+  return res.json();
+};
 
 type Tab = "waitlist" | "users" | "activity";
 type SortKey = "newest" | "oldest" | "plan" | "submissions";
@@ -115,7 +121,7 @@ export default function AdminDashboard() {
 
   // Fetch App Mode (public, but admin can toggle it)
   const { data: modeData, mutate: mutateMode } = useSWR("/api/config/app-mode", getAppMode, {
-    fetcher,
+    fetcher: adminFetcher,
     revalidateOnFocus: true,
   });
   const currentMode = modeData?.mode || "beta";
@@ -125,7 +131,7 @@ export default function AdminDashboard() {
     isLoggedIn && password ? ["/api/admin/waitlist", page, password] : null,
     () => getWaitlist(password, page, perPage),
     {
-      fetcher,
+      fetcher: adminFetcher,
       revalidateOnFocus: true,
       errorRetryCount: 1,
     }
@@ -136,7 +142,7 @@ export default function AdminDashboard() {
     isLoggedIn && password ? ["/api/admin/users", password] : null,
     () => getAdminUsers(password),
     {
-      fetcher,
+      fetcher: adminFetcher,
       revalidateOnFocus: true,
       refreshInterval: 30000,
       errorRetryCount: 1,
@@ -149,7 +155,7 @@ export default function AdminDashboard() {
     isLoggedIn && password ? ["/api/admin/recent-activity", activityPage, password] : null,
     () => getRecentActivity(activityPage, 20, password),
     {
-      fetcher,
+      fetcher: adminFetcher,
       revalidateOnFocus: true,
       refreshInterval: 30000,
       errorRetryCount: 1,
