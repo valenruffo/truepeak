@@ -1678,7 +1678,7 @@ function Features() {
   );
 }
 
-function WaitlistModal({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+function WaitlistModal({ open, onOpenChange, planInterest }: { open: boolean; onOpenChange: (open: boolean) => void; planInterest?: string }) {
   const [email, setEmail] = useState("");
   const [company, setCompany] = useState(""); // Honeypot field
   const [loading, setLoading] = useState(false);
@@ -1698,7 +1698,7 @@ function WaitlistModal({ open, onOpenChange }: { open: boolean; onOpenChange: (o
       const response = await fetch("/api/waitlist", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, company }),
+        body: JSON.stringify({ email, company, plan_interest: planInterest }),
       });
       if (response.ok) {
         setStatus("success");
@@ -1815,6 +1815,7 @@ function WaitlistModal({ open, onOpenChange }: { open: boolean; onOpenChange: (o
 function Pricing() {
   const { t } = useLanguage();
   const [modalOpen, setModalOpen] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<string | undefined>(undefined);
 
   // Fetch app mode with SWR, defaulting to env var or 'beta'
   const { data } = useSWR("/api/config/app-mode", getAppMode, {
@@ -1823,6 +1824,11 @@ function Pricing() {
     refreshInterval: 30000,
   });
   const mode = data?.mode || "beta";
+
+  const handleJoinWaitlist = (planInterest: string) => {
+    setSelectedPlan(planInterest);
+    setModalOpen(true);
+  };
 
   const tiers = [
     {
@@ -1836,10 +1842,12 @@ function Pricing() {
       features: [0, 1, 2, 3],
       keyPrefix: "pricing.free",
       isFree: true,
+      planInterest: "free",
     },
     {
       name: t("pricing.indie"),
       price: t("pricing.indie_price"),
+      originalPrice: "$25",
       cta: mode === "prod" ? "Get Started" : "Join Waitlist",
       href: mode === "prod" ? (process.env.NEXT_PUBLIC_POLAR_CHECKOUT_INDIE || "https://buy.polar.sh/polar_cl_HmWbpa6oeLs6vcSucDQR5rlWXMPsne5p33MOi2RZPFg") : "#",
       border: "#10b981",
@@ -1848,6 +1856,8 @@ function Pricing() {
       features: [0, 1, 2, 3, 4, 5, 6],
       keyPrefix: "pricing.indie",
       isFree: false,
+      planInterest: "indie",
+      scarcityBadge: mode === "beta" ? "BETA: 50% OFF" : null,
     },
     {
       name: t("pricing.pro"),
@@ -1860,6 +1870,7 @@ function Pricing() {
       features: [0, 1, 2, 3, 4, 5, 6],
       keyPrefix: "pricing.pro",
       isFree: false,
+      planInterest: "pro",
     },
   ];
 
@@ -1875,13 +1886,23 @@ function Pricing() {
 
         <div className="grid md:grid-cols-3 gap-4">
           {tiers.map((tier) => (
-            <div key={tier.name} className="p-6 rounded border flex flex-col justify-between" style={{ background: tier.bg, borderColor: tier.border }}>
+            <div key={tier.name} className="p-6 rounded border flex flex-col justify-between relative" style={{ background: tier.bg, borderColor: tier.border }}>
+              {tier.scarcityBadge && (
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500 text-zinc-950 whitespace-nowrap">
+                  {tier.scarcityBadge}
+                </div>
+              )}
               <div>
                 <div className="flex items-baseline justify-between mb-6">
                   <span className="text-xs font-mono uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>{tier.name}</span>
-                  <div className="flex items-baseline gap-1">
-                    <span className="font-bold text-3xl" style={{ color: "var(--text-primary)" }}>{tier.price}</span>
-                    <span className="text-xs" style={{ color: "var(--text-muted)" }}>{t("pricing.per_month")}</span>
+                  <div className="flex flex-col items-end">
+                    {tier.originalPrice && (
+                      <span className="text-xs text-zinc-500 line-through">{tier.originalPrice}/mo</span>
+                    )}
+                    <div className="flex items-baseline gap-1">
+                      <span className="font-bold text-3xl" style={{ color: "var(--text-primary)" }}>{tier.price}</span>
+                      <span className="text-xs" style={{ color: "var(--text-muted)" }}>{t("pricing.per_month")}</span>
+                    </div>
                   </div>
                 </div>
 
@@ -1897,7 +1918,7 @@ function Pricing() {
 
               {mode === "beta" ? (
                 <button
-                  onClick={() => setModalOpen(true)}
+                  onClick={() => handleJoinWaitlist(tier.planInterest)}
                   className="w-full py-2.5 text-sm font-medium rounded transition-all hover:opacity-90 block text-center cursor-pointer font-sans"
                   style={tier.btnStyle}
                 >
@@ -1916,7 +1937,7 @@ function Pricing() {
           ))}
         </div>
       </div>
-      <WaitlistModal open={modalOpen} onOpenChange={setModalOpen} />
+      <WaitlistModal open={modalOpen} onOpenChange={setModalOpen} planInterest={selectedPlan} />
     </section>
   );
 }

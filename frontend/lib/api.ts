@@ -282,6 +282,7 @@ export interface WaitlistEntry {
   email: string;
   created_at: string;
   source: string;
+  plan_interest?: string;  // "free", "indie", "pro" - which plan they clicked
 }
 
 export interface AppModeResponse {

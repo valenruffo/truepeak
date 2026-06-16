@@ -23,6 +23,7 @@ limiter = Limiter(key_func=get_remote_address)
 class WaitlistSubmit(BaseModel):
     email: EmailStr
     company: str | None = None  # Honeypot field
+    plan_interest: str | None = None  # "free", "indie", "pro" - which plan they clicked
 
 class AppModeUpdate(BaseModel):
     mode: str  # "beta" | "prod"
@@ -97,7 +98,7 @@ def join_waitlist(
     if existing:
         return {"status": "ok"}
         
-    entry = WaitlistEntry(email=req.email, source="landing")
+    entry = WaitlistEntry(email=req.email, source="landing", plan_interest=req.plan_interest)
     session.add(entry)
     session.commit()
     return {"status": "ok"}
@@ -146,12 +147,12 @@ def export_waitlist_csv(
         writer = csv.writer(output)
         
         # Write header
-        writer.writerow(["email", "created_at"])
+        writer.writerow(["email", "created_at", "plan_interest"])
         
         for entry in entries:
             # Format datetime
             created_str = entry.created_at.strftime("%Y-%m-%d %H:%M:%S")
-            writer.writerow([entry.email, created_str])
+            writer.writerow([entry.email, created_str, entry.plan_interest or ""])
             
         output.seek(0)
         yield output.getvalue()

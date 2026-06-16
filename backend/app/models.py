@@ -185,6 +185,7 @@ class WaitlistEntry(SQLModel, table=True):
         default_factory=lambda: datetime.now(UTC),
     )
     source: str = Field(default="landing")
+    plan_interest: str | None = Field(default=None)  # "free", "indie", "pro" - which plan they clicked
 
 
 class AppConfig(SQLModel, table=True):

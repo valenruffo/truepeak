@@ -340,6 +340,7 @@ export default function AdminDashboard() {
               <thead>
                 <tr style={{ background: "var(--bg-hover)" }}>
                   <th className="px-4 py-3 text-left text-xs font-mono uppercase tracking-wider text-muted">Email</th>
+                  <th className="px-4 py-3 text-left text-xs font-mono uppercase tracking-wider text-muted">Plan</th>
                   <th className="px-4 py-3 text-left text-xs font-mono uppercase tracking-wider text-muted">Source</th>
                   <th className="px-4 py-3 text-left text-xs font-mono uppercase tracking-wider text-muted">Date</th>
                 </tr>
@@ -348,6 +349,21 @@ export default function AdminDashboard() {
                 {waitlistData?.entries.map((entry) => (
                   <tr key={entry.id} className="border-t" style={{ borderColor: "var(--border)" }}>
                     <td className="px-4 py-3 text-sm" style={{ color: "var(--text-primary)" }}>{entry.email}</td>
+                    <td className="px-4 py-3">
+                      {entry.plan_interest ? (
+                        <span
+                          className="px-2 py-1 rounded text-xs font-medium"
+                          style={{
+                            background: entry.plan_interest === "indie" ? "rgba(16,185,129,0.1)" : entry.plan_interest === "pro" ? "rgba(59,130,246,0.1)" : "rgba(161,161,170,0.1)",
+                            color: entry.plan_interest === "indie" ? "#10b981" : entry.plan_interest === "pro" ? "#3b82f6" : "var(--text-muted)",
+                          }}
+                        >
+                          {entry.plan_interest}
+                        </span>
+                      ) : (
+                        <span className="text-xs" style={{ color: "var(--text-muted)" }}>—</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-xs" style={{ color: "var(--text-muted)" }}>{entry.source || "—"}</td>
                     <td className="px-4 py-3 text-xs" style={{ color: "var(--text-muted)" }}>{new Date(entry.created_at).toLocaleDateString()}</td>
                   </tr>
