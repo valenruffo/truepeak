@@ -146,6 +146,7 @@ class EmailTemplate(SQLModel, table=True):
     subject_template: str
     body_template: str
     template_type: str = Field(default="custom", index=True)  # rejection | approval | custom
+    lang: str | None = Field(default="es")
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC),
     )

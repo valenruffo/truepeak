@@ -55,26 +55,26 @@ function buildTemplates(labelName: string, t: (key: any) => string): Template[] 
     {
       id: "reject-phase",
       label: t("crm.template.reject_phase"),
-      subject: `Tu demo en ${labelName} — Feedback técnico`,
-      body: `Hola {producer},\n\nGracias por enviar "{track}" a ${labelName}. Lo escuchamos y analizamos con nuestro motor técnico.\n\nLamentablemente, detectamos un problema de fase invertida en los canales L/R que afecta la compatibilidad mono del track. Esto es crítico para nosotros ya que nuestro material se reproduce en sistemas de club.\n\nTe sugerimos revisar la correlación de fase en tu master y volver a enviar.\n\nSaludos,\nEquipo A&R — ${labelName}`,
+      subject: t("crm.template.reject_subject", { labelName }),
+      body: t("crm.template.reject_phase_body", { labelName }),
     },
     {
       id: "reject-tempo",
       label: t("crm.template.reject_tempo"),
-      subject: `Tu demo en ${labelName} — Feedback técnico`,
-      body: `Hola {producer},\n\nGracias por enviar "{track}" a ${labelName}.\n\nTu track está en {bpm} BPM, mientras que nuestro rango aceptado es 120–128 BPM. Por eso no podemos considerarlo para nuestro catálogo actual.\n\nSi tenés material en el rango correcto, no dudes en enviarlo.\n\nSaludos,\nEquipo A&R — ${labelName}`,
+      subject: t("crm.template.reject_subject", { labelName }),
+      body: t("crm.template.reject_tempo_body", { labelName }),
     },
     {
       id: "approve",
       label: t("crm.template.approve"),
-      subject: `Tu demo fue aprobado en ${labelName}`,
-      body: `Hola {producer},\n\nBuenas noticias: "{track}" pasó nuestro filtro técnico y nos encantó.\n\nQueremos avanzar a la siguiente fase de revisión artística. Nuestro equipo de A&R va a contactarte en los próximos días.\n\nSaludos,\nEquipo A&R — ${labelName}`,
+      subject: t("crm.template.approve_subject", { labelName }),
+      body: t("crm.template.approve_body", { labelName }),
     },
     {
       id: "followup",
       label: t("crm.template.followup"),
-      subject: `Re: Tu demo corregido en ${labelName}`,
-      body: `Hola {producer},\n\nRecibimos la versión corregida de "{track}". Estamos revisándola.\n\nTe avisamos en 48hs si pasa a la fase de escucha artística.\n\nGracias por la paciencia,\nEquipo A&R — ${labelName}`,
+      subject: t("crm.template.followup_subject", { labelName }),
+      body: t("crm.template.followup_body", { labelName }),
     },
   ];
 }

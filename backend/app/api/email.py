@@ -262,10 +262,15 @@ async def list_templates(
             ),
         ]
     
-    # Fetch templates from DB
+    # Fetch templates from DB, optionally filtered by the label's language
+    # If a template doesn't have a language set (legacy), we still show it.
+    label = session.get(Label, label_id)
+    lang = label.lang if label else "es"
+    
     templates = session.exec(
         select(EmailTemplate)
         .where(EmailTemplate.label_id == label_id)
+        .where((EmailTemplate.lang == lang) | (EmailTemplate.lang == None))
         .order_by(EmailTemplate.created_at.desc())
     ).all()
     
@@ -292,12 +297,17 @@ async def create_template(
     session: Session = Depends(get_session),
 ):
     """Create a new email template for the authenticated label."""
+    label_id = auth["label_id"]
+    label = session.get(Label, label_id)
+    lang = label.lang if label else "es"
+    
     template = EmailTemplate(
-        label_id=auth["label_id"],
+        label_id=label_id,
         name=body.name,
         template_type=body.template_type,
         subject_template=body.subject_template,
         body_template=body.body_template,
+        lang=lang,
     )
     session.add(template)
     session.commit()
