@@ -144,7 +144,8 @@ type TechStatus = "optimo" | "warning" | "critico";
 
 function evaluateSubmission(
   sub: SubmissionSummary,
-  sig: any
+  sig: any,
+  t: any
 ): { status: TechStatus; alertas: string[] } {
   if (!sig) return { status: "optimo", alertas: [] };
   
@@ -162,30 +163,54 @@ function evaluateSubmission(
   if (sub.true_peak != null) {
     const tpDb = sub.true_peak > 0 ? 20 * Math.log10(sub.true_peak) : -99;
     if (tpDb <= peakLimitMax) statuses.push("optimo");
-    else if (tpDb <= peakLimitCritical) { statuses.push("warning"); alertas.push(`True Peak alto: ${tpDb.toFixed(2)} dB (recomendado: < ${peakLimitMax.toFixed(1)} dB)`); }
-    else { statuses.push("critico"); alertas.push(`True Peak crítico: ${tpDb.toFixed(2)} dB (límite: +${peakLimitCritical.toFixed(1)} dB)`); }
+    else if (tpDb <= peakLimitCritical) { 
+      statuses.push("warning"); 
+      alertas.push(t("inbox.alert.tp_high", { val: tpDb.toFixed(2), max: peakLimitMax.toFixed(1) })); 
+    }
+    else { 
+      statuses.push("critico"); 
+      alertas.push(t("inbox.alert.tp_critical", { val: tpDb.toFixed(2), crit: peakLimitCritical.toFixed(1) })); 
+    }
   }
   
   // Crest Factor
   if (sub.crest_factor != null) {
     if (sub.crest_factor >= crestMin) statuses.push("optimo");
-    else if (sub.crest_factor > crestCritical) { statuses.push("warning"); alertas.push(`Rango dinámico bajo (Crest Factor): ${sub.crest_factor.toFixed(2)} dB`); }
-    else { statuses.push("critico"); alertas.push(`Rango dinámico crítico (Crest Factor): ${sub.crest_factor.toFixed(2)} dB`); }
+    else if (sub.crest_factor > crestCritical) { 
+      statuses.push("warning"); 
+      alertas.push(t("inbox.alert.cf_low", { val: sub.crest_factor.toFixed(2) })); 
+    }
+    else { 
+      statuses.push("critico"); 
+      alertas.push(t("inbox.alert.cf_critical", { val: sub.crest_factor.toFixed(2) })); 
+    }
   }
   
   // Phase Correlation
   if (sub.phase_correlation != null) {
     if (sub.phase_correlation >= phaseMin) statuses.push("optimo");
-    else if (sub.phase_correlation >= phaseCritical) { statuses.push("warning"); alertas.push(`Falla de fase: correlación baja (${sub.phase_correlation.toFixed(2)})`); }
-    else { statuses.push("critico"); alertas.push(`Falla de fase: correlación negativa (${sub.phase_correlation.toFixed(2)})`); }
+    else if (sub.phase_correlation >= phaseCritical) { 
+      statuses.push("warning"); 
+      alertas.push(t("inbox.alert.phase_low", { val: sub.phase_correlation.toFixed(2) })); 
+    }
+    else { 
+      statuses.push("critico"); 
+      alertas.push(t("inbox.alert.phase_neg", { val: sub.phase_correlation.toFixed(2) })); 
+    }
   }
   
   // BPM
   if (sub.bpm != null && sig.bpm_min != null && sig.bpm_max != null) {
     const bpm = Math.round(sub.bpm);
     if (bpm >= sig.bpm_min && bpm <= sig.bpm_max) statuses.push("optimo");
-    else if (bpm >= sig.bpm_min - 3 && bpm <= sig.bpm_max + 3) { statuses.push("warning"); alertas.push(`Tempo fuera de rango recomendado (BPM): ${bpm}`); }
-    else { statuses.push("critico"); alertas.push(`Tempo fuera de rango (BPM): ${bpm}`); }
+    else if (bpm >= sig.bpm_min - 3 && bpm <= sig.bpm_max + 3) { 
+      statuses.push("warning"); 
+      alertas.push(t("inbox.alert.bpm_warning", { val: bpm })); 
+    }
+    else { 
+      statuses.push("critico"); 
+      alertas.push(t("inbox.alert.bpm_critical", { val: bpm })); 
+    }
   }
   
   // LUFS
@@ -193,22 +218,34 @@ function evaluateSubmission(
     const target = sig.lufs_target;
     const tol = sig.lufs_tolerance ?? 2;
     if (sub.lufs >= target - tol && sub.lufs <= target + tol) statuses.push("optimo");
-    else if (sub.lufs >= target - tol - 1.5 && sub.lufs <= target + tol + 1.5) { statuses.push("warning"); alertas.push(`Sonoridad fuera de tolerancia (LUFS): ${sub.lufs.toFixed(2)}`); }
-    else { statuses.push("critico"); alertas.push(`Sonoridad crítica (LUFS): ${sub.lufs.toFixed(2)}`); }
+    else if (sub.lufs >= target - tol - 1.5 && sub.lufs <= target + tol + 1.5) { 
+      statuses.push("warning"); 
+      alertas.push(t("inbox.alert.lufs_warning", { val: sub.lufs.toFixed(2) })); 
+    }
+    else { 
+      statuses.push("critico"); 
+      alertas.push(t("inbox.alert.lufs_critical", { val: sub.lufs.toFixed(2) })); 
+    }
   }
   
   // Duration
   if (sig.duration_enabled && sig.duration_max != null && sub.duration != null) {
     if (sub.duration <= sig.duration_max) statuses.push("optimo");
-    else if (sub.duration <= sig.duration_max + 120) { statuses.push("warning"); alertas.push(`Duración excedida: ${sub.duration.toFixed(0)}s`); }
-    else { statuses.push("critico"); alertas.push(`Duración crítica: ${sub.duration.toFixed(0)}s`); }
+    else if (sub.duration <= sig.duration_max + 120) { 
+      statuses.push("warning"); 
+      alertas.push(t("inbox.alert.dur_warning", { val: sub.duration.toFixed(0) })); 
+    }
+    else { 
+      statuses.push("critico"); 
+      alertas.push(t("inbox.alert.dur_critical", { val: sub.duration.toFixed(0) })); 
+    }
   }
   
   // Key mismatch
   if (sub.musical_key && sig.target_camelot_keys?.length > 0) {
     if (!sig.target_camelot_keys.includes(sub.musical_key)) {
       statuses.push("warning");
-      alertas.push(`Tonalidad no coincide con las preferidas (Key): ${sub.musical_key}`);
+      alertas.push(t("inbox.alert.key_mismatch", { val: sub.musical_key }));
     }
   }
   
@@ -1745,7 +1782,7 @@ useEffect(() => {
     const badge = statusBadgeColor(sub.status);
     const isLoading = actionLoading[sub.id];
     const isPlayingThis = currentTrack?.id === sub.id && isPlaying;
-    const tech = evaluateSubmission(sub, sonicSignature);
+    const tech = evaluateSubmission(sub, sonicSignature, t);
 
     return (
       <Draggable key={sub.id} draggableId={sub.id} index={index}>
@@ -2140,7 +2177,7 @@ useEffect(() => {
           filteredItems.map((d) => {
             const isPlayingThis = isPlaying && currentTrack?.id === d.id;
             const isLoading = actionLoading[d.id];
-            const tech = evaluateSubmission(d, sonicSignature);
+            const tech = evaluateSubmission(d, sonicSignature, t);
             
             return (
               <div
@@ -2414,7 +2451,7 @@ useEffect(() => {
         filteredSystemItems.map((d) => {
           const badge = statusBadgeColor(d.status);
           const isLoading = actionLoading[d.id];
-          const tech = evaluateSubmission(d, sonicSignature);
+          const tech = evaluateSubmission(d, sonicSignature, t);
           return (
             <div
               key={d.id}
@@ -2895,7 +2932,7 @@ useEffect(() => {
               const sub = detailModal.submission;
               if (!sub) return null;
               
-              const tech = evaluateSubmission(sub, sonicSignature);
+    const tech = evaluateSubmission(sub, sonicSignature, t);
               
               // Parse alertas to detect warning/critical per metric
               const alerts = tech.alertas;
