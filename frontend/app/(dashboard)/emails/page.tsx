@@ -55,26 +55,26 @@ function buildTemplates(labelName: string, t: (key: any) => string): Template[] 
     {
       id: "reject-phase",
       label: t("crm.template.reject_phase"),
-      subject: t("crm.template.reject_subject", { labelName }),
-      body: t("crm.template.reject_phase_body", { labelName }),
+      subject: t("crm.template.reject_subject").replace("{labelName}", labelName),
+      body: t("crm.template.reject_phase_body").replace(/\{labelName\}/g, labelName),
     },
     {
       id: "reject-tempo",
       label: t("crm.template.reject_tempo"),
-      subject: t("crm.template.reject_subject", { labelName }),
-      body: t("crm.template.reject_tempo_body", { labelName }),
+      subject: t("crm.template.reject_subject").replace("{labelName}", labelName),
+      body: t("crm.template.reject_tempo_body").replace(/\{labelName\}/g, labelName),
     },
     {
       id: "approve",
       label: t("crm.template.approve"),
-      subject: t("crm.template.approve_subject", { labelName }),
-      body: t("crm.template.approve_body", { labelName }),
+      subject: t("crm.template.approve_subject").replace("{labelName}", labelName),
+      body: t("crm.template.approve_body").replace(/\{labelName\}/g, labelName),
     },
     {
       id: "followup",
       label: t("crm.template.followup"),
-      subject: t("crm.template.followup_subject", { labelName }),
-      body: t("crm.template.followup_body", { labelName }),
+      subject: t("crm.template.followup_subject").replace("{labelName}", labelName),
+      body: t("crm.template.followup_body").replace(/\{labelName\}/g, labelName),
     },
   ];
 }
