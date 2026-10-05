@@ -58,6 +58,7 @@ class LabelReferenceTrack(SQLModel, table=True):
             "storage_key IS NULL OR length(trim(storage_key)) > 0",
             name="ck_label_reference_tracks_storage_key",
         ),
+        {"info": {"migration_managed": True}},
     )
 
     id: str = Field(default_factory=lambda: str(uuid4()), primary_key=True)
@@ -141,6 +142,7 @@ class MusicEmbedding(SQLModel, table=True):
             postgresql_where=text("submission_id IS NOT NULL"),
             sqlite_where=text("submission_id IS NOT NULL"),
         ),
+        {"info": {"migration_managed": True}},
     )
 
     id: str = Field(default_factory=lambda: str(uuid4()), primary_key=True)

@@ -4,6 +4,7 @@ import os
 from typing import Generator
 
 from sqlmodel import SQLModel, create_engine, Session
+from app.database_schema import create_legacy_tables
 # Import models to register them in SQLModel metadata for table creation
 from app.models import WaitlistEntry, AppConfig
 
@@ -34,7 +35,7 @@ migrations = [
 
 def init_db() -> None:
     """Create all database tables."""
-    SQLModel.metadata.create_all(engine)
+    create_legacy_tables(engine, SQLModel.metadata)
     
     # Run idempotent raw SQL migrations for existing database columns
     from sqlalchemy import inspect, text
