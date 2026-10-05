@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import JSON
+from sqlalchemy import JSON, UniqueConstraint
 from sqlmodel import Field, Relationship, SQLModel
 
 
@@ -78,6 +78,7 @@ class Submission(SQLModel, table=True):
     """Audio track submission from a producer."""
 
     __tablename__ = "submission"
+    __table_args__ = (UniqueConstraint("id", "label_id", name="uq_submission_id_label_id"),)
 
     id: str = Field(default_factory=lambda: str(uuid4()), primary_key=True)
     label_id: str = Field(foreign_key="label.id", index=True)

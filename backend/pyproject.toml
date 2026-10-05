@@ -28,6 +28,7 @@ dependencies = [
     "standardwebhooks>=1.0.0",
     "boto3>=1.34.0",
     "psycopg2-binary>=2.9.0",
+    "pgvector>=0.3.0",
 ]
 
 [project.optional-dependencies]
