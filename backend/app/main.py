@@ -75,11 +75,13 @@ app.include_router(upload_router)
 
 # Phase 3: Business API routers
 from app.api.submissions import router as submissions_router
+from app.api.reference_catalog import router as reference_catalog_router
 from app.api.labels import router as labels_router
 from app.api.email import router as email_router
 from app.api.waitlist import router as waitlist_router
 
 app.include_router(submissions_router)
+app.include_router(reference_catalog_router)
 app.include_router(labels_router)
 app.include_router(email_router)
 app.include_router(waitlist_router)

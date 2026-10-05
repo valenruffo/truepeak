@@ -1,0 +1,257 @@
+"""Flag-gated, owner-only read API for reference catalog and Label DNA status.
+
+The router is safe to import without application startup, credentials, or a
+configured database. Authentication and session modules are loaded only after
+the feature flag and request token have been validated.
+"""
+
+from __future__ import annotations
+
+import os
+from collections.abc import Callable, Generator
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Any
+
+from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel, ConfigDict
+from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
+from sqlmodel import Session
+
+from app.ar_matching.reference_catalog import (
+    CorruptReferenceEmbeddingError,
+    LabelDnaReadiness,
+    ReferenceCatalogItem,
+    get_label_dna_readiness,
+    list_reference_catalog,
+)
+from app.audio.embedding.schemas import EmbeddingMetadata
+from app.models import Label
+
+router = APIRouter(tags=["label-reference-catalog"])
+
+_ENABLED_VARIABLE = "LABEL_DNA_ENABLED"
+_PRIVATE_TABLES = {"label_reference_tracks", "music_embeddings"}
+_DATABASE_CONFIG_ERROR = "POSTGRES_URL environment variable is required"
+_VECTOR_ADAPTER_ERROR = "pgvector is required for PostgreSQL Vector512 storage"
+_CATALOG_UNAVAILABLE = "Reference catalog is temporarily unavailable."
+_DNA_UNAVAILABLE = "Label DNA is temporarily unavailable."
+
+
+class ReferenceCatalogItemDTO(BaseModel):
+    """Public reference metadata; deliberately excludes storage and embedding data."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    title: str
+    artist: str | None
+    status: str
+    is_active: bool
+    duration_seconds: float | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class LabelDnaReadinessDTO(BaseModel):
+    """Catalog readiness counts only; never serializes eligible vector records."""
+
+    state: str
+    active_reference_count: int
+    eligible_count: int
+    minimum_valid_references: int
+
+
+@dataclass(frozen=True, slots=True)
+class _ReadinessIdentity:
+    metadata: EmbeddingMetadata
+    pipeline_version: str
+
+
+def _verify_token(token: str) -> dict[str, Any]:
+    """Lazily delegate token verification to the established auth service."""
+    from app.services.auth import verify_token
+
+    return verify_token(token)
+
+
+def _get_session() -> Generator[Session, None, None]:
+    """Lazily delegate session lifetime to the established database module."""
+    from app.database import get_session
+
+    yield from get_session()
+
+
+def _enabled() -> bool:
+    return os.getenv(_ENABLED_VARIABLE, "").strip().lower() in {"true", "1"}
+
+
+def _verified_label_id(request: Request) -> str:
+    """Verify one selected token and accept only its exact nonblank label ID."""
+    token = None
+    authorization = request.headers.get("authorization")
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ", 1)[1]
+    if not token:
+        token = request.headers.get("x-label-token")
+    if not token:
+        token = request.cookies.get("token")
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication required.")
+
+    try:
+        verified = _verify_token(token)
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid or expired token.") from None
+
+    if not isinstance(verified, dict):
+        raise HTTPException(status_code=401, detail="Invalid or expired token.")
+    label_id = verified.get("label_id")
+    if not isinstance(label_id, str) or not label_id.strip():
+        raise HTTPException(status_code=401, detail="Invalid or expired token.")
+    return label_id
+
+
+def _readiness_identity() -> _ReadinessIdentity:
+    """Load an explicit server-side embedding identity; never infer a provider."""
+    provider = os.getenv("AR_EMBEDDING_PROVIDER")
+    model = os.getenv("AR_EMBEDDING_MODEL")
+    version = os.getenv("AR_EMBEDDING_VERSION")
+    raw_dimension = os.getenv("AR_EMBEDDING_DIMENSION")
+    pipeline_version = os.getenv("AR_EMBEDDING_PIPELINE_VERSION")
+    identity_values = (provider, model, version, raw_dimension, pipeline_version)
+    if any(not isinstance(value, str) or not value.strip() for value in identity_values):
+        raise HTTPException(status_code=503, detail=_DNA_UNAVAILABLE)
+    try:
+        dimension = int(raw_dimension)
+        metadata = EmbeddingMetadata(provider, model, version, dimension)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=503, detail=_DNA_UNAVAILABLE) from None
+    if dimension != 512:
+        raise HTTPException(status_code=503, detail=_DNA_UNAVAILABLE)
+    return _ReadinessIdentity(metadata, pipeline_version.strip())
+
+
+def _exception_chain(error: BaseException):
+    pending = [error]
+    seen: set[int] = set()
+    while pending:
+        current = pending.pop()
+        if id(current) in seen:
+            continue
+        seen.add(id(current))
+        yield current
+        for nested in (getattr(current, "orig", None), current.__cause__, current.__context__):
+            if isinstance(nested, BaseException):
+                pending.append(nested)
+
+
+def _is_missing_private_table(error: BaseException) -> bool:
+    for current in _exception_chain(error):
+        sqlstate = getattr(current, "sqlstate", None) or getattr(current, "pgcode", None)
+        if sqlstate == "42P01":
+            return True
+        message = str(current).lower()
+        marker = "no such table:"
+        if marker not in message:
+            continue
+        table = message.split(marker, 1)[1].strip().split()[0].strip("`\"'[]")
+        if table.split(".")[-1].strip("`\"'[]") in _PRIVATE_TABLES:
+            return True
+    return False
+
+
+def _is_missing_vector_adapter(error: BaseException) -> bool:
+    for current in _exception_chain(error):
+        if isinstance(current, RuntimeError) and str(current) == _VECTOR_ADAPTER_ERROR:
+            return True
+        if isinstance(current, ImportError) and getattr(current, "name", None) in {
+            "pgvector",
+            "pgvector.sqlalchemy",
+        }:
+            return True
+    return False
+
+
+def _is_database_config_error(error: BaseException) -> bool:
+    return any(
+        isinstance(current, RuntimeError) and str(current) == _DATABASE_CONFIG_ERROR
+        for current in _exception_chain(error)
+    )
+
+
+def _unavailable_for_storage_error(error: BaseException) -> bool:
+    return _is_missing_private_table(error) or _is_missing_vector_adapter(error)
+
+
+def _with_owner_session(label_id: str, operation: Callable[[Session], Any]) -> Any:
+    """Run owner projection and one read without flushing or altering caller state."""
+    session_stream = None
+    try:
+        session_stream = _get_session()
+        try:
+            session = next(session_stream)
+        except RuntimeError as error:
+            if _is_database_config_error(error):
+                raise HTTPException(status_code=503, detail=_CATALOG_UNAVAILABLE) from None
+            raise
+
+        with session.no_autoflush:
+            exists = session.exec(select(Label.id).where(Label.id == label_id)).first()
+            if exists is None:
+                raise HTTPException(status_code=404, detail="Label not found.")
+            return operation(session)
+    except CorruptReferenceEmbeddingError:
+        raise HTTPException(status_code=503, detail=_CATALOG_UNAVAILABLE) from None
+    except SQLAlchemyError as error:
+        if _unavailable_for_storage_error(error):
+            raise HTTPException(status_code=503, detail=_CATALOG_UNAVAILABLE) from None
+        raise
+    except RuntimeError as error:
+        if _is_database_config_error(error) or _is_missing_vector_adapter(error):
+            raise HTTPException(status_code=503, detail=_CATALOG_UNAVAILABLE) from None
+        raise
+    finally:
+        close = getattr(session_stream, "close", None)
+        if close is not None:
+            close()
+
+
+@router.get(
+    "/api/labels/me/reference-catalog",
+    response_model=list[ReferenceCatalogItemDTO],
+)
+def read_reference_catalog(request: Request) -> tuple[ReferenceCatalogItem, ...]:
+    """Return metadata for the authenticated label's references only."""
+    if not _enabled():
+        raise HTTPException(status_code=404, detail="Not found.")
+    label_id = _verified_label_id(request)
+    return _with_owner_session(label_id, lambda session: list_reference_catalog(session, label_id))
+
+
+@router.get(
+    "/api/labels/me/label-dna",
+    response_model=LabelDnaReadinessDTO,
+)
+def read_label_dna(request: Request) -> LabelDnaReadinessDTO:
+    """Return explicit-pipeline catalog readiness without embedding details."""
+    if not _enabled():
+        raise HTTPException(status_code=404, detail="Not found.")
+    label_id = _verified_label_id(request)
+    identity = _readiness_identity()
+    readiness: LabelDnaReadiness = _with_owner_session(
+        label_id,
+        lambda session: get_label_dna_readiness(
+            session,
+            label_id,
+            identity.metadata,
+            identity.pipeline_version,
+        ),
+    )
+    return LabelDnaReadinessDTO(
+        state=readiness.state.value,
+        active_reference_count=readiness.active_reference_count,
+        eligible_count=readiness.eligible_count,
+        minimum_valid_references=readiness.minimum_valid_references,
+    )
