@@ -19,7 +19,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, ConfigDict, StrictInt, StrictStr, ValidationError
 from sqlalchemy import select
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from sqlmodel import Session
 
 from app.ar_matching.reference_catalog import (
@@ -28,6 +28,13 @@ from app.ar_matching.reference_catalog import (
     ReferenceCatalogItem,
     get_label_dna_readiness,
     list_reference_catalog,
+)
+from app.ar_matching.reference_finalizations import (
+    ReferenceFinalizationConflictError,
+    ReferenceFinalizationNotFoundError,
+    ReferenceFinalizationSessionError,
+    ReferenceFinalizationValidationError,
+    promote_reference_to_final,
 )
 from app.ar_matching.reference_reservations import (
     ReferenceLabelNotFoundError,
@@ -63,6 +70,7 @@ _DNA_UNAVAILABLE = "Label DNA is temporarily unavailable."
 _PRESIGN_UNAVAILABLE = "Reference upload signing is temporarily unavailable."
 _PRESIGN_INELIGIBLE = "Reference upload is not eligible for signing."
 _OBSERVATION_UNAVAILABLE = "Reference staging observation is temporarily unavailable."
+_FINALIZATION_UNAVAILABLE = "Reference finalization is temporarily unavailable."
 
 
 class ReferenceCatalogItemDTO(BaseModel):
@@ -126,6 +134,14 @@ class ReferenceStageObservationDTO(BaseModel):
     status: Literal["uploaded"]
     reused: bool
     provisional: Literal[True]
+
+
+class ReferenceFinalizationDTO(BaseModel):
+    """Public receipt only; never expose persisted provider keys or ETags."""
+
+    reference_id: str
+    status: Literal["uploaded", "processing", "ready", "failed"]
+    reused: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -460,6 +476,13 @@ def _create_reference_staging_adapter():
     return create_private_reference_staging_adapter()
 
 
+def _create_reference_promotion_adapter():
+    """Build the private promotion adapter only after the service's owner snapshot."""
+    from app.services.reference_r2_factory import create_private_reference_promotion_adapter
+
+    return create_private_reference_promotion_adapter()
+
+
 def _owned_upload_for_presign(label_id: str, reference_id: str) -> ValidatedReferenceUpload:
     """Project persisted owner/upload identity from a fresh read-only Session."""
     session_stream = None
@@ -575,6 +598,39 @@ def _known_presign_availability_error(error: Exception) -> bool:
     except ImportError:
         return False
     return isinstance(error, (BotoCoreError, ClientError))
+
+
+def _known_finalization_error_status(error: Exception) -> int | None:
+    """Map only typed provider/SDK failures; leave all unexpected errors untouched."""
+    from app.services.reference_r2 import (
+        ReferenceR2ConfigurationError,
+        ReferenceR2InputError,
+        ReferenceR2ResponseError,
+    )
+    from app.services.reference_r2_factory import ReferenceR2FactoryError
+    from app.services.reference_r2_promotion import (
+        ReferenceR2PreconditionError,
+        ReferenceR2PromotionProviderError,
+    )
+
+    if isinstance(error, ReferenceR2PreconditionError):
+        return 409
+    if isinstance(
+        error,
+        (
+            ReferenceR2FactoryError,
+            ReferenceR2ConfigurationError,
+            ReferenceR2InputError,
+            ReferenceR2ResponseError,
+            ReferenceR2PromotionProviderError,
+        ),
+    ):
+        return 503
+    try:
+        from botocore.exceptions import BotoCoreError, ClientError
+    except ImportError:
+        return None
+    return 503 if isinstance(error, (BotoCoreError, ClientError)) else None
 
 
 @router.post(
@@ -695,4 +751,75 @@ def observe_reference_upload_endpoint(
         status="uploaded",
         reused=result.reused,
         provisional=True,
+    )
+
+
+@router.post(
+    "/api/labels/me/reference-uploads/{reference_id}/finalize",
+    response_model=ReferenceFinalizationDTO,
+    status_code=201,
+    responses={
+        200: {
+            "model": ReferenceFinalizationDTO,
+            "description": "A previously persisted finalization receipt was reused.",
+        },
+        401: {"description": "The verified owner token is invalid."},
+        404: {"description": "The active owned reference does not exist."},
+        409: {"description": "Reference finalization conflicts with current state."},
+        422: {"description": "The path reference ID is not a canonical UUID."},
+        503: {"description": "Reference finalization is temporarily unavailable."},
+    },
+)
+def finalize_reference_upload_endpoint(
+    request: Request, response: Response, reference_id: str
+) -> ReferenceFinalizationDTO:
+    """Persist a private-copy receipt; this does not claim processing readiness."""
+    if not _enabled() or not _uploads_enabled():
+        raise HTTPException(status_code=404, detail="Not found.")
+    label_id = _verified_label_id(request)
+    if not _canonical_uuid(label_id):
+        raise HTTPException(status_code=401, detail="Invalid or expired token.")
+    if not _canonical_uuid(reference_id):
+        raise HTTPException(status_code=422, detail="Invalid reference ID.")
+
+    try:
+        receipt = promote_reference_to_final(
+            label_id,
+            reference_id,
+            session_factory=_observation_session,
+            adapter_factory=_create_reference_promotion_adapter,
+        )
+    except ReferenceFinalizationNotFoundError:
+        raise HTTPException(status_code=404, detail="Reference not found.") from None
+    except (ReferenceFinalizationConflictError, ReferenceFinalizationSessionError):
+        raise HTTPException(
+            status_code=409, detail="Reference finalization conflicts with current state."
+        ) from None
+    except ReferenceFinalizationValidationError:
+        raise HTTPException(status_code=503, detail=_FINALIZATION_UNAVAILABLE) from None
+    except SQLAlchemyError as error:
+        if isinstance(error, OperationalError) or _unavailable_for_storage_error(error):
+            raise HTTPException(status_code=503, detail=_FINALIZATION_UNAVAILABLE) from None
+        raise
+    except RuntimeError as error:
+        if _is_database_config_error(error) or _is_missing_vector_adapter(error):
+            raise HTTPException(status_code=503, detail=_FINALIZATION_UNAVAILABLE) from None
+        raise
+    except Exception as error:
+        status = _known_finalization_error_status(error)
+        if status is None:
+            raise
+        detail = (
+            "Reference finalization conflicts with current state."
+            if status == 409
+            else _FINALIZATION_UNAVAILABLE
+        )
+        raise HTTPException(status_code=status, detail=detail) from None
+
+    if receipt.reused:
+        response.status_code = 200
+    return ReferenceFinalizationDTO(
+        reference_id=reference_id,
+        status=receipt.status,
+        reused=receipt.reused,
     )
