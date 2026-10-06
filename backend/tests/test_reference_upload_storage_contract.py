@@ -139,6 +139,7 @@ def test_legacy_rows_keep_existing_status_and_storage_key_shapes(engine):
         assert [row.status for row in loaded] == list(statuses)
         assert loaded[2].storage_key == "legacy/ready.wav"
         assert all(getattr(row, column) is None for row in loaded for column in _NEW_COLUMNS)
+        assert all(row.processing_claim_token is None for row in loaded)
 
 
 def test_multiple_null_tokens_and_same_token_across_labels_are_valid(engine):
@@ -421,3 +422,58 @@ def test_migration_source_matches_model_and_is_manual_additive_contract():
     assert "when length(upload_filename) > 4 then case" in sql
     assert "when length(upload_filename) > 5 then case" in sql
     assert "= '.aif' then '.aiff'" in sql
+
+
+def test_processing_claim_token_is_nullable_and_persists_opaque_value(engine):
+    column = LabelReferenceTrack.__table__.c.processing_claim_token
+    assert column.nullable
+    assert column.type.python_type is str
+    assert column.default is None
+
+    with Session(engine) as session:
+        label = _new_label(session, "claim-token")
+        row = _new_reference(label, processing_claim_token=" opaque worker token ")
+        session.add(row)
+        session.commit()
+        loaded = session.get(LabelReferenceTrack, row.id)
+        assert loaded.processing_claim_token == " opaque worker token "
+
+
+@pytest.mark.parametrize("value", ["", "   "])
+def test_blank_processing_claim_tokens_are_rejected_by_database(engine, value):
+    with Session(engine) as session:
+        label = _new_label(session, "blank-claim-token")
+        row = _new_reference(label, processing_claim_token=value)
+        _expect_integrity_failure(session, row)
+
+
+def test_processing_claim_migration_matches_nullable_model_contract():
+    migration = Path(__file__).parents[1] / "migrations" / "011_reference_processing_claim.sql"
+    sql = migration.read_text(encoding="utf-8").lower()
+    column = LabelReferenceTrack.__table__.c.processing_claim_token
+    constraint = next(
+        item
+        for item in LabelReferenceTrack.__table__.constraints
+        if item.name == "ck_label_reference_tracks_processing_claim_token_nonempty"
+    )
+    assert column.nullable and column.type.python_type is str and column.default is None
+    assert str(constraint.sqltext) == (
+        "processing_claim_token IS NULL OR length(trim(processing_claim_token)) > 0"
+    )
+    assert re.search(r"add\s+column\s+processing_claim_token\s+text\b", sql)
+    assert not re.search(r"add\s+column\s+processing_claim_token\s+text\s+not\s+null\b", sql)
+    assert re.search(
+        r"add\s+constraint\s+ck_label_reference_tracks_processing_claim_token_nonempty"
+        r"\s+check\s*\(\s*processing_claim_token\s+is\s+null\s+or\s+"
+        r"length\(trim\(processing_claim_token\)\)\s*>\s*0\s*\)",
+        sql,
+    )
+    assert "deployed state is unknown" in sql and "acl/rls" in sql and "concurrency" in sql
+    executable = "\n".join(
+        line for line in sql.splitlines() if line.strip() and not line.lstrip().startswith("--")
+    )
+    assert executable.lstrip().startswith("begin;") and executable.rstrip().endswith("commit;")
+    assert "to_regclass('public.label_reference_tracks')" in sql
+    assert "attisdropped" in sql and "status" in sql
+    assert not re.search(r"\bdefault\b|\bupdate\b|\binsert\b|\bdelete\b|\bdrop\b", executable)
+    assert not re.search(r"\badd\s+(?:column|constraint)\s+if\s+not\s+exists\b", sql)

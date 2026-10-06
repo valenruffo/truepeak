@@ -102,6 +102,10 @@ class LabelReferenceTrack(SQLModel, table=True):
             name="ck_label_reference_tracks_status",
         ),
         CheckConstraint(
+            "processing_claim_token IS NULL OR length(trim(processing_claim_token)) > 0",
+            name="ck_label_reference_tracks_processing_claim_token_nonempty",
+        ),
+        CheckConstraint(
             "duration_seconds IS NULL OR (duration_seconds >= 0 AND "
             "duration_seconds <= 1.7976931348623157e308)",
             name="ck_label_reference_tracks_duration",
@@ -185,6 +189,7 @@ class LabelReferenceTrack(SQLModel, table=True):
     final_etag: str | None = Field(default=None, sa_type=String())
     duration_seconds: float | None = Field(default=None, sa_type=Float())
     status: str = Field(default="uploaded", sa_type=String())
+    processing_claim_token: str | None = Field(default=None, sa_type=String())
     is_active: bool = Field(default=True)
     created_at: datetime = Field(default_factory=_utc_now, sa_type=DateTime(timezone=True))
     updated_at: datetime = Field(default_factory=_utc_now, sa_type=DateTime(timezone=True))
