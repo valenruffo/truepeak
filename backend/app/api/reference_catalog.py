@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 from collections.abc import Callable, Generator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Literal
@@ -34,6 +35,13 @@ from app.ar_matching.reference_reservations import (
     ReferenceReservationValidationError,
     reserve_reference_upload,
 )
+from app.ar_matching.reference_stage_observations import (
+    ReferenceStageObservationConflictError,
+    ReferenceStageObservationNotFoundError,
+    ReferenceStageObservationSessionError,
+    ReferenceStageObservationValidationError,
+    observe_reference_staging,
+)
 from app.ar_matching.reference_validation import (
     TypedReferenceValidationError,
     ValidatedReferenceUpload,
@@ -54,6 +62,7 @@ _CATALOG_UNAVAILABLE = "Reference catalog is temporarily unavailable."
 _DNA_UNAVAILABLE = "Label DNA is temporarily unavailable."
 _PRESIGN_UNAVAILABLE = "Reference upload signing is temporarily unavailable."
 _PRESIGN_INELIGIBLE = "Reference upload is not eligible for signing."
+_OBSERVATION_UNAVAILABLE = "Reference staging observation is temporarily unavailable."
 
 
 class ReferenceCatalogItemDTO(BaseModel):
@@ -110,6 +119,15 @@ class ReferenceUploadPresignDTO(BaseModel):
     expires_in_seconds: int
 
 
+class ReferenceStageObservationDTO(BaseModel):
+    """Minimal receipt that records a provisional staging observation only."""
+
+    reference_id: str
+    status: Literal["uploaded"]
+    reused: bool
+    provisional: Literal[True]
+
+
 @dataclass(frozen=True, slots=True)
 class _ReadinessIdentity:
     metadata: EmbeddingMetadata
@@ -128,6 +146,16 @@ def _get_session() -> Generator[Session, None, None]:
     from app.database import get_session
 
     yield from get_session()
+
+
+@contextmanager
+def _observation_session() -> Generator[Session, None, None]:
+    """Bridge the existing lazy generator to the service's context-manager seam."""
+    session_stream = _get_session()
+    try:
+        yield next(session_stream)
+    finally:
+        session_stream.close()
 
 
 def _enabled() -> bool:
@@ -594,4 +622,77 @@ def presign_reference_upload_endpoint(
         method="PUT",
         required_headers=dict(signed.required_headers),
         expires_in_seconds=signed.expires_in_seconds,
+    )
+
+
+@router.post(
+    "/api/labels/me/reference-uploads/{reference_id}/observe",
+    response_model=ReferenceStageObservationDTO,
+    status_code=200,
+    responses={
+        404: {"description": "The active reference is not owned by this label."},
+        409: {"description": "The reference is ineligible or its observed ETag changed."},
+        422: {"description": "The authenticated owner or path reference ID is invalid."},
+        503: {"description": "Staging observation is temporarily unavailable."},
+    },
+)
+def observe_reference_upload_endpoint(
+    request: Request, reference_id: str
+) -> ReferenceStageObservationDTO:
+    """Reverify a provisional object and pin its first opaque ETag.
+
+    The provider HEAD checks stored size and content type; a conditional range GET
+    checks only a 12-byte header prefix. ETags are opaque identities, not content
+    hashes. This does not validate the full file, establish readiness, prove
+    privacy, or finalize audio. Earlier presigned PUTs remain replayable until TTL;
+    observing an object cannot instantly revoke those URLs. A first observation
+    leaves status ``uploaded``. Reuse rechecks the provider without a database
+    update; a changed ETag conflicts and requires a new independent reference.
+    """
+    if not _enabled() or not _uploads_enabled():
+        raise HTTPException(status_code=404, detail="Not found.")
+
+    label_id = _verified_label_id(request)
+    if not _canonical_uuid(label_id):
+        raise HTTPException(status_code=401, detail="Invalid or expired token.")
+    if not _canonical_uuid(reference_id):
+        raise HTTPException(status_code=422, detail="Invalid reference ID.")
+
+    try:
+        result = observe_reference_staging(
+            label_id,
+            reference_id,
+            session_factory=_observation_session,
+            adapter_factory=_create_reference_staging_adapter,
+        )
+    except ReferenceStageObservationNotFoundError:
+        raise HTTPException(status_code=404, detail="Reference not found.") from None
+    except (ReferenceStageObservationConflictError, ReferenceStageObservationSessionError):
+        raise HTTPException(
+            status_code=409, detail="Reference observation conflicts with current state."
+        ) from None
+    except TypedReferenceValidationError:
+        raise HTTPException(
+            status_code=422, detail="Invalid reference observation header."
+        ) from None
+    except ReferenceStageObservationValidationError:
+        raise HTTPException(status_code=503, detail=_OBSERVATION_UNAVAILABLE) from None
+    except SQLAlchemyError as error:
+        if _unavailable_for_storage_error(error):
+            raise HTTPException(status_code=503, detail=_OBSERVATION_UNAVAILABLE) from None
+        raise
+    except RuntimeError as error:
+        if _is_database_config_error(error) or _is_missing_vector_adapter(error):
+            raise HTTPException(status_code=503, detail=_OBSERVATION_UNAVAILABLE) from None
+        raise
+    except Exception as error:
+        if not _known_presign_availability_error(error):
+            raise
+        raise HTTPException(status_code=503, detail=_OBSERVATION_UNAVAILABLE) from None
+
+    return ReferenceStageObservationDTO(
+        reference_id=reference_id,
+        status="uploaded",
+        reused=result.reused,
+        provisional=True,
     )
