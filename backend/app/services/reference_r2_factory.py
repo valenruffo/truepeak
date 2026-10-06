@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Callable, Mapping
+from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
 from app.services.reference_r2 import (
@@ -15,6 +16,9 @@ from app.services.reference_r2 import (
     ReferenceR2ConfigurationError,
     ReferenceStagingS3Client,
 )
+
+if TYPE_CHECKING:
+    from app.services.reference_r2_promotion import PrivateReferenceR2PromotionAdapter
 
 _PRIVATE_BUCKET = "LABEL_REFERENCE_R2_BUCKET_NAME"
 _PRIVATE_ACCESS_ATTESTATION = "LABEL_REFERENCE_R2_PRIVATE_ACCESS_CONFIRMED"
@@ -85,6 +89,43 @@ def _build_s3_client(
         raise ReferenceR2FactoryError("R2 staging client is unavailable") from None
 
 
+def _build_promotion_s3_client(
+    *, endpoint_url: str, aws_access_key_id: str, aws_secret_access_key: str
+) -> object:
+    """Build a fresh, dedicated promotion client after explicit validation."""
+    try:
+        import boto3
+        from botocore.config import Config
+        from botocore.exceptions import BotoCoreError
+    except ImportError:
+        raise ReferenceR2FactoryError("R2 promotion SDK is unavailable") from None
+
+    try:
+        session = boto3.session.Session()
+        return session.client(
+            "s3",
+            endpoint_url=endpoint_url,
+            aws_access_key_id=aws_access_key_id,
+            aws_secret_access_key=aws_secret_access_key,
+            config=Config(signature_version="s3v4"),
+            region_name="auto",
+        )
+    except BotoCoreError:
+        raise ReferenceR2FactoryError("R2 promotion client is unavailable") from None
+
+
+def _validate_promotion_client(client: object) -> None:
+    meta = getattr(client, "meta", None)
+    config = getattr(meta, "config", None)
+    events = getattr(meta, "events", None)
+    if getattr(config, "signature_version", None) != "s3v4" or not callable(
+        getattr(events, "register", None)
+    ):
+        raise ReferenceR2FactoryError(
+            "R2 promotion client must support SigV4 and CopyObject event hooks"
+        )
+
+
 def create_private_reference_staging_adapter(
     *,
     environ: Mapping[str, str] | None = None,
@@ -128,6 +169,61 @@ def create_private_reference_staging_adapter(
         raise ReferenceR2FactoryError("R2 staging client is unavailable")
 
     return PrivateReferenceStagingAdapter(
+        client,
+        private_bucket=private_bucket,
+        legacy_bucket=legacy_bucket,
+        private_access_confirmed=True,
+    )
+
+
+def create_private_reference_promotion_adapter(
+    *,
+    environ: Mapping[str, str] | None = None,
+    client_builder: Callable[..., object] | None = None,
+) -> PrivateReferenceR2PromotionAdapter:
+    """Create a promotion adapter with an explicit, dedicated SigV4 S3 client.
+
+    A custom builder is called for every invocation and must return a fresh
+    client dedicated to this adapter, with SigV4 metadata and event hooks. The
+    default builder creates a new boto3 session and client for each invocation.
+    Private-access configuration is operator attestation, not privacy verification.
+    """
+    settings = os.environ if environ is None else environ
+    private_bucket = _setting(settings, _PRIVATE_BUCKET)
+    confirmed = _setting(settings, _PRIVATE_ACCESS_ATTESTATION).strip().lower()
+    legacy_bucket = _setting(settings, _LEGACY_BUCKET)
+    endpoint = _setting(settings, _ENDPOINT)
+    access_key_id = _setting(settings, _ACCESS_KEY_ID)
+    secret_access_key = _setting(settings, _SECRET_ACCESS_KEY)
+
+    if (
+        confirmed not in {"true", "1"}
+        or not _bucket_name_is_valid(private_bucket)
+        or not _bucket_name_is_valid(legacy_bucket)
+        or private_bucket == legacy_bucket
+    ):
+        raise ReferenceR2FactoryError("R2 promotion configuration is missing or invalid")
+    _validate_endpoint(endpoint)
+
+    from app.services.reference_r2_promotion import PrivateReferenceR2PromotionAdapter
+
+    try:
+        PrivateReferenceR2PromotionAdapter._validate_bucket(private_bucket, "private_bucket")
+        PrivateReferenceR2PromotionAdapter._validate_bucket(legacy_bucket, "legacy_bucket")
+    except ReferenceR2ConfigurationError:
+        raise ReferenceR2FactoryError("R2 promotion configuration is missing or invalid") from None
+
+    builder = _build_promotion_s3_client if client_builder is None else client_builder
+    client = builder(
+        endpoint_url=endpoint,
+        aws_access_key_id=access_key_id,
+        aws_secret_access_key=secret_access_key,
+    )
+    if client is None:
+        raise ReferenceR2FactoryError("R2 promotion client is unavailable")
+    _validate_promotion_client(client)
+
+    return PrivateReferenceR2PromotionAdapter(
         client,
         private_bucket=private_bucket,
         legacy_bucket=legacy_bucket,

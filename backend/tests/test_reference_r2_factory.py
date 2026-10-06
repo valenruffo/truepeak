@@ -5,7 +5,7 @@ from __future__ import annotations
 import builtins
 import importlib.util
 import sys
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
@@ -59,6 +59,8 @@ def test_import_is_lazy_and_does_not_resolve_environment(monkeypatch):
             return FakeOs
         if name.split(".", 1)[0] in {"boto3", "botocore"}:
             raise AssertionError("SDK imported during factory module import")
+        if name == "app.services.reference_r2_promotion":
+            raise AssertionError("promotion adapter imported during factory module import")
         return real_import(name, *args, **kwargs)
 
     monkeypatch.setattr(builtins, "__import__", guarded_import)
@@ -283,3 +285,190 @@ def test_configuration_errors_do_not_echo_endpoint_or_credential_values():
     assert endpoint not in rendered
     assert access_key not in rendered
     assert secret_key not in rendered
+
+
+def _promotion_client(
+    *, signature_version: object = "s3v4", has_meta: bool = True, has_register: bool = True
+):
+    registrations: list[tuple[object, ...]] = []
+    events = SimpleNamespace(
+        register=(lambda *args: registrations.append(args)) if has_register else None
+    )
+    config = SimpleNamespace(signature_version=signature_version)
+    meta = SimpleNamespace(config=config, events=events)
+    return SimpleNamespace(meta=meta) if has_meta else SimpleNamespace(), registrations
+
+
+def test_promotion_factory_requires_explicit_settings_and_fresh_hook_capable_clients():
+    clients = [_promotion_client(), _promotion_client()]
+    builder_calls: list[dict[str, str]] = []
+
+    def builder(**kwargs):
+        builder_calls.append(kwargs)
+        return clients[len(builder_calls) - 1][0]
+
+    adapters = [
+        factory.create_private_reference_promotion_adapter(
+            environ=make_settings(), client_builder=builder
+        )
+        for _ in range(2)
+    ]
+
+    assert [type(adapter).__name__ for adapter in adapters] == [
+        "PrivateReferenceR2PromotionAdapter",
+        "PrivateReferenceR2PromotionAdapter",
+    ]
+    assert adapters[0]._s3_client is not adapters[1]._s3_client
+    assert all(adapter._private_bucket == FAKE_SETTINGS[PRIVATE_KEY] for adapter in adapters)
+    assert all(adapter._legacy_bucket == FAKE_SETTINGS[LEGACY_KEY] for adapter in adapters)
+    assert (
+        builder_calls
+        == [
+            {
+                "endpoint_url": FAKE_SETTINGS[ENDPOINT_KEY],
+                "aws_access_key_id": FAKE_SETTINGS[ACCESS_KEY],
+                "aws_secret_access_key": FAKE_SETTINGS[SECRET_KEY],
+            }
+        ]
+        * 2
+    )
+    for adapter, (_, registrations) in zip(adapters, clients, strict=True):
+        adapter._ensure_copy_hook()
+        adapter._ensure_copy_hook()
+        assert len(registrations) == 1
+
+
+@pytest.mark.parametrize(
+    "override",
+    [
+        {PRIVATE_KEY: FAKE_SETTINGS[LEGACY_KEY]},
+        {PRIVATE_KEY: "bad/name"},
+    ],
+)
+def test_promotion_factory_rejects_bad_configuration_before_builder_or_sdk_import(
+    monkeypatch, override
+):
+    builder_calls: list[object] = []
+    real_import = builtins.__import__
+
+    def deny_sdk_import(name, *args, **kwargs):
+        if name.split(".", 1)[0] in {"boto3", "botocore"}:
+            raise AssertionError("SDK imported before promotion configuration validation")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", deny_sdk_import)
+    with pytest.raises(ReferenceR2FactoryError):
+        factory.create_private_reference_promotion_adapter(
+            environ=make_settings(**override),
+            client_builder=lambda **kwargs: builder_calls.append(kwargs),
+        )
+    assert builder_calls == []
+
+
+@pytest.mark.parametrize("problem", ["signature", "meta", "config", "register"])
+def test_promotion_factory_rejects_clients_without_sigv4_and_copy_hooks(problem):
+    signature = "FAKE_SECRET_SIGNATURE" if problem == "signature" else "s3v4"
+    client, _ = _promotion_client(
+        signature_version=signature,
+        has_meta=problem != "meta",
+        has_register=problem != "register",
+    )
+    if problem == "config":
+        del client.meta.config
+    with pytest.raises(ReferenceR2FactoryError) as raised:
+        factory.create_private_reference_promotion_adapter(
+            environ=make_settings(), client_builder=lambda **kwargs: client
+        )
+    assert "FAKE_SECRET_SIGNATURE" not in str(raised.value)
+
+
+def test_promotion_factory_does_not_hide_custom_builder_programming_errors():
+    failure = RuntimeError("custom builder programming error")
+
+    def builder(**kwargs):
+        raise failure
+
+    with pytest.raises(RuntimeError) as raised:
+        factory.create_private_reference_promotion_adapter(
+            environ=make_settings(), client_builder=builder
+        )
+    assert raised.value is failure
+
+
+def test_promotion_default_builder_uses_fresh_sessions_explicit_sigv4_and_redacts_sdk_errors(
+    monkeypatch,
+):
+    sessions: list[object] = []
+    client_calls: list[tuple[object, tuple[object, ...], dict[str, object]]] = []
+
+    class FakeConfig:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    class FakeBotoCoreError(Exception):
+        pass
+
+    class FakeSession:
+        fail = False
+
+        def __init__(self):
+            sessions.append(self)
+
+        def client(self, *args, **kwargs):
+            client_calls.append((self, args, kwargs))
+            if self.fail:
+                raise FakeBotoCoreError("FAKE_SECRET SDK detail")
+            return _promotion_client()[0]
+
+    boto3 = ModuleType("boto3")
+    boto3.session = SimpleNamespace(Session=FakeSession)
+    botocore = ModuleType("botocore")
+    botocore.__path__ = []
+    botocore_config = ModuleType("botocore.config")
+    botocore_config.Config = FakeConfig
+    botocore_exceptions = ModuleType("botocore.exceptions")
+    botocore_exceptions.BotoCoreError = FakeBotoCoreError
+    monkeypatch.setitem(sys.modules, "boto3", boto3)
+    monkeypatch.setitem(sys.modules, "botocore", botocore)
+    monkeypatch.setitem(sys.modules, "botocore.config", botocore_config)
+    monkeypatch.setitem(sys.modules, "botocore.exceptions", botocore_exceptions)
+
+    adapters = [
+        factory.create_private_reference_promotion_adapter(environ=make_settings())
+        for _ in range(2)
+    ]
+    assert len(sessions) == 2 and sessions[0] is not sessions[1]
+    assert adapters[0]._s3_client is not adapters[1]._s3_client
+    assert [session for session, _, _ in client_calls[:2]] == sessions
+    assert all(args == ("s3",) for _, args, _ in client_calls[:2])
+    for _, _, kwargs in client_calls[:2]:
+        assert kwargs == {
+            "endpoint_url": FAKE_SETTINGS[ENDPOINT_KEY],
+            "aws_access_key_id": FAKE_SETTINGS[ACCESS_KEY],
+            "aws_secret_access_key": FAKE_SETTINGS[SECRET_KEY],
+            "config": kwargs["config"],
+            "region_name": "auto",
+        }
+        assert isinstance(kwargs["config"], FakeConfig)
+        assert kwargs["config"].kwargs == {"signature_version": "s3v4"}
+
+    FakeSession.fail = True
+    with pytest.raises(ReferenceR2FactoryError) as raised:
+        factory.create_private_reference_promotion_adapter(environ=make_settings())
+    assert "FAKE_SECRET" not in str(raised.value)
+    assert raised.value.__cause__ is None
+
+
+def test_promotion_default_builder_redacts_missing_sdk_import(monkeypatch):
+    real_import = builtins.__import__
+
+    def missing_sdk(name, *args, **kwargs):
+        if name == "boto3":
+            raise ImportError("FAKE_SECRET SDK import detail")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", missing_sdk)
+    with pytest.raises(ReferenceR2FactoryError) as raised:
+        factory.create_private_reference_promotion_adapter(environ=make_settings())
+    assert "FAKE_SECRET" not in str(raised.value)
+    assert raised.value.__cause__ is None
