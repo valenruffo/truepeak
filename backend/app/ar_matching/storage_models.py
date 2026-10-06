@@ -79,6 +79,16 @@ _CANONICAL_UPLOAD_EXTENSION = """CASE
     ELSE NULL
 END"""
 _UPLOAD_FILENAME_SUFFIX_VALID = f"({_CANONICAL_UPLOAD_EXTENSION}) IS NOT NULL"
+_SCORE_AGGREGATE_IDENTITY_COLUMNS = (
+    "label_id",
+    "query_submission_id",
+    "provider",
+    "model",
+    "version",
+    "dimension",
+    "pipeline_version",
+    "k",
+)
 
 
 class LabelReferenceTrack(SQLModel, table=True):
@@ -281,3 +291,85 @@ class MusicEmbedding(SQLModel, table=True):
     start_seconds: float | None = Field(default=None, sa_type=Float())
     end_seconds: float | None = Field(default=None, sa_type=Float())
     created_at: datetime = Field(default_factory=_utc_now, sa_type=DateTime(timezone=True))
+
+
+class LabelCatalogFitScoreRow(SQLModel, table=True):
+    """Cached catalog-fit score for one demo query arm of a label.
+
+    Aggregate rows (reference_track_id IS NULL) hold the blended score;
+    per-reference rows hold the score for one reference. Eligible fingerprint
+    derivation is owned by the cache-fill path, never this model: sorted
+    eligible reference ids plus the max embedding created_at (ISO-8601 UTC),
+    SHA-256-hashed into a lowercase hex digest stored verbatim.
+    """
+
+    __tablename__ = "label_catalog_fit_scores"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["reference_track_id", "label_id"],
+            ["label_reference_tracks.id", "label_reference_tracks.label_id"],
+            name="fk_label_catalog_fit_scores_reference_track_label",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["query_submission_id", "label_id"],
+            ["submission.id", "submission.label_id"],
+            name="fk_label_catalog_fit_scores_submission_label",
+            ondelete="CASCADE",
+        ),
+        CheckConstraint(
+            "(reference_track_id IS NULL) <> (reference_track_id IS NOT NULL)",
+            name="ck_label_catalog_fit_scores_aggregate_xor",
+        ),
+        CheckConstraint(
+            "length(trim(provider)) > 0 AND length(trim(model)) > 0 AND "
+            "length(trim(version)) > 0 AND length(trim(pipeline_version)) > 0",
+            name="ck_label_catalog_fit_scores_identity_nonempty",
+        ),
+        CheckConstraint(
+            "length(trim(eligible_fingerprint)) > 0",
+            name="ck_label_catalog_fit_scores_fingerprint_nonempty",
+        ),
+        CheckConstraint("dimension = 512", name="ck_label_catalog_fit_scores_dimension"),
+        CheckConstraint("k > 0", name="ck_label_catalog_fit_scores_k_positive"),
+        CheckConstraint("eligible_count >= 0", name="ck_label_catalog_fit_scores_eligible_count"),
+        CheckConstraint(
+            "score = score AND score >= -1.7976931348623157e308 AND "
+            "score <= 1.7976931348623157e308",
+            name="ck_label_catalog_fit_scores_score_finite",
+        ),
+        Index(
+            "uq_label_catalog_fit_scores_reference_identity",
+            *_SCORE_AGGREGATE_IDENTITY_COLUMNS[:2],
+            "reference_track_id",
+            *_SCORE_AGGREGATE_IDENTITY_COLUMNS[2:],
+            unique=True,
+            postgresql_where=text("reference_track_id IS NOT NULL"),
+            sqlite_where=text("reference_track_id IS NOT NULL"),
+        ),
+        Index(
+            "uq_label_catalog_fit_scores_aggregate_identity",
+            *_SCORE_AGGREGATE_IDENTITY_COLUMNS,
+            unique=True,
+            postgresql_where=text("reference_track_id IS NULL"),
+            sqlite_where=text("reference_track_id IS NULL"),
+        ),
+        Index("ix_label_catalog_fit_scores_label_id", "label_id", "query_submission_id"),
+        {"info": {"migration_managed": True}},
+    )
+
+    id: str = Field(default_factory=lambda: str(uuid4()), primary_key=True)
+    label_id: str
+    query_submission_id: str
+    reference_track_id: str | None = Field(default=None, sa_type=String())
+    provider: str
+    model: str
+    version: str
+    dimension: int = Field(sa_type=Integer())
+    pipeline_version: str
+    k: int = Field(sa_type=Integer())
+    score: float = Field(sa_type=Float())
+    eligible_count: int = Field(sa_type=Integer())
+    eligible_fingerprint: str
+    created_at: datetime = Field(default_factory=_utc_now, sa_type=DateTime(timezone=True))
+    updated_at: datetime = Field(default_factory=_utc_now, sa_type=DateTime(timezone=True))
