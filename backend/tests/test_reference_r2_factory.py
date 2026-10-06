@@ -472,3 +472,146 @@ def test_promotion_default_builder_redacts_missing_sdk_import(monkeypatch):
         factory.create_private_reference_promotion_adapter(environ=make_settings())
     assert "FAKE_SECRET" not in str(raised.value)
     assert raised.value.__cause__ is None
+
+
+def _original_reader_client(signature_version="s3v4", with_get_object=True):
+    calls: list[dict[str, object]] = []
+    client = SimpleNamespace(
+        meta=SimpleNamespace(config=SimpleNamespace(signature_version=signature_version))
+    )
+    if with_get_object:
+        client.get_object = lambda **kwargs: calls.append(kwargs)
+    return client, calls
+
+
+def test_original_reader_factory_uses_explicit_settings_without_object_reads():
+    settings = make_settings()
+    client, object_calls = _original_reader_client()
+    builder_calls: list[dict[str, str]] = []
+    reader = factory.create_private_reference_original_reader(
+        environ=settings,
+        client_builder=lambda **kwargs: builder_calls.append(kwargs) or client,
+    )
+    assert type(reader).__name__ == "PrivateReferenceOriginalReader"
+    assert settings.reads == list(REQUIRED_KEYS)
+    assert builder_calls == [
+        {
+            "endpoint_url": FAKE_SETTINGS[ENDPOINT_KEY],
+            "aws_access_key_id": FAKE_SETTINGS[ACCESS_KEY],
+            "aws_secret_access_key": FAKE_SETTINGS[SECRET_KEY],
+        }
+    ]
+    assert object_calls == []
+
+
+@pytest.mark.parametrize(
+    "override",
+    [{PRIVATE_KEY: "invalid/name"}, {ENDPOINT_KEY: "http://fake-r2.example.test"}],
+)
+def test_original_reader_invalid_configuration_precedes_reader_sdk_imports_and_builder(
+    monkeypatch, override
+):
+    real_import = builtins.__import__
+    builder_calls: list[object] = []
+
+    def guarded_import(name, *args, **kwargs):
+        if name in {"app.services.reference_r2_originals", "boto3"}:
+            raise AssertionError("invalid configuration imported reader or SDK")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", guarded_import)
+    with pytest.raises(ReferenceR2FactoryError):
+        factory.create_private_reference_original_reader(
+            environ=make_settings(**override),
+            client_builder=lambda **kwargs: builder_calls.append(kwargs),
+        )
+    assert builder_calls == []
+
+
+@pytest.mark.parametrize("problem", ["signature", "missing_meta", "missing_get", "none"])
+def test_original_reader_factory_rejects_bad_clients_without_exposing_details(problem):
+    if problem == "signature":
+        client, object_calls = _original_reader_client("FAKE_SECRET")
+    elif problem == "missing_meta":
+        client, object_calls = SimpleNamespace(get_object=lambda **kwargs: None), []
+    elif problem == "missing_get":
+        client, object_calls = _original_reader_client(with_get_object=False)
+    else:
+        client, object_calls = None, []
+    with pytest.raises(ReferenceR2FactoryError) as raised:
+        factory.create_private_reference_original_reader(
+            environ=make_settings(), client_builder=lambda **kwargs: client
+        )
+    assert "FAKE_SECRET" not in str(raised.value)
+    assert object_calls == []
+
+
+def test_original_reader_default_builder_uses_fresh_sigv4_sessions_and_clients(monkeypatch):
+    sessions: list[object] = []
+    calls: list[tuple[object, tuple[object, ...], dict[str, object]]] = []
+    clients: list[object] = []
+
+    class FakeConfig:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    class FakeBotoCoreError(Exception):
+        pass
+
+    class FakeSession:
+        fail = False
+
+        def __init__(self):
+            sessions.append(self)
+
+        def client(self, *args, **kwargs):
+            calls.append((self, args, kwargs))
+            if self.fail:
+                raise FakeBotoCoreError("FAKE_SECRET SDK detail")
+            client, object_calls = _original_reader_client()
+            clients.append(client)
+            assert object_calls == []
+            return client
+
+    boto3 = ModuleType("boto3")
+    boto3.session = SimpleNamespace(Session=FakeSession)
+    botocore = ModuleType("botocore")
+    botocore.__path__ = []
+    config = ModuleType("botocore.config")
+    config.Config = FakeConfig
+    errors = ModuleType("botocore.exceptions")
+    errors.BotoCoreError = FakeBotoCoreError
+    monkeypatch.setitem(sys.modules, "boto3", boto3)
+    monkeypatch.setitem(sys.modules, "botocore", botocore)
+    monkeypatch.setitem(sys.modules, "botocore.config", config)
+    monkeypatch.setitem(sys.modules, "botocore.exceptions", errors)
+
+    readers = [
+        factory.create_private_reference_original_reader(environ=make_settings()) for _ in range(2)
+    ]
+    assert sessions[0] is not sessions[1] and clients[0] is not clients[1]
+    assert readers[0] is not readers[1]
+    for session, args, kwargs in calls:
+        assert session in sessions and args == ("s3",)
+        assert kwargs["endpoint_url"] == FAKE_SETTINGS[ENDPOINT_KEY]
+        assert kwargs["aws_access_key_id"] == FAKE_SETTINGS[ACCESS_KEY]
+        assert kwargs["aws_secret_access_key"] == FAKE_SETTINGS[SECRET_KEY]
+        assert kwargs["region_name"] == "auto"
+        assert kwargs["config"].kwargs == {"signature_version": "s3v4"}
+
+    FakeSession.fail = True
+    with pytest.raises(ReferenceR2FactoryError) as raised:
+        factory.create_private_reference_original_reader(environ=make_settings())
+    assert "FAKE_SECRET" not in str(raised.value) and raised.value.__cause__ is None
+
+    real_import = builtins.__import__
+
+    def missing_sdk(name, *args, **kwargs):
+        if name == "boto3":
+            raise ImportError("FAKE_SECRET import detail")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", missing_sdk)
+    with pytest.raises(ReferenceR2FactoryError) as raised:
+        factory.create_private_reference_original_reader(environ=make_settings())
+    assert "FAKE_SECRET" not in str(raised.value) and raised.value.__cause__ is None

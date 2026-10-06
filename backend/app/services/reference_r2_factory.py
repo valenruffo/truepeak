@@ -176,6 +176,60 @@ def create_private_reference_staging_adapter(
     )
 
 
+def create_private_reference_original_reader(
+    *,
+    environ: Mapping[str, str] | None = None,
+    client_builder: Callable[..., object] | None = None,
+) -> object:
+    """Create a lazy, dedicated-client reader for explicitly attested private R2."""
+    settings = os.environ if environ is None else environ
+    private_bucket = _setting(settings, _PRIVATE_BUCKET)
+    confirmed = _setting(settings, _PRIVATE_ACCESS_ATTESTATION).strip().lower()
+    legacy_bucket = _setting(settings, _LEGACY_BUCKET)
+    endpoint = _setting(settings, _ENDPOINT)
+    access_key_id = _setting(settings, _ACCESS_KEY_ID)
+    secret_access_key = _setting(settings, _SECRET_ACCESS_KEY)
+
+    allowed_bucket_chars = "abcdefghijklmnopqrstuvwxyz0123456789-"
+    valid_buckets = all(
+        3 <= len(bucket) <= 63
+        and bucket[0] in allowed_bucket_chars[:-1]
+        and bucket[-1] in allowed_bucket_chars[:-1]
+        and all(character in allowed_bucket_chars for character in bucket)
+        for bucket in (private_bucket, legacy_bucket)
+    )
+    if confirmed not in {"true", "1"} or not valid_buckets or private_bucket == legacy_bucket:
+        raise ReferenceR2FactoryError("R2 original reader configuration is missing or invalid")
+    _validate_endpoint(endpoint)
+
+    try:
+        from app.services.reference_r2_originals import PrivateReferenceOriginalReader
+    except ImportError:
+        raise ReferenceR2FactoryError("R2 original reader is unavailable") from None
+
+    builder = _build_promotion_s3_client if client_builder is None else client_builder
+    client = builder(
+        endpoint_url=endpoint,
+        aws_access_key_id=access_key_id,
+        aws_secret_access_key=secret_access_key,
+    )
+    if client is None:
+        raise ReferenceR2FactoryError("R2 original reader client is unavailable")
+
+    meta = getattr(client, "meta", None)
+    config = getattr(meta, "config", None)
+    if getattr(config, "signature_version", None) != "s3v4" or not callable(
+        getattr(client, "get_object", None)
+    ):
+        raise ReferenceR2FactoryError("R2 original reader client must support SigV4 and get_object")
+    return PrivateReferenceOriginalReader(
+        client,
+        private_bucket=private_bucket,
+        legacy_bucket=legacy_bucket,
+        private_access_confirmed=True,
+    )
+
+
 def create_private_reference_promotion_adapter(
     *,
     environ: Mapping[str, str] | None = None,
