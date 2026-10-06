@@ -12,7 +12,8 @@ import os
 from collections.abc import Callable, Generator
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
+from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, ConfigDict, StrictInt, StrictStr, ValidationError
@@ -35,8 +36,10 @@ from app.ar_matching.reference_reservations import (
 )
 from app.ar_matching.reference_validation import (
     TypedReferenceValidationError,
+    ValidatedReferenceUpload,
     validate_reference_upload,
 )
+from app.ar_matching.storage_models import LabelReferenceTrack
 from app.audio.embedding.schemas import EmbeddingMetadata
 from app.models import Label
 
@@ -49,6 +52,8 @@ _DATABASE_CONFIG_ERROR = "POSTGRES_URL environment variable is required"
 _VECTOR_ADAPTER_ERROR = "pgvector is required for PostgreSQL Vector512 storage"
 _CATALOG_UNAVAILABLE = "Reference catalog is temporarily unavailable."
 _DNA_UNAVAILABLE = "Label DNA is temporarily unavailable."
+_PRESIGN_UNAVAILABLE = "Reference upload signing is temporarily unavailable."
+_PRESIGN_INELIGIBLE = "Reference upload is not eligible for signing."
 
 
 class ReferenceCatalogItemDTO(BaseModel):
@@ -93,6 +98,16 @@ class ReferenceUploadReservationDTO(BaseModel):
     reference_id: str
     reused: bool
     status: str
+
+
+class ReferenceUploadPresignDTO(BaseModel):
+    """Permission for one provisional staging PUT, not proof of an uploaded object."""
+
+    reference_id: str
+    url: str
+    method: Literal["PUT"]
+    required_headers: dict[str, str]
+    expires_in_seconds: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -398,4 +413,185 @@ async def reserve_reference_upload_endpoint(
         reference_id=reservation.id,
         reused=reservation.reused,
         status=reservation.status,
+    )
+
+
+def _canonical_uuid(value: object) -> bool:
+    if type(value) is not str:
+        return False
+    try:
+        return str(UUID(value)) == value
+    except ValueError:
+        return False
+
+
+def _create_reference_staging_adapter():
+    """Lazy factory seam; never construct storage clients before authorization."""
+    from app.services.reference_r2_factory import create_private_reference_staging_adapter
+
+    return create_private_reference_staging_adapter()
+
+
+def _owned_upload_for_presign(label_id: str, reference_id: str) -> ValidatedReferenceUpload:
+    """Project persisted owner/upload identity from a fresh read-only Session."""
+    session_stream = None
+    try:
+        session_stream = _get_session()
+        try:
+            session = next(session_stream)
+        except RuntimeError as error:
+            if _is_database_config_error(error):
+                raise HTTPException(status_code=503, detail=_PRESIGN_UNAVAILABLE) from None
+            raise
+
+        if session.in_transaction() or session.new or session.dirty or session.deleted:
+            raise HTTPException(status_code=409, detail=_PRESIGN_INELIGIBLE)
+
+        fields = (
+            LabelReferenceTrack.id,
+            LabelReferenceTrack.label_id,
+            LabelReferenceTrack.is_active,
+            LabelReferenceTrack.status,
+            LabelReferenceTrack.upload_idempotency_key,
+            LabelReferenceTrack.upload_filename,
+            LabelReferenceTrack.upload_size_bytes,
+            LabelReferenceTrack.upload_limit_bytes,
+            LabelReferenceTrack.staging_key,
+            LabelReferenceTrack.staging_etag,
+            LabelReferenceTrack.storage_key,
+            LabelReferenceTrack.final_etag,
+        )
+        with session.no_autoflush:
+            row = (
+                session.execute(
+                    select(*fields).where(
+                        LabelReferenceTrack.label_id == label_id,
+                        LabelReferenceTrack.id == reference_id,
+                    )
+                )
+                .mappings()
+                .one_or_none()
+            )
+
+        if row is None or row["is_active"] is not True:
+            raise HTTPException(status_code=404, detail="Reference not found.")
+        if (
+            row["status"] != "uploaded"
+            or row["staging_etag"] is not None
+            or row["storage_key"] is not None
+            or row["final_etag"] is not None
+            or not _canonical_uuid(label_id)
+            or not _canonical_uuid(row["label_id"])
+            or row["label_id"] != label_id
+            or not _canonical_uuid(reference_id)
+            or not _canonical_uuid(row["id"])
+            or row["id"] != reference_id
+        ):
+            raise HTTPException(status_code=409, detail=_PRESIGN_INELIGIBLE)
+
+        filename = row["upload_filename"]
+        size_bytes = row["upload_size_bytes"]
+        limit_bytes = row["upload_limit_bytes"]
+        idempotency_key = row["upload_idempotency_key"]
+        if (
+            type(filename) is not str
+            or type(size_bytes) is not int
+            or type(limit_bytes) is not int
+            or not _canonical_uuid(idempotency_key)
+        ):
+            raise HTTPException(status_code=409, detail=_PRESIGN_INELIGIBLE)
+        try:
+            upload = validate_reference_upload(filename, size_bytes, max_size_bytes=limit_bytes)
+        except TypedReferenceValidationError:
+            raise HTTPException(status_code=409, detail=_PRESIGN_INELIGIBLE) from None
+
+        expected_key = (
+            f"label-references/{row['label_id']}/{row['id']}/staging/"
+            f"original{upload.canonical_extension}"
+        )
+        if (
+            upload.effective_limit_bytes != limit_bytes
+            or type(row["staging_key"]) is not str
+            or row["staging_key"] != expected_key
+        ):
+            raise HTTPException(status_code=409, detail=_PRESIGN_INELIGIBLE)
+        return upload
+    except SQLAlchemyError as error:
+        if _unavailable_for_storage_error(error):
+            raise HTTPException(status_code=503, detail=_PRESIGN_UNAVAILABLE) from None
+        raise
+    except RuntimeError as error:
+        if _is_database_config_error(error) or _is_missing_vector_adapter(error):
+            raise HTTPException(status_code=503, detail=_PRESIGN_UNAVAILABLE) from None
+        raise
+    finally:
+        close = getattr(session_stream, "close", None)
+        if close is not None:
+            close()
+
+
+def _known_presign_availability_error(error: Exception) -> bool:
+    from app.services.reference_r2 import (
+        ReferenceR2ConfigurationError,
+        ReferenceR2ResponseError,
+    )
+    from app.services.reference_r2_factory import ReferenceR2FactoryError
+
+    if isinstance(
+        error,
+        (ReferenceR2FactoryError, ReferenceR2ConfigurationError, ReferenceR2ResponseError),
+    ):
+        return True
+    try:
+        from botocore.exceptions import BotoCoreError, ClientError
+    except ImportError:
+        return False
+    return isinstance(error, (BotoCoreError, ClientError))
+
+
+@router.post(
+    "/api/labels/me/reference-uploads/{reference_id}/presign",
+    response_model=ReferenceUploadPresignDTO,
+    responses={
+        404: {"description": "The owned active reference does not exist."},
+        409: {"description": "The reference is not eligible for another staging PUT."},
+        422: {"description": "The path reference ID is not a canonical UUID."},
+        503: {"description": "Reference upload signing is temporarily unavailable."},
+    },
+)
+def presign_reference_upload_endpoint(
+    request: Request, reference_id: str
+) -> ReferenceUploadPresignDTO:
+    """Authorize a replayable STAGING PUT; the signed URL may overwrite until TTL.
+
+    Issuance checks current persisted identity but cannot revoke earlier URLs or
+    prove object existence, privacy, upload completion, or atomic cross-provider
+    completion. This endpoint provides no concurrency or immutability guarantee.
+    """
+    if not _enabled() or not _uploads_enabled():
+        raise HTTPException(status_code=404, detail="Not found.")
+    label_id = _verified_label_id(request)
+    if not _canonical_uuid(reference_id):
+        raise HTTPException(status_code=422, detail="Invalid reference ID.")
+
+    upload = _owned_upload_for_presign(label_id, reference_id)
+    try:
+        adapter = _create_reference_staging_adapter()
+        signed = adapter.presign_put(
+            label_id,
+            reference_id,
+            upload,
+            expires_in_seconds=900,
+        )
+    except Exception as error:
+        if not _known_presign_availability_error(error):
+            raise
+        raise HTTPException(status_code=503, detail=_PRESIGN_UNAVAILABLE) from None
+
+    return ReferenceUploadPresignDTO(
+        reference_id=reference_id,
+        url=signed.url,
+        method="PUT",
+        required_headers=dict(signed.required_headers),
+        expires_in_seconds=signed.expires_in_seconds,
     )
