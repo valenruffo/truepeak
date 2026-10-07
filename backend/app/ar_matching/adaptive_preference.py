@@ -144,6 +144,7 @@ def compute_label_preference(
     metadata: EmbeddingMetadata,
     pipeline_version: str,
     now: datetime | None = None,
+    decided_before: datetime | None = None,
     half_life_days: float = 30.0,
     positive_weight: float = 1.0,
     negative_weight: float = 0.25,
@@ -153,6 +154,8 @@ def compute_label_preference(
 
     Shortlist = positive direction; rejected = conservative-negative direction
     (damped by ``negative_weight``); the vocabulary is closed with no neutral.
+    Decisions strictly before ``decided_before`` are excluded, enabling
+    bias-free temporal evaluation; ``None`` = all history.
     See the module docstring for the locked math and counting semantics: the
     preference is a separate documented value for the T07/T08 modes, raw
     cosine scores are never mutated, and nothing here auto-rejects, hides, or
@@ -164,17 +167,26 @@ def compute_label_preference(
     if not isinstance(pipeline_version, str) or not pipeline_version.strip():
         raise ValueError("pipeline_version must be a non-empty string")
     resolved_now = _require_now(now)
+    if decided_before is not None and (
+        not isinstance(decided_before, datetime)
+        or decided_before.tzinfo is None
+        or decided_before.utcoffset() is None
+    ):
+        raise ValueError("decided_before must be None or a timezone-aware datetime")
     validated_half_life = _require_positive_finite(half_life_days, "half_life_days")
     validated_positive = _require_positive_finite(positive_weight, "positive_weight")
     validated_negative = _require_positive_finite(negative_weight, "negative_weight")
     if type(cold_start_minimum) is not int or cold_start_minimum < 1:
         raise ValueError("cold_start_minimum must be an integer >= 1")
 
-    decision_rows = session.exec(
+    decision_query = (
         select(LabelArDecisionRow)
         .where(LabelArDecisionRow.label_id == owner)
         .order_by(LabelArDecisionRow.decided_at, LabelArDecisionRow.id)
-    ).all()
+    )
+    if decided_before is not None:
+        decision_query = decision_query.where(LabelArDecisionRow.decided_at < decided_before)
+    decision_rows = session.exec(decision_query).all()
     latest_by_submission: dict[str, LabelArDecisionRow] = {}
     for row in decision_rows:
         latest_by_submission[row.submission_id] = row

@@ -661,3 +661,69 @@ def test_validation_rejects_naive_now_and_bad_scope(session):
         _compute(session, _CANONICAL_ID, metadata="nope")
     with pytest.raises(ValueError):
         _compute(session, _CANONICAL_ID, pipeline_version="   ")
+
+
+# --- T07 decided_before parameter: bias-free temporal evaluation seam ---
+
+
+def test_decided_before_excludes_later_decisions(session):
+    label = _seed_label(session, "db-later")
+    early = _seed_submission(session, label, "db-early")
+    late = _seed_submission(session, label, "db-late")
+    _add_aggregate(session, label, early, _dir(1.0, 0.0))
+    _add_aggregate(session, label, late, _dir(0.0, 1.0))
+    _add_decision(session, early, "shortlist", _NOW - _DAY)
+    _add_decision(session, late, "shortlist", _NOW)
+    session.commit()
+
+    result = _compute(session, label.id, cold_start_minimum=1, decided_before=_NOW)
+
+    assert result.state is LabelPreferenceState.READY
+    assert result.preference == pytest.approx((1.0, 0.0, *([0.0] * 510)))
+    assert (
+        result.positive_count,
+        result.negative_count,
+        result.skipped_count,
+        result.contributing_count,
+    ) == (1, 0, 0, 1)
+
+
+def test_decided_before_boundary_is_strict(session):
+    label = _seed_label(session, "db-edge")
+    boundary = _seed_submission(session, label, "db-at")
+    _add_aggregate(session, label, boundary, _dir(1.0, 0.0))
+    _add_decision(session, boundary, "shortlist", _NOW)
+    session.commit()
+
+    at_boundary = _compute(session, label.id, cold_start_minimum=1, decided_before=_NOW)
+    strictly_after = _compute(
+        session, label.id, cold_start_minimum=1, decided_before=_NOW + timedelta(microseconds=1)
+    )
+
+    assert at_boundary.state is LabelPreferenceState.COLD_START
+    assert (at_boundary.positive_count, at_boundary.contributing_count) == (0, 0)
+    assert strictly_after.state is LabelPreferenceState.READY
+    assert strictly_after.preference == pytest.approx((1.0, 0.0, *([0.0] * 510)))
+    assert strictly_after.contributing_count == 1
+
+
+def test_decided_before_none_matches_default_history(session):
+    label = _seed_label(session, "db-none")
+    for index, vector in enumerate((_dir(1.0, 0.0), _dir(0.0, 1.0), _dir(1.0, 1.0))):
+        submission = _seed_submission(session, label, f"db-none-{index}")
+        _add_aggregate(session, label, submission, vector)
+        _add_decision(session, submission, "shortlist", _NOW - _DAY)
+    session.commit()
+
+    default_result = _compute(session, label.id)
+    none_result = _compute(session, label.id, decided_before=None)
+
+    assert none_result == default_result
+    assert none_result.state is LabelPreferenceState.READY
+    assert none_result.contributing_count == 3
+
+
+@pytest.mark.parametrize("bad", [datetime(2025, 6, 1), "2025-06-01", 1, True])
+def test_validation_rejects_invalid_decided_before(session, bad):
+    with pytest.raises(ValueError):
+        _compute(session, _CANONICAL_ID, decided_before=bad)
