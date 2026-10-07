@@ -67,12 +67,18 @@ CREATE TABLE public.label_ar_decisions (
 -- Latest-wins reads per (label, submission) scan decided_at in order.
 CREATE INDEX ix_label_ar_decisions_label_submission
     ON public.label_ar_decisions (label_id, submission_id, decided_at);
+-- Append-only enforcement reaches the database boundary: the owner can
+-- INSERT and SELECT its own rows, but no policy and no grant ever allow
+-- UPDATE or DELETE, so committed audit history is immutable.
 ALTER TABLE public.label_ar_decisions ENABLE ROW LEVEL SECURITY;
-CREATE POLICY label_ar_decisions_owner_access
+CREATE POLICY label_ar_decisions_owner_insert
     ON public.label_ar_decisions
-    FOR ALL TO authenticated
-    USING (label_id = auth.uid()::text)
+    FOR INSERT TO authenticated
     WITH CHECK (label_id = auth.uid()::text);
+CREATE POLICY label_ar_decisions_owner_select
+    ON public.label_ar_decisions
+    FOR SELECT TO authenticated
+    USING (label_id = auth.uid()::text);
 -- Catch unexpected default ACL grants on the new table before narrowing grants.
 DO $default_acl_preflight$
 DECLARE
@@ -100,6 +106,8 @@ $default_acl_preflight$;
 
 REVOKE ALL ON TABLE public.label_ar_decisions
     FROM PUBLIC, anon, authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE
+-- UPDATE and DELETE are intentionally never granted: the decision history
+-- is immutable at the database boundary, not only by model convention.
+GRANT SELECT, INSERT
     ON TABLE public.label_ar_decisions TO authenticated;
 COMMIT;

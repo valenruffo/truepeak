@@ -231,13 +231,21 @@ def test_migration_source_declares_locked_structure():
     assert "ix_label_ar_decisions_label_submission" in sql
     assert "(label_id, submission_id, decided_at)" in sql
     assert "enable row level security" in sql
-    assert "create policy label_ar_decisions_owner_access" in sql
-    assert "for all to authenticated" in sql
-    assert sql.count("create policy ") == 1
+    assert "create policy label_ar_decisions_owner_insert" in sql
+    assert "create policy label_ar_decisions_owner_select" in sql
+    assert "for insert to authenticated" in sql
+    assert "for select to authenticated" in sql
+    assert "for all to authenticated" not in sql
+    assert sql.count("create policy ") == 2
     assert sql.count("label_id = auth.uid()::text") == 2
     assert "$default_acl_preflight$" in sql and "unexpected default privilege" in sql
     assert "revoke all" in sql and "from public, anon, authenticated" in sql
-    assert "grant select, insert, update, delete" in sql
+    # Append-only at the database boundary: no UPDATE/DELETE grant or policy
+    # on any executable (non-comment) statement line.
+    executable = "\n".join(code)
+    assert "grant select, insert" in executable
+    assert "update" not in executable.replace("grant select, insert", "")
+    assert "delete" not in executable.replace("on delete cascade", "")
     # Append-only: no mutable-timestamp column anywhere in the migration.
     assert "updated_at" not in sql
     # Plain table: no extension bootstrap DO block.
