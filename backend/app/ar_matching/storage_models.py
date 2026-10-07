@@ -373,3 +373,57 @@ class LabelCatalogFitScoreRow(SQLModel, table=True):
     eligible_fingerprint: str
     created_at: datetime = Field(default_factory=_utc_now, sa_type=DateTime(timezone=True))
     updated_at: datetime = Field(default_factory=_utc_now, sa_type=DateTime(timezone=True))
+
+
+class LabelArDecisionRow(SQLModel, table=True):
+    """One append-only A&R decision on a label demo submission.
+
+    Rows are immutable history: there is no mutable-timestamp column, no update
+    path, and Submission.status is never written from decisions; the current
+    state derives on read from the latest decided_at per (label_id,
+    submission_id). The vocabulary reuses the Submission states limited to
+    'shortlist' / 'rejected' ('inbox' is not a decision and auto-rejection is
+    forbidden). Exact-duplicate suppression is a service-layer concern, not a
+    schema constraint. note mirrors the Submission.notes precedent: nullable,
+    no length cap.
+    """
+
+    __tablename__ = "label_ar_decisions"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["label_id"],
+            ["label.id"],
+            name="fk_label_ar_decisions_label",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["submission_id", "label_id"],
+            ["submission.id", "submission.label_id"],
+            name="fk_label_ar_decisions_submission_label",
+            ondelete="CASCADE",
+        ),
+        CheckConstraint(
+            "decision IN ('shortlist', 'rejected')",
+            name="ck_label_ar_decisions_decision_allowed",
+        ),
+        CheckConstraint(
+            "length(trim(decided_by)) > 0",
+            name="ck_label_ar_decisions_decided_by_nonempty",
+        ),
+        Index(
+            "ix_label_ar_decisions_label_submission",
+            "label_id",
+            "submission_id",
+            "decided_at",
+        ),
+        {"info": {"migration_managed": True}},
+    )
+
+    id: str = Field(default_factory=lambda: str(uuid4()), primary_key=True)
+    label_id: str
+    submission_id: str
+    decision: str
+    decided_by: str
+    decided_at: datetime = Field(sa_type=DateTime(timezone=True))
+    note: str | None = Field(default=None, sa_type=String())
+    created_at: datetime = Field(default_factory=_utc_now, sa_type=DateTime(timezone=True))
