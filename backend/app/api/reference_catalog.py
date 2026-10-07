@@ -12,7 +12,7 @@ import os
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, Literal
 from uuid import UUID
 
@@ -22,15 +22,22 @@ from sqlalchemy import select
 from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from sqlmodel import Session
 
+from app.ar_matching.adaptive_preference import (
+    LabelPreferenceState,
+    compute_label_preference,
+    preference_similarity,
+)
 from app.ar_matching.ar_decisions import (
     LabelArDecisionOutcome,
     list_label_ar_decisions,
     list_label_decision_history,
     record_label_ar_decision,
 )
+from app.ar_matching.catalog_fit_scores import compute_label_catalog_fit
 from app.ar_matching.reference_catalog import (
     CorruptReferenceEmbeddingError,
     LabelDnaReadiness,
+    ReadinessState,
     ReferenceCatalogItem,
     get_label_dna_readiness,
     list_reference_catalog,
@@ -60,8 +67,8 @@ from app.ar_matching.reference_validation import (
     ValidatedReferenceUpload,
     validate_reference_upload,
 )
-from app.ar_matching.storage_models import LabelReferenceTrack
-from app.audio.embedding.schemas import EmbeddingMetadata
+from app.ar_matching.storage_models import LabelReferenceTrack, MusicEmbedding
+from app.audio.embedding.schemas import EmbeddingMetadata, TrackEmbedding
 from app.models import Label, Submission
 
 router = APIRouter(tags=["label-reference-catalog"])
@@ -184,6 +191,23 @@ class LabelArDecisionRequest(BaseModel):
     decision: StrictStr
     decided_by: StrictStr | None = None
     note: StrictStr | None = None
+
+
+class RankedInboxItemDTO(BaseModel):
+    """One inbox row in reading order; never a quality or auto-decision record."""
+
+    submission_id: str
+    track_name: str
+    rank: int
+    score: float | None
+    score_code: str
+
+
+class RankedInboxDTO(BaseModel):
+    """Read-only ranked-inbox projection; every demo is always present."""
+
+    mode: Literal["preference", "catalog", "chronological_fallback"]
+    items: list[RankedInboxItemDTO]
 
 
 @dataclass(frozen=True, slots=True)
@@ -949,3 +973,166 @@ async def record_ar_decision_endpoint(
     if not outcome.created:
         response.status_code = 200
     return LabelArDecisionReceiptDTO(**asdict(outcome.record), created=outcome.created)
+
+
+def _aggregate_track(row: MusicEmbedding, metadata: EmbeddingMetadata) -> TrackEmbedding:
+    """Wrap one stored sub-arm aggregate as a normalized TrackEmbedding query."""
+    created_at = row.created_at
+    if created_at.tzinfo is None:
+        # Repair naive SQLite read-back exactly like the adaptive-preference seam.
+        created_at = created_at.replace(tzinfo=UTC)
+    return TrackEmbedding(
+        metadata=metadata,
+        vector=tuple(float(value) for value in row.embedding),
+        created_at=created_at,
+    )
+
+
+def _ranked_inbox_item(
+    submission: Submission, rank: int, score: float | None, scored_code: str
+) -> RankedInboxItemDTO:
+    """One reading-order row; scored items carry the mode, the rest are unscored."""
+    return RankedInboxItemDTO(
+        submission_id=submission.id,
+        track_name=submission.track_name,
+        rank=rank,
+        score=score,
+        score_code=scored_code if score is not None else "unscored",
+    )
+
+
+def _ranked_inbox(
+    session: Session, label_id: str, identity: _ReadinessIdentity, mode: str
+) -> RankedInboxDTO:
+    """Project one read-only ranked-inbox view; never writes, hides, or omits."""
+    # ALL Submission rows for the label are read: the inbox never hides or omits
+    # a demo regardless of status, soft deletion, or embedding coverage.
+    submissions = (
+        session.execute(
+            select(Submission)
+            .where(Submission.label_id == label_id)
+            .order_by(Submission.created_at, Submission.id)
+        )
+        .scalars()
+        .all()
+    )
+    aggregate_rows = (
+        session.execute(
+            select(MusicEmbedding)
+            .where(MusicEmbedding.label_id == label_id)
+            .where(MusicEmbedding.submission_id.is_not(None))
+            .where(MusicEmbedding.reference_track_id.is_(None))
+            .where(MusicEmbedding.segment_index == -1)
+            .where(MusicEmbedding.provider == identity.metadata.provider)
+            .where(MusicEmbedding.model == identity.metadata.model)
+            .where(MusicEmbedding.version == identity.metadata.version)
+            .where(MusicEmbedding.dimension == identity.metadata.dimension)
+            .where(MusicEmbedding.pipeline_version == identity.pipeline_version)
+        )
+        .scalars()
+        .all()
+    )
+    aggregate_by_submission = {row.submission_id: row for row in aggregate_rows}
+    scorable = [s for s in submissions if s.id in aggregate_by_submission]
+    unscored = [s for s in submissions if s.id not in aggregate_by_submission]
+    if not submissions:
+        # An empty inbox applies no ordering, so the requested mode is reported
+        # as-is; there is nothing to score and nothing to fall back for.
+        return RankedInboxDTO(mode=mode, items=[])
+
+    if mode == "preference":
+        preference = compute_label_preference(
+            session,
+            label_id=label_id,
+            metadata=identity.metadata,
+            pipeline_version=identity.pipeline_version,
+        )
+        if preference.state is not LabelPreferenceState.READY:
+            # Cold start or cancelled: no learned preference exists, so nothing
+            # is scored and scorable demos keep plain chronological reading
+            # order (created_at, id) with unscored items after. This ordering
+            # fallback is the neutral no-preference reading order, NOT
+            # deprioritization; every demo stays in the inbox.
+            items = [
+                _ranked_inbox_item(submission, rank, None, mode)
+                for rank, submission in enumerate(scorable + unscored, start=1)
+            ]
+            return RankedInboxDTO(mode="chronological_fallback", items=items)
+        scored = [
+            (
+                preference_similarity(
+                    preference.preference,
+                    _aggregate_track(aggregate_by_submission[s.id], identity.metadata).vector,
+                ),
+                s,
+            )
+            for s in scorable
+        ]
+        response_mode = "preference"
+    else:
+        scored = []
+        for submission in scorable:
+            fit = compute_label_catalog_fit(
+                session,
+                label_id,
+                _aggregate_track(aggregate_by_submission[submission.id], identity.metadata),
+                identity.metadata,
+                identity.pipeline_version,
+            )
+            if fit.state is ReadinessState.READY and fit.aggregate_score is not None:
+                scored.append((fit.aggregate_score, submission))
+        # Each demo is individually scored or left unscored against the label's
+        # current readiness snapshot, so catalog mode always reports "catalog"
+        # and never falls back to a chronological mode code.
+        response_mode = "catalog"
+
+    # Stable score sort: equal scores keep the (created_at, id) read order, and
+    # unscored items follow last in that same neutral order.
+    scored.sort(key=lambda entry: entry[0], reverse=True)
+    score_by_id = {submission.id: score for score, submission in scored}
+    tail = [submission for submission in submissions if submission.id not in score_by_id]
+    items = [
+        _ranked_inbox_item(submission, rank, score_by_id.get(submission.id), response_mode)
+        for rank, submission in enumerate([entry[1] for entry in scored] + tail, start=1)
+    ]
+    return RankedInboxDTO(mode=response_mode, items=items)
+
+
+@router.get(
+    "/api/labels/me/ranked-inbox",
+    response_model=RankedInboxDTO,
+    responses={
+        401: {"description": "The verified owner token is invalid."},
+        404: {"description": "The verified label does not exist."},
+        422: {"description": "The mode query parameter is not preference or catalog."},
+        503: {"description": "Ranked inbox reads are temporarily unavailable."},
+    },
+)
+def read_ranked_inbox(request: Request, mode: str = "preference") -> RankedInboxDTO:
+    """Rank this label's inbox for reading only; every demo is always returned.
+
+    The inbox NEVER hides, omits, or drops any Submission row for the label:
+    items without a scorable sub-arm aggregate embedding are included LAST as
+    unscored (score null, score_code "unscored"), and cold-start or cancelled
+    labels fall back to the neutral chronological (created_at, id) order — an
+    ordering fallback that is never deprioritization. Scores are raw
+    preference-fit or catalog-fit similarity alignments only, never quality or
+    hit-probability judgments. Ordering is a reading aid: decisions remain
+    human, and this endpoint performs zero writes — no auto-reject, no
+    auto-hide, no deprioritization, no caching. mode=preference (default)
+    scores aggregates against the human-decision preference; mode=catalog
+    scores each aggregate against the label's ready reference DNA and always
+    reports mode "catalog" because items are individually resolved.
+    """
+    if not _enabled():
+        raise HTTPException(status_code=404, detail="Not found.")
+    label_id = _verified_label_id(request)
+    if not _canonical_uuid(label_id):
+        raise HTTPException(status_code=401, detail="Invalid or expired token.")
+    if mode not in ("preference", "catalog"):
+        raise HTTPException(status_code=422, detail="invalid_mode")
+    identity = _readiness_identity()
+    return _with_owner_session(
+        label_id,
+        lambda session: _ranked_inbox(session, label_id, identity, mode),
+    )

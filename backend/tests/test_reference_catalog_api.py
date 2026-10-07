@@ -1267,3 +1267,565 @@ def test_ar_decision_forged_query_and_body_ids_never_change_owner_scope(
         assert forged_body.status_code == 422  # caller-controlled label_id is forbidden
         assert malformed.status_code == 422  # missing decision is a request-level failure
         assert len(session.exec(select(LabelArDecisionRow)).all()) == 2
+
+
+_RANKED_TABLES = [
+    Label.__table__,
+    Submission.__table__,
+    LabelReferenceTrack.__table__,
+    MusicEmbedding.__table__,
+    LabelArDecisionRow.__table__,
+]
+
+
+@pytest.fixture
+def ranked_engine():
+    value = _engine(_RANKED_TABLES)
+    yield value
+    SQLModel.metadata.drop_all(value, tables=_RANKED_TABLES)
+    value.dispose()
+
+
+def _axis_vector(*components: float) -> list[float]:
+    return list(components) + [0.0] * (512 - len(components))
+
+
+_U = _axis_vector(1.0)  # +x axis
+_V = _axis_vector(0.0, 1.0)  # orthogonal to the learned preference
+_NEG = _axis_vector(-1.0)  # opposite the learned preference
+
+
+def _ranked_submission(
+    session: Session,
+    label: Label,
+    *,
+    submission_id: str | None = None,
+    track_name: str = "Demo track",
+    created_at: datetime | None = None,
+) -> Submission:
+    submission = Submission(
+        id=submission_id or str(uuid4()),
+        label_id=label.id,
+        producer_name="Producer",
+        producer_email="producer@example.test",
+        track_name=track_name,
+        created_at=created_at or datetime(2025, 1, 1, tzinfo=UTC),
+    )
+    session.add(submission)
+    session.flush()
+    return submission
+
+
+def _ranked_aggregate(
+    session: Session,
+    label: Label,
+    submission: Submission,
+    *,
+    vector: list[float] | None = None,
+) -> MusicEmbedding:
+    embedding = MusicEmbedding(
+        label_id=label.id,
+        submission_id=submission.id,
+        embedding=vector if vector is not None else _U,
+        provider="explicit-test-provider",
+        model="explicit-test-model",
+        version="explicit-v1",
+        dimension=512,
+        pipeline_version="explicit-pipeline-v1",
+        segment_index=-1,
+    )
+    session.add(embedding)
+    session.flush()
+    return embedding
+
+
+def _seed_preference_anchors(session: Session, label: Label) -> list[Submission]:
+    """Three shortlisted +x demos lock the human preference onto the +x axis."""
+    anchors = []
+    for index in range(3):
+        submission = _ranked_submission(
+            session,
+            label,
+            track_name=f"Anchor {index}",
+            created_at=datetime(2025, 1, index + 1, tzinfo=UTC),
+        )
+        _ranked_aggregate(session, label, submission, vector=_U)
+        _decision_row(session, label, submission, decided_at=datetime(2025, 2, 1, tzinfo=UTC))
+        anchors.append(submission)
+    return anchors
+
+
+def _seed_ready_references(session: Session, label: Label) -> None:
+    """Five ready +x references push the label's reference DNA past cold start."""
+    for index in range(5):
+        reference = _reference(session, label, title=f"Ref {index}")
+        session.add(
+            MusicEmbedding(
+                label_id=label.id,
+                reference_track_id=reference.id,
+                embedding=_U,
+                provider="explicit-test-provider",
+                model="explicit-test-model",
+                version="explicit-v1",
+                dimension=512,
+                pipeline_version="explicit-pipeline-v1",
+                segment_index=-1,
+            )
+        )
+        session.flush()
+
+
+def test_ranked_inbox_disabled_returns_404_before_authentication_or_session(monkeypatch):
+    monkeypatch.delenv("LABEL_DNA_ENABLED", raising=False)
+    client, calls = _client(monkeypatch)
+    monkeypatch.setattr(api, "_verify_token", lambda _token: pytest.fail("auth was called"))
+    monkeypatch.setattr(api, "_get_session", lambda: pytest.fail("DB was acquired"))
+
+    assert client.get("/api/labels/me/ranked-inbox").status_code == 404
+    assert calls == []
+
+
+@pytest.mark.parametrize("enabled_value", ["false", "yes", ""])
+def test_ranked_inbox_stays_disabled_without_explicit_true_or_one(monkeypatch, enabled_value):
+    monkeypatch.setenv("LABEL_DNA_ENABLED", enabled_value)
+    client, _ = _client(monkeypatch)
+
+    assert client.get("/api/labels/me/ranked-inbox", headers=_AUTH).status_code == 404
+
+
+def test_ranked_inbox_token_auth_is_401_before_session_with_bearer_precedence(monkeypatch):
+    _enable(monkeypatch)
+    client, calls = _client(monkeypatch)
+
+    missing = client.get("/api/labels/me/ranked-inbox")
+    assert missing.status_code == 401
+    assert calls == []
+
+    def reject(token):
+        calls.append(("verify", token))
+        raise ValueError("private verifier detail")
+
+    monkeypatch.setattr(api, "_verify_token", reject)
+    invalid = client.get(
+        "/api/labels/me/ranked-inbox",
+        headers={"Authorization": "Bearer invalid", "X-Label-Token": "valid-x"},
+        cookies={"token": "valid-cookie"},
+    )
+
+    assert invalid.status_code == 401
+    assert invalid.json() == {"detail": "Invalid or expired token."}
+    assert calls == [("verify", "invalid")]
+
+
+def test_ranked_inbox_accepts_all_three_token_forms_in_precedence_order(monkeypatch, ranked_engine):
+    _enable(monkeypatch)
+    _identity(monkeypatch)
+    with Session(ranked_engine) as session:
+        owners = {}
+        for name in ("Bearer", "Header", "Cookie"):
+            owner = _label(session, f"{name} reader")
+            submission = _ranked_submission(session, owner, track_name=f"{name} demo")
+            _ranked_aggregate(session, owner, submission, vector=_U)
+            owners[name.lower()] = owner
+        session.commit()
+        client, calls = _client(monkeypatch, session)
+        token_owners = {form: owner.id for form, owner in owners.items()}
+
+        def verify(token):
+            calls.append(("verify", token))
+            return {"label_id": token_owners[token]}
+
+        monkeypatch.setattr(api, "_verify_token", verify)
+        requests = [
+            (
+                {"Authorization": "Bearer bearer", "X-Label-Token": "header"},
+                {"token": "cookie"},
+                "Bearer demo",
+            ),
+            ({"X-Label-Token": "header"}, {"token": "cookie"}, "Header demo"),
+            ({}, {"token": "cookie"}, "Cookie demo"),
+        ]
+        for headers, cookies, expected in requests:
+            response = client.get("/api/labels/me/ranked-inbox", headers=headers, cookies=cookies)
+            assert response.status_code == 200
+            body = response.json()
+            # Only the token owner's own demo is ever visible.
+            assert [item["track_name"] for item in body["items"]] == [expected]
+
+
+def test_ranked_inbox_rejects_non_canonical_label_token_as_401(monkeypatch):
+    _enable(monkeypatch)
+    client, calls = _client(monkeypatch)  # default label_id "label-a" is not canonical
+
+    response = client.get("/api/labels/me/ranked-inbox", headers=_AUTH)
+
+    assert response.status_code == 401
+    assert calls == [("verify", "owner")]
+
+
+def test_ranked_inbox_unknown_label_is_404(monkeypatch, ranked_engine):
+    _enable(monkeypatch)
+    _identity(monkeypatch)
+    with Session(ranked_engine) as session:
+        session.commit()
+        client, _ = _client(monkeypatch, session, label_id=str(uuid4()))
+
+        response = client.get("/api/labels/me/ranked-inbox", headers=_AUTH)
+
+        assert response.status_code == 404
+        assert response.json() == {"detail": "Label not found."}
+
+
+@pytest.mark.parametrize("bad_mode", ["quality", "PREFERENCE", "", "catalog "])
+def test_ranked_inbox_rejects_invalid_mode_before_session(monkeypatch, ranked_engine, bad_mode):
+    _enable(monkeypatch)
+    _identity(monkeypatch)
+    with Session(ranked_engine) as session:
+        label = _label(session, "Mode gate")
+        session.commit()
+        client, calls = _client(monkeypatch, session, label_id=label.id)
+
+        response = client.get(
+            "/api/labels/me/ranked-inbox", params={"mode": bad_mode}, headers=_AUTH
+        )
+
+        assert response.status_code == 422
+        assert response.json() == {"detail": "invalid_mode"}
+        assert calls == [("verify", "owner")]  # the session is never acquired
+
+
+def test_ranked_inbox_empty_label_returns_empty_inbox_without_foreign_demos(
+    monkeypatch, ranked_engine
+):
+    _enable(monkeypatch)
+    _identity(monkeypatch)
+    with Session(ranked_engine) as session:
+        owner = _label(session, "Empty inbox")
+        other = _label(session, "Foreign label")
+        _ranked_submission(session, other, track_name="Foreign demo")
+        _ranked_aggregate(
+            session, other, _ranked_submission(session, other, track_name="Foreign two")
+        )
+        session.commit()
+        client, _ = _client(monkeypatch, session, label_id=owner.id)
+
+        response = client.get("/api/labels/me/ranked-inbox", headers=_AUTH)
+
+        assert response.status_code == 200
+        assert response.json() == {"mode": "preference", "items": []}
+
+
+def test_ranked_inbox_preference_ready_ranks_all_items_by_score_then_chronology(
+    monkeypatch, ranked_engine
+):
+    _enable(monkeypatch)
+    _identity(monkeypatch)
+    with Session(ranked_engine) as session:
+        label = _label(session, "Ranked owner")
+        anchors = _seed_preference_anchors(session, label)
+        aligned = _ranked_submission(
+            session, label, track_name="Aligned", created_at=datetime(2025, 1, 10, tzinfo=UTC)
+        )
+        _ranked_aggregate(session, label, aligned, vector=_U)
+        orthogonal = _ranked_submission(
+            session, label, track_name="Orthogonal", created_at=datetime(2025, 1, 9, tzinfo=UTC)
+        )
+        _ranked_aggregate(session, label, orthogonal, vector=_V)
+        opposed = _ranked_submission(
+            session, label, track_name="Opposed", created_at=datetime(2025, 1, 8, tzinfo=UTC)
+        )
+        _ranked_aggregate(session, label, opposed, vector=_NEG)
+        naked = _ranked_submission(
+            session, label, track_name="No embedding", created_at=datetime(2025, 1, 7, tzinfo=UTC)
+        )
+        session.commit()
+        client, _ = _client(monkeypatch, session, label_id=label.id)
+
+        response = client.get("/api/labels/me/ranked-inbox", headers=_AUTH)  # mode omitted
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["mode"] == "preference"
+        assert [item["track_name"] for item in body["items"]] == [
+            "Anchor 0",
+            "Anchor 1",
+            "Anchor 2",
+            "Aligned",
+            "Orthogonal",
+            "Opposed",
+            "No embedding",
+        ]
+        scores = [item["score"] for item in body["items"]]
+        assert scores[:4] == [pytest.approx(1.0)] * 4
+        assert scores[4] == pytest.approx(0.0)
+        assert scores[5] == pytest.approx(-1.0)
+        assert scores[6] is None
+        assert [item["score_code"] for item in body["items"]] == [
+            "preference",
+            "preference",
+            "preference",
+            "preference",
+            "preference",
+            "preference",
+            "unscored",
+        ]
+        assert [item["rank"] for item in body["items"]] == [1, 2, 3, 4, 5, 6, 7]
+        assert body["items"][0]["submission_id"] == anchors[0].id
+        assert body["items"][6]["submission_id"] == naked.id
+
+
+def test_ranked_inbox_score_ties_break_by_created_at_then_id(monkeypatch, ranked_engine):
+    _enable(monkeypatch)
+    _identity(monkeypatch)
+    with Session(ranked_engine) as session:
+        label = _label(session, "Tie breaker")
+        anchors = _seed_preference_anchors(session, label)
+        stamp = datetime(2025, 1, 10, tzinfo=UTC)
+        zebra = _ranked_submission(
+            session,
+            label,
+            submission_id=str(uuid4()),
+            track_name="Zebra",
+            created_at=stamp,
+        )
+        _ranked_aggregate(session, label, zebra, vector=_U)
+        alpha = _ranked_submission(
+            session,
+            label,
+            submission_id=str(uuid4()),
+            track_name="Alpha",
+            created_at=stamp,
+        )
+        _ranked_aggregate(session, label, alpha, vector=_U)
+        session.commit()
+        client, _ = _client(monkeypatch, session, label_id=label.id)
+
+        response = client.get("/api/labels/me/ranked-inbox", headers=_AUTH)
+
+        assert response.status_code == 200
+        ids = [item["submission_id"] for item in response.json()["items"]]
+        assert ids[:3] == [anchor.id for anchor in anchors]  # earlier created_at leads
+        assert ids[3:] == sorted([zebra.id, alpha.id])  # equal created_at: id ascending
+
+
+def test_ranked_inbox_cold_start_falls_back_to_chronological_reading_order(
+    monkeypatch, ranked_engine
+):
+    _enable(monkeypatch)
+    _identity(monkeypatch)
+    with Session(ranked_engine) as session:
+        label = _label(session, "Cold start")
+        naked = _ranked_submission(
+            session, label, track_name="No embedding", created_at=datetime(2025, 1, 1, tzinfo=UTC)
+        )
+        early = _ranked_submission(
+            session, label, track_name="Early scored", created_at=datetime(2025, 1, 2, tzinfo=UTC)
+        )
+        _ranked_aggregate(session, label, early, vector=_V)
+        _decision_row(session, label, early, decided_at=datetime(2025, 2, 1, tzinfo=UTC))
+        later = _ranked_submission(
+            session, label, track_name="Later scored", created_at=datetime(2025, 1, 3, tzinfo=UTC)
+        )
+        _ranked_aggregate(session, label, later, vector=_NEG)
+        session.commit()
+        client, _ = _client(monkeypatch, session, label_id=label.id)
+
+        response = client.get("/api/labels/me/ranked-inbox", headers=_AUTH)
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["mode"] == "chronological_fallback"
+        # The naked demo is oldest but scorable demos still lead: unscored go last.
+        assert [item["track_name"] for item in body["items"]] == [
+            "Early scored",
+            "Later scored",
+            "No embedding",
+        ]
+        assert body["items"][2]["submission_id"] == naked.id
+        assert all(item["score"] is None for item in body["items"])
+        assert all(item["score_code"] == "unscored" for item in body["items"])
+        assert [item["rank"] for item in body["items"]] == [1, 2, 3]
+
+
+def test_ranked_inbox_cancelled_preference_falls_back_chronologically(monkeypatch, ranked_engine):
+    _enable(monkeypatch)
+    _identity(monkeypatch)
+    with Session(ranked_engine) as session:
+        label = _label(session, "Cancelled")
+        pro = _ranked_submission(
+            session, label, track_name="Shortlisted", created_at=datetime(2025, 1, 1, tzinfo=UTC)
+        )
+        _ranked_aggregate(session, label, pro, vector=_U)
+        _decision_row(session, label, pro, decided_at=datetime(2025, 2, 1, tzinfo=UTC))
+        for index in range(4):
+            con = _ranked_submission(
+                session,
+                label,
+                track_name=f"Rejected {index}",
+                created_at=datetime(2025, 1, index + 2, tzinfo=UTC),
+            )
+            _ranked_aggregate(session, label, con, vector=_U)
+            _decision_row(
+                session,
+                label,
+                con,
+                decision="rejected",
+                decided_at=datetime(2025, 2, 1, tzinfo=UTC),
+            )
+        session.commit()
+        client, _ = _client(monkeypatch, session, label_id=label.id)
+
+        response = client.get("/api/labels/me/ranked-inbox", headers=_AUTH)
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["mode"] == "chronological_fallback"  # equal opposing decisions cancel
+        assert [item["track_name"] for item in body["items"]] == [
+            "Shortlisted",
+            "Rejected 0",
+            "Rejected 1",
+            "Rejected 2",
+            "Rejected 3",
+        ]
+        assert all(
+            item["score"] is None and item["score_code"] == "unscored" for item in body["items"]
+        )
+
+
+def test_ranked_inbox_catalog_mode_scores_against_ready_reference_dna(monkeypatch, ranked_engine):
+    _enable(monkeypatch)
+    _identity(monkeypatch)
+    with Session(ranked_engine) as session:
+        label = _label(session, "Catalog owner")
+        _seed_ready_references(session, label)
+        aligned = _ranked_submission(
+            session, label, track_name="Aligned", created_at=datetime(2025, 1, 3, tzinfo=UTC)
+        )
+        _ranked_aggregate(session, label, aligned, vector=_U)
+        orthogonal = _ranked_submission(
+            session, label, track_name="Orthogonal", created_at=datetime(2025, 1, 2, tzinfo=UTC)
+        )
+        _ranked_aggregate(session, label, orthogonal, vector=_V)
+        naked = _ranked_submission(
+            session, label, track_name="No embedding", created_at=datetime(2025, 1, 1, tzinfo=UTC)
+        )
+        session.commit()
+        client, _ = _client(monkeypatch, session, label_id=label.id)
+
+        response = client.get(
+            "/api/labels/me/ranked-inbox", params={"mode": "catalog"}, headers=_AUTH
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["mode"] == "catalog"
+        assert [item["track_name"] for item in body["items"]] == [
+            "Aligned",
+            "Orthogonal",
+            "No embedding",
+        ]
+        assert body["items"][0]["score"] == pytest.approx(1.0)
+        assert body["items"][1]["score"] == pytest.approx(0.0)
+        assert body["items"][2]["score"] is None
+        assert body["items"][2]["submission_id"] == naked.id
+        assert [item["score_code"] for item in body["items"]] == ["catalog", "catalog", "unscored"]
+        assert [item["rank"] for item in body["items"]] == [1, 2, 3]
+
+
+def test_ranked_inbox_catalog_mode_without_ready_dna_keeps_every_item_unscored(
+    monkeypatch, ranked_engine
+):
+    _enable(monkeypatch)
+    _identity(monkeypatch)
+    with Session(ranked_engine) as session:
+        label = _label(session, "No DNA")
+        scored = _ranked_submission(
+            session, label, track_name="Has aggregate", created_at=datetime(2025, 1, 2, tzinfo=UTC)
+        )
+        _ranked_aggregate(session, label, scored, vector=_U)
+        _ranked_submission(
+            session, label, track_name="Older naked", created_at=datetime(2025, 1, 1, tzinfo=UTC)
+        )
+        session.commit()
+        client, _ = _client(monkeypatch, session, label_id=label.id)
+
+        response = client.get(
+            "/api/labels/me/ranked-inbox", params={"mode": "catalog"}, headers=_AUTH
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["mode"] == "catalog"  # never falls back: items are individually resolved
+        # All items are unscored, so the neutral (created_at, id) order holds.
+        assert [item["track_name"] for item in body["items"]] == ["Older naked", "Has aggregate"]
+        assert all(
+            item["score"] is None and item["score_code"] == "unscored" for item in body["items"]
+        )
+        assert [item["rank"] for item in body["items"]] == [1, 2]
+
+
+def test_ranked_inbox_is_deterministic_and_never_writes(monkeypatch, ranked_engine):
+    _enable(monkeypatch)
+    _identity(monkeypatch)
+    with Session(ranked_engine) as session:
+        label = _label(session, "Read only")
+        _seed_preference_anchors(session, label)
+        _ranked_submission(session, label, track_name="No embedding")
+        session.commit()
+
+        def snapshot():
+            session.expire_all()
+            submissions = session.exec(select(Submission)).all()
+            return (
+                len(submissions),
+                len(session.exec(select(MusicEmbedding)).all()),
+                len(session.exec(select(LabelArDecisionRow)).all()),
+                [
+                    (row.id, row.status, row.deleted_at, row.status_tecnico, row.created_at)
+                    for row in submissions
+                ],
+            )
+
+        before = snapshot()
+        client, _ = _client(monkeypatch, session, label_id=label.id)
+
+        first = client.get("/api/labels/me/ranked-inbox", headers=_AUTH)
+        catalog = client.get(
+            "/api/labels/me/ranked-inbox", params={"mode": "catalog"}, headers=_AUTH
+        )
+        second = client.get("/api/labels/me/ranked-inbox", headers=_AUTH)
+
+        assert first.status_code == catalog.status_code == second.status_code == 200
+        assert first.json()["mode"] == "preference"
+        assert catalog.json()["mode"] == "catalog"
+        assert first.json() == second.json()  # repeat calls are deterministic
+        assert snapshot() == before  # zero writes: no row created, changed, or removed
+
+
+def test_ranked_inbox_missing_private_tables_are_redacted_503(monkeypatch):
+    _enable(monkeypatch)
+    _identity(monkeypatch)
+    tables = [Label.__table__, Submission.__table__, LabelReferenceTrack.__table__]
+    engine = _engine(tables)
+    try:
+        with Session(engine) as session:
+            label = _label(session, "Missing storage")
+            _ranked_submission(session, label)
+            session.commit()
+            client, _ = _client(monkeypatch, session, label_id=label.id)
+
+            preference = client.get("/api/labels/me/ranked-inbox", headers=_AUTH)
+            catalog = client.get(
+                "/api/labels/me/ranked-inbox", params={"mode": "catalog"}, headers=_AUTH
+            )
+
+            assert preference.status_code == catalog.status_code == 503
+            for response in (preference, catalog):
+                assert response.json() == {
+                    "detail": "Reference catalog is temporarily unavailable."
+                }
+                assert "music_embeddings" not in response.text
+                assert "label_ar_decisions" not in response.text
+    finally:
+        SQLModel.metadata.drop_all(engine, tables=tables)
+        engine.dispose()
