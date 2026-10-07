@@ -153,3 +153,15 @@ def list_label_ar_decisions(
     return tuple(
         _to_record(row) for row in _history(session, label_id=label_id, submission_id=submission_id)
     )
+
+
+def list_label_decision_history(
+    session: Session, *, label_id: str
+) -> tuple[LabelArDecisionRecord, ...]:
+    """Label-wide decision history across all submissions, ordered by (decided_at, id)."""
+    rows = session.exec(
+        select(LabelArDecisionRow)
+        .where(LabelArDecisionRow.label_id == label_id)
+        .order_by(LabelArDecisionRow.decided_at, LabelArDecisionRow.id)
+    ).all()
+    return tuple(_to_record(row) for row in rows)

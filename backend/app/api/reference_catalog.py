@@ -11,7 +11,7 @@ import json
 import os
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
@@ -22,6 +22,12 @@ from sqlalchemy import select
 from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from sqlmodel import Session
 
+from app.ar_matching.ar_decisions import (
+    LabelArDecisionOutcome,
+    list_label_ar_decisions,
+    list_label_decision_history,
+    record_label_ar_decision,
+)
 from app.ar_matching.reference_catalog import (
     CorruptReferenceEmbeddingError,
     LabelDnaReadiness,
@@ -56,13 +62,19 @@ from app.ar_matching.reference_validation import (
 )
 from app.ar_matching.storage_models import LabelReferenceTrack
 from app.audio.embedding.schemas import EmbeddingMetadata
-from app.models import Label
+from app.models import Label, Submission
 
 router = APIRouter(tags=["label-reference-catalog"])
 
 _ENABLED_VARIABLE = "LABEL_DNA_ENABLED"
 _UPLOADS_ENABLED_VARIABLE = "LABEL_DNA_UPLOADS_ENABLED"
-_PRIVATE_TABLES = {"label_reference_tracks", "music_embeddings"}
+# 503 availability redaction only; owner visibility comes from token auth and label-scoped queries.
+_PRIVATE_TABLES = {
+    "label_reference_tracks",
+    "music_embeddings",
+    "label_catalog_fit_scores",
+    "label_ar_decisions",
+}
 _DATABASE_CONFIG_ERROR = "POSTGRES_URL environment variable is required"
 _VECTOR_ADAPTER_ERROR = "pgvector is required for PostgreSQL Vector512 storage"
 _CATALOG_UNAVAILABLE = "Reference catalog is temporarily unavailable."
@@ -142,6 +154,36 @@ class ReferenceFinalizationDTO(BaseModel):
     reference_id: str
     status: Literal["uploaded", "processing", "ready", "failed"]
     reused: bool
+
+
+class LabelArDecisionDTO(BaseModel):
+    """Minimal recorded human A&R decision fact; never quality or probability data."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    decision_id: str
+    submission_id: str
+    decision: str
+    decided_by: str
+    decided_at: datetime
+    note: str | None
+
+
+class LabelArDecisionReceiptDTO(LabelArDecisionDTO):
+    """POST receipt; the history entry plus whether a new event row was created."""
+
+    created: bool
+
+
+class LabelArDecisionRequest(BaseModel):
+    """Strict declaration-only request; the caller never controls ownership data."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    submission_id: StrictStr
+    decision: StrictStr
+    decided_by: StrictStr | None = None
+    note: StrictStr | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -823,3 +865,87 @@ def finalize_reference_upload_endpoint(
         status=receipt.status,
         reused=receipt.reused,
     )
+
+
+def _record_owned_ar_decision(
+    session: Session, label_id: str, payload: LabelArDecisionRequest, decided_by: str
+) -> LabelArDecisionOutcome:
+    owned = session.exec(
+        select(Submission.id)
+        .where(Submission.id == payload.submission_id)
+        .where(Submission.label_id == label_id)
+    ).first()
+    if owned is None:
+        # Mirrors the presign owner-scoped existence-SELECT precedent: unknown and
+        # foreign submissions are indistinguishable 404s.
+        raise HTTPException(status_code=404, detail="Submission not found.")
+    return record_label_ar_decision(
+        session,
+        label_id=label_id,
+        submission_id=payload.submission_id,
+        decision=payload.decision,
+        decided_by=decided_by,
+        note=payload.note,
+    )
+
+
+@router.get("/api/labels/me/ar-decisions", response_model=list[LabelArDecisionDTO])
+def read_ar_decision_history(request: Request, submission_id: str | None = None):
+    """Return this label's recorded human A&R decision facts, oldest first."""
+    if not _enabled():
+        raise HTTPException(status_code=404, detail="Not found.")
+    label_id = _verified_label_id(request)
+    if not _canonical_uuid(label_id):
+        raise HTTPException(status_code=401, detail="Invalid or expired token.")
+    if submission_id is not None and not _canonical_uuid(submission_id):
+        raise HTTPException(status_code=422, detail="invalid_submission_id")
+    return _with_owner_session(
+        label_id,
+        lambda session: (
+            list_label_ar_decisions(session, label_id=label_id, submission_id=submission_id)
+            if submission_id is not None
+            else list_label_decision_history(session, label_id=label_id)
+        ),
+    )
+
+
+@router.post(
+    "/api/labels/me/ar-decisions",
+    response_model=LabelArDecisionReceiptDTO,
+    status_code=201,
+)
+async def record_ar_decision_endpoint(
+    request: Request, response: Response
+) -> LabelArDecisionReceiptDTO:
+    """Record one human A&R decision event; identical re-affirmations are suppressed.
+    Human A&R facts for history/preference learning; never auto-generated quality
+    or hit-probability data; event-only: Submission.status is never written.
+    """
+    if not _enabled():
+        raise HTTPException(status_code=404, detail="Not found.")
+    label_id = _verified_label_id(request)
+    if not _canonical_uuid(label_id):
+        raise HTTPException(status_code=401, detail="Invalid or expired token.")
+    try:
+        payload = LabelArDecisionRequest.model_validate(await request.json())
+    except (json.JSONDecodeError, UnicodeDecodeError, ValidationError):
+        raise HTTPException(status_code=422, detail="invalid_ar_decision_request") from None
+    if not _canonical_uuid(payload.submission_id):
+        raise HTTPException(status_code=422, detail="invalid_submission_id")
+    if payload.decision not in ("shortlist", "rejected"):
+        raise HTTPException(status_code=422, detail="invalid_decision")
+    decided_by = payload.decided_by if payload.decided_by is not None else "owner"
+    if not decided_by.strip() or decided_by.strip() != decided_by:
+        raise HTTPException(status_code=422, detail="invalid_decided_by")
+
+    try:
+        outcome = _with_owner_session(
+            label_id,
+            lambda session: _record_owned_ar_decision(session, label_id, payload, decided_by),
+        )
+    except ValueError:
+        raise HTTPException(status_code=422, detail="invalid_ar_decision") from None
+
+    if not outcome.created:
+        response.status_code = 200
+    return LabelArDecisionReceiptDTO(**asdict(outcome.record), created=outcome.created)

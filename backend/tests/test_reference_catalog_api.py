@@ -5,7 +5,7 @@ from __future__ import annotations
 import ast
 import json
 import sys
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import ModuleType
 from uuid import uuid4
@@ -15,10 +15,14 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import event, text
 from sqlalchemy.pool import StaticPool
-from sqlmodel import Session, SQLModel, create_engine
+from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.api import reference_catalog as api
-from app.ar_matching.storage_models import LabelReferenceTrack, MusicEmbedding
+from app.ar_matching.storage_models import (
+    LabelArDecisionRow,
+    LabelReferenceTrack,
+    MusicEmbedding,
+)
 from app.models import Label, Submission
 
 _TABLES = [
@@ -673,3 +677,593 @@ def test_main_registers_reference_router_before_broad_labels_router_without_star
 
     assert imports["app.api.reference_catalog"] < imports["app.api.labels"]
     assert includes["reference_catalog_router"] < includes["labels_router"]
+
+
+_DECISION_TABLES = [Label.__table__, Submission.__table__, LabelArDecisionRow.__table__]
+
+
+@pytest.fixture
+def decisions_engine():
+    value = _engine(_DECISION_TABLES)
+    yield value
+    SQLModel.metadata.drop_all(value, tables=_DECISION_TABLES)
+    value.dispose()
+
+
+def _submission(session: Session, label: Label) -> Submission:
+    submission = Submission(
+        id=str(uuid4()),
+        label_id=label.id,
+        producer_name="Producer",
+        producer_email="producer@example.test",
+        track_name="Demo track",
+    )
+    session.add(submission)
+    session.flush()
+    return submission
+
+
+def _decision_row(
+    session: Session,
+    label: Label,
+    submission: Submission,
+    *,
+    row_id: str | None = None,
+    decision: str = "shortlist",
+    decided_by: str = "reviewer-1",
+    decided_at: datetime | None = None,
+    note: str | None = None,
+) -> LabelArDecisionRow:
+    row = LabelArDecisionRow(
+        id=row_id or str(uuid4()),
+        label_id=label.id,
+        submission_id=submission.id,
+        decision=decision,
+        decided_by=decided_by,
+        decided_at=decided_at or datetime.now(UTC),
+        note=note,
+    )
+    session.add(row)
+    session.flush()
+    return row
+
+
+_AUTH = {"Authorization": "Bearer owner"}
+
+
+def test_disabled_ar_decision_routes_return_404_before_authentication_or_session(monkeypatch):
+    monkeypatch.delenv("LABEL_DNA_ENABLED", raising=False)
+    client, calls = _client(monkeypatch)
+    monkeypatch.setattr(api, "_verify_token", lambda _token: pytest.fail("auth was called"))
+    monkeypatch.setattr(api, "_get_session", lambda: pytest.fail("DB was acquired"))
+
+    assert client.get("/api/labels/me/ar-decisions").status_code == 404
+    assert client.post("/api/labels/me/ar-decisions", json={}).status_code == 404
+    assert calls == []
+
+
+@pytest.mark.parametrize("enabled_value", ["false", "0", "yes", "", None])
+def test_ar_decision_routes_stay_disabled_without_explicit_true_or_one(monkeypatch, enabled_value):
+    if enabled_value is None:
+        monkeypatch.delenv("LABEL_DNA_ENABLED", raising=False)
+    else:
+        monkeypatch.setenv("LABEL_DNA_ENABLED", enabled_value)
+    client, _ = _client(monkeypatch)
+
+    assert client.get("/api/labels/me/ar-decisions", headers=_AUTH).status_code == 404
+    assert client.post("/api/labels/me/ar-decisions", json={}, headers=_AUTH).status_code == 404
+
+
+@pytest.mark.parametrize("enabled_value", ["true", "1"])
+def test_ar_decision_routes_enable_only_on_exact_true_or_one(monkeypatch, enabled_value):
+    monkeypatch.setenv("LABEL_DNA_ENABLED", enabled_value)
+    client, calls = _client(monkeypatch)
+
+    assert client.get("/api/labels/me/ar-decisions", headers=_AUTH).status_code == 401
+    assert client.post("/api/labels/me/ar-decisions", json={}, headers=_AUTH).status_code == 401
+    assert calls == [("verify", "owner"), ("verify", "owner")]
+
+
+def test_ar_decision_missing_token_is_401_before_verifier_or_session(monkeypatch):
+    _enable(monkeypatch)
+    client, calls = _client(monkeypatch)
+
+    assert client.get("/api/labels/me/ar-decisions").status_code == 401
+    assert (
+        client.post(
+            "/api/labels/me/ar-decisions",
+            json={"submission_id": str(uuid4()), "decision": "shortlist"},
+        ).status_code
+        == 401
+    )
+    assert calls == []
+
+
+def test_ar_decision_invalid_token_is_401_and_bearer_precedence_wins(monkeypatch):
+    _enable(monkeypatch)
+    client, calls = _client(monkeypatch)
+
+    def reject(token):
+        calls.append(("verify", token))
+        raise ValueError("private verifier detail")
+
+    monkeypatch.setattr(api, "_verify_token", reject)
+
+    get_response = client.get(
+        "/api/labels/me/ar-decisions",
+        headers={"Authorization": "Bearer invalid", "X-Label-Token": "valid-x"},
+        cookies={"token": "valid-cookie"},
+    )
+    post_response = client.post(
+        "/api/labels/me/ar-decisions",
+        json={"submission_id": str(uuid4()), "decision": "shortlist"},
+        headers={"Authorization": "Bearer invalid"},
+    )
+
+    assert get_response.status_code == post_response.status_code == 401
+    assert get_response.json() == {"detail": "Invalid or expired token."}
+    assert calls == [("verify", "invalid"), ("verify", "invalid")]
+
+
+def test_ar_decision_history_accepts_all_three_token_forms_in_precedence_order(
+    monkeypatch, decisions_engine
+):
+    _enable(monkeypatch)
+    with Session(decisions_engine) as session:
+        label_a = _label(session, "Bearer decider")
+        label_b = _label(session, "Header decider")
+        label_c = _label(session, "Cookie decider")
+        for owner in (label_a, label_b, label_c):
+            _decision_row(session, owner, _submission(session, owner), decided_by=owner.name)
+        session.commit()
+        client, _ = _client(monkeypatch, session)
+        owners = {"bearer": label_a, "header": label_b, "cookie": label_c}
+
+        def verify(token):
+            return {"label_id": owners[token].id}
+
+        monkeypatch.setattr(api, "_verify_token", verify)
+        bearer_and_header = {"Authorization": "Bearer bearer", "X-Label-Token": "header"}
+        requests = [
+            (bearer_and_header, {"token": "cookie"}, label_a),
+            ({"X-Label-Token": "header"}, {"token": "cookie"}, label_b),
+            ({}, {"token": "cookie"}, label_c),
+        ]
+        for headers, cookies, expected in requests:
+            response = client.get("/api/labels/me/ar-decisions", headers=headers, cookies=cookies)
+            assert response.status_code == 200
+            assert [entry["decided_by"] for entry in response.json()] == [expected.name]
+
+
+def test_ar_decision_history_empty_label_returns_200_empty_array(monkeypatch, decisions_engine):
+    _enable(monkeypatch)
+    with Session(decisions_engine) as session:
+        label = _label(session, "No decisions")
+        session.commit()
+        client, _ = _client(monkeypatch, session, label_id=label.id)
+
+        response = client.get("/api/labels/me/ar-decisions", headers=_AUTH)
+
+        assert response.status_code == 200
+        assert response.json() == []
+
+
+def test_ar_decision_history_orders_by_decided_at_then_id_and_minimizes_dto(
+    monkeypatch, decisions_engine
+):
+    _enable(monkeypatch)
+    with Session(decisions_engine) as session:
+        label = _label(session, "Ordered")
+        submission = _submission(session, label)
+        base = datetime(2025, 3, 1, tzinfo=UTC)
+        _decision_row(
+            session,
+            label,
+            submission,
+            row_id="ffffffff-0000-0000-0000-000000000000",
+            decided_at=base + timedelta(days=1),
+            decided_by="later-time",
+        )
+        _decision_row(
+            session,
+            label,
+            submission,
+            row_id="dddddddd-0000-0000-0000-000000000000",
+            decided_at=base,
+            decided_by="tie-late-id",
+        )
+        _decision_row(
+            session,
+            label,
+            submission,
+            row_id="aaaaaaaa-0000-0000-0000-000000000000",
+            decided_at=base,
+            decided_by="tie-early-id",
+        )
+        session.commit()
+        client, _ = _client(monkeypatch, session, label_id=label.id)
+
+        response = client.get("/api/labels/me/ar-decisions", headers=_AUTH)
+
+        assert response.status_code == 200
+        assert [entry["decided_by"] for entry in response.json()] == [
+            "tie-early-id",
+            "tie-late-id",
+            "later-time",
+        ]
+        assert set(response.json()[0]) == {
+            "decision_id",
+            "submission_id",
+            "decision",
+            "decided_by",
+            "decided_at",
+            "note",
+        }
+        datetime.fromisoformat(response.json()[0]["decided_at"])  # ISO-8601
+
+
+def test_ar_decision_history_filters_by_canonical_submission_query(monkeypatch, decisions_engine):
+    _enable(monkeypatch)
+    with Session(decisions_engine) as session:
+        label = _label(session, "Filter owner")
+        first = _submission(session, label)
+        second = _submission(session, label)
+        first_row = _decision_row(
+            session, label, first, decision="rejected", decided_at=datetime(2025, 3, 1, tzinfo=UTC)
+        )
+        second_row = _decision_row(
+            session, label, second, decided_at=datetime(2025, 3, 2, tzinfo=UTC)
+        )
+        session.commit()
+        client, _ = _client(monkeypatch, session, label_id=label.id)
+
+        wide = client.get("/api/labels/me/ar-decisions", headers=_AUTH)
+        filtered = client.get(
+            "/api/labels/me/ar-decisions",
+            params={"submission_id": second.id},
+            headers=_AUTH,
+        )
+
+        assert wide.status_code == filtered.status_code == 200
+        assert [entry["decision_id"] for entry in wide.json()] == [first_row.id, second_row.id]
+        assert [entry["decision_id"] for entry in filtered.json()] == [second_row.id]
+        assert {entry["submission_id"] for entry in filtered.json()} == {second.id}
+
+
+@pytest.mark.parametrize("bad_value", [uuid4().hex, str(uuid4()).upper(), "not-a-uuid"])
+def test_ar_decision_history_rejects_non_canonical_submission_query(
+    monkeypatch, decisions_engine, bad_value
+):
+    _enable(monkeypatch)
+    with Session(decisions_engine) as session:
+        label = _label(session, "Bad query")
+        session.commit()
+        client, _ = _client(monkeypatch, session, label_id=label.id)
+
+        response = client.get(
+            "/api/labels/me/ar-decisions",
+            params={"submission_id": bad_value},
+            headers=_AUTH,
+        )
+
+        assert response.status_code == 422
+        assert response.json() == {"detail": "invalid_submission_id"}
+
+
+def test_ar_decision_history_unknown_label_is_404(monkeypatch, decisions_engine):
+    _enable(monkeypatch)
+    with Session(decisions_engine) as session:
+        _label(session, "Real label")
+        session.commit()
+        client, _ = _client(monkeypatch, session, label_id=str(uuid4()))
+
+        response = client.get("/api/labels/me/ar-decisions", headers=_AUTH)
+
+        assert response.status_code == 404
+        assert response.json() == {"detail": "Label not found."}
+
+
+def test_ar_decision_post_creates_row_with_documented_owner_default(monkeypatch, decisions_engine):
+    _enable(monkeypatch)
+    with Session(decisions_engine) as session:
+        label = _label(session, "Creator")
+        submission = _submission(session, label)
+        session.commit()
+        client, _ = _client(monkeypatch, session, label_id=label.id)
+
+        response = client.post(
+            "/api/labels/me/ar-decisions",
+            json={"submission_id": submission.id, "decision": "shortlist", "note": "Strong hook"},
+            headers=_AUTH,
+        )
+
+        assert response.status_code == 201
+        body = response.json()
+        assert body["created"] is True
+        assert body["decision"] == "shortlist"
+        assert body["decided_by"] == "owner"  # documented API default
+        assert body["submission_id"] == submission.id
+        assert body["note"] == "Strong hook"
+        datetime.fromisoformat(body["decided_at"])
+        session.expire_all()
+        stored = session.exec(select(LabelArDecisionRow)).one()
+        assert stored.label_id == label.id
+        assert stored.decision == "shortlist"
+        assert stored.decided_by == "owner"
+        assert stored.note == "Strong hook"
+
+
+def test_ar_decision_post_suppresses_reaffirmation_then_appends_decision_change(
+    monkeypatch, decisions_engine
+):
+    _enable(monkeypatch)
+    with Session(decisions_engine) as session:
+        label = _label(session, "Suppressor")
+        submission = _submission(session, label)
+        session.commit()
+        client, _ = _client(monkeypatch, session, label_id=label.id)
+
+        first = client.post(
+            "/api/labels/me/ar-decisions",
+            json={"submission_id": submission.id, "decision": "shortlist", "note": "first"},
+            headers=_AUTH,
+        )
+        re_affirmed = client.post(
+            "/api/labels/me/ar-decisions",
+            json={"submission_id": submission.id, "decision": "shortlist", "decided_by": "owner"},
+            headers=_AUTH,
+        )
+        changed = client.post(
+            "/api/labels/me/ar-decisions",
+            json={"submission_id": submission.id, "decision": "rejected", "decided_by": "owner"},
+            headers=_AUTH,
+        )
+
+        assert first.status_code == changed.status_code == 201
+        assert re_affirmed.status_code == 200  # finalize 201/200 reuse precedent
+        assert re_affirmed.json()["created"] is False
+        assert re_affirmed.json()["decision_id"] == first.json()["decision_id"]
+        assert changed.json()["created"] is True
+        assert changed.json()["decision_id"] != first.json()["decision_id"]
+        assert len(session.exec(select(LabelArDecisionRow)).all()) == 2
+
+
+@pytest.mark.parametrize("bad_decision", ["inbox", "auto_rejected", "Shortlist", ""])
+def test_ar_decision_post_rejects_non_decision_vocabulary(
+    monkeypatch, decisions_engine, bad_decision
+):
+    _enable(monkeypatch)
+    with Session(decisions_engine) as session:
+        label = _label(session, "Vocabulary")
+        submission = _submission(session, label)
+        session.commit()
+        client, _ = _client(monkeypatch, session, label_id=label.id)
+
+        response = client.post(
+            "/api/labels/me/ar-decisions",
+            json={"submission_id": submission.id, "decision": bad_decision},
+            headers=_AUTH,
+        )
+
+        assert response.status_code == 422
+        assert response.json() == {"detail": "invalid_decision"}
+        assert session.exec(select(LabelArDecisionRow)).all() == []
+
+
+@pytest.mark.parametrize("bad_id", [uuid4().hex, str(uuid4()).upper()])
+def test_ar_decision_post_rejects_bad_submission_ids(monkeypatch, decisions_engine, bad_id):
+    _enable(monkeypatch)
+    with Session(decisions_engine) as session:
+        label = _label(session, "Bad post id")
+        session.commit()
+        client, _ = _client(monkeypatch, session, label_id=label.id)
+
+        response = client.post(
+            "/api/labels/me/ar-decisions",
+            json={"submission_id": bad_id, "decision": "shortlist"},
+            headers=_AUTH,
+        )
+
+        assert response.status_code == 422
+        assert response.json() == {"detail": "invalid_submission_id"}
+        assert session.exec(select(LabelArDecisionRow)).all() == []
+
+
+@pytest.mark.parametrize("blank_decider", ["", "   ", "\t", " padded "])
+def test_ar_decision_post_rejects_blank_or_padded_decided_by(
+    monkeypatch, decisions_engine, blank_decider
+):
+    _enable(monkeypatch)
+    with Session(decisions_engine) as session:
+        label = _label(session, "Decider")
+        submission = _submission(session, label)
+        session.commit()
+        client, _ = _client(monkeypatch, session, label_id=label.id)
+
+        response = client.post(
+            "/api/labels/me/ar-decisions",
+            json={
+                "submission_id": submission.id,
+                "decision": "shortlist",
+                "decided_by": blank_decider,
+            },
+            headers=_AUTH,
+        )
+
+        assert response.status_code == 422
+        assert response.json() == {"detail": "invalid_decided_by"}
+        assert session.exec(select(LabelArDecisionRow)).all() == []
+
+
+def test_ar_decision_post_unknown_or_foreign_submission_is_404(monkeypatch, decisions_engine):
+    _enable(monkeypatch)
+    with Session(decisions_engine) as session:
+        owner = _label(session, "Submitter")
+        other = _label(session, "Foreign owner")
+        foreign = _submission(session, other)
+        session.commit()
+        client, _ = _client(monkeypatch, session, label_id=owner.id)
+
+        missing = client.post(
+            "/api/labels/me/ar-decisions",
+            json={"submission_id": str(uuid4()), "decision": "shortlist"},
+            headers=_AUTH,
+        )
+        foreign_attempt = client.post(
+            "/api/labels/me/ar-decisions",
+            json={"submission_id": foreign.id, "decision": "shortlist"},
+            headers=_AUTH,
+        )
+
+        # Mirrors the presign owner-scoped existence-SELECT precedent: an
+        # unknown id and another label's id are indistinguishable 404s.
+        assert missing.status_code == foreign_attempt.status_code == 404
+        assert missing.json() == foreign_attempt.json() == {"detail": "Submission not found."}
+        assert session.exec(select(LabelArDecisionRow)).all() == []
+
+
+def test_missing_ar_decision_table_is_redacted_503_for_both_routes(monkeypatch):
+    _enable(monkeypatch)
+    tables = [Label.__table__, Submission.__table__, LabelReferenceTrack.__table__]
+    engine = _engine(tables)
+    try:
+        with Session(engine) as session:
+            label = _label(session, "Missing decisions")
+            submission = _submission(session, label)
+            session.commit()
+            client, _ = _client(monkeypatch, session, label_id=label.id)
+
+            get_response = client.get("/api/labels/me/ar-decisions", headers=_AUTH)
+            post_response = client.post(
+                "/api/labels/me/ar-decisions",
+                json={"submission_id": submission.id, "decision": "shortlist"},
+                headers=_AUTH,
+            )
+
+            assert get_response.status_code == post_response.status_code == 503
+            for response in (get_response, post_response):
+                assert response.json() == {
+                    "detail": "Reference catalog is temporarily unavailable."
+                }
+                assert "label_ar_decisions" not in response.text
+    finally:
+        SQLModel.metadata.drop_all(engine, tables=tables)
+        engine.dispose()
+
+
+def test_ar_decision_unrelated_read_failure_is_not_hidden(monkeypatch, decisions_engine):
+    _enable(monkeypatch)
+    with Session(decisions_engine) as session:
+        label = _label(session, "Propagate decisions")
+        session.commit()
+        client, _ = _client(monkeypatch, session, label_id=label.id)
+        monkeypatch.setattr(
+            api,
+            "list_label_decision_history",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("decision read bug")),
+        )
+
+        with pytest.raises(RuntimeError, match="decision read bug"):
+            client.get("/api/labels/me/ar-decisions", headers=_AUTH)
+
+
+def test_ar_decision_post_maps_service_value_errors_to_422(monkeypatch, decisions_engine):
+    _enable(monkeypatch)
+    with Session(decisions_engine) as session:
+        label = _label(session, "Value error")
+        submission = _submission(session, label)
+        session.commit()
+        client, _ = _client(monkeypatch, session, label_id=label.id)
+        monkeypatch.setattr(
+            api,
+            "record_label_ar_decision",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                ValueError("decision must be exactly 'shortlist' or 'rejected'")
+            ),
+        )
+
+        response = client.post(
+            "/api/labels/me/ar-decisions",
+            json={"submission_id": submission.id, "decision": "shortlist"},
+            headers=_AUTH,
+        )
+
+        assert response.status_code == 422
+        assert session.exec(select(LabelArDecisionRow)).all() == []
+
+
+def test_ar_decision_post_is_event_only_for_submission_columns(monkeypatch, decisions_engine):
+    _enable(monkeypatch)
+    with Session(decisions_engine) as session:
+        label = _label(session, "Event only")
+        submission = _submission(session, label)
+        session.commit()
+
+        def snapshot():
+            session.expire_all()
+            stored = session.get(Submission, submission.id)
+            return {c.name: getattr(stored, c.name) for c in Submission.__table__.columns}
+
+        before = snapshot()
+        assert before["status"] == "inbox"  # unseeded default
+        client, _ = _client(monkeypatch, session, label_id=label.id)
+
+        first = client.post(
+            "/api/labels/me/ar-decisions",
+            json={"submission_id": submission.id, "decision": "rejected"},
+            headers=_AUTH,
+        )
+        second = client.post(
+            "/api/labels/me/ar-decisions",
+            json={
+                "submission_id": submission.id,
+                "decision": "shortlist",
+                "decided_by": "reviewer-2",
+            },
+            headers=_AUTH,
+        )
+
+        assert first.status_code == second.status_code == 201
+        assert snapshot() == before  # Submission.status never moves; decisions are events
+
+
+def test_ar_decision_forged_query_and_body_ids_never_change_owner_scope(
+    monkeypatch, decisions_engine
+):
+    _enable(monkeypatch)
+    with Session(decisions_engine) as session:
+        owner = _label(session, "Decision caller")
+        other = _label(session, "Decision other")
+        owner_submission = _submission(session, owner)
+        other_submission = _submission(session, other)
+        _decision_row(session, owner, owner_submission, decided_by="caller")
+        _decision_row(session, other, other_submission, decided_by="other")
+        session.commit()
+        client, _ = _client(monkeypatch, session, label_id=owner.id)
+
+        listing = client.request(
+            "GET",
+            "/api/labels/me/ar-decisions",
+            params={"label_id": other.id, "submission_id": other_submission.id},
+            headers=_AUTH,
+        )
+        forged_body = client.post(
+            "/api/labels/me/ar-decisions",
+            json={
+                "label_id": other.id,
+                "submission_id": owner_submission.id,
+                "decision": "shortlist",
+            },
+            headers=_AUTH,
+        )
+        malformed = client.post(
+            "/api/labels/me/ar-decisions",
+            json={"submission_id": owner_submission.id},
+            headers=_AUTH,
+        )
+
+        assert listing.status_code == 200
+        assert listing.json() == []  # another label's submission is outside caller scope
+        assert forged_body.status_code == 422  # caller-controlled label_id is forbidden
+        assert malformed.status_code == 422  # missing decision is a request-level failure
+        assert len(session.exec(select(LabelArDecisionRow)).all()) == 2

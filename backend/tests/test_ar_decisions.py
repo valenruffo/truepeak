@@ -21,6 +21,7 @@ from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.ar_matching.ar_decisions import (
     list_label_ar_decisions,
+    list_label_decision_history,
     record_label_ar_decision,
 )
 from app.ar_matching.storage_models import LabelArDecisionRow
@@ -365,3 +366,87 @@ def test_duplicate_suppression_compares_only_the_latest_row(engine):
         revived = _record(session, label, submission, decision="rejected", decided_by="reviewer-a")
         assert revived.created is True
         assert _decision_count(session) == 3
+
+
+def _extra_submission(session: Session, label: Label) -> Submission:
+    submission = Submission(
+        id=str(uuid4()),
+        label_id=label.id,
+        producer_name="Producer",
+        producer_email="producer@example.test",
+        track_name="Second demo",
+    )
+    session.add(submission)
+    session.flush()
+    return submission
+
+
+def test_label_wide_history_spans_submissions_in_deterministic_order(engine):
+    with Session(engine) as session:
+        label, submission = _seed(session, "wide")
+        second = _extra_submission(session, label)
+        session.commit()
+
+        base = datetime.now(UTC) - timedelta(hours=2)
+        session.add_all(
+            [
+                _row(
+                    label,
+                    submission,
+                    id="dddddddd-0000-0000-0000-000000000000",
+                    decided_at=base,
+                    decided_by="second-time",
+                ),
+                _row(
+                    label,
+                    second,
+                    id="aaaaaaaa-0000-0000-0000-000000000000",
+                    decided_at=base,
+                    decided_by="tie-early-id",
+                ),
+                _row(
+                    label,
+                    second,
+                    id="ffffffff-0000-0000-0000-000000000000",
+                    decided_at=base + timedelta(hours=1),
+                    decided_by="later-time",
+                ),
+            ]
+        )
+        session.commit()
+
+        history = list_label_decision_history(session, label_id=label.id)
+
+        assert [entry.decided_by for entry in history] == [
+            "tie-early-id",
+            "second-time",
+            "later-time",
+        ]
+        assert {entry.submission_id for entry in history} == {submission.id, second.id}
+        assert all(entry.label_id == label.id for entry in history)
+
+
+def test_label_wide_history_isolates_tenants(engine):
+    with Session(engine) as session:
+        label, submission = _seed(session, "isolate-a")
+        other, other_submission = _seed(session, "isolate-b")
+        session.add_all(
+            [_row(label, submission), _row(other, other_submission, decision="rejected")]
+        )
+        session.commit()
+
+        mine = list_label_decision_history(session, label_id=label.id)
+        theirs = list_label_decision_history(session, label_id=other.id)
+
+        assert [entry.submission_id for entry in mine] == [submission.id]
+        assert [entry.decision for entry in theirs] == ["rejected"]
+        assert {entry.label_id for entry in mine} == {label.id}
+        assert {entry.label_id for entry in theirs} == {other.id}
+
+
+def test_label_wide_history_returns_empty_tuple_without_rows(engine):
+    with Session(engine) as session:
+        label, _submission = _seed(session, "wide-empty")
+        session.commit()
+
+        assert list_label_decision_history(session, label_id=label.id) == ()
