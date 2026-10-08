@@ -187,63 +187,58 @@ CREATE TABLE public.label_reference_tracks (
 );
 
 -- Dynamic qualification avoids dependence on search_path for the vector type.
+-- NOTE: this block deliberately uses plain static DDL instead of
+-- EXECUTE format(...): PL/pgSQL EXECUTE truncates long dynamic DDL
+-- through some connection poolers (Supavisor), producing syntax
+-- errors at first execution. The pgvector type resolves via the
+-- public schema, where the extension is installed.
 DO $music_embeddings_table$
-DECLARE
-    vector_schema text;
 BEGIN
-    SELECT namespace.nspname
-      INTO vector_schema
-      FROM pg_extension AS extension
-      JOIN pg_namespace AS namespace ON namespace.oid = extension.extnamespace
-     WHERE extension.extname = 'vector';
-
-    IF vector_schema IS NULL THEN
+    IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector') THEN
         RAISE EXCEPTION 'pgvector extension is unavailable while creating music_embeddings';
     END IF;
-
-    EXECUTE format($create_table$
-        CREATE TABLE public.music_embeddings (
-            id VARCHAR NOT NULL,
-            label_id VARCHAR NOT NULL,
-            reference_track_id VARCHAR,
-            submission_id VARCHAR,
-            embedding %I.vector(512) NOT NULL,
-            provider VARCHAR NOT NULL,
-            model VARCHAR NOT NULL,
-            version VARCHAR NOT NULL,
-            dimension INTEGER NOT NULL,
-            pipeline_version VARCHAR NOT NULL,
-            segment_index INTEGER NOT NULL DEFAULT -1,
-            start_seconds DOUBLE PRECISION,
-            end_seconds DOUBLE PRECISION,
-            created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-            CONSTRAINT pk_music_embeddings PRIMARY KEY (id),
-            CONSTRAINT fk_music_embeddings_label
-                FOREIGN KEY (label_id) REFERENCES public.label (id) ON DELETE CASCADE,
-            CONSTRAINT fk_music_embeddings_reference_track_label
-                FOREIGN KEY (reference_track_id, label_id)
-                REFERENCES public.label_reference_tracks (id, label_id) ON DELETE CASCADE,
-            CONSTRAINT fk_music_embeddings_submission_label
-                FOREIGN KEY (submission_id, label_id)
-                REFERENCES public.submission (id, label_id) ON DELETE CASCADE,
-            CONSTRAINT ck_music_embeddings_exactly_one_owner
-                CHECK ((reference_track_id IS NOT NULL) <> (submission_id IS NOT NULL)),
-            CONSTRAINT ck_music_embeddings_identity_nonempty
-                CHECK (length(trim(provider)) > 0 AND length(trim(model)) > 0 AND
-                       length(trim(version)) > 0 AND length(trim(pipeline_version)) > 0),
-            CONSTRAINT ck_music_embeddings_dimension CHECK (dimension = 512),
-            CONSTRAINT ck_music_embeddings_segment_bounds
-                CHECK (segment_index >= -1 AND
-                       ((segment_index = -1 AND start_seconds IS NULL AND end_seconds IS NULL) OR
-                        (segment_index >= 0 AND start_seconds IS NOT NULL AND
-                         end_seconds IS NOT NULL AND start_seconds >= 0 AND
-                         start_seconds <= 1.7976931348623157e308 AND
-                         end_seconds > start_seconds AND
-                         end_seconds <= 1.7976931348623157e308))
-        )
-    $create_table$, vector_schema);
 END;
 $music_embeddings_table$;
+
+CREATE TABLE public.music_embeddings (
+    id VARCHAR NOT NULL,
+    label_id VARCHAR NOT NULL,
+    reference_track_id VARCHAR,
+    submission_id VARCHAR,
+    embedding vector(512) NOT NULL,
+    provider VARCHAR NOT NULL,
+    model VARCHAR NOT NULL,
+    version VARCHAR NOT NULL,
+    dimension INTEGER NOT NULL,
+    pipeline_version VARCHAR NOT NULL,
+    segment_index INTEGER NOT NULL DEFAULT -1,
+    start_seconds DOUBLE PRECISION,
+    end_seconds DOUBLE PRECISION,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT pk_music_embeddings PRIMARY KEY (id),
+    CONSTRAINT fk_music_embeddings_label
+        FOREIGN KEY (label_id) REFERENCES public.label (id) ON DELETE CASCADE,
+    CONSTRAINT fk_music_embeddings_reference_track_label
+        FOREIGN KEY (reference_track_id, label_id)
+        REFERENCES public.label_reference_tracks (id, label_id) ON DELETE CASCADE,
+    CONSTRAINT fk_music_embeddings_submission_label
+        FOREIGN KEY (submission_id, label_id)
+        REFERENCES public.submission (id, label_id) ON DELETE CASCADE,
+    CONSTRAINT ck_music_embeddings_exactly_one_owner
+        CHECK ((reference_track_id IS NOT NULL) <> (submission_id IS NOT NULL)),
+    CONSTRAINT ck_music_embeddings_identity_nonempty
+        CHECK (length(trim(provider)) > 0 AND length(trim(model)) > 0 AND
+               length(trim(version)) > 0 AND length(trim(pipeline_version)) > 0),
+    CONSTRAINT ck_music_embeddings_dimension CHECK (dimension = 512),
+    CONSTRAINT ck_music_embeddings_segment_bounds
+        CHECK (segment_index >= -1 AND
+               ((segment_index = -1 AND start_seconds IS NULL AND end_seconds IS NULL) OR
+                (segment_index >= 0 AND start_seconds IS NOT NULL AND
+                 end_seconds IS NOT NULL AND start_seconds >= 0 AND
+                 start_seconds <= 1.7976931348623157e308 AND
+                 end_seconds > start_seconds AND
+                 end_seconds <= 1.7976931348623157e308))
+);
 
 -- Re-embedding at another provider/model/version/pipeline may coexist, but an
 -- exact owner + segment + identity tuple is unique.
