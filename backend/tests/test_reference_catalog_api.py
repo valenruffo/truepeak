@@ -1028,6 +1028,36 @@ def test_ar_decision_post_suppresses_reaffirmation_then_appends_decision_change(
         assert len(session.exec(select(LabelArDecisionRow)).all()) == 2
 
 
+def test_ar_decision_post_persists_across_sessions(monkeypatch, decisions_engine):
+    """POST decision must survive the request session close (real persistence)."""
+    _enable(monkeypatch)
+    with Session(decisions_engine) as session:
+        label = _label(session, "Persistent decider")
+        submission = _submission(session, label)
+        session.commit()
+        label_id_value = label.id
+        submission_id_value = submission.id
+        client, _ = _client(monkeypatch, session, label_id=label.id)
+
+        response = client.post(
+            "/api/labels/me/ar-decisions",
+            json={"submission_id": submission.id, "decision": "shortlist"},
+            headers=_AUTH,
+        )
+
+        assert response.status_code == 201
+        assert response.json()["created"] is True
+
+    # A fresh session sees the committed row; a flush-only write would be rolled
+    # back when the request session closed.
+    with Session(decisions_engine) as verify:
+        rows = verify.exec(select(LabelArDecisionRow)).all()
+        assert len(rows) == 1
+        assert rows[0].label_id == label_id_value
+        assert rows[0].submission_id == submission_id_value
+        assert rows[0].decision == "shortlist"
+
+
 @pytest.mark.parametrize("bad_decision", ["inbox", "auto_rejected", "Shortlist", ""])
 def test_ar_decision_post_rejects_non_decision_vocabulary(
     monkeypatch, decisions_engine, bad_decision

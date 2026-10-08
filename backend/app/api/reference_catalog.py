@@ -346,8 +346,15 @@ def _unavailable_for_storage_error(error: BaseException) -> bool:
     return _is_missing_private_table(error) or _is_missing_vector_adapter(error)
 
 
-def _with_owner_session(label_id: str, operation: Callable[[Session], Any]) -> Any:
-    """Run owner projection and one read without flushing or altering caller state."""
+def _with_owner_session(
+    label_id: str, operation: Callable[[Session], Any], *, commit: bool = False
+) -> Any:
+    """Run owner projection and one read without flushing or altering caller state.
+
+    ``commit=True`` commits the session after the operation returns successfully,
+    so write operations survive the session close; read-only callers keep the
+    default to avoid any write-path surprise.
+    """
     session_stream = None
     try:
         session_stream = _get_session()
@@ -362,7 +369,10 @@ def _with_owner_session(label_id: str, operation: Callable[[Session], Any]) -> A
             exists = session.exec(select(Label.id).where(Label.id == label_id)).first()
             if exists is None:
                 raise HTTPException(status_code=404, detail="Label not found.")
-            return operation(session)
+            result = operation(session)
+            if commit:
+                session.commit()
+            return result
     except CorruptReferenceEmbeddingError:
         raise HTTPException(status_code=503, detail=_CATALOG_UNAVAILABLE) from None
     except SQLAlchemyError as error:
@@ -966,6 +976,7 @@ async def record_ar_decision_endpoint(
         outcome = _with_owner_session(
             label_id,
             lambda session: _record_owned_ar_decision(session, label_id, payload, decided_by),
+            commit=True,
         )
     except ValueError:
         raise HTTPException(status_code=422, detail="invalid_ar_decision") from None
