@@ -60,6 +60,9 @@ class SubmissionSummary(BaseModel):
     duration: float | None
     phase_correlation: float | None
     musical_key: str | None
+    # Sample peak (max absolute PCM sample, linear 0-1); dBFS after 20*log10
+    # conversion for display. Legacy field name kept for compatibility — this is
+    # NOT industry True Peak (ITU-R BS.1770 dBTP).
     true_peak: float | None = None
     crest_factor: float | None = None
     notes: str | None

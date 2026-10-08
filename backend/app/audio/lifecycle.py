@@ -63,7 +63,10 @@ def calculate_technical_status(
             alertas.append(f"Falla de fase: correlación negativa ({phase:.2f})")
         metric_statuses.append(phase_status)
         
-    # 2. True Peak
+    # 2. Sample Peak (dBFS)
+    # NOTE: the DB column `true_peak` is a legacy-named sample peak (max
+    # absolute PCM sample); alertas persisted before this rename keep their
+    # historical "True Peak ..." text.
     tp = metrics.get("true_peak")
     if tp is not None:
         tp_db = 20 * math.log10(tp) if tp > 0 else -99.0
@@ -71,10 +74,10 @@ def calculate_technical_status(
             tp_status = "optimo"
         elif peak_limit_max < tp_db <= peak_limit_critical:
             tp_status = "warning"
-            alertas.append(f"True Peak alto: {tp_db:.2f} dB (recomendado: < {peak_limit_max:.1f} dB)")
+            alertas.append(f"Sample Peak alto: {tp_db:.2f} dB (recomendado: < {peak_limit_max:.1f} dB)")
         else:
             tp_status = "critico"
-            alertas.append(f"True Peak crítico: {tp_db:.2f} dB (límite máximo: +{peak_limit_critical:.1f} dB)")
+            alertas.append(f"Sample Peak crítico (dBFS): {tp_db:.2f} dB (límite máximo: +{peak_limit_critical:.1f} dB)")
         metric_statuses.append(tp_status)
 
     # 3. Crest Factor

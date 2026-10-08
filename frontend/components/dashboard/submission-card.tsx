@@ -50,7 +50,7 @@ export function SubmissionCard({
           )}
           {submission.true_peak && (
             <div>
-              <span className="text-muted">True Peak</span>
+              <span className="text-muted">Sample Peak (dBFS)</span>
               <p className="text-foreground">
                 {(submission.true_peak > 0 ? (20 * Math.log10(submission.true_peak)).toFixed(1) : "-99.0")} dB
               </p>

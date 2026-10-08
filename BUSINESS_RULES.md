@@ -39,7 +39,7 @@
 
 ```
 1. Recibir WAV → /tmp
-2. Analizar audio (BPM, LUFS, fase, key, duración, true_peak, crest_factor)
+2. Analizar audio (BPM, LUFS, fase, key, duración, sample peak [clave interna legacy `true_peak`, dBFS], crest_factor)
 3. Calcular estado técnico (óptimo / warning / crítico)
 4. Evaluar auto-rechazo (si crítico + alertas estructurales + auto_reject_enabled)
 5. Convertir a MP3 320kbps (si no fue auto-rechazado)
@@ -69,8 +69,8 @@
 | `lufs_target` | -14.0 | Loudness objetivo (LUFS) |
 | `lufs_tolerance` | ±1.0 | Tolerancia LUFS |
 | `phase_correlation_min` | 0.3 | Correlación de fase mínima |
-| `peak_limit_max` | 0.0 dB | True Peak recomendado |
-| `peak_limit_critical` | +1.5 dB | True Peak crítico |
+| `peak_limit_max` | 0.0 dB | Sample Peak (dBFS) recomendado |
+| `peak_limit_critical` | +1.5 dB | Sample Peak (dBFS) crítico |
 | `crest_factor_min` | 5.0 dB | Rango dinámico mínimo |
 | `crest_factor_critical` | 3.5 dB | Rango dinámico crítico |
 | `target_camelot_keys` | [] (vacío) | Tonalidades preferidas (1A-12B) |
@@ -81,10 +81,12 @@
 | Métrica | Óptimo | Warning | Crítico |
 |---------|--------|---------|---------|
 | **Fase** | ≥ min (≥0.3) | ≥ critical y < min (0.0-0.3) | < critical (<0.0) |
-| **True Peak** | ≤ max (≤0 dB) | > max y ≤ critical (0-1.5) | > critical (>1.5) |
+| **Sample Peak (dBFS)** | ≤ max (≤0 dB) | > max y ≤ critical (0-1.5) | > critical (>1.5) |
 | **Crest Factor** | ≥ min (≥5.0) | > critical y < min (3.5-5.0) | ≤ critical (≤3.5) |
 | **BPM** | Dentro del rango | ±3 del rango | Fuera de ±3 |
 | **LUFS** | target ± tolerance | target ± 1.5 | Fuera de ±1.5 |
+
+> Nota: la métrica evaluada es el sample peak (máximo absoluto de muestra PCM, dBFS). El True Peak de industria (ITU-R BS.1770, dBTP) no se mide hoy; su soporte está diferido.
 
 ### 3.3 Reglas de Auto-Rechazo
 
@@ -93,7 +95,7 @@
 | Fase | `rules.phase = true` Y correlación < 0.0 |
 | LUFS | **Siempre activo** — LUFS > target + tolerance |
 | Tempo | `rules.tempo = true` Y BPM fuera de rango |
-| Clipping | `rules.reject_clipping = true` Y true_peak > critical |
+| Clipping | `rules.reject_clipping = true` Y sample peak (`true_peak`, dBFS) > critical |
 | Bajo rango dinámico | `rules.reject_low_dynamic_range = true` Y crest_factor < critical |
 
 ---

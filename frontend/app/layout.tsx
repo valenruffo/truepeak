@@ -41,7 +41,7 @@ export const metadata: Metadata = {
     "music demo inbox manager tool",
     "software for a&r track curation",
     "automatic audio quality control for labels",
-    "audio true peak analysis online",
+    "audio clipping peak analysis online",
     "automated mono compatibility check",
     "track crest factor analysis api",
     "lossless audio validation software",

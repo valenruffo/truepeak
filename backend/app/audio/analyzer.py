@@ -145,7 +145,13 @@ async def analyze_audio(
     file_path: str,
     on_progress: Callable[[str, int], Awaitable[None]] | None = None,
 ) -> dict[str, Any]:
-    """Analyze audio file and extract features with intermediate progress."""
+    """Analyze audio file and extract features with intermediate progress.
+
+    Note on peak naming: the returned ``true_peak`` key carries the sample
+    peak — the maximum absolute PCM sample, linear 0-1 — not the industry
+    True Peak (ITU-R BS.1770 dBTP). The legacy key name is kept for
+    compatibility with the DB column and API consumers.
+    """
 
     async def _progress(stage: str, pct: int):
         if on_progress:
@@ -176,8 +182,10 @@ async def analyze_audio(
     musical_key = await asyncio.to_thread(_detect_key, y_mono, sr)
     await _progress("Detectando tonalidad...", 40)
 
-    # Step 6: Duration, peak, crest (fast)
+    # Step 6: Duration, sample peak, crest (fast)
     duration = float(len(y_mono) / sr) if sr and len(y_mono) > 0 else 0.0
+    # Sample peak: maximum absolute PCM sample, linear 0-1. Local variable
+    # keeps the legacy name so it maps 1:1 onto the returned dict key.
     true_peak = float(np.max(np.abs(y)))
     rms = float(np.sqrt(np.mean(y**2)))
     crest_factor = float(20 * np.log10(true_peak / (rms + 1e-10))) if rms > 0 else 0.0
@@ -186,6 +194,8 @@ async def analyze_audio(
         return {
             "bpm": float(round(bpm, 2)),
             "lufs": float(round(lufs, 2)),
+            # legacy key name kept for compatibility; value is the sample peak,
+            # not industry True Peak (ITU-R BS.1770 dBTP)
             "true_peak": float(round(true_peak, 4)),
             "crest_factor": float(round(crest_factor, 2)),
             "phase_correlation": float(round(phase, 4)),

@@ -19,7 +19,7 @@ class TestValidationSeverity(unittest.TestCase):
         self.assertEqual(sig.get("phase_correlation_critical"), 0.0)
 
     def test_calculate_technical_status_optimo(self):
-        # Happy path - True Peak = -0.5 dB (amplitude = 10 ** (-0.5 / 20) = ~0.944), Crest Factor = 6.0, Phase = 0.8
+        # Happy path - Sample Peak = -0.5 dBFS (amplitude = 10 ** (-0.5 / 20) = ~0.944), Crest Factor = 6.0, Phase = 0.8
         metrics = {
             "true_peak": 10 ** (-0.5 / 20.0),
             "crest_factor": 6.0,
@@ -30,7 +30,7 @@ class TestValidationSeverity(unittest.TestCase):
         self.assertEqual(len(alertas), 0)
 
     def test_calculate_technical_status_warning_true_peak(self):
-        # Warning path - True Peak = 0.5 dB, Crest Factor = 6.0, Phase = 0.8
+        # Warning path - Sample Peak = 0.5 dBFS, Crest Factor = 6.0, Phase = 0.8
         metrics = {
             "true_peak": 10 ** (0.5 / 20.0),
             "crest_factor": 6.0,
@@ -38,10 +38,26 @@ class TestValidationSeverity(unittest.TestCase):
         }
         status, alertas = calculate_technical_status(metrics)
         self.assertEqual(status, "warning")
-        self.assertTrue(any("True Peak alto" in a for a in alertas))
+        self.assertTrue(any("Sample Peak alto" in a for a in alertas))
+
+    def test_sample_peak_display_db_matches_20log10(self):
+        # Known signal: a linear sample peak of 10 ** (0.5 / 20) is +0.5 dBFS;
+        # the alerta must display it as 20 * log10(value) dB.
+        value = 10 ** (0.5 / 20.0)
+        expected_db = 20 * math.log10(value)
+        metrics = {
+            "true_peak": value,
+            "crest_factor": 6.0,
+            "phase_correlation": 0.8,
+        }
+        status, alertas = calculate_technical_status(metrics)
+        self.assertEqual(status, "warning")
+        peak_alerts = [a for a in alertas if "Sample Peak" in a]
+        self.assertEqual(len(peak_alerts), 1)
+        self.assertIn(f"{expected_db:.2f} dB", peak_alerts[0])
 
     def test_calculate_technical_status_warning_crest_factor(self):
-        # Warning path - True Peak = -1.0 dB, Crest Factor = 4.2, Phase = 0.8
+        # Warning path - Sample Peak = -1.0 dBFS, Crest Factor = 4.2, Phase = 0.8
         metrics = {
             "true_peak": 10 ** (-1.0 / 20.0),
             "crest_factor": 4.2,
@@ -63,7 +79,7 @@ class TestValidationSeverity(unittest.TestCase):
         self.assertTrue(any("Falla de fase" in a for a in alertas))
 
     def test_calculate_technical_status_critico_true_peak(self):
-        # Critical path - True Peak = 2.5 dB
+        # Critical path - Sample Peak = 2.5 dBFS
         metrics = {
             "true_peak": 10 ** (2.5 / 20.0),
             "crest_factor": 6.0,
@@ -71,7 +87,7 @@ class TestValidationSeverity(unittest.TestCase):
         }
         status, alertas = calculate_technical_status(metrics)
         self.assertEqual(status, "critico")
-        self.assertTrue(any("True Peak crítico" in a for a in alertas))
+        self.assertTrue(any("Sample Peak crítico" in a for a in alertas))
 
     def test_calculate_technical_status_critico_crest_factor(self):
         # Critical path - Crest Factor = 3.5
@@ -93,7 +109,7 @@ class TestValidationSeverity(unittest.TestCase):
         self, mock_remove, mock_upload_bytes, mock_upload_file, mock_convert, mock_analyze
     ):
         async def run():
-            # Warning track -> True Peak warning
+            # Warning track -> Sample Peak warning
             mock_analyze.return_value = {
                 "true_peak": 10 ** (0.5 / 20.0),
                 "crest_factor": 6.0,

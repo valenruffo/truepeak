@@ -24,7 +24,7 @@ True Peak helps music labels and DJs filter and screen track demos automatically
 *   **Monthly Volume:** Up to 100 tracks / demos per month.
 *   **Analysis:** 
     *   Structural Filters (BPM, LUFS target, Track Duration).
-    *   DSP Filters (Stereo Phase Correlation, Digital Clipping/True Peak, Crest Factor/Dynamics).
+    *   DSP Filters (Stereo Phase Correlation, Digital Clipping/Peak Analysis, Crest Factor/Dynamics).
 *   **Automated CRM:** Up to 100 automated emails per month. Save time with dynamic templates (variables auto-fill with track metadata).
 *   **Playback:** Lossless Web Player directly in the browser dashboard.
 *   **Support:** WhatsApp assistance for quick setup and troubleshooting.
