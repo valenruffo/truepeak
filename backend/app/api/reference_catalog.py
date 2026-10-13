@@ -16,7 +16,7 @@ from datetime import UTC, datetime
 from typing import Any, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, Response
 from pydantic import BaseModel, ConfigDict, StrictInt, StrictStr, ValidationError
 from sqlalchemy import select
 from sqlalchemy.exc import OperationalError, SQLAlchemyError
@@ -70,6 +70,7 @@ from app.ar_matching.reference_validation import (
 from app.ar_matching.storage_models import LabelReferenceTrack, MusicEmbedding
 from app.audio.embedding.schemas import EmbeddingMetadata, TrackEmbedding
 from app.models import Label, Submission
+from app.services.reference_worker_runtime import process_finalized_reference
 
 router = APIRouter(tags=["label-reference-catalog"])
 
@@ -847,9 +848,12 @@ def observe_reference_upload_endpoint(
     },
 )
 def finalize_reference_upload_endpoint(
-    request: Request, response: Response, reference_id: str
+    request: Request,
+    response: Response,
+    background_tasks: BackgroundTasks,
+    reference_id: str,
 ) -> ReferenceFinalizationDTO:
-    """Persist a private-copy receipt; this does not claim processing readiness."""
+    """Persist a private-copy receipt, then schedule fenced post-response processing."""
     if not _enabled() or not _uploads_enabled():
         raise HTTPException(status_code=404, detail="Not found.")
     label_id = _verified_label_id(request)
@@ -894,6 +898,9 @@ def finalize_reference_upload_endpoint(
 
     if receipt.reused:
         response.status_code = 200
+    background_tasks.add_task(
+        process_finalized_reference, label_id, reference_id, _observation_session
+    )
     return ReferenceFinalizationDTO(
         reference_id=reference_id,
         status=receipt.status,
