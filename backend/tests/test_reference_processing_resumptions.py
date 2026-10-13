@@ -376,7 +376,7 @@ def test_missing_wrong_owner_or_inactive_reference_is_redacted_not_found(
         ("staging_key", "private/stage"),
         ("staging_key", 5),
         ("final_key", "private/final"),
-        ("staging_etag", "a" * 32),
+        ("staging_etag", "g" * 32),
         ("final_etag", "bad\r\netag"),
         ("upload", ValidatedReferenceUpload("reference.wav", ".flac", "audio/flac", 128, _LIMIT)),
     ],
@@ -388,6 +388,24 @@ def test_forged_receipt_is_rejected_before_opening_service_session(engine, field
     with pytest.raises(ReferenceProcessingClaimValidationError):
         resume_reference_processing(receipt, session_factory=lambda: calls.append(True))
     assert calls == []
+
+
+@pytest.mark.parametrize(
+    ("staging_etag", "final_etag"),
+    [
+        ("a9cfebbe8cff1e7e27774a5e2812efb7", "bb1d2f4c9cae5e7e27774a5e2812efb7"),
+        ('"a9cfebbe8cff1e7e27774a5e2812efb7"', '"bb1d2f4c9cae5e7e27774a5e2812efb7"'),
+        ("a9cfebbe8cff1e7e27774a5e2812efb7-1", "bb1d2f4c9cae5e7e27774a5e2812efb7-2"),
+    ],
+)
+def test_real_storage_etag_formats_are_accepted(engine, staging_etag, final_etag):
+    _change(engine, "label_reference_tracks", "staging_etag", staging_etag)
+    _change(engine, "label_reference_tracks", "final_etag", final_etag)
+
+    old = _receipt(engine)
+    resumed = resume_reference_processing(old, session_factory=lambda: Session(engine))
+    assert resumed.processing_claim_token != old.processing_claim_token
+    assert _stored(engine).processing_claim_token == resumed.processing_claim_token
 
 
 def test_same_named_upload_spoof_is_rejected_before_opening_service_session(engine):

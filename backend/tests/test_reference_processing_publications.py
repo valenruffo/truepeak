@@ -317,7 +317,7 @@ def test_missing_wrong_owner_or_inactive_reference_is_redacted_not_found(
         ("artist", 3),
         ("staging_key", "private/stage"),
         ("final_key", "private/final"),
-        ("staging_etag", "a" * 32),
+        ("staging_etag", "g" * 32),
         ("final_etag", "bad\r\netag"),
         ("upload", ValidatedReferenceUpload("reference.wav", ".flac", "audio/flac", 128, _LIMIT)),
     ],
@@ -331,6 +331,24 @@ def test_forged_receipt_is_rejected_before_opening_service_session(engine, field
             receipt, _embedding(), _VERSION, session_factory=lambda: calls.append(True)
         )
     assert calls == []
+
+
+@pytest.mark.parametrize(
+    ("staging_etag", "final_etag"),
+    [
+        ("a9cfebbe8cff1e7e27774a5e2812efb7", "bb1d2f4c9cae5e7e27774a5e2812efb7"),
+        ('"a9cfebbe8cff1e7e27774a5e2812efb7"', '"bb1d2f4c9cae5e7e27774a5e2812efb7"'),
+        ("a9cfebbe8cff1e7e27774a5e2812efb7-1", "bb1d2f4c9cae5e7e27774a5e2812efb7-2"),
+    ],
+)
+def test_real_storage_etag_formats_are_accepted(engine, staging_etag, final_etag):
+    _change(engine, "label_reference_tracks", "staging_etag", staging_etag)
+    _change(engine, "label_reference_tracks", "final_etag", final_etag)
+
+    _publish(engine, _receipt(engine))
+
+    assert _stored(engine).status == "ready"
+    assert len(_embeddings(engine)) == 1
 
 
 def test_same_named_upload_spoof_is_rejected_before_opening_service_session(engine):

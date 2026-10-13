@@ -43,7 +43,10 @@ def _etag(value: object) -> bool:
         and bool(value)
         and value == value.strip()
         and all(32 <= ord(char) <= 126 for char in value)
-        and re.fullmatch(r'"?[0-9a-fA-F]{32}(?:-\d+)?"?', value) is None
+        and (
+            re.fullmatch(r'"?[0-9a-fA-F]{32}(?:-\d+)?"?', value) is not None
+            or re.fullmatch(r'"[^"\r\n\\]{1,128}"', value) is not None
+        )
     )
 
 
