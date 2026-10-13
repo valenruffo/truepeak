@@ -442,9 +442,9 @@ function PersonaSelectorSection() {
   }, []);
 
   const labelBenefits = [
-    { icon: <IconShield />, title: t("sellos.benefit0.title"), desc: t("sellos.benefit0.desc") },
+    { icon: <IconFingerprint />, title: t("sellos.benefit0.title"), desc: t("sellos.benefit0.desc") },
     { icon: <IconHeadphones />, title: t("sellos.benefit1.title"), desc: t("sellos.benefit1.desc") },
-    { icon: <IconMail />, title: t("sellos.benefit2.title"), desc: t("sellos.benefit2.desc") },
+    { icon: <IconShield />, title: t("sellos.benefit2.title"), desc: t("sellos.benefit2.desc") },
   ];
 
   const djBenefits = [
