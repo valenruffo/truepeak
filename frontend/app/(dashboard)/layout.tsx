@@ -9,7 +9,7 @@ import { PlayerProvider, usePlayer, type PlayerTrack } from "@/lib/PlayerContext
 import { ToastProvider, useToast } from "@/components/ui/toast";
 import { useLanguage } from "@/lib/i18n";
 import { useTheme } from "@/lib/theme";
-import { Music, Clock, AlertTriangle, Sliders, Link2, Inbox, Mail, BookOpen, Settings, LogOut, Bell } from "lucide-react";
+import { Music, Clock, AlertTriangle, Sliders, Link2, Inbox, Mail, BookOpen, Settings, LogOut, Bell, Fingerprint } from "lucide-react";
 import WaveSurfer from "wavesurfer.js";
 import { supabase } from "@/lib/supabase";
 import { SWRProvider } from "@/lib/swr-config";
@@ -621,6 +621,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
     { href: "/config", label: t("dashboard.nav.config"), icon: Sliders },
     { href: "/link", label: t("dashboard.nav.link"), icon: Link2 },
     { href: "/inbox", label: role === "dj" ? t("dashboard.section.promos") : t("dashboard.section.demos"), icon: Inbox },
+    ...(role !== "dj" ? [{ href: "/references", label: t("dashboard.nav.references"), icon: Fingerprint }] : []),
     {
       href: "/emails",
       label: t("dashboard.section.emails"),

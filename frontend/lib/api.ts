@@ -527,6 +527,190 @@ export async function getAdminActivity(
 /**
  * Get recent submissions across all labels, paginated (Admin)
  */
+// --- Label DNA: Reference Catalog, Ranked Inbox, A&R Decisions ---
+
+export type ReferenceStatus = "uploaded" | "processing" | "ready" | "failed";
+
+export interface ReferenceCatalogItem {
+  id: string;
+  title: string;
+  artist: string | null;
+  status: ReferenceStatus;
+  is_active: boolean;
+  duration_seconds: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LabelDnaReadiness {
+  state: string;
+  active_reference_count: number;
+  eligible_count: number;
+  minimum_valid_references: number;
+}
+
+export interface ReferenceUploadReservation {
+  reference_id: string;
+  reused: boolean;
+  status: string;
+}
+
+export interface ReferenceUploadPresign {
+  reference_id: string;
+  url: string;
+  method: "PUT";
+  required_headers: Record<string, string>;
+  expires_in_seconds: number;
+}
+
+export interface ReferenceStageObservation {
+  reference_id: string;
+  status: "uploaded";
+  reused: boolean;
+  provisional: boolean;
+}
+
+export interface ReferenceFinalization {
+  reference_id: string;
+  status: ReferenceStatus;
+  reused: boolean;
+}
+
+export interface ArDecision {
+  decision_id: string;
+  submission_id: string;
+  decision: string;
+  decided_by: string;
+  decided_at: string;
+  note: string | null;
+}
+
+export interface ArDecisionReceipt extends ArDecision {
+  created: boolean;
+}
+
+export type ArDecisionValue = "shortlist" | "rejected";
+
+export type RankedInboxMode = "preference" | "catalog" | "chronological_fallback";
+
+export interface RankedInboxItem {
+  submission_id: string;
+  track_name: string;
+  rank: number;
+  score: number | null;
+  score_code: string;
+}
+
+export interface RankedInbox {
+  mode: RankedInboxMode;
+  items: RankedInboxItem[];
+}
+
+export async function getReferenceCatalog(): Promise<ReferenceCatalogItem[]> {
+  return request<ReferenceCatalogItem[]>("/api/labels/me/reference-catalog");
+}
+
+export async function getLabelDna(): Promise<LabelDnaReadiness> {
+  return request<LabelDnaReadiness>("/api/labels/me/label-dna");
+}
+
+export async function reserveReferenceUpload(input: {
+  title: string;
+  artist?: string | null;
+  filename: string;
+  sizeBytes: number;
+  idempotencyKey: string;
+}): Promise<ReferenceUploadReservation> {
+  return request<ReferenceUploadReservation>("/api/labels/me/reference-uploads", {
+    method: "POST",
+    body: JSON.stringify({
+      title: input.title,
+      artist: input.artist ?? null,
+      filename: input.filename,
+      size_bytes: input.sizeBytes,
+      idempotency_key: input.idempotencyKey,
+    }),
+  });
+}
+
+export async function presignReferenceUpload(referenceId: string): Promise<ReferenceUploadPresign> {
+  return request<ReferenceUploadPresign>(
+    `/api/labels/me/reference-uploads/${referenceId}/presign`,
+    { method: "POST", body: JSON.stringify({}) }
+  );
+}
+
+export async function observeReferenceUpload(referenceId: string): Promise<ReferenceStageObservation> {
+  return request<ReferenceStageObservation>(
+    `/api/labels/me/reference-uploads/${referenceId}/observe`,
+    { method: "POST", body: JSON.stringify({}) }
+  );
+}
+
+export async function finalizeReferenceUpload(referenceId: string): Promise<ReferenceFinalization> {
+  return request<ReferenceFinalization>(
+    `/api/labels/me/reference-uploads/${referenceId}/finalize`,
+    { method: "POST", body: JSON.stringify({}) }
+  );
+}
+
+export function putFileToPresignedUrl(
+  url: string,
+  file: File,
+  requiredHeaders: Record<string, string>,
+  onProgress?: (pct: number) => void
+): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", url, true);
+    for (const [key, value] of Object.entries(requiredHeaders)) {
+      xhr.setRequestHeader(key, value);
+    }
+    xhr.upload.onprogress = (evt) => {
+      if (evt.lengthComputable && evt.total > 0 && onProgress) {
+        onProgress(Math.round((evt.loaded / evt.total) * 100));
+      }
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) resolve();
+      else reject(new Error(`Upload failed: HTTP ${xhr.status}`));
+    };
+    xhr.onerror = () => reject(new Error("Upload failed: network error"));
+    xhr.send(file);
+  });
+}
+
+export async function getRankedInbox(
+  mode: "preference" | "catalog" = "preference"
+): Promise<RankedInbox> {
+  return request<RankedInbox>(`/api/labels/me/ranked-inbox?mode=${mode}`);
+}
+
+export async function createArDecision(input: {
+  submissionId: string;
+  decision: ArDecisionValue;
+  note?: string;
+}): Promise<ArDecisionReceipt> {
+  return request<ArDecisionReceipt>("/api/labels/me/ar-decisions", {
+    method: "POST",
+    body: JSON.stringify({
+      submission_id: input.submissionId,
+      decision: input.decision,
+      ...(input.note ? { note: input.note } : {}),
+    }),
+  });
+}
+
+export async function getArDecisionHistory(submissionId?: string): Promise<ArDecision[]> {
+  const params = new URLSearchParams();
+  if (submissionId) params.set("submission_id", submissionId);
+  const qs = params.toString();
+  return request<ArDecision[]>(`/api/labels/me/ar-decisions${qs ? `?${qs}` : ""}`);
+}
+
+/**
+ * Get recent submissions across all labels, paginated (Admin)
+ */
 export async function getRecentActivity(
   page: number = 1,
   perPage: number = 20,

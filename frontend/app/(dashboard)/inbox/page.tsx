@@ -22,6 +22,13 @@ import { useToast } from "@/components/ui/toast";
 import { useUndoableState, useUndoRedoKey } from "@/lib/useUndoableState";
 import { fetcher } from "@/lib/swr-config";
 import { useLabelStore } from "@/store/label";
+import useSWR from "swr";
+import {
+  getRankedInbox,
+  createArDecision,
+  type RankedInbox,
+  type ArDecisionValue,
+} from "@/lib/api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1073,6 +1080,50 @@ useEffect(() => {
     revalidateFirstPage: false,
   });
 
+  // ─── Ranked inbox (Label DNA) ───────────────────────────────────────
+  // Reading-order aid only: orders the inbox column and adds affinity
+  // badges. Falls back silently to chronological when ranking is inactive.
+  const rankedSWR = useSWR<RankedInbox | null>("ranked-inbox", () =>
+    getRankedInbox().catch(() => null)
+  );
+  const ranked = rankedSWR.data ?? null;
+  const rankedActive = ranked?.mode === "preference" || ranked?.mode === "catalog";
+  const rankIndex = useMemo(() => {
+    const map = new Map<string, { rank: number; score: number | null }>();
+    ranked?.items.forEach((item) => map.set(item.submission_id, { rank: item.rank, score: item.score }));
+    return map;
+  }, [ranked]);
+  const [rankingBannerDismissed, setRankingBannerDismissed] = useState(false);
+  const [arDecided, setArDecided] = useState<Record<string, boolean>>({});
+
+  /** Affinity percent for a submission (cosine similarity in [-1,1] → 0-100). */
+  const affinityPct = (submissionId: string): number | null => {
+    if (!rankedActive) return null;
+    const entry = rankIndex.get(submissionId);
+    if (!entry || entry.score == null) return null;
+    return Math.round(Math.max(0, Math.min(1, entry.score)) * 100);
+  };
+
+  /** Record a human A&R decision alongside the status move; reverts on error. */
+  const handleArDecision = useCallback(
+    async (sub: SubmissionSummary, decision: ArDecisionValue) => {
+      setArDecided((p) => ({ ...p, [sub.id]: false }));
+      try {
+        await createArDecision({ submissionId: sub.id, decision });
+        setArDecided((p) => ({ ...p, [sub.id]: true }));
+        globalMutate("ranked-inbox");
+      } catch {
+        setArDecided((p) => {
+          const next = { ...p };
+          delete next[sub.id];
+          return next;
+        });
+        addToast({ title: t("decisions.error"), variant: "destructive" });
+      }
+    },
+    [addToast, t]
+  );
+
   // Derive the legacy `board` shape from SWR data.
   useEffect(() => {
     setBoard({
@@ -1857,6 +1908,20 @@ useEffect(() => {
                 >
                   {statusLabel(sub.status, role, t)}
                 </span>
+                {(() => {
+                  const pct = affinityPct(sub.id);
+                  if (pct == null) return null;
+                  const color = pct >= 85 ? "#10b981" : pct >= 70 ? "#f59e0b" : "#a1a1aa";
+                  return (
+                    <span
+                      className="font-mono text-[10px] px-1.5 py-0.5 rounded font-semibold"
+                      style={{ background: `${color}1a`, color, border: `1px solid ${color}33` }}
+                      title={t("inbox.affinity_hint")}
+                    >
+                      {pct}% {t("inbox.affinity")}
+                    </span>
+                  );
+                })()}
                 {tech.status === "warning" && tech.alertas.length > 0 && (
                   <span
                     className="font-mono text-[10px] px-1.5 py-0.5 rounded flex items-center gap-1 bg-amber-500/10 text-amber-500 border border-amber-500/20 font-semibold"
@@ -2015,7 +2080,15 @@ useEffect(() => {
     title: string,
     accentColor: string
   ) => {
-    const items = filterSubmissions(board[colId], filters);
+    let items = filterSubmissions(board[colId], filters);
+    // Ranked reading order: apply API rank to the inbox column only.
+    if (colId === "inbox" && rankedActive) {
+      items = [...items].sort((a, b) => {
+        const ra = rankIndex.get(a.id)?.rank ?? Number.MAX_SAFE_INTEGER;
+        const rb = rankIndex.get(b.id)?.rank ?? Number.MAX_SAFE_INTEGER;
+        return ra - rb;
+      });
+    }
     const loading = boardLoading[colId];
     const hasMore = boardHasMore[colId];
 
@@ -2278,7 +2351,7 @@ useEffect(() => {
                 >
                   {/* Approve (checkmark) — disabled if already shortlist */}
                   <button
-                    onClick={() => updateStatus(d, "shortlist")}
+                    onClick={() => { updateStatus(d, "shortlist"); handleArDecision(d, "shortlist"); }}
                     disabled={!!isLoading || d.status === "shortlist"}
                     className="w-7 h-7 rounded flex items-center justify-center transition-colors hover:bg-emerald-500/10"
                     style={{
@@ -2296,7 +2369,7 @@ useEffect(() => {
 
                   {/* Reject (cross) — disabled if already rejected */}
                   <button
-                    onClick={() => handleStatusChange(d, "rejected")}
+                    onClick={() => { handleStatusChange(d, "rejected"); handleArDecision(d, "rejected"); }}
                     disabled={!!isLoading || d.status === "rejected"}
                     className="w-7 h-7 rounded flex items-center justify-center transition-colors hover:bg-red-500/10"
                     style={{
@@ -2864,6 +2937,31 @@ useEffect(() => {
         <KanbanFilterBar sonicSignature={sonicSignature} />
       </div>
 
+      {activeTab === "kanban" && !rankedActive && !rankingBannerDismissed && rankedSWR.data !== undefined && (
+        <div
+          className="rounded px-4 py-2.5 mb-4 flex items-center gap-3 flex-wrap text-sm"
+          style={{ background: "rgba(16,185,129,0.06)", border: "1px solid rgba(16,185,129,0.25)" }}
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
+            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+            <line x1="12" y1="19" x2="12" y2="22" />
+          </svg>
+          <span style={{ color: "var(--text-secondary)" }}>{t("inbox.ranking_banner")}</span>
+          <Link href="/references" className="font-medium underline" style={{ color: "#10b981" }}>
+            {t("inbox.ranking_banner_cta")}
+          </Link>
+          <button
+            onClick={() => setRankingBannerDismissed(true)}
+            className="ml-auto w-6 h-6 rounded flex items-center justify-center hover:bg-white/10"
+            style={{ color: "var(--text-muted)" }}
+            title={t("inbox.ranking_banner_dismiss")}
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       {activeTab === "kanban" && (
         viewMode === "kanban" ? (
           <DragDropContext onDragEnd={handleDragEnd}>
@@ -2918,6 +3016,12 @@ useEffect(() => {
                     {detailModal.submission.producer_name || t("inbox.modal.anonymous")}
                   </p>
                   <ExpirationCountdown createdAt={detailModal.submission.created_at} retentionDays={retentionDays} />
+                  {arDecided[detailModal.submission.id] && (
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded flex items-center gap-1" style={{ background: "rgba(16,185,129,0.1)", color: "#10b981", border: "1px solid rgba(16,185,129,0.25)" }}>
+                      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                      {t("decisions.learned_hint")}
+                    </span>
+                  )}
                 </div>
               </div>
               <button
